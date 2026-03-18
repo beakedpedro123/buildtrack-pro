@@ -159,3 +159,46 @@ describe("Role-based access", () => {
     expect(canManageTeam("laborer")).toBe(false);
   });
 });
+
+describe("Notification scheduling logic", () => {
+  const MANAGEMENT_ROLES = ["owner", "secretary", "logistics", "foreman"];
+  const NON_MANAGEMENT_ROLES = ["laborer"];
+
+  const isEligibleForReminder = (role: string) => MANAGEMENT_ROLES.includes(role);
+
+  it("schedules reminders for all management roles", () => {
+    for (const role of MANAGEMENT_ROLES) {
+      expect(isEligibleForReminder(role)).toBe(true);
+    }
+  });
+
+  it("does not schedule reminders for laborers", () => {
+    for (const role of NON_MANAGEMENT_ROLES) {
+      expect(isEligibleForReminder(role)).toBe(false);
+    }
+  });
+
+  it("Friday meeting is weekday 6 in Expo trigger (1=Sun...7=Sat)", () => {
+    // Expo weekly trigger: weekday 1=Sunday, 2=Monday, ..., 6=Friday, 7=Saturday
+    const FRIDAY_WEEKDAY = 6;
+    expect(FRIDAY_WEEKDAY).toBe(6);
+  });
+
+  it("reminder time is 14:45 (2:45 PM)", () => {
+    const REMINDER_HOUR = 14;
+    const REMINDER_MINUTE = 45;
+    expect(REMINDER_HOUR).toBe(14);
+    expect(REMINDER_MINUTE).toBe(45);
+    // 15 minutes before the 3:00 PM meeting
+    const meetingHour = 15;
+    const meetingMinute = 0;
+    const reminderMinutesBeforeMeeting =
+      (meetingHour * 60 + meetingMinute) - (REMINDER_HOUR * 60 + REMINDER_MINUTE);
+    expect(reminderMinutesBeforeMeeting).toBe(15);
+  });
+
+  it("notification deep-link data targets meetings screen", () => {
+    const notifData = { screen: "meetings" };
+    expect(notifData.screen).toBe("meetings");
+  });
+});

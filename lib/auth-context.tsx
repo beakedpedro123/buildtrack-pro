@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { Platform } from "react-native";
 import { trpc } from "./trpc";
+import { scheduleFridayMeetingReminder, cancelFridayMeetingReminder } from "./notifications";
 
 export type EmployeeRole = "owner" | "secretary" | "logistics" | "foreman" | "laborer";
 
@@ -55,11 +57,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (emp: AuthEmployee) => {
     setEmployee(emp);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(emp));
+    // Schedule Friday meeting reminder for management roles
+    if (Platform.OS !== "web") {
+      scheduleFridayMeetingReminder(emp.role).catch(() => {});
+    }
   }, []);
 
   const logout = useCallback(async () => {
     setEmployee(null);
     await AsyncStorage.removeItem(STORAGE_KEY);
+    // Cancel meeting reminder on logout
+    if (Platform.OS !== "web") {
+      cancelFridayMeetingReminder().catch(() => {});
+    }
   }, []);
 
   return (

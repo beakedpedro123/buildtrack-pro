@@ -3,6 +3,10 @@ import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import {
+  isMeetingReminderEnabled,
+  toggleMeetingReminder,
+} from "@/lib/notifications";
+import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
@@ -70,6 +74,36 @@ export default function MeetingsScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [activeMeetingId, setActiveMeetingId] = useState<number | null>(null);
   const [suggestedGoals, setSuggestedGoals] = useState<string[]>([]);
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderLoading, setReminderLoading] = useState(false);
+
+  // Load current reminder state
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    isMeetingReminderEnabled().then(setReminderEnabled).catch(() => {});
+  }, []);
+
+  const handleToggleReminder = async () => {
+    if (reminderLoading || !employee) return;
+    setReminderLoading(true);
+    try {
+      const newState = !reminderEnabled;
+      const result = await toggleMeetingReminder(employee.role, newState);
+      setReminderEnabled(result);
+      if (result) {
+        Alert.alert(
+          "Reminder Set",
+          "You will receive a notification every Friday at 2:45 PM before the management meeting.",
+        );
+      } else {
+        Alert.alert("Reminder Off", "Friday meeting reminder has been disabled.");
+      }
+    } catch {
+      Alert.alert("Error", "Could not update notification settings.");
+    } finally {
+      setReminderLoading(false);
+    }
+  };
 
   const utils = trpc.useUtils();
   const { data: meetings, isLoading, refetch } = trpc.meetings.list.useQuery();
@@ -445,14 +479,38 @@ export default function MeetingsScreen() {
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.foreground }}>Meetings</Text>
           <Text style={{ fontSize: 13, color: colors.muted }}>Friday 3PM management meetings</Text>
         </View>
-        {canManage && (
-          <TouchableOpacity
-            style={{ backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}
-            onPress={() => setShowNewMeeting(true)}
-          >
-            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>+ New</Text>
-          </TouchableOpacity>
-        )}
+        <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+          {canManage && Platform.OS !== "web" && (
+            <TouchableOpacity
+              style={{
+                backgroundColor: reminderEnabled ? colors.primary + "22" : colors.surface,
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderWidth: 1,
+                borderColor: reminderEnabled ? colors.primary : colors.border,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+              }}
+              onPress={handleToggleReminder}
+              disabled={reminderLoading}
+            >
+              <Text style={{ fontSize: 15 }}>{reminderEnabled ? "🔔" : "🔕"}</Text>
+              <Text style={{ fontSize: 12, color: reminderEnabled ? colors.primary : colors.muted, fontWeight: "600" }}>
+                {reminderEnabled ? "On" : "Off"}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {canManage && (
+            <TouchableOpacity
+              style={{ backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}
+              onPress={() => setShowNewMeeting(true)}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>+ New</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* New Meeting Form */}

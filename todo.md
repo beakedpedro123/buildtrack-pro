@@ -105,3 +105,12 @@
 
 ### App Distribution
 - [x] App ready for Publish (APK/IPA) via UI Publish button
+
+## Phase 3 Features (User Request)
+
+### Friday Meeting Notification
+- [x] Request notification permissions on login for management roles
+- [x] Schedule recurring weekly notification every Friday at 2:45 PM
+- [x] Cancel/reschedule notification on logout or role change
+- [x] Notification settings screen (enable/disable toggle)
+- [x] Notification taps deep-link into the Meetings tab
