@@ -114,3 +114,28 @@
 - [x] Cancel/reschedule notification on logout or role change
 - [x] Notification settings screen (enable/disable toggle)
 - [x] Notification taps deep-link into the Meetings tab
+
+## Phase 4 Features — Role-Based Access Control
+### Jobs Screen
+- [x] Laborer/Foreman: show job progress only (no budget amounts, no cost figures)
+- [x] Owner/Secretary/Logistics: full budget view unchanged
+- [x] Hide "+ New Job" button from Laborer/Foreman
+
+### Hours & Payroll
+- [x] Only Owner can see hourly rates on any employee
+- [x] Secretary/Logistics can see hours but NOT pay rates or estimated pay
+- [x] Laborer/Foreman can only see their own hours (no pay rate shown)
+- [x] Time editing (alter clock-in/out) restricted to Owner/Secretary/Logistics only
+- [x] Payroll export tab hidden from Laborer/Foreman
+
+### Team Management
+- [x] Laborer/Foreman cannot access the Team tab at all
+- [x] Secretary/Logistics can view team list but cannot see pay rates
+- [x] Only Owner can see/edit hourly rates in employee profiles
+- [x] Add/edit/deactivate employees restricted to Owner/Secretary/Logistics
+
+### Backend RBAC
+- [x] Server-side guard on createJob/updateJob mutations (owner/secretary/logistics only)
+- [x] Server-side guard on createEmployee/updateEmployee mutations
+- [x] Server-side guard on updateClockEntry (time alteration) mutations
+- [x] Server-side: strip hourlyRate from employee responses for non-owner callers

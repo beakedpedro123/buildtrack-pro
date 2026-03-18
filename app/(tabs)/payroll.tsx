@@ -87,6 +87,27 @@ export default function PayrollScreen() {
   const [period, setPeriod] = useState<Period>("biweek");
   const range = getDateRange(period);
 
+  // RBAC: payroll screen is for owner/secretary/logistics only
+  const canAccessPayroll = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
+  // Only the owner can see individual hourly rates and total payroll cost
+  const canSeeRates = employee?.role === "owner";
+
+  if (!canAccessPayroll) {
+    return (
+      <ScreenContainer>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>🔒</Text>
+          <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>
+            Access Restricted
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginTop: 8 }}>
+            Payroll reports are only available to management.
+          </Text>
+        </View>
+      </ScreenContainer>
+    );
+  }
+
   const { data, isLoading, refetch } = trpc.payroll.getReport.useQuery({
     startDate: range.startDate,
     endDate: range.endDate,
@@ -130,10 +151,9 @@ export default function PayrollScreen() {
     (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)
   );
 
-  const totalPayroll = sortedRows.reduce(
-    (sum, r) => sum + calcPayNum(r.totalMinutes, r.hourlyRate),
-    0
-  );
+  const totalPayroll = canSeeRates
+    ? sortedRows.reduce((sum, r) => sum + calcPayNum(r.totalMinutes, r.hourlyRate), 0)
+    : 0;
 
   const handleExportCSV = () => {
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -214,12 +234,14 @@ export default function PayrollScreen() {
                   </Text>
                   <Text style={{ fontSize: 12, color: colors.muted }}>total hours</Text>
                 </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={{ fontSize: 28, fontWeight: "800", color: colors.success }}>
-                    ${totalPayroll.toFixed(0)}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: colors.muted }}>est. payroll</Text>
-                </View>
+                {canSeeRates && (
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={{ fontSize: 28, fontWeight: "800", color: colors.success }}>
+                      ${totalPayroll.toFixed(0)}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>est. payroll</Text>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -262,7 +284,7 @@ export default function PayrollScreen() {
                             {row.role}
                           </Text>
                         </View>
-                        {row.hourlyRate && (
+                        {canSeeRates && row.hourlyRate && (
                           <Text style={{ fontSize: 12, color: colors.muted }}>
                             ${row.hourlyRate}/hr
                           </Text>
@@ -273,9 +295,11 @@ export default function PayrollScreen() {
                       <Text style={{ fontSize: 18, fontWeight: "700", color: colors.primary }}>
                         {formatDuration(row.totalMinutes)}
                       </Text>
-                      <Text style={{ fontSize: 13, fontWeight: "600", color: colors.success, marginTop: 2 }}>
-                        {calcPay(row.totalMinutes, row.hourlyRate)}
-                      </Text>
+                      {canSeeRates && (
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: colors.success, marginTop: 2 }}>
+                          {calcPay(row.totalMinutes, row.hourlyRate)}
+                        </Text>
+                      )}
                     </View>
                   </View>
                   <View

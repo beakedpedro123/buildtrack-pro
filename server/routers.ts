@@ -2,11 +2,21 @@ import { z } from "zod";
 import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
+import { TRPCError } from "@trpc/server";
 import { publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { storagePut } from "./storage";
 import { invokeLLM } from "./_core/llm";
 import { transcribeAudio } from "./_core/voiceTranscription";
+
+// Helper: assert that the requesting employee has one of the allowed roles
+async function assertRole(requestingId: number, allowedRoles: string[], action: string) {
+  const requester = await db.getEmployeeById(requestingId);
+  if (!requester || !allowedRoles.includes(requester.role)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: `Only ${allowedRoles.join("/")} can ${action}.` });
+  }
+  return requester;
+}
 
 const employeeRouter = router({
   list: publicProcedure.query(() => db.getAllEmployees()),
@@ -19,7 +29,12 @@ const employeeRouter = router({
     phone: z.string().optional(),
     email: z.string().email().optional(),
     hourlyRate: z.string().optional(),
-  })).mutation(({ input }) => db.createEmployee(input)),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner"], "add employees");
+    const { requestingEmployeeId: _, ...data } = input;
+    return db.createEmployee(data);
+  }),
   update: publicProcedure.input(z.object({
     id: z.number(),
     name: z.string().min(1).max(128).optional(),
@@ -29,8 +44,18 @@ const employeeRouter = router({
     email: z.string().email().optional(),
     hourlyRate: z.string().optional(),
     isActive: z.boolean().optional(),
-  })).mutation(({ input }) => { const { id, ...data } = input; return db.updateEmployee(id, data); }),
-  deactivate: publicProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deactivateEmployee(input.id)),
+    requestingEmployeeId: z.number().optional(),
+  })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) {
+      await assertRole(input.requestingEmployeeId, ["owner"], "update employee records");
+    }
+    const { id, requestingEmployeeId: _, ...data } = input;
+    return db.updateEmployee(id, data);
+  }),
+  deactivate: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner"], "deactivate employees");
+    return db.deactivateEmployee(input.id);
+  }),
 });
 
 const jobsRouter = router({

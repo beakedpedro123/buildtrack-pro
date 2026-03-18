@@ -8,7 +8,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "#EF4444",
 };
 
-interface JobCardProps {
+export interface JobCardProps {
   job: {
     id: number;
     name: string;
@@ -20,9 +20,11 @@ interface JobCardProps {
   crewCount?: number;
   spentAmount?: number;
   onPress?: () => void;
+  /** When true, hides all budget/dollar figures (for laborer and foreman roles) */
+  hideBudget?: boolean;
 }
 
-export function JobCard({ job, crewCount, spentAmount, onPress }: JobCardProps) {
+export function JobCard({ job, crewCount, spentAmount, onPress, hideBudget = false }: JobCardProps) {
   const colors = useColors();
   const budget = parseFloat(job.totalBudget || "0");
   const spent = spentAmount || 0;
@@ -55,7 +57,7 @@ export function JobCard({ job, crewCount, spentAmount, onPress }: JobCardProps) 
             {job.address}
           </Text>
         ) : null}
-        {budget > 0 && (
+        {budget > 0 && !hideBudget && (
           <View style={styles.budgetRow}>
             <View style={[styles.budgetBar, { backgroundColor: colors.border }]}>
               <View style={[styles.budgetFill, { width: `${pct * 100}%`, backgroundColor: barColor }]} />
@@ -63,6 +65,14 @@ export function JobCard({ job, crewCount, spentAmount, onPress }: JobCardProps) 
             <Text style={[styles.budgetText, { color: colors.muted }]}>
               ${spent.toLocaleString()} / ${budget.toLocaleString()}
             </Text>
+          </View>
+        )}
+        {hideBudget && (
+          <View style={[styles.budgetRow, { flexDirection: "row", alignItems: "center", gap: 6 }]}>
+            <View style={[styles.budgetBar, { flex: 1, backgroundColor: colors.border }]}>
+              <View style={[styles.budgetFill, { width: job.status === "completed" ? "100%" : job.status === "active" ? "50%" : "20%", backgroundColor: job.status === "completed" ? colors.success : job.status === "active" ? colors.primary : colors.warning }]} />
+            </View>
+            <Text style={[styles.budgetText, { color: colors.muted }]}>{job.status === "completed" ? "Done" : job.status === "active" ? "In Progress" : job.status === "paused" ? "Paused" : "Cancelled"}</Text>
           </View>
         )}
         {crewCount !== undefined && (

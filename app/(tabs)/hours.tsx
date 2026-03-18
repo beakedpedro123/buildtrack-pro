@@ -66,6 +66,9 @@ export default function HoursScreen() {
   const [period, setPeriod] = useState<Period>("week");
   const range = getDateRange(period);
 
+  // Only the owner can see their own hourly rate and estimated pay
+  const canSeePayRate = employee?.role === "owner";
+
   const { data, isLoading, refetch } = trpc.payroll.getMyHours.useQuery(
     {
       employeeId: employee?.id || 0,
@@ -169,7 +172,7 @@ export default function HoursScreen() {
                     {((data?.totalMinutes || 0) / 60).toFixed(1)} hours total
                   </Text>
                 </View>
-                {data?.employee?.hourlyRate && (
+                {canSeePayRate && data?.employee?.hourlyRate && (
                   <View style={{ alignItems: "flex-end" }}>
                     <Text style={{ fontSize: 22, fontWeight: "700", color: colors.success }}>
                       {calcEstimatedPay(data.totalMinutes, data.employee.hourlyRate)}

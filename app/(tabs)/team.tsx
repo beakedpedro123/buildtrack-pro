@@ -65,7 +65,14 @@ export default function TeamScreen() {
   const [empRate, setEmpRate] = useState("");
 
   const canManage = employee?.role === "owner";
-  const canView = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
+  // Secretary and logistics can view the team list but cannot see pay rates or edit employees
+  const canViewTeam = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
+  // Only owner can see hourly rates
+  const canSeeRates = employee?.role === "owner";
+  // Owner, secretary, logistics can alter time entries
+  const canAlterTime = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
+  // Laborer/foreman can only tap their own card (to see their own info)
+  const canViewOthers = canViewTeam;
 
   const { data: employees, isLoading } = trpc.employees.list.useQuery();
   const { data: clockedIn } = trpc.clock.allClockedIn.useQuery();
@@ -115,6 +122,7 @@ export default function TeamScreen() {
       phone: empPhone || undefined,
       email: empEmail || undefined,
       hourlyRate: empRate || undefined,
+      requestingEmployeeId: employee!.id,
     });
   };
 
@@ -127,7 +135,7 @@ export default function TeamScreen() {
         {
           text: "Deactivate",
           style: "destructive",
-          onPress: () => deactivateEmployee.mutate({ id: emp.id }),
+          onPress: () => deactivateEmployee.mutate({ id: emp.id, requestingEmployeeId: employee!.id }),
         },
       ]
     );
@@ -164,13 +172,13 @@ export default function TeamScreen() {
     detailRow: { flexDirection: "row", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   });
 
-  if (!canView) {
+  if (!canViewTeam && !employee) {
     return (
       <ScreenContainer>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
           <Text style={{ fontSize: 40, marginBottom: 16 }}>🔒</Text>
           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>Access Restricted</Text>
-          <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginTop: 8 }}>Team management is only available to management roles.</Text>
+          <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginTop: 8 }}>Team management is only available to management roles. Use the My Hours tab to view your own shifts.</Text>
         </View>
       </ScreenContainer>
     );
@@ -222,8 +230,10 @@ export default function TeamScreen() {
             const dur = clockEntry ? Date.now() - new Date(clockEntry.clockIn).getTime() : 0;
             const roleColor = ROLE_COLORS[item.role] || colors.primary;
 
+            // Laborer/foreman can only tap their own card
+            const canTap = canViewOthers || item.id === employee?.id;
             return (
-              <TouchableOpacity style={styles.empCard} onPress={() => setSelectedEmployee(item)}>
+              <TouchableOpacity style={styles.empCard} onPress={() => canTap ? setSelectedEmployee(item) : null} activeOpacity={canTap ? 0.75 : 1}>
                 <View style={[styles.avatar, { backgroundColor: roleColor }]}>
                   <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
                 </View>
@@ -241,7 +251,7 @@ export default function TeamScreen() {
                     </Text>
                   )}
                 </View>
-                {item.hourlyRate && (
+                {canSeeRates && item.hourlyRate && (
                   <Text style={{ fontSize: 13, color: colors.muted }}>${item.hourlyRate}/hr</Text>
                 )}
               </TouchableOpacity>
@@ -279,11 +289,11 @@ export default function TeamScreen() {
                   </View>
                 </View>
 
-                {/* Details */}
+                {/* Details — hourly rate only shown to owner */}
                 {[
                   { label: "Phone", value: selectedEmployee.phone },
                   { label: "Email", value: selectedEmployee.email },
-                  { label: "Hourly Rate", value: selectedEmployee.hourlyRate ? `$${selectedEmployee.hourlyRate}/hr` : null },
+                  ...(canSeeRates ? [{ label: "Hourly Rate", value: selectedEmployee.hourlyRate ? `$${selectedEmployee.hourlyRate}/hr` : null }] : []),
                   { label: "Status", value: selectedEmployee.isActive ? "Active" : "Inactive" },
                   { label: "Member Since", value: new Date(selectedEmployee.createdAt).toLocaleDateString() },
                 ].filter((r) => r.value).map((row) => (
@@ -375,8 +385,13 @@ export default function TeamScreen() {
               <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Email</Text>
               <TextInput style={styles.input} placeholder="john@example.com" placeholderTextColor={colors.muted} value={empEmail} onChangeText={setEmpEmail} keyboardType="email-address" autoCapitalize="none" />
 
-              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Hourly Rate ($)</Text>
-              <TextInput style={styles.input} placeholder="e.g. 25.00" placeholderTextColor={colors.muted} value={empRate} onChangeText={setEmpRate} keyboardType="decimal-pad" />
+              {/* Hourly rate input — owner only */}
+              {canSeeRates && (
+                <>
+                  <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Hourly Rate ($)</Text>
+                  <TextInput style={styles.input} placeholder="e.g. 25.00" placeholderTextColor={colors.muted} value={empRate} onChangeText={setEmpRate} keyboardType="decimal-pad" />
+                </>
+              )}
 
               <TouchableOpacity style={styles.submitBtn} onPress={handleCreateEmployee} disabled={createEmployee.isPending}>
                 {createEmployee.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Add Employee</Text>}

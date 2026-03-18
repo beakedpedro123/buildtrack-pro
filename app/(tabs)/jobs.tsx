@@ -64,7 +64,12 @@ export default function JobsScreen() {
   const [budgetName, setBudgetName] = useState("");
   const [budgetAmount, setBudgetAmount] = useState("");
 
-  const canManage = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
+  // RBAC role helpers
+  const role = employee?.role ?? "laborer";
+  const canManage = role === "owner" || role === "secretary" || role === "logistics";
+  const canSeeBudget = canManage; // laborer & foreman cannot see dollar amounts
+  // Foreman can update job status but not create/delete jobs
+  const canUpdateStatus = canManage || role === "foreman";
 
   const { data: allJobs, isLoading } = trpc.jobs.list.useQuery();
   const { data: jobReports } = trpc.reports.forJob.useQuery(
@@ -77,13 +82,16 @@ export default function JobsScreen() {
   );
   const { data: budgetCategories } = trpc.budget.getCategories.useQuery(
     { jobId: selectedJob?.id || 0 },
-    { enabled: !!selectedJob }
+    { enabled: !!selectedJob && canSeeBudget }
   );
   const { data: expenses } = trpc.budget.getExpenses.useQuery(
     { jobId: selectedJob?.id || 0 },
-    { enabled: !!selectedJob }
+    { enabled: !!selectedJob && canSeeBudget }
   );
-  const { data: syncLogs } = trpc.budget.getSyncLogs.useQuery({ limit: 5 });
+  const { data: syncLogs } = trpc.budget.getSyncLogs.useQuery(
+    { limit: 5 },
+    { enabled: canSeeBudget }
+  );
 
   const createJob = trpc.jobs.create.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); setShowNewJob(false); resetJobForm(); } });
   const updateJob = trpc.jobs.update.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); } });
@@ -100,10 +108,15 @@ export default function JobsScreen() {
     return true;
   });
 
-  const totalBudget = parseFloat(selectedJob?.totalBudget || "0");
-  const totalSpent = (expenses || []).reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0);
+  // Budget figures — only computed for roles that can see them
+  const totalBudget = canSeeBudget ? parseFloat(selectedJob?.totalBudget || "0") : 0;
+  const totalSpent = canSeeBudget ? (expenses || []).reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0) : 0;
   const budgetPct = totalBudget > 0 ? Math.min(totalSpent / totalBudget, 1) : 0;
   const budgetBarColor = budgetPct < 0.6 ? colors.success : budgetPct < 0.85 ? colors.warning : colors.error;
+
+  // Progress-only percentage for laborer/foreman (based on reports count as a proxy)
+  const reportCount = (jobReports || []).length;
+  const photoCount = (jobPhotos || []).length;
 
   const handleCreateJob = async () => {
     if (!jobName.trim() || !employee) return;
@@ -115,7 +128,6 @@ export default function JobsScreen() {
       notes: jobNotes || undefined,
       createdBy: employee.id,
     });
-    // Auto-create default budget categories
   };
 
   const handleSyncQB = async () => {
@@ -136,6 +148,11 @@ export default function JobsScreen() {
       },
     ]);
   };
+
+  // Tabs available depend on role — laborer/foreman never see the Budget tab
+  const availableTabs = canSeeBudget
+    ? (["overview", "budget", "reports", "photos"] as const)
+    : (["overview", "reports", "photos"] as const);
 
   const styles = StyleSheet.create({
     header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
@@ -166,6 +183,7 @@ export default function JobsScreen() {
     <ScreenContainer edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Jobs</Text>
+        {/* Only management can create jobs */}
         {canManage && (
           <TouchableOpacity style={styles.addBtn} onPress={() => setShowNewJob(true)}>
             <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>+ New Job</Text>
@@ -197,7 +215,7 @@ export default function JobsScreen() {
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <JobCard job={item} onPress={() => { setSelectedJob(item); setActiveTab("overview"); }} />
+            <JobCard job={item} onPress={() => { setSelectedJob(item); setActiveTab("overview"); }} hideBudget={!canSeeBudget} />
           )}
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 60 }}>
@@ -223,10 +241,14 @@ export default function JobsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Tabs */}
+            {/* Tabs — Budget tab hidden for laborer/foreman */}
             <View style={styles.tabRow}>
-              {(["overview", "budget", "reports", "photos"] as const).map((tab) => (
-                <TouchableOpacity key={tab} style={[styles.tab, { borderBottomWidth: activeTab === tab ? 2 : 0, borderBottomColor: colors.primary }]} onPress={() => setActiveTab(tab)}>
+              {availableTabs.map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.tab, { borderBottomWidth: activeTab === tab ? 2 : 0, borderBottomColor: colors.primary }]}
+                  onPress={() => setActiveTab(tab as any)}
+                >
                   <Text style={[styles.tabText, { color: activeTab === tab ? colors.primary : colors.muted }]}>
                     {tab.charAt(0).toUpperCase() + tab.slice(1)}
                   </Text>
@@ -238,28 +260,63 @@ export default function JobsScreen() {
               {/* Overview Tab */}
               {activeTab === "overview" && (
                 <View style={styles.section}>
+                  {/* KPI Cards — laborer/foreman see reports & photos count only, no dollar amounts */}
                   <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>
                     <View style={styles.kpiCard}>
-                      <Text style={styles.kpiValue}>{(jobReports || []).length}</Text>
+                      <Text style={styles.kpiValue}>{reportCount}</Text>
                       <Text style={styles.kpiLabel}>Reports</Text>
                     </View>
                     <View style={styles.kpiCard}>
-                      <Text style={styles.kpiValue}>{(jobPhotos || []).length}</Text>
+                      <Text style={styles.kpiValue}>{photoCount}</Text>
                       <Text style={styles.kpiLabel}>Photos</Text>
                     </View>
-                    <View style={styles.kpiCard}>
-                      <Text style={[styles.kpiValue, { fontSize: 16 }]}>${totalSpent.toLocaleString()}</Text>
-                      <Text style={styles.kpiLabel}>Spent</Text>
-                    </View>
+                    {canSeeBudget ? (
+                      <View style={styles.kpiCard}>
+                        <Text style={[styles.kpiValue, { fontSize: 16 }]}>${totalSpent.toLocaleString()}</Text>
+                        <Text style={styles.kpiLabel}>Spent</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.kpiCard}>
+                        <Text style={[styles.kpiValue, { fontSize: 16, color: colors.primary }]}>
+                          {selectedJob.status === "active" ? "🟢" : selectedJob.status === "paused" ? "🟡" : "⚫"}
+                        </Text>
+                        <Text style={styles.kpiLabel}>{STATUS_LABELS[selectedJob.status]}</Text>
+                      </View>
+                    )}
                   </View>
+
+                  {/* Progress bar for laborer/foreman — shows job status visually without dollars */}
+                  {!canSeeBudget && (
+                    <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 20 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>Job Progress</Text>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                        <Text style={{ fontSize: 13, color: colors.muted }}>Status</Text>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: selectedJob.status === "active" ? colors.success : selectedJob.status === "paused" ? colors.warning : colors.muted }}>
+                          {STATUS_LABELS[selectedJob.status]}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                        <Text style={{ fontSize: 13, color: colors.muted }}>Field Reports</Text>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>{reportCount} submitted</Text>
+                      </View>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                        <Text style={{ fontSize: 13, color: colors.muted }}>Site Photos</Text>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>{photoCount} uploaded</Text>
+                      </View>
+                    </View>
+                  )}
 
                   <Text style={styles.sectionTitle}>Job Details</Text>
                   {[
                     { label: "Status", value: STATUS_LABELS[selectedJob.status] },
                     { label: "Address", value: selectedJob.address },
+                    // Client name visible to foreman/laborer so they know the site
                     { label: "Client", value: selectedJob.clientName },
-                    { label: "Client Phone", value: selectedJob.clientPhone },
-                    { label: "Total Budget", value: selectedJob.totalBudget ? `$${parseFloat(selectedJob.totalBudget).toLocaleString()}` : null },
+                    // Budget only visible to management
+                    ...(canSeeBudget ? [
+                      { label: "Client Phone", value: selectedJob.clientPhone },
+                      { label: "Total Budget", value: selectedJob.totalBudget ? `$${parseFloat(selectedJob.totalBudget).toLocaleString()}` : null },
+                    ] : []),
                     { label: "Notes", value: selectedJob.notes },
                   ].filter((r) => r.value).map((row) => (
                     <View key={row.label} style={{ flexDirection: "row", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -268,7 +325,8 @@ export default function JobsScreen() {
                     </View>
                   ))}
 
-                  {canManage && (
+                  {/* Status update — management + foreman can update status */}
+                  {canUpdateStatus && (
                     <View style={{ marginTop: 20, gap: 10 }}>
                       <Text style={styles.sectionTitle}>Update Status</Text>
                       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -290,8 +348,8 @@ export default function JobsScreen() {
                 </View>
               )}
 
-              {/* Budget Tab */}
-              {activeTab === "budget" && (
+              {/* Budget Tab — only rendered for management roles */}
+              {activeTab === "budget" && canSeeBudget && (
                 <View style={styles.section}>
                   {/* Budget Overview */}
                   <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 20 }}>
@@ -359,7 +417,7 @@ export default function JobsScreen() {
                     </View>
                   ))}
 
-                  {/* QuickBooks Sync */}
+                  {/* QuickBooks Sync — owner only */}
                   <View style={styles.syncCard}>
                     <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>QuickBooks Sync</Text>
                     <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 8 }}>
@@ -418,7 +476,6 @@ export default function JobsScreen() {
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                     {(jobPhotos || []).map((photo) => (
                       <View key={photo.id} style={{ width: "31%", aspectRatio: 1, borderRadius: 8, overflow: "hidden", backgroundColor: colors.border }}>
-                        {/* eslint-disable-next-line @typescript-eslint/no-require-imports */}
                         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
                           <Text style={{ fontSize: 24 }}>📷</Text>
                           <Text style={{ fontSize: 10, color: colors.muted, textAlign: "center", paddingHorizontal: 4 }} numberOfLines={2}>{photo.caption || new Date(photo.createdAt).toLocaleDateString()}</Text>
@@ -434,117 +491,123 @@ export default function JobsScreen() {
               <View style={{ height: 32 }} />
             </ScrollView>
 
-            {/* Add Expense Modal */}
-            <Modal visible={showAddExpense} animationType="slide" presentationStyle="formSheet">
-              <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Add Expense</Text>
-                  <TouchableOpacity onPress={() => { setShowAddExpense(false); resetExpForm(); }}>
-                    <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-                <ScrollView style={{ padding: 20 }}>
-                  <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Description *</Text>
-                  <TextInput style={styles.input} placeholder="e.g. Lumber delivery" placeholderTextColor={colors.muted} value={expDesc} onChangeText={setExpDesc} />
-                  <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Amount ($) *</Text>
-                  <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={colors.muted} value={expAmount} onChangeText={setExpAmount} keyboardType="decimal-pad" />
-                  <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 8 }}>Category</Text>
-                  {(budgetCategories || []).map((cat) => (
-                    <TouchableOpacity key={cat.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }} onPress={() => setExpCategoryId(cat.id)}>
-                      <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: expCategoryId === cat.id ? colors.primary : colors.border, backgroundColor: expCategoryId === cat.id ? colors.primary : "transparent", marginRight: 12 }} />
-                      <Text style={{ fontSize: 14, color: colors.foreground }}>{cat.name}</Text>
+            {/* Add Expense Modal — management only */}
+            {canManage && (
+              <Modal visible={showAddExpense} animationType="slide" presentationStyle="formSheet">
+                <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Add Expense</Text>
+                    <TouchableOpacity onPress={() => { setShowAddExpense(false); resetExpForm(); }}>
+                      <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
                     </TouchableOpacity>
-                  ))}
-                  <TouchableOpacity
-                    style={[styles.syncBtn, { marginTop: 20, backgroundColor: colors.primary }]}
-                    onPress={async () => {
-                      if (!expDesc.trim() || !expAmount || !employee) return;
-                      await addExpense.mutateAsync({
-                        jobId: selectedJob.id,
-                        categoryId: expCategoryId || undefined,
-                        description: expDesc.trim(),
-                        amount: expAmount,
-                        expenseDate: new Date().toISOString(),
-                        submittedBy: employee.id,
-                      });
-                    }}
-                    disabled={addExpense.isPending}
-                  >
-                    {addExpense.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Add Expense</Text>}
-                  </TouchableOpacity>
-                </ScrollView>
-              </KeyboardAvoidingView>
-            </Modal>
-
-            {/* Add Budget Category Modal */}
-            <Modal visible={showAddBudget} animationType="slide" presentationStyle="formSheet">
-              <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Add Budget Category</Text>
-                  <TouchableOpacity onPress={() => { setShowAddBudget(false); setBudgetName(""); setBudgetAmount(""); }}>
-                    <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={{ padding: 20 }}>
-                  <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Category Name *</Text>
-                  <TextInput style={styles.input} placeholder="e.g. Labor" placeholderTextColor={colors.muted} value={budgetName} onChangeText={setBudgetName} />
-                  <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Budgeted Amount ($) *</Text>
-                  <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={colors.muted} value={budgetAmount} onChangeText={setBudgetAmount} keyboardType="decimal-pad" />
-                  <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 8 }}>Quick select:</Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
-                    {DEFAULT_BUDGET_CATEGORIES.map((c) => (
-                      <TouchableOpacity key={c} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: budgetName === c ? colors.primary + "20" : colors.surface, borderWidth: 1, borderColor: budgetName === c ? colors.primary : colors.border }} onPress={() => setBudgetName(c)}>
-                        <Text style={{ fontSize: 13, color: budgetName === c ? colors.primary : colors.foreground }}>{c}</Text>
+                  </View>
+                  <ScrollView style={{ padding: 20 }}>
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Description *</Text>
+                    <TextInput style={styles.input} placeholder="e.g. Lumber delivery" placeholderTextColor={colors.muted} value={expDesc} onChangeText={setExpDesc} />
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Amount ($) *</Text>
+                    <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={colors.muted} value={expAmount} onChangeText={setExpAmount} keyboardType="decimal-pad" />
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 8 }}>Category</Text>
+                    {(budgetCategories || []).map((cat) => (
+                      <TouchableOpacity key={cat.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }} onPress={() => setExpCategoryId(cat.id)}>
+                        <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: expCategoryId === cat.id ? colors.primary : colors.border, backgroundColor: expCategoryId === cat.id ? colors.primary : "transparent", marginRight: 12 }} />
+                        <Text style={{ fontSize: 14, color: colors.foreground }}>{cat.name}</Text>
                       </TouchableOpacity>
                     ))}
+                    <TouchableOpacity
+                      style={[styles.syncBtn, { marginTop: 20, backgroundColor: colors.primary }]}
+                      onPress={async () => {
+                        if (!expDesc.trim() || !expAmount || !employee) return;
+                        await addExpense.mutateAsync({
+                          jobId: selectedJob.id,
+                          categoryId: expCategoryId || undefined,
+                          description: expDesc.trim(),
+                          amount: expAmount,
+                          expenseDate: new Date().toISOString(),
+                          submittedBy: employee.id,
+                        });
+                      }}
+                      disabled={addExpense.isPending}
+                    >
+                      {addExpense.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Add Expense</Text>}
+                    </TouchableOpacity>
+                  </ScrollView>
+                </KeyboardAvoidingView>
+              </Modal>
+            )}
+
+            {/* Add Budget Category Modal — management only */}
+            {canManage && (
+              <Modal visible={showAddBudget} animationType="slide" presentationStyle="formSheet">
+                <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Add Budget Category</Text>
+                    <TouchableOpacity onPress={() => { setShowAddBudget(false); setBudgetName(""); setBudgetAmount(""); }}>
+                      <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.syncBtn, { backgroundColor: colors.primary }]}
-                    onPress={async () => {
-                      if (!budgetName.trim() || !budgetAmount) return;
-                      await addBudgetCat.mutateAsync({ jobId: selectedJob.id, name: budgetName.trim(), budgetedAmount: budgetAmount });
-                    }}
-                    disabled={addBudgetCat.isPending}
-                  >
-                    {addBudgetCat.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Add Category</Text>}
-                  </TouchableOpacity>
-                </View>
-              </KeyboardAvoidingView>
-            </Modal>
+                  <View style={{ padding: 20 }}>
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Category Name *</Text>
+                    <TextInput style={styles.input} placeholder="e.g. Labor" placeholderTextColor={colors.muted} value={budgetName} onChangeText={setBudgetName} />
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Budgeted Amount ($) *</Text>
+                    <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={colors.muted} value={budgetAmount} onChangeText={setBudgetAmount} keyboardType="decimal-pad" />
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 8 }}>Quick select:</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+                      {DEFAULT_BUDGET_CATEGORIES.map((c) => (
+                        <TouchableOpacity key={c} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: budgetName === c ? colors.primary + "20" : colors.surface, borderWidth: 1, borderColor: budgetName === c ? colors.primary : colors.border }} onPress={() => setBudgetName(c)}>
+                          <Text style={{ fontSize: 13, color: budgetName === c ? colors.primary : colors.foreground }}>{c}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.syncBtn, { backgroundColor: colors.primary }]}
+                      onPress={async () => {
+                        if (!budgetName.trim() || !budgetAmount) return;
+                        await addBudgetCat.mutateAsync({ jobId: selectedJob.id, name: budgetName.trim(), budgetedAmount: budgetAmount });
+                      }}
+                      disabled={addBudgetCat.isPending}
+                    >
+                      {addBudgetCat.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Add Category</Text>}
+                    </TouchableOpacity>
+                  </View>
+                </KeyboardAvoidingView>
+              </Modal>
+            )}
           </View>
         )}
       </Modal>
 
-      {/* New Job Modal */}
-      <Modal visible={showNewJob} animationType="slide" presentationStyle="formSheet">
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>New Job</Text>
-            <TouchableOpacity onPress={() => { setShowNewJob(false); resetJobForm(); }}>
-              <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ padding: 20 }}>
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Job Name *</Text>
-            <TextInput style={styles.input} placeholder="e.g. Smith Residence Remodel" placeholderTextColor={colors.muted} value={jobName} onChangeText={setJobName} />
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Address</Text>
-            <TextInput style={styles.input} placeholder="123 Main St, City, State" placeholderTextColor={colors.muted} value={jobAddress} onChangeText={setJobAddress} />
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Client Name</Text>
-            <TextInput style={styles.input} placeholder="Client name" placeholderTextColor={colors.muted} value={jobClient} onChangeText={setJobClient} />
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Total Budget ($)</Text>
-            <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={colors.muted} value={jobBudget} onChangeText={setJobBudget} keyboardType="decimal-pad" />
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Notes</Text>
-            <TextInput style={[styles.input, { height: 80, textAlignVertical: "top" }]} placeholder="Any notes about this job..." placeholderTextColor={colors.muted} value={jobNotes} onChangeText={setJobNotes} multiline />
-            <TouchableOpacity
-              style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 8 }}
-              onPress={handleCreateJob}
-              disabled={createJob.isPending || !jobName.trim()}
-            >
-              {createJob.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Create Job</Text>}
-            </TouchableOpacity>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </Modal>
+      {/* New Job Modal — management only */}
+      {canManage && (
+        <Modal visible={showNewJob} animationType="slide" presentationStyle="formSheet">
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>New Job</Text>
+              <TouchableOpacity onPress={() => { setShowNewJob(false); resetJobForm(); }}>
+                <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ padding: 20 }}>
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Job Name *</Text>
+              <TextInput style={styles.input} placeholder="e.g. Smith Residence Remodel" placeholderTextColor={colors.muted} value={jobName} onChangeText={setJobName} />
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Address</Text>
+              <TextInput style={styles.input} placeholder="123 Main St, City, State" placeholderTextColor={colors.muted} value={jobAddress} onChangeText={setJobAddress} />
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Client Name</Text>
+              <TextInput style={styles.input} placeholder="Client name" placeholderTextColor={colors.muted} value={jobClient} onChangeText={setJobClient} />
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Total Budget ($)</Text>
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={colors.muted} value={jobBudget} onChangeText={setJobBudget} keyboardType="decimal-pad" />
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Notes</Text>
+              <TextInput style={[styles.input, { height: 80, textAlignVertical: "top" }]} placeholder="Any notes about this job..." placeholderTextColor={colors.muted} value={jobNotes} onChangeText={setJobNotes} multiline />
+              <TouchableOpacity
+                style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 8 }}
+                onPress={handleCreateJob}
+                disabled={createJob.isPending || !jobName.trim()}
+              >
+                {createJob.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Create Job</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
     </ScreenContainer>
   );
 }
