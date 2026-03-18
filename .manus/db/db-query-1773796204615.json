@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO jobs (name, address, clientName, status, totalBudget, notes, createdBy, createdAt, updatedAt)\nVALUES \n  ('Johnson Residence Remodel', '742 Evergreen Terrace, Springfield', 'Bob Johnson', 'active', '85000.00', 'Full kitchen and bathroom renovation. Client wants completion by end of April.', 1, NOW(), NOW()),\n  ('Downtown Office Build-Out', '100 Commerce Blvd Suite 300', 'Apex Corp', 'active', '220000.00', 'Commercial office space, 3 floors. Electrical and HVAC are priority.', 1, NOW(), NOW());",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute INSERT INTO jobs (name, address, clientName, status, totalBudget, notes, createdBy, createdAt, updatedAt)\nVALUES \n  ('Johnson Residence Remodel', '742 Evergreen Terrace, Springfield', 'Bob Johnson', 'active', '85000.00', 'Full kitchen and bathroom renovation. Client wants completion by end of April.', 1, NOW(), NOW()),\n  ('Downtown Office Build-Out', '100 Commerce Blvd Suite 300', 'Apex Corp', 'active', '220000.00', 'Commercial office space, 3 floors. Electrical and HVAC are priority.', 1, NOW(), NOW());",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 366
+}

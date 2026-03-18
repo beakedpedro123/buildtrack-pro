@@ -1,38 +1,86 @@
-import { Tabs } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Platform } from "react-native";
+import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
+import { Redirect, Tabs } from "expo-router";
+import { ActivityIndicator, Platform, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabLayout() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { employee, isAuthenticated, loading } = useAppAuth();
   const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
   const tabBarHeight = 56 + bottomPadding;
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Redirect href="/login" />;
+  }
+
+  const role = employee?.role || "laborer";
+  const canManageTeam = role === "owner" || role === "secretary" || role === "logistics";
+  const canViewBudget = role === "owner" || role === "secretary" || role === "logistics";
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.tint,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.muted,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
           paddingTop: 8,
           paddingBottom: bottomPadding,
           height: tabBarHeight,
-          backgroundColor: colors.background,
+          backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 0.5,
         },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: "Dashboard",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="house.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="jobs"
+        options={{
+          title: "Jobs",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="briefcase.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="clock"
+        options={{
+          title: "Clock",
+          tabBarIcon: ({ color }) => <IconSymbol size={30} name="clock.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="reports"
+        options={{
+          title: "Reports",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="doc.text.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="team"
+        options={{
+          title: "Team",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="person.3.fill" color={color} />,
+          href: canManageTeam ? undefined : null,
         }}
       />
     </Tabs>

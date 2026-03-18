@@ -1,0 +1,443 @@
+import { ScreenContainer } from "@/components/screen-container";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { useAppAuth } from "@/lib/auth-context";
+import { trpc } from "@/lib/trpc";
+import { useColors } from "@/hooks/use-colors";
+import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+
+const WORK_CHECKLIST = [
+  "Site preparation / excavation",
+  "Foundation work",
+  "Framing",
+  "Roofing",
+  "Electrical rough-in",
+  "Plumbing rough-in",
+  "HVAC installation",
+  "Insulation",
+  "Drywall / sheetrock",
+  "Exterior siding",
+  "Windows & doors",
+  "Interior finishes",
+  "Flooring",
+  "Painting",
+  "Landscaping / cleanup",
+  "Inspections / punch list",
+];
+
+const WEATHER_OPTIONS = ["Clear", "Partly Cloudy", "Overcast", "Rain", "Wind", "Snow", "Extreme Heat"];
+
+interface MaterialRow {
+  materialName: string;
+  quantity: string;
+  unit: string;
+  unitCost: string;
+  supplier: string;
+}
+
+export default function ReportsScreen() {
+  const colors = useColors();
+  const { employee } = useAppAuth();
+  const utils = trpc.useUtils();
+
+  const [showNewReport, setShowNewReport] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [workItems, setWorkItems] = useState<string[]>([]);
+  const [materials, setMaterials] = useState<MaterialRow[]>([]);
+  const [notes, setNotes] = useState("");
+  const [weather, setWeather] = useState("Clear");
+  const [crewCount, setCrewCount] = useState("1");
+  const [photos, setPhotos] = useState<{ uri: string; base64: string }[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [expandedReport, setExpandedReport] = useState<number | null>(null);
+
+  const { data: jobs } = trpc.jobs.listActive.useQuery();
+  const { data: recentReports } = trpc.reports.recent.useQuery({ limit: 20 });
+  const { data: allJobs } = trpc.jobs.list.useQuery();
+
+  const createReport = trpc.reports.create.useMutation();
+  const addMaterial = trpc.reports.addMaterial.useMutation();
+  const uploadPhoto = trpc.reports.uploadPhoto.useMutation();
+
+  const canSubmitReport = employee?.role === "foreman" || employee?.role === "owner" || employee?.role === "secretary";
+
+  const toggleWorkItem = (item: string) => {
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setWorkItems((prev) =>
+      prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
+    );
+  };
+
+  const addMaterialRow = () => {
+    setMaterials((prev) => [...prev, { materialName: "", quantity: "", unit: "units", unitCost: "", supplier: "" }]);
+  };
+
+  const updateMaterial = (index: number, field: keyof MaterialRow, value: string) => {
+    setMaterials((prev) => prev.map((m, i) => i === index ? { ...m, [field]: value } : m));
+  };
+
+  const removeMaterial = (index: number) => {
+    setMaterials((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const pickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Please allow photo access to upload site photos.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      base64: true,
+      allowsMultipleSelection: true,
+    });
+    if (!result.canceled) {
+        const newPhotos = result.assets
+        .filter((a: any) => a.base64)
+        .map((a: any) => ({ uri: a.uri, base64: a.base64! }));
+      setPhotos((prev) => [...prev, ...newPhotos].slice(0, 10));
+    }
+  };
+
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Please allow camera access.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.7,
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0].base64) {
+      setPhotos((prev) => [...prev, { uri: result.assets[0].uri, base64: result.assets[0].base64! }].slice(0, 10));
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedJobId || !employee) {
+      Alert.alert("Missing Info", "Please select a job.");
+      return;
+    }
+    if (workItems.length === 0 && materials.length === 0 && !notes) {
+      Alert.alert("Empty Report", "Please add at least one work item, material, or note.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const reportId = await createReport.mutateAsync({
+        jobId: selectedJobId,
+        submittedBy: employee.id,
+        reportDate: new Date().toISOString(),
+        workCompleted: JSON.stringify(workItems),
+        notes,
+        weatherCondition: weather,
+        crewCount: parseInt(crewCount) || 1,
+      });
+
+      for (const mat of materials) {
+        if (!mat.materialName) continue;
+        await addMaterial.mutateAsync({
+          reportId,
+          jobId: selectedJobId,
+          materialName: mat.materialName,
+          quantity: mat.quantity || "1",
+          unit: mat.unit,
+          unitCost: mat.unitCost || undefined,
+          totalCost: mat.unitCost && mat.quantity
+            ? String(parseFloat(mat.unitCost) * parseFloat(mat.quantity))
+            : undefined,
+          supplier: mat.supplier || undefined,
+        });
+      }
+
+      for (const photo of photos) {
+        await uploadPhoto.mutateAsync({
+          reportId,
+          jobId: selectedJobId,
+          uploadedBy: employee.id,
+          base64: photo.base64,
+        });
+      }
+
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      utils.reports.recent.invalidate();
+      setShowNewReport(false);
+      resetForm();
+      Alert.alert("Report Submitted", "Your daily report has been saved successfully.");
+    } catch (e) {
+      Alert.alert("Error", "Failed to submit report. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedJobId(null);
+    setWorkItems([]);
+    setMaterials([]);
+    setNotes("");
+    setWeather("Clear");
+    setCrewCount("1");
+    setPhotos([]);
+  };
+
+  const styles = StyleSheet.create({
+    header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    title: { fontSize: 24, fontWeight: "800", color: colors.foreground },
+    addBtn: { backgroundColor: colors.primary, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 4 },
+    addBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    reportCard: { marginHorizontal: 20, marginBottom: 10, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
+    reportHeader: { padding: 14, flexDirection: "row", alignItems: "center" },
+    reportDate: { fontSize: 13, fontWeight: "700", color: colors.primary, width: 80 },
+    reportJob: { fontSize: 14, fontWeight: "600", color: colors.foreground, flex: 1 },
+    reportBy: { fontSize: 12, color: colors.muted },
+    modalContainer: { flex: 1, backgroundColor: colors.background },
+    modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+    modalTitle: { fontSize: 20, fontWeight: "800", color: colors.foreground },
+    section: { paddingHorizontal: 20, paddingTop: 20 },
+    sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.foreground, marginBottom: 12 },
+    jobOption: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, marginBottom: 8, flexDirection: "row", alignItems: "center" },
+    checkItem: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+    checkBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, marginRight: 12, alignItems: "center", justifyContent: "center" },
+    checkLabel: { fontSize: 14, flex: 1 },
+    materialRow: { backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
+    input: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: colors.foreground, backgroundColor: colors.background, marginBottom: 8 },
+    photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    photoThumb: { width: 80, height: 80, borderRadius: 8, overflow: "hidden" },
+    submitBtn: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", margin: 20 },
+    submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+    weatherChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, marginRight: 8 },
+  });
+
+  const getJobName = (jobId: number) => allJobs?.find((j) => j.id === jobId)?.name || `Job #${jobId}`;
+
+  return (
+    <ScreenContainer edges={["top", "left", "right"]}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Field Reports</Text>
+        {canSubmitReport && (
+          <TouchableOpacity style={styles.addBtn} onPress={() => setShowNewReport(true)}>
+            <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700" }}>+</Text>
+            <Text style={styles.addBtnText}>New Report</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <FlatList
+        data={recentReports || []}
+        keyExtractor={(item) => item.id.toString()}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        renderItem={({ item }) => {
+          const workItems = (() => { try { return JSON.parse(item.workCompleted || "[]"); } catch { return []; } })();
+          const isExpanded = expandedReport === item.id;
+          return (
+            <TouchableOpacity style={styles.reportCard} onPress={() => setExpandedReport(isExpanded ? null : item.id)}>
+              <View style={styles.reportHeader}>
+                <Text style={styles.reportDate}>
+                  {new Date(item.reportDate).toLocaleDateString([], { month: "short", day: "numeric" })}
+                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.reportJob} numberOfLines={1}>{getJobName(item.jobId)}</Text>
+                  <Text style={styles.reportBy}>{item.crewCount} crew · {item.weatherCondition}</Text>
+                </View>
+                <Text style={{ color: colors.muted, fontSize: 18 }}>{isExpanded ? "▲" : "▼"}</Text>
+              </View>
+              {isExpanded && (
+                <View style={{ paddingHorizontal: 14, paddingBottom: 14 }}>
+                  {workItems.length > 0 && (
+                    <View style={{ marginBottom: 10 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, marginBottom: 6 }}>Work Completed</Text>
+                      {workItems.map((w: string, i: number) => (
+                        <View key={i} style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success, marginRight: 8 }} />
+                          <Text style={{ fontSize: 13, color: colors.foreground }}>{w}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {item.notes ? (
+                    <View>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>Notes</Text>
+                      <Text style={{ fontSize: 13, color: colors.muted }}>{item.notes}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        }}
+        ListEmptyComponent={
+          <View style={{ alignItems: "center", paddingTop: 60 }}>
+            <Text style={{ fontSize: 40, marginBottom: 12 }}>📋</Text>
+            <Text style={{ color: colors.muted, fontSize: 16 }}>No reports yet</Text>
+            {canSubmitReport && <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>Tap "New Report" to submit today's field report</Text>}
+          </View>
+        }
+      />
+
+      {/* New Report Modal */}
+      <Modal visible={showNewReport} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Daily Field Report</Text>
+            <TouchableOpacity onPress={() => { setShowNewReport(false); resetForm(); }}>
+              <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Job Selection */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Select Job *</Text>
+                {(jobs || []).map((job) => (
+                  <TouchableOpacity
+                    key={job.id}
+                    style={[styles.jobOption, { borderColor: selectedJobId === job.id ? colors.primary : colors.border, backgroundColor: selectedJobId === job.id ? colors.primary + "15" : colors.surface }]}
+                    onPress={() => setSelectedJobId(job.id)}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: "600", flex: 1, color: selectedJobId === job.id ? colors.primary : colors.foreground }}>{job.name}</Text>
+                    {selectedJobId === job.id && <Text style={{ color: colors.primary }}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Crew & Weather */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Crew & Conditions</Text>
+                <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Crew Count</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={crewCount}
+                      onChangeText={setCrewCount}
+                      keyboardType="numeric"
+                      placeholder="1"
+                      placeholderTextColor={colors.muted}
+                    />
+                  </View>
+                </View>
+                <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 8 }}>Weather</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: "row", paddingBottom: 4 }}>
+                    {WEATHER_OPTIONS.map((w) => (
+                      <TouchableOpacity
+                        key={w}
+                        style={[styles.weatherChip, { borderColor: weather === w ? colors.primary : colors.border, backgroundColor: weather === w ? colors.primary + "15" : colors.surface }]}
+                        onPress={() => setWeather(w)}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: weather === w ? colors.primary : colors.foreground }}>{w}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+
+              {/* Work Completed */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Work Completed</Text>
+                {WORK_CHECKLIST.map((item) => (
+                  <TouchableOpacity key={item} style={styles.checkItem} onPress={() => toggleWorkItem(item)}>
+                    <View style={[styles.checkBox, { borderColor: workItems.includes(item) ? colors.success : colors.border, backgroundColor: workItems.includes(item) ? colors.success : "transparent" }]}>
+                      {workItems.includes(item) && <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>✓</Text>}
+                    </View>
+                    <Text style={[styles.checkLabel, { color: workItems.includes(item) ? colors.foreground : colors.muted }]}>{item}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Materials Used */}
+              <View style={styles.section}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <Text style={styles.sectionTitle}>Materials Used</Text>
+                  <TouchableOpacity onPress={addMaterialRow} style={{ backgroundColor: colors.primary + "20", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
+                    <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 13 }}>+ Add</Text>
+                  </TouchableOpacity>
+                </View>
+                {materials.map((mat, i) => (
+                  <View key={i} style={styles.materialRow}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>Material {i + 1}</Text>
+                      <TouchableOpacity onPress={() => removeMaterial(i)}>
+                        <Text style={{ color: colors.error, fontSize: 13 }}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <TextInput style={styles.input} placeholder="Material name (e.g. 2x4 lumber)" placeholderTextColor={colors.muted} value={mat.materialName} onChangeText={(v) => updateMaterial(i, "materialName", v)} />
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <TextInput style={[styles.input, { flex: 1 }]} placeholder="Qty" placeholderTextColor={colors.muted} value={mat.quantity} onChangeText={(v) => updateMaterial(i, "quantity", v)} keyboardType="decimal-pad" />
+                      <TextInput style={[styles.input, { flex: 1 }]} placeholder="Unit (ea, lbs, ft)" placeholderTextColor={colors.muted} value={mat.unit} onChangeText={(v) => updateMaterial(i, "unit", v)} />
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <TextInput style={[styles.input, { flex: 1 }]} placeholder="Unit cost $" placeholderTextColor={colors.muted} value={mat.unitCost} onChangeText={(v) => updateMaterial(i, "unitCost", v)} keyboardType="decimal-pad" />
+                      <TextInput style={[styles.input, { flex: 1 }]} placeholder="Supplier" placeholderTextColor={colors.muted} value={mat.supplier} onChangeText={(v) => updateMaterial(i, "supplier", v)} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              {/* Photos */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Site Photos ({photos.length}/10)</Text>
+                <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
+                  <TouchableOpacity style={[styles.addBtn, { flex: 1, justifyContent: "center" }]} onPress={takePhoto}>
+                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>📷 Camera</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.addBtn, { flex: 1, justifyContent: "center", backgroundColor: "#1A2332" }]} onPress={pickPhoto}>
+                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>🖼 Gallery</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.photoGrid}>
+                  {photos.map((p, i) => (
+                    <TouchableOpacity key={i} style={styles.photoThumb} onPress={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}>
+                      <Image source={{ uri: p.uri }} style={{ width: "100%", height: "100%" }} />
+                      <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 10, width: 20, height: 20, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ color: "#fff", fontSize: 12 }}>✕</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Notes */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Notes</Text>
+                <TextInput
+                  style={[styles.input, { height: 100, textAlignVertical: "top" }]}
+                  placeholder="Any additional notes, issues, or observations..."
+                  placeholderTextColor={colors.muted}
+                  value={notes}
+                  onChangeText={setNotes}
+                  multiline
+                />
+              </View>
+
+              <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={submitting}>
+                {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Submit Daily Report</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+    </ScreenContainer>
+  );
+}

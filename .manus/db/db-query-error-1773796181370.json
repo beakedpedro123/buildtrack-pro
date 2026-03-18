@@ -1,0 +1,8 @@
+{
+  "query": "INSERT INTO employees (name, role, pin, phone, is_active, created_at, updated_at)\nVALUES \n  ('Owner', 'owner', '0000', NULL, true, NOW(), NOW()),\n  ('Sarah (Secretary)', 'secretary', '1111', NULL, true, NOW(), NOW()),\n  ('Mike (Logistics)', 'logistics', '2222', NULL, true, NOW(), NOW()),\n  ('Tom (Foreman)', 'foreman', '3333', NULL, true, NOW(), NOW()),\n  ('Jake (Foreman)', 'foreman', '4444', NULL, true, NOW(), NOW()),\n  ('Carlos', 'laborer', '5555', NULL, true, NOW(), NOW()),\n  ('Derek', 'laborer', '6666', NULL, true, NOW(), NOW()),\n  ('Luis', 'laborer', '7777', NULL, true, NOW(), NOW())\nRETURNING id, name, role, pin;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute INSERT INTO employees (name, role, pin, phone, is_active, created_at, updated_at)\nVALUES \n  ('Owner', 'owner', '0000', NULL, true, NOW(), NOW()),\n  ('Sarah (Secretary)', 'secretary', '1111', NULL, true, NOW(), NOW()),\n  ('Mike (Logistics)', 'logistics', '2222', NULL, true, NOW(), NOW()),\n  ('Tom (Foreman)', 'foreman', '3333', NULL, true, NOW(), NOW()),\n  ('Jake (Foreman)', 'foreman', '4444', NULL, true, NOW(), NOW()),\n  ('Carlos', 'laborer', '5555', NULL, true, NOW(), NOW()),\n  ('Derek', 'laborer', '6666', NULL, true, NOW(), NOW()),\n  ('Luis', 'laborer', '7777', NULL, true, NOW(), NOW())\nRETURNING id, name, role, pin;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your TiDB version for the right syntax to use line 11 column 10 near \"RETURNING id, name, role, pin\""
+  ]
+}

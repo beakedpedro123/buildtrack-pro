@@ -8,6 +8,13 @@
       "when": 1763372440610,
       "tag": "0000_elite_eternals",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1773795426511,
+      "tag": "0001_gorgeous_mulholland_black",
+      "breakpoints": true
     }
   ]
 }
