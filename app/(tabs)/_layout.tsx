@@ -115,6 +115,13 @@ export default function TabLayout() {
           href: canManageTeam ? undefined : null,
         }}
       />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="person.fill" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

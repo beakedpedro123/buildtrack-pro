@@ -64,8 +64,9 @@ export default function TeamScreen() {
   const [empEmail, setEmpEmail] = useState("");
   const [empRate, setEmpRate] = useState("");
 
-  const canManage = employee?.role === "owner";
-  // Secretary and logistics can view the team list but cannot see pay rates or edit employees
+  // Owner, secretary, logistics can add/edit employees
+  const canManage = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
+  // Secretary and logistics can view the team list
   const canViewTeam = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
   // Only owner can see hourly rates
   const canSeeRates = employee?.role === "owner";

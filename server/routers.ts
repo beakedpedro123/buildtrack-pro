@@ -31,7 +31,7 @@ const employeeRouter = router({
     hourlyRate: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner"], "add employees");
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "add employees");
     const { requestingEmployeeId: _, ...data } = input;
     return db.createEmployee(data);
   }),
@@ -47,13 +47,13 @@ const employeeRouter = router({
     requestingEmployeeId: z.number().optional(),
   })).mutation(async ({ input }) => {
     if (input.requestingEmployeeId) {
-      await assertRole(input.requestingEmployeeId, ["owner"], "update employee records");
+      await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "update employee records");
     }
     const { id, requestingEmployeeId: _, ...data } = input;
     return db.updateEmployee(id, data);
   }),
   deactivate: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner"], "deactivate employees");
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "deactivate employees");
     return db.deactivateEmployee(input.id);
   }),
 });

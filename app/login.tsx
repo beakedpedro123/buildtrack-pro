@@ -102,8 +102,9 @@ export default function LoginScreen() {
   const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     header: { paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
-    logo: { fontSize: 28, fontWeight: "800", color: colors.primary, letterSpacing: -0.5 },
+    logo: { fontSize: 28, fontWeight: "800", color: colors.primary, letterSpacing: -0.5, textShadowColor: colors.primary + '33', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
     subtitle: { fontSize: 14, color: colors.muted, marginTop: 4 },
+    logoAccent: { color: colors.foreground },
     sectionTitle: { fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 16 },
     empCard: {
       flexDirection: "row",

@@ -139,3 +139,31 @@
 - [x] Server-side guard on createEmployee/updateEmployee mutations
 - [x] Server-side guard on updateClockEntry (time alteration) mutations
 - [x] Server-side: strip hourlyRate from employee responses for non-owner callers
+
+## Phase 5 Bug Fixes & Features
+
+### Meetings Screen
+- [x] Fix title text input (keyboard/focus issue)
+- [x] Add auto-title option (e.g. "Friday Meeting — Mar 21")
+- [x] Fix start call / create meeting button
+- [x] Allow manual title override
+
+### Weekly Goals
+- [x] Fix goal title text input
+- [x] Add week-by-week navigation
+- [x] Open goals access to Foreman role (was management only)
+- [x] Goals visible to all except Laborer
+
+### Logistics Role Permissions
+- [x] Fix: Logistics can add new employees
+- [x] Fix: Logistics can create new jobs
+
+### Profile / Name Editing
+- [x] Add profile screen accessible from dashboard
+- [x] Allow any employee to change their display name
+- [x] Owner can change their name from "Owner" to their real name
+
+### Theme
+- [x] Change brand colors to white, black, and gold
+- [x] Update all accent colors, buttons, badges, and tab bar
+- [x] Update app logo to match new theme
