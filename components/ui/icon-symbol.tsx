@@ -57,6 +57,10 @@ const MAPPING = {
   "ellipsis": "more-horiz",
   "cloud.fill": "cloud",
   "cloud.bolt.fill": "cloud-off",
+  "timer": "timer",
+  "mic.fill": "mic",
+  "target": "track-changes",
+  "flag.fill": "flag",
 } as IconMapping;
 
 /**

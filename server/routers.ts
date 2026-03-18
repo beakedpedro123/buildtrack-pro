@@ -5,6 +5,8 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { storagePut } from "./storage";
+import { invokeLLM } from "./_core/llm";
+import { transcribeAudio } from "./_core/voiceTranscription";
 
 const employeeRouter = router({
   list: publicProcedure.query(() => db.getAllEmployees()),
@@ -165,6 +167,155 @@ const budgetRouter = router({
   getSyncLogs: publicProcedure.input(z.object({ limit: z.number().default(10) })).query(({ input }) => db.getRecentSyncLogs(input.limit)),
 });
 
+const meetingsRouter = router({
+  list: publicProcedure.query(() => db.getMeetings(30)),
+  getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getMeetingById(input.id)),
+  create: publicProcedure.input(z.object({
+    title: z.string().min(1).max(255),
+    scheduledFor: z.string().optional(),
+    attendees: z.string().optional(),
+    createdBy: z.number(),
+  })).mutation(async ({ input }) => {
+    const id = await db.createMeeting({
+      title: input.title,
+      scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : undefined,
+      attendees: input.attendees,
+      createdBy: input.createdBy,
+      status: "scheduled",
+    });
+    return { id };
+  }),
+  startRecording: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    await db.updateMeeting(input.id, { status: "recording", startedAt: new Date() });
+    return { success: true };
+  }),
+  finishRecording: publicProcedure.input(z.object({
+    id: z.number(),
+    audioUrl: z.string(),
+  })).mutation(async ({ input }) => {
+    await db.updateMeeting(input.id, { status: "processing", endedAt: new Date(), audioUrl: input.audioUrl });
+    return { success: true };
+  }),
+  transcribeAndSummarize: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    const meeting = await db.getMeetingById(input.id);
+    if (!meeting || !meeting.audioUrl) throw new Error("Meeting or audio not found");
+    let transcript = "";
+    try {
+      const result = await transcribeAudio({ audioUrl: meeting.audioUrl, language: "en", prompt: "Construction management meeting" });
+      transcript = (result as any).text || "";
+    } catch {
+      transcript = "[Transcription failed — please review audio manually]";
+    }
+    let summary = "";
+    let suggestedGoals: string[] = [];
+    try {
+      const llmResult = await invokeLLM({
+        messages: [
+          { role: "system", content: `You are an assistant for a construction business. Given a meeting transcript, produce:\n1. A concise summary (3-5 sentences) of what was discussed.\n2. A list of 3-6 actionable weekly goals derived from the meeting.\nReturn JSON: { "summary": "...", "goals": ["..."] }` },
+          { role: "user", content: transcript || "No transcript available." },
+        ],
+        response_format: { type: "json_object" },
+      });
+      const parsed = JSON.parse(llmResult.choices[0].message.content as string);
+      summary = parsed.summary || "";
+      suggestedGoals = Array.isArray(parsed.goals) ? parsed.goals : [];
+    } catch {
+      summary = "[Summary generation failed]";
+    }
+    await db.updateMeeting(input.id, { transcript, summary, status: "completed" });
+    return { transcript, summary, suggestedGoals };
+  }),
+  cancel: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    await db.updateMeeting(input.id, { status: "cancelled" });
+    return { success: true };
+  }),
+});
+
+const goalsRouter = router({
+  list: publicProcedure.input(z.object({ weekOf: z.string().optional() })).query(({ input }) =>
+    db.getWeeklyGoals(input.weekOf ? new Date(input.weekOf) : undefined)
+  ),
+  forMeeting: publicProcedure.input(z.object({ meetingId: z.number() })).query(({ input }) =>
+    db.getGoalsForMeeting(input.meetingId)
+  ),
+  create: publicProcedure.input(z.object({
+    meetingId: z.number().optional(),
+    title: z.string().min(1).max(255),
+    description: z.string().optional(),
+    assignedTo: z.number().optional(),
+    weekOf: z.string(),
+    priority: z.enum(["low", "medium", "high"]).default("medium"),
+    createdBy: z.number(),
+  })).mutation(async ({ input }) => {
+    const id = await db.createWeeklyGoal({ ...input, weekOf: new Date(input.weekOf) });
+    return { id };
+  }),
+  update: publicProcedure.input(z.object({
+    id: z.number(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
+    priority: z.enum(["low", "medium", "high"]).optional(),
+    assignedTo: z.number().optional(),
+    completedAt: z.string().optional(),
+  })).mutation(async ({ input }) => {
+    const { id, completedAt, ...rest } = input;
+    await db.updateWeeklyGoal(id, { ...rest, completedAt: completedAt ? new Date(completedAt) : undefined });
+    return { success: true };
+  }),
+  delete: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    await db.deleteWeeklyGoal(input.id);
+    return { success: true };
+  }),
+});
+
+const payrollRouter = router({
+  getReport: publicProcedure.input(z.object({
+    startDate: z.string(),
+    endDate: z.string(),
+  })).query(async ({ input }) => {
+    const start = new Date(input.startDate);
+    const end = new Date(input.endDate);
+    const entries = await db.getClockEntriesForPayroll(start, end);
+    const allEmployees = await db.getAllEmployees();
+    const employeeMap = new Map(allEmployees.map((e) => [e.id, e]));
+    type SummaryRow = { employeeId: number; name: string; role: string; hourlyRate: string | null; totalMinutes: number; entries: typeof entries };
+    const summary: Record<number, SummaryRow> = {};
+    for (const entry of entries) {
+      if (!entry.clockOut) continue;
+      const durationMs = new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime();
+      const minutes = Math.floor(durationMs / 60000);
+      if (!summary[entry.employeeId]) {
+        const emp = employeeMap.get(entry.employeeId);
+        summary[entry.employeeId] = { employeeId: entry.employeeId, name: emp?.name || "Unknown", role: emp?.role || "laborer", hourlyRate: emp?.hourlyRate ?? null, totalMinutes: 0, entries: [] };
+      }
+      summary[entry.employeeId].totalMinutes += minutes;
+      summary[entry.employeeId].entries.push(entry);
+    }
+    return { rows: Object.values(summary), startDate: input.startDate, endDate: input.endDate };
+  }),
+  getMyHours: publicProcedure.input(z.object({
+    employeeId: z.number(),
+    startDate: z.string(),
+    endDate: z.string(),
+  })).query(async ({ input }) => {
+    const entries = await db.getClockEntriesForEmployeePeriod(
+      input.employeeId,
+      new Date(input.startDate),
+      new Date(input.endDate)
+    );
+    const emp = await db.getEmployeeById(input.employeeId);
+    let totalMinutes = 0;
+    const rows = entries.map((e) => {
+      const durationMs = e.clockOut ? new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime() : 0;
+      const minutes = Math.floor(durationMs / 60000);
+      totalMinutes += minutes;
+      return { ...e, durationMinutes: minutes };
+    });
+    return { entries: rows, totalMinutes, employee: emp };
+  }),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -180,6 +331,9 @@ export const appRouter = router({
   clock: clockRouter,
   reports: reportsRouter,
   budget: budgetRouter,
+  meetings: meetingsRouter,
+  goals: goalsRouter,
+  payroll: payrollRouter,
 });
 
 export type AppRouter = typeof appRouter;

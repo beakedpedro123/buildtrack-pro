@@ -27,7 +27,8 @@ export default function TabLayout() {
 
   const role = employee?.role || "laborer";
   const canManageTeam = role === "owner" || role === "secretary" || role === "logistics";
-  const canViewBudget = role === "owner" || role === "secretary" || role === "logistics";
+  const canViewPayroll = role === "owner" || role === "secretary";
+  const canMeetings = role === "owner" || role === "secretary" || role === "logistics" || role === "foreman";
 
   return (
     <Tabs
@@ -73,6 +74,37 @@ export default function TabLayout() {
         options={{
           title: "Reports",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="doc.text.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="hours"
+        options={{
+          title: "My Hours",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="timer" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="meetings"
+        options={{
+          title: "Meetings",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="mic.fill" color={color} />,
+          href: canMeetings ? undefined : null,
+        }}
+      />
+      <Tabs.Screen
+        name="goals"
+        options={{
+          title: "Goals",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="target" color={color} />,
+          href: canMeetings ? undefined : null,
+        }}
+      />
+      <Tabs.Screen
+        name="payroll"
+        options={{
+          title: "Payroll",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="dollarsign.circle.fill" color={color} />,
+          href: canViewPayroll ? undefined : null,
         }}
       />
       <Tabs.Screen

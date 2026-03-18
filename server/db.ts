@@ -22,6 +22,10 @@ import {
   qbSyncLog,
   reportPhotos,
   users,
+  meetings,
+  weeklyGoals,
+  InsertMeeting,
+  InsertWeeklyGoal,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -370,4 +374,95 @@ export async function getRecentSyncLogs(limit = 10) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(qbSyncLog).orderBy(desc(qbSyncLog.createdAt)).limit(limit);
+}
+// ─── Meetings ─────────────────────────────────────────────────────────────────
+export async function createMeeting(data: Omit<InsertMeeting, "id" | "createdAt" | "updatedAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(meetings).values(data);
+  return result[0].insertId as number;
+}
+
+export async function getMeetings(limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(meetings).orderBy(desc(meetings.createdAt)).limit(limit);
+}
+
+export async function getMeetingById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(meetings).where(eq(meetings.id, id)).limit(1);
+  return rows[0] || null;
+}
+
+export async function updateMeeting(id: number, data: Partial<InsertMeeting>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(meetings).set(data).where(eq(meetings.id, id));
+}
+
+// ─── Weekly Goals ──────────────────────────────────────────────────────────
+
+export async function createWeeklyGoal(data: Omit<InsertWeeklyGoal, "id" | "createdAt" | "updatedAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(weeklyGoals).values(data);
+  return result[0].insertId as number;
+}
+
+export async function getWeeklyGoals(weekOf?: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  if (weekOf) {
+    // Get goals for the week containing weekOf
+    const start = new Date(weekOf);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    return db.select().from(weeklyGoals)
+      .where(and(gte(weeklyGoals.weekOf, start), lte(weeklyGoals.weekOf, end)))
+      .orderBy(weeklyGoals.priority, weeklyGoals.createdAt);
+  }
+  return db.select().from(weeklyGoals).orderBy(desc(weeklyGoals.createdAt)).limit(50);
+}
+
+export async function getGoalsForMeeting(meetingId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(weeklyGoals).where(eq(weeklyGoals.meetingId, meetingId));
+}
+
+export async function updateWeeklyGoal(id: number, data: Partial<InsertWeeklyGoal>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(weeklyGoals).set(data).where(eq(weeklyGoals.id, id));
+}
+
+export async function deleteWeeklyGoal(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(weeklyGoals).where(eq(weeklyGoals.id, id));
+}
+
+// ─── Payroll / Hours helpers ───────────────────────────────────────────────
+
+export async function getClockEntriesForPayroll(startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(clockEntries)
+    .where(and(gte(clockEntries.clockIn, startDate), lte(clockEntries.clockIn, endDate)))
+    .orderBy(clockEntries.employeeId, clockEntries.clockIn);
+}
+
+export async function getClockEntriesForEmployeePeriod(employeeId: number, startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(clockEntries)
+    .where(and(
+      eq(clockEntries.employeeId, employeeId),
+      gte(clockEntries.clockIn, startDate),
+      lte(clockEntries.clockIn, endDate)
+    ))
+    .orderBy(desc(clockEntries.clockIn));
 }

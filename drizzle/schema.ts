@@ -165,6 +165,39 @@ export const qbSyncLog = mysqlTable("qbSyncLog", {
   completedAt: timestamp("completedAt"),
 });
 
+// ─── Meetings ─────────────────────────────────────────────────────────────
+export const meetings = mysqlTable("meetings", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  scheduledFor: timestamp("scheduledFor"),
+  startedAt: timestamp("startedAt"),
+  endedAt: timestamp("endedAt"),
+  status: mysqlEnum("status", ["scheduled", "recording", "processing", "completed", "cancelled"]).default("scheduled").notNull(),
+  audioUrl: text("audioUrl"),
+  transcript: text("transcript"),
+  summary: text("summary"),
+  attendees: text("attendees"), // JSON array of employee IDs
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Weekly Goals ──────────────────────────────────────────────────────────
+export const weeklyGoals = mysqlTable("weeklyGoals", {
+  id: int("id").autoincrement().primaryKey(),
+  meetingId: int("meetingId"),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  assignedTo: int("assignedTo"),
+  weekOf: timestamp("weekOf").notNull(),
+  status: mysqlEnum("status", ["pending", "in_progress", "completed", "cancelled"]).default("pending").notNull(),
+  priority: mysqlEnum("priority", ["low", "medium", "high"]).default("medium").notNull(),
+  createdBy: int("createdBy").notNull(),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -199,3 +232,9 @@ export type Expense = typeof expenses.$inferSelect;
 export type InsertExpense = typeof expenses.$inferInsert;
 
 export type QbSyncLog = typeof qbSyncLog.$inferSelect;
+
+export type Meeting = typeof meetings.$inferSelect;
+export type InsertMeeting = typeof meetings.$inferInsert;
+
+export type WeeklyGoal = typeof weeklyGoals.$inferSelect;
+export type InsertWeeklyGoal = typeof weeklyGoals.$inferInsert;

@@ -15,10 +15,10 @@
 ## Theme & Branding
 - [x] Construction orange/navy theme in theme.config.js
 - [x] App logo generation
-- [x] Tab bar icons for all 5 tabs
+- [x] Tab bar icons for all tabs
 
 ## Navigation
-- [x] Tab bar with 5 tabs (role-adaptive visibility)
+- [x] Tab bar with role-adaptive visibility
 - [x] Stack navigators for Job Detail, Employee, Reports
 - [x] Auth guard (redirect to login if not authenticated)
 
@@ -73,3 +73,35 @@
 - [ ] PIN change screen (future enhancement)
 - [ ] Theme toggle (light/dark) (future enhancement)
 - [ ] Offline data management (future enhancement)
+
+## Phase 2 Features (User Request)
+
+### Hours Self-Service
+- [x] My Hours tab/screen for all employees (daily/weekly/monthly breakdown)
+- [x] Hours summary cards with total hours and earnings estimate
+- [x] Clock history list with job names and durations
+
+### Payroll Reports (Secretary)
+- [x] Payroll report screen with pay period selector
+- [x] Per-employee hours and earnings table
+- [x] CSV export of payroll data (downloadable to computer)
+- [x] Payroll report backend endpoint
+
+### Management Meetings
+- [x] Meetings tab (visible to owner, secretary, logistics, foreman)
+- [x] Meeting room screen with start/stop recording
+- [x] Audio recording using expo-audio
+- [x] Upload recording to server for AI transcription
+- [x] AI-generated meeting summary (using server LLM)
+- [x] Meeting history list with summaries
+- [x] Meeting detail screen showing full transcript + summary
+
+### Weekly Goals
+- [x] Weekly goals screen linked to meeting summaries
+- [x] Create/edit/complete goals
+- [x] Goals tied to specific meetings
+- [x] Goals progress tracker
+- [x] Goals database schema and API
+
+### App Distribution
+- [x] App ready for Publish (APK/IPA) via UI Publish button
