@@ -43,10 +43,18 @@ export default function JobsScreen() {
 
   const [filter, setFilter] = useState<"all" | "active" | "completed">("active");
   const [selectedJob, setSelectedJob] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "budget" | "reports" | "photos">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "budget" | "estimates" | "reports" | "photos">("overview");
   const [showNewJob, setShowNewJob] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showAddBudget, setShowAddBudget] = useState(false);
+  const [showAddEstimate, setShowAddEstimate] = useState(false);
+
+  // QB Estimate form
+  const [estNumber, setEstNumber] = useState("");
+  const [estClient, setEstClient] = useState("");
+  const [estAmount, setEstAmount] = useState("");
+  const [estLineItems, setEstLineItems] = useState("");
+  const [estNotes, setEstNotes] = useState("");
 
   // New job form
   const [jobName, setJobName] = useState("");
@@ -92,14 +100,21 @@ export default function JobsScreen() {
     { limit: 5 },
     { enabled: canSeeBudget }
   );
+  const { data: qbEstimatesData } = trpc.qbEstimates.getForJob.useQuery(
+    { jobId: selectedJob?.id || 0 },
+    { enabled: !!selectedJob && canSeeBudget }
+  );
 
   const createJob = trpc.jobs.create.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); setShowNewJob(false); resetJobForm(); } });
   const updateJob = trpc.jobs.update.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); } });
   const addExpense = trpc.budget.addExpense.useMutation({ onSuccess: () => { utils.budget.getExpenses.invalidate(); utils.budget.getCategories.invalidate(); setShowAddExpense(false); resetExpForm(); } });
   const addBudgetCat = trpc.budget.createCategory.useMutation({ onSuccess: () => { utils.budget.getCategories.invalidate(); setShowAddBudget(false); setBudgetName(""); setBudgetAmount(""); } });
   const syncToQB = trpc.budget.syncToQB.useMutation();
+  const createEstimate = trpc.qbEstimates.create.useMutation({ onSuccess: () => { utils.qbEstimates.getForJob.invalidate(); setShowAddEstimate(false); resetEstForm(); } });
+  const deleteEstimate = trpc.qbEstimates.delete.useMutation({ onSuccess: () => { utils.qbEstimates.getForJob.invalidate(); } });
 
   const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); };
+  const resetEstForm = () => { setEstNumber(""); setEstClient(""); setEstAmount(""); setEstLineItems(""); setEstNotes(""); };
   const resetExpForm = () => { setExpDesc(""); setExpAmount(""); setExpCategoryId(null); };
 
   const filteredJobs = (allJobs || []).filter((j) => {
@@ -149,9 +164,9 @@ export default function JobsScreen() {
     ]);
   };
 
-  // Tabs available depend on role — laborer/foreman never see the Budget tab
+  // Tabs available depend on role — laborer/foreman never see the Budget or Estimates tabs
   const availableTabs = canSeeBudget
-    ? (["overview", "budget", "reports", "photos"] as const)
+    ? (["overview", "budget", "estimates", "reports", "photos"] as const)
     : (["overview", "reports", "photos"] as const);
 
   const styles = StyleSheet.create({
@@ -440,6 +455,70 @@ export default function JobsScreen() {
                 </View>
               )}
 
+              {/* QB Estimates Tab — management only */}
+              {activeTab === "estimates" && canSeeBudget && (
+                <View style={styles.section}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                    <Text style={styles.sectionTitle}>QuickBooks Estimates</Text>
+                    {canManage && (
+                      <TouchableOpacity onPress={() => setShowAddEstimate(true)} style={{ backgroundColor: colors.primary + "20", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
+                        <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 13 }}>+ Link Estimate</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {(qbEstimatesData || []).length === 0 && (
+                    <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                      <Text style={{ fontSize: 36, marginBottom: 8 }}>📋</Text>
+                      <Text style={{ color: colors.muted, fontSize: 14 }}>No QB estimates linked</Text>
+                      <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Tap "+ Link Estimate" to add one from QuickBooks</Text>
+                    </View>
+                  )}
+                  {(qbEstimatesData || []).map((est) => {
+                    let lineItems: string[] = [];
+                    try { lineItems = JSON.parse(est.lineItems || "[]"); } catch {}
+                    return (
+                      <View key={est.id} style={{ backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 12 }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Est #{est.qbEstimateNumber || est.id}</Text>
+                            {est.clientName ? <Text style={{ fontSize: 13, color: colors.muted }}>{est.clientName}</Text> : null}
+                          </View>
+                          <View style={{ alignItems: "flex-end" }}>
+                            <Text style={{ fontSize: 18, fontWeight: "800", color: colors.primary }}>${parseFloat(est.totalAmount).toLocaleString()}</Text>
+                            <Text style={{ fontSize: 11, color: est.status === "accepted" ? colors.success : est.status === "rejected" ? colors.error : colors.warning, fontWeight: "600" }}>
+                              {(est.status || "pending").toUpperCase()}
+                            </Text>
+                          </View>
+                        </View>
+                        {lineItems.length > 0 && (
+                          <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
+                            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>Line Items</Text>
+                            {lineItems.slice(0, 5).map((item, i) => (
+                              <Text key={i} style={{ fontSize: 13, color: colors.foreground, marginBottom: 2 }}>• {item}</Text>
+                            ))}
+                            {lineItems.length > 5 && <Text style={{ fontSize: 12, color: colors.muted }}>+{lineItems.length - 5} more</Text>}
+                          </View>
+                        )}
+                        {est.notes ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8, fontStyle: "italic" }}>{est.notes}</Text> : null}
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+                          <Text style={{ fontSize: 11, color: colors.muted }}>Synced {new Date(est.syncedAt).toLocaleDateString()}</Text>
+                          {canManage && (
+                            <TouchableOpacity onPress={() => {
+                              Alert.alert("Remove Estimate", "Remove this QB estimate from this job?", [
+                                { text: "Cancel", style: "cancel" },
+                                { text: "Remove", style: "destructive", onPress: () => deleteEstimate.mutate({ id: est.id, requestingEmployeeId: employee!.id }) },
+                              ]);
+                            }}>
+                              <Text style={{ fontSize: 12, color: colors.error, fontWeight: "600" }}>Remove</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
               {/* Reports Tab */}
               {activeTab === "reports" && (
                 <View style={styles.section}>
@@ -529,6 +608,51 @@ export default function JobsScreen() {
                       disabled={addExpense.isPending}
                     >
                       {addExpense.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Add Expense</Text>}
+                    </TouchableOpacity>
+                  </ScrollView>
+                </KeyboardAvoidingView>
+              </Modal>
+            )}
+
+            {/* Add QB Estimate Modal — management only */}
+            {canManage && (
+              <Modal visible={showAddEstimate} animationType="slide" presentationStyle="formSheet">
+                <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Link QB Estimate</Text>
+                    <TouchableOpacity onPress={() => { setShowAddEstimate(false); resetEstForm(); }}>
+                      <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView style={{ padding: 20 }}>
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>QB Estimate # (optional)</Text>
+                    <TextInput style={styles.input} placeholder="e.g. 1042" placeholderTextColor={colors.muted} value={estNumber} onChangeText={setEstNumber} />
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Client Name (optional)</Text>
+                    <TextInput style={styles.input} placeholder="Client name from QB" placeholderTextColor={colors.muted} value={estClient} onChangeText={setEstClient} />
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Total Amount ($) *</Text>
+                    <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={colors.muted} value={estAmount} onChangeText={setEstAmount} keyboardType="decimal-pad" />
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Line Items (one per line)</Text>
+                    <TextInput style={[styles.input, { height: 100, textAlignVertical: "top" }]} placeholder={"Wall Framing - $5,000\nRoof Framing - $3,500\nMaterials - $8,000"} placeholderTextColor={colors.muted} value={estLineItems} onChangeText={setEstLineItems} multiline />
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Notes</Text>
+                    <TextInput style={[styles.input, { height: 60, textAlignVertical: "top" }]} placeholder="Any notes about this estimate..." placeholderTextColor={colors.muted} value={estNotes} onChangeText={setEstNotes} multiline />
+                    <TouchableOpacity
+                      style={[styles.syncBtn, { backgroundColor: colors.primary }]}
+                      onPress={async () => {
+                        if (!estAmount || !employee) return;
+                        const lineItemsArr = estLineItems.split("\n").map(s => s.trim()).filter(Boolean);
+                        await createEstimate.mutateAsync({
+                          jobId: selectedJob.id,
+                          qbEstimateNumber: estNumber || undefined,
+                          clientName: estClient || undefined,
+                          totalAmount: estAmount,
+                          lineItems: JSON.stringify(lineItemsArr),
+                          notes: estNotes || undefined,
+                          requestingEmployeeId: employee.id,
+                        });
+                      }}
+                      disabled={createEstimate.isPending || !estAmount}
+                    >
+                      {createEstimate.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Link Estimate</Text>}
                     </TouchableOpacity>
                   </ScrollView>
                 </KeyboardAvoidingView>

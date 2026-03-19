@@ -341,6 +341,96 @@ const payrollRouter = router({
   }),
 });
 
+const qbEstimatesRouter = router({
+  getForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getEstimatesForJob(input.jobId)),
+  create: publicProcedure.input(z.object({
+    jobId: z.number(),
+    qbEstimateId: z.string().optional(),
+    qbEstimateNumber: z.string().optional(),
+    clientName: z.string().optional(),
+    totalAmount: z.string(),
+    status: z.string().optional(),
+    lineItems: z.string().optional(),
+    issueDate: z.string().optional(),
+    expiryDate: z.string().optional(),
+    notes: z.string().optional(),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "create QB estimates");
+    const { requestingEmployeeId, ...data } = input;
+    return db.createQbEstimate({
+      ...data,
+      issueDate: data.issueDate ? new Date(data.issueDate) : undefined,
+      expiryDate: data.expiryDate ? new Date(data.expiryDate) : undefined,
+    });
+  }),
+  update: publicProcedure.input(z.object({
+    id: z.number(),
+    totalAmount: z.string().optional(),
+    status: z.string().optional(),
+    lineItems: z.string().optional(),
+    notes: z.string().optional(),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "update QB estimates");
+    const { id, requestingEmployeeId, ...data } = input;
+    await db.updateQbEstimate(id, data);
+    return { success: true };
+  }),
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "delete QB estimates");
+    await db.deleteQbEstimate(input.id);
+    return { success: true };
+  }),
+});
+
+const kpiRouter = router({
+  list: publicProcedure.query(() => db.getAllKpis()),
+  getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getKpiById(input.id)),
+  create: publicProcedure.input(z.object({
+    name: z.string().min(1).max(128),
+    category: z.enum(["revenue", "labor", "jobs", "safety", "schedule", "custom"]).default("custom"),
+    unit: z.string().optional(),
+    targetValue: z.string().optional(),
+    currentValue: z.string().optional(),
+    description: z.string().optional(),
+    period: z.enum(["weekly", "monthly", "quarterly", "yearly"]).default("monthly"),
+    createdBy: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.createdBy, ["owner", "secretary"], "create KPIs");
+    return db.createKpi(input);
+  }),
+  update: publicProcedure.input(z.object({
+    id: z.number(),
+    name: z.string().optional(),
+    targetValue: z.string().optional(),
+    currentValue: z.string().optional(),
+    description: z.string().optional(),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary"], "update KPIs");
+    const { id, requestingEmployeeId, ...data } = input;
+    await db.updateKpi(id, data);
+    return { success: true };
+  }),
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary"], "delete KPIs");
+    await db.deleteKpi(input.id);
+    return { success: true };
+  }),
+  addHistoryEntry: publicProcedure.input(z.object({
+    kpiId: z.number(),
+    value: z.string(),
+    notes: z.string().optional(),
+    recordedBy: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.recordedBy, ["owner", "secretary"], "record KPI values");
+    await db.addKpiHistoryEntry(input);
+    return { success: true };
+  }),
+  getHistory: publicProcedure.input(z.object({ kpiId: z.number(), limit: z.number().default(12) })).query(({ input }) => db.getKpiHistory(input.kpiId, input.limit)),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -359,6 +449,8 @@ export const appRouter = router({
   meetings: meetingsRouter,
   goals: goalsRouter,
   payroll: payrollRouter,
+  qbEstimates: qbEstimatesRouter,
+  kpi: kpiRouter,
 });
 
 export type AppRouter = typeof appRouter;

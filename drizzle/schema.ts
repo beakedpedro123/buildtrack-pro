@@ -198,6 +198,52 @@ export const weeklyGoals = mysqlTable("weeklyGoals", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+// ─── QuickBooks Estimates ────────────────────────────────────────────────────
+export const qbEstimates = mysqlTable("qbEstimates", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
+  qbEstimateId: varchar("qbEstimateId", { length: 64 }),
+  qbEstimateNumber: varchar("qbEstimateNumber", { length: 64 }),
+  clientName: varchar("clientName", { length: 128 }),
+  totalAmount: decimal("totalAmount", { precision: 12, scale: 2 }).notNull(),
+  status: varchar("status", { length: 32 }).default("pending"),
+  lineItems: text("lineItems"), // JSON array of line items
+  issueDate: timestamp("issueDate"),
+  expiryDate: timestamp("expiryDate"),
+  notes: text("notes"),
+  syncedAt: timestamp("syncedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── KPI Metrics ──────────────────────────────────────────────────────────────
+export const kpiMetrics = mysqlTable("kpiMetrics", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 128 }).notNull(),
+  category: mysqlEnum("category", ["revenue", "labor", "jobs", "safety", "schedule", "custom"]).default("custom").notNull(),
+  unit: varchar("unit", { length: 32 }).default(""),  // e.g. "$", "%", "hrs", "jobs"
+  targetValue: decimal("targetValue", { precision: 12, scale: 2 }),
+  currentValue: decimal("currentValue", { precision: 12, scale: 2 }).default("0"),
+  description: text("description"),
+  period: mysqlEnum("period", ["weekly", "monthly", "quarterly", "yearly"]).default("monthly").notNull(),
+  weekOf: timestamp("weekOf"),  // for weekly KPIs
+  isActive: boolean("isActive").default(true).notNull(),
+  createdBy: int("createdBy").notNull(),
+  updatedBy: int("updatedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── KPI History ──────────────────────────────────────────────────────────────
+export const kpiHistory = mysqlTable("kpiHistory", {
+  id: int("id").autoincrement().primaryKey(),
+  kpiId: int("kpiId").notNull(),
+  value: decimal("value", { precision: 12, scale: 2 }).notNull(),
+  notes: text("notes"),
+  recordedBy: int("recordedBy").notNull(),
+  recordedAt: timestamp("recordedAt").defaultNow().notNull(),
+});
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -238,3 +284,12 @@ export type InsertMeeting = typeof meetings.$inferInsert;
 
 export type WeeklyGoal = typeof weeklyGoals.$inferSelect;
 export type InsertWeeklyGoal = typeof weeklyGoals.$inferInsert;
+
+export type QbEstimate = typeof qbEstimates.$inferSelect;
+export type InsertQbEstimate = typeof qbEstimates.$inferInsert;
+
+export type KpiMetric = typeof kpiMetrics.$inferSelect;
+export type InsertKpiMetric = typeof kpiMetrics.$inferInsert;
+
+export type KpiHistory = typeof kpiHistory.$inferSelect;
+export type InsertKpiHistory = typeof kpiHistory.$inferInsert;

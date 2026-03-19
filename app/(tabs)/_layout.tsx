@@ -100,6 +100,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="kpis"
+        options={{
+          title: "KPIs",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="chart.bar.fill" color={color} />,
+          href: (role === "owner" || role === "secretary" || role === "logistics" || role === "foreman") ? undefined : null,
+        }}
+      />
+      <Tabs.Screen
         name="payroll"
         options={{
           title: "Payroll",

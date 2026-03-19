@@ -167,3 +167,11 @@
 - [x] Change brand colors to white, black, and gold
 - [x] Update all accent colors, buttons, badges, and tab bar
 - [x] Update app logo to match new theme
+
+## Phase 6 Features
+
+- [x] Update daily field report work types to 13 construction tasks
+- [x] Add QuickBooks estimates sync to jobs (pull QB estimate into job budget)
+- [x] Build KPI tracker screen (owner + secretary can define and track KPIs)
+- [x] KPI categories: revenue, labor, jobs, safety, schedule
+- [x] Secretary can create/update KPI values; owner sees dashboard view

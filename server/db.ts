@@ -26,6 +26,12 @@ import {
   weeklyGoals,
   InsertMeeting,
   InsertWeeklyGoal,
+  qbEstimates,
+  kpiMetrics,
+  kpiHistory,
+  InsertQbEstimate,
+  InsertKpiMetric,
+  InsertKpiHistory,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -465,4 +471,72 @@ export async function getClockEntriesForEmployeePeriod(employeeId: number, start
       lte(clockEntries.clockIn, endDate)
     ))
     .orderBy(desc(clockEntries.clockIn));
+}
+
+// ─── QuickBooks Estimates ──────────────────────────────────────────────────
+export async function getEstimatesForJob(jobId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(qbEstimates).where(eq(qbEstimates.jobId, jobId)).orderBy(desc(qbEstimates.createdAt));
+}
+export async function createQbEstimate(data: InsertQbEstimate) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(qbEstimates).values(data);
+  const [row] = await db.select().from(qbEstimates).where(eq(qbEstimates.jobId, data.jobId)).orderBy(desc(qbEstimates.createdAt)).limit(1);
+  return row;
+}
+export async function updateQbEstimate(id: number, data: Partial<InsertQbEstimate>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(qbEstimates).set(data).where(eq(qbEstimates.id, id));
+}
+export async function deleteQbEstimate(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(qbEstimates).where(eq(qbEstimates.id, id));
+}
+
+// ─── KPI Metrics ──────────────────────────────────────────────────────────
+export async function getAllKpis() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(kpiMetrics).where(eq(kpiMetrics.isActive, true)).orderBy(kpiMetrics.category, kpiMetrics.name);
+}
+export async function getKpiById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(kpiMetrics).where(eq(kpiMetrics.id, id)).limit(1);
+  return row ?? null;
+}
+export async function createKpi(data: InsertKpiMetric) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(kpiMetrics).values(data);
+  const [row] = await db.select().from(kpiMetrics).where(eq(kpiMetrics.createdBy, data.createdBy)).orderBy(desc(kpiMetrics.createdAt)).limit(1);
+  return row;
+}
+export async function updateKpi(id: number, data: Partial<InsertKpiMetric>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(kpiMetrics).set(data).where(eq(kpiMetrics.id, id));
+}
+export async function deleteKpi(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(kpiMetrics).set({ isActive: false }).where(eq(kpiMetrics.id, id));
+}
+
+// ─── KPI History ──────────────────────────────────────────────────────────
+export async function getKpiHistory(kpiId: number, limit = 12) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(kpiHistory).where(eq(kpiHistory.kpiId, kpiId)).orderBy(desc(kpiHistory.recordedAt)).limit(limit);
+}
+export async function addKpiHistoryEntry(data: InsertKpiHistory) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(kpiHistory).values(data);
+  // Also update the current value on the KPI metric
+  await db.update(kpiMetrics).set({ currentValue: data.value, updatedBy: data.recordedBy }).where(eq(kpiMetrics.id, data.kpiId));
 }

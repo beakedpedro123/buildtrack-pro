@@ -24,22 +24,19 @@ import {
 } from "react-native";
 
 const WORK_CHECKLIST = [
-  "Site preparation / excavation",
-  "Foundation work",
-  "Framing",
-  "Roofing",
-  "Electrical rough-in",
-  "Plumbing rough-in",
-  "HVAC installation",
-  "Insulation",
-  "Drywall / sheetrock",
-  "Exterior siding",
-  "Windows & doors",
-  "Interior finishes",
-  "Flooring",
-  "Painting",
-  "Landscaping / cleanup",
-  "Inspections / punch list",
+  "Wall Framing",
+  "Floor Framing",
+  "Floor Sheathing",
+  "Stair Framing",
+  "Roof Framing",
+  "Deck Framing",
+  "Demolition",
+  "Cleaning",
+  "Inspection Checklist",
+  "Timber Work",
+  "Steel Install",
+  "Decking Install",
+  "Wall Sheathing",
 ];
 
 const WEATHER_OPTIONS = ["Clear", "Partly Cloudy", "Overcast", "Rain", "Wind", "Snow", "Extreme Heat"];
