@@ -35,6 +35,8 @@ export const employees = mysqlTable("employees", {
   email: varchar("email", { length: 320 }),
   isActive: boolean("isActive").default(true).notNull(),
   hourlyRate: decimal("hourlyRate", { precision: 8, scale: 2 }),
+  inviteToken: varchar("inviteToken", { length: 64 }),
+  inviteStatus: mysqlEnum("inviteStatus", ["pending", "accepted"]).default("accepted"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

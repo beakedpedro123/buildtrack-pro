@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,11 +17,13 @@ import {
   View,
 } from "react-native";
 
+const companyLogo = require("@/assets/images/company-logo.png");
+
 const ROLE_COLORS: Record<string, string> = {
-  owner: "#E8500A",
+  owner: "#C8A951",
   secretary: "#8B5CF6",
   logistics: "#0EA5E9",
-  foreman: "#F59E0B",
+  foreman: "#D4A843",
   laborer: "#22C55E",
 };
 
@@ -55,6 +58,7 @@ export default function DashboardScreen() {
   const role = employee?.role || "laborer";
   const isManagement = role === "owner" || role === "secretary" || role === "logistics";
   const isForeman = role === "foreman";
+  const isFieldRole = role === "foreman" || role === "laborer";
 
   const { data: activeJobs } = trpc.jobs.listActive.useQuery();
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManagement });
@@ -107,12 +111,17 @@ export default function DashboardScreen() {
     <ScreenContainer edges={["top", "left", "right"]}>
       <OfflineBanner />
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Company Logo */}
+        <View style={{ alignItems: "center", paddingTop: 12, paddingBottom: 4 }}>
+          <Image source={companyLogo} style={{ width: 120, height: 120, resizeMode: "contain" }} />
+        </View>
+
         {/* Header */}
         <View style={styles.header}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <View>
               <Text style={styles.greeting}>
-                {now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening"}, {employee.name.split(" ")[0]} 👋
+                {now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening"}, {employee.name.split(" ")[0]}
               </Text>
               <View style={[styles.roleTag, { backgroundColor: roleColor }]}>
                 <Text style={styles.roleTagText}>{ROLE_LABELS[role]}</Text>
@@ -142,8 +151,8 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* My Clock Status (all roles) */}
-        <View style={styles.clockCard}>
+        {/* My Clock Status (field roles only) */}
+        {isFieldRole && <View style={styles.clockCard}>
           <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
             <View style={[styles.clockStatusDot, { backgroundColor: activeEntry ? colors.success : colors.muted }]} />
             <Text style={{ fontSize: 14, fontWeight: "700", color: activeEntry ? colors.success : colors.muted }}>
@@ -171,7 +180,7 @@ export default function DashboardScreen() {
               <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Clock In</Text>
             </TouchableOpacity>
           )}
-        </View>
+        </View>}
 
         {/* Who's On Site (management) */}
         {isManagement && (clockedIn || []).length > 0 && (

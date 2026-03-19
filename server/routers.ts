@@ -56,6 +56,26 @@ const employeeRouter = router({
     await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "deactivate employees");
     return db.deactivateEmployee(input.id);
   }),
+  createWithInvite: publicProcedure.input(z.object({
+    name: z.string().min(1).max(128),
+    role: z.enum(["owner", "secretary", "logistics", "foreman", "laborer"]),
+    email: z.string().email().optional(),
+    phone: z.string().optional(),
+    hourlyRate: z.string().optional(),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "add employees");
+    const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const { requestingEmployeeId: _, ...data } = input;
+    const id = await db.createEmployee({ ...data, pin: "0000", inviteToken: token, inviteStatus: "pending" });
+    return { id, inviteToken: token };
+  }),
+  getByInviteToken: publicProcedure.input(z.object({ token: z.string() })).query(({ input }) => db.getEmployeeByInviteToken(input.token)),
+  acceptInvite: publicProcedure.input(z.object({
+    token: z.string(),
+    name: z.string().min(1).max(128),
+    pin: z.string().min(4).max(6),
+  })).mutation(({ input }) => db.acceptInvite(input.token, input.name, input.pin)),
 });
 
 const jobsRouter = router({
@@ -119,6 +139,7 @@ const clockRouter = router({
   history: publicProcedure.input(z.object({ employeeId: z.number(), since: z.string().optional() })).query(({ input }) => db.getClockEntriesForEmployee(input.employeeId, input.since ? new Date(input.since) : undefined)),
   forJob: publicProcedure.input(z.object({ jobId: z.number(), date: z.string().optional() })).query(({ input }) => db.getClockEntriesForJob(input.jobId, input.date ? new Date(input.date) : undefined)),
   allClockedIn: publicProcedure.query(() => db.getClockedInEmployees()),
+  laborCostForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getLaborCostForJob(input.jobId)),
 });
 
 const reportsRouter = router({

@@ -175,3 +175,22 @@
 - [x] Build KPI tracker screen (owner + secretary can define and track KPIs)
 - [x] KPI categories: revenue, labor, jobs, safety, schedule
 - [x] Secretary can create/update KPI values; owner sees dashboard view
+
+## Phase 7 — Final Polish
+
+### Clock-to-Budget Sync
+- [x] Clock entries labor hours auto-calculate into job budget in real time
+- [x] Job budget tab shows actual labor cost from clock entries
+
+### Tab Visibility
+- [x] Hide Clock tab from Owner, Secretary, and Logistics
+- [x] Hide My Hours tab from Owner, Secretary, and Logistics
+
+### Email Invite for New Employees
+- [x] Add email field when creating new employee
+- [x] Send invite link (shareable via text/email/AirDrop) for employee to set their own PIN
+- [x] Employee can create PIN from invite link
+
+### Branding
+- [x] Integrate Carranza Custom Construction logo on dashboard
+- [x] Logo displayed prominently on main screen

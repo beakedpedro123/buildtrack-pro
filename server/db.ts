@@ -540,3 +540,49 @@ export async function addKpiHistoryEntry(data: InsertKpiHistory) {
   // Also update the current value on the KPI metric
   await db.update(kpiMetrics).set({ currentValue: data.value, updatedBy: data.recordedBy }).where(eq(kpiMetrics.id, data.kpiId));
 }
+
+// ─── Employee Invites ─────────────────────────────────────────────────────
+export async function getEmployeeByInviteToken(token: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(employees)
+    .where(and(eq(employees.inviteToken, token), eq(employees.inviteStatus, "pending")))
+    .limit(1);
+  return result[0];
+}
+
+export async function acceptInvite(token: string, name: string, pin: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const emp = await getEmployeeByInviteToken(token);
+  if (!emp) throw new Error("Invalid or expired invite token");
+  await db.update(employees).set({
+    name,
+    pin,
+    inviteStatus: "accepted",
+  }).where(eq(employees.id, emp.id));
+  return emp.id;
+}
+
+// ─── Labor Cost for Job ──────────────────────────────────────────────────
+export async function getLaborCostForJob(jobId: number) {
+  const db = await getDb();
+  if (!db) return { totalMinutes: 0, totalCost: 0 };
+  const entries = await db.select().from(clockEntries)
+    .where(eq(clockEntries.jobId, jobId));
+  const allEmployees = await db.select().from(employees);
+  const empMap = new Map(allEmployees.map(e => [e.id, e]));
+
+  let totalMinutes = 0;
+  let totalCost = 0;
+  for (const entry of entries) {
+    if (!entry.clockOut) continue;
+    const mins = Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000);
+    totalMinutes += mins;
+    const emp = empMap.get(entry.employeeId);
+    if (emp?.hourlyRate) {
+      totalCost += (mins / 60) * parseFloat(emp.hourlyRate);
+    }
+  }
+  return { totalMinutes, totalCost: Math.round(totalCost * 100) / 100 };
+}

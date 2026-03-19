@@ -12,12 +12,14 @@ import {
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import * as Linking from "expo-linking";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#E8500A",
@@ -63,6 +65,8 @@ export default function TeamScreen() {
   const [empPhone, setEmpPhone] = useState("");
   const [empEmail, setEmpEmail] = useState("");
   const [empRate, setEmpRate] = useState("");
+  const [useInviteLink, setUseInviteLink] = useState(true);
+  const [inviteResult, setInviteResult] = useState<{ token: string; link: string } | null>(null);
 
   // Owner, secretary, logistics can add/edit employees
   const canManage = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
@@ -88,6 +92,15 @@ export default function TeamScreen() {
     },
   });
 
+  const createWithInvite = trpc.employees.createWithInvite.useMutation({
+    onSuccess: (data) => {
+      utils.employees.list.invalidate();
+      const link = Linking.createURL(`/invite/${data.inviteToken}`);
+      setInviteResult({ token: data.inviteToken, link });
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+  });
+
   const updateEmployee = trpc.employees.update.useMutation({
     onSuccess: () => {
       utils.employees.list.invalidate();
@@ -109,22 +122,50 @@ export default function TeamScreen() {
     setEmpPhone("");
     setEmpEmail("");
     setEmpRate("");
+    setInviteResult(null);
   };
 
   const handleCreateEmployee = async () => {
-    if (!empName.trim() || empPin.length < 4) {
-      Alert.alert("Missing Info", "Name and a 4-6 digit PIN are required.");
-      return;
+    if (useInviteLink) {
+      if (!empName.trim()) {
+        Alert.alert("Missing Info", "Name is required.");
+        return;
+      }
+      await createWithInvite.mutateAsync({
+        name: empName.trim(),
+        role: empRole,
+        email: empEmail || undefined,
+        phone: empPhone || undefined,
+        hourlyRate: empRate || undefined,
+        requestingEmployeeId: employee!.id,
+      });
+    } else {
+      if (!empName.trim() || empPin.length < 4) {
+        Alert.alert("Missing Info", "Name and a 4-6 digit PIN are required.");
+        return;
+      }
+      await createEmployee.mutateAsync({
+        name: empName.trim(),
+        role: empRole,
+        pin: empPin,
+        phone: empPhone || undefined,
+        email: empEmail || undefined,
+        hourlyRate: empRate || undefined,
+        requestingEmployeeId: employee!.id,
+      });
     }
-    await createEmployee.mutateAsync({
-      name: empName.trim(),
-      role: empRole,
-      pin: empPin,
-      phone: empPhone || undefined,
-      email: empEmail || undefined,
-      hourlyRate: empRate || undefined,
-      requestingEmployeeId: employee!.id,
-    });
+  };
+
+  const handleShareInvite = async () => {
+    if (!inviteResult) return;
+    try {
+      await Share.share({
+        message: `You've been invited to join Carranza Custom Construction on BuildTrack Pro! Open this link to set up your account:\n\n${inviteResult.link}`,
+        title: "BuildTrack Pro Invite",
+      });
+    } catch (e) {
+      // user cancelled
+    }
   };
 
   const handleDeactivate = (emp: any) => {
@@ -361,11 +402,49 @@ export default function TeamScreen() {
           </View>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
             <ScrollView style={styles.section}>
+              {inviteResult ? (
+                <View style={{ alignItems: "center", paddingVertical: 20 }}>
+                  <Text style={{ fontSize: 48, marginBottom: 16 }}>✅</Text>
+                  <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground, textAlign: "center", marginBottom: 8 }}>Invite Created!</Text>
+                  <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginBottom: 20 }}>Share this link with {empName} so they can set up their own PIN and log in.</Text>
+                  <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, width: "100%", marginBottom: 16 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 4 }}>Invite Link</Text>
+                    <Text style={{ fontSize: 13, color: colors.foreground }} selectable>{inviteResult.link}</Text>
+                  </View>
+                  <TouchableOpacity style={[styles.submitBtn, { width: "100%" }]} onPress={handleShareInvite}>
+                    <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Share Invite Link</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={{ marginTop: 12, padding: 12 }} onPress={() => { setShowAddEmployee(false); resetForm(); }}>
+                    <Text style={{ color: colors.primary, fontWeight: "600", fontSize: 15 }}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+              <>
+              {/* Toggle: Invite Link vs Manual PIN */}
+              <View style={{ flexDirection: "row", backgroundColor: colors.surface, borderRadius: 10, padding: 3, marginBottom: 16, borderWidth: 1, borderColor: colors.border }}>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: useInviteLink ? colors.primary : "transparent" }}
+                  onPress={() => setUseInviteLink(true)}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: useInviteLink ? "#fff" : colors.muted }}>Send Invite Link</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: !useInviteLink ? colors.primary : "transparent" }}
+                  onPress={() => setUseInviteLink(false)}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: !useInviteLink ? "#fff" : colors.muted }}>Set PIN Manually</Text>
+                </TouchableOpacity>
+              </View>
+
               <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Full Name *</Text>
               <TextInput style={styles.input} placeholder="e.g. John Smith" placeholderTextColor={colors.muted} value={empName} onChangeText={setEmpName} />
 
-              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>PIN (4-6 digits) *</Text>
-              <TextInput style={styles.input} placeholder="e.g. 1234" placeholderTextColor={colors.muted} value={empPin} onChangeText={setEmpPin} keyboardType="numeric" maxLength={6} secureTextEntry />
+              {!useInviteLink && (
+                <>
+                  <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>PIN (4-6 digits) *</Text>
+                  <TextInput style={styles.input} placeholder="e.g. 1234" placeholderTextColor={colors.muted} value={empPin} onChangeText={setEmpPin} keyboardType="numeric" maxLength={6} secureTextEntry />
+                </>
+              )}
 
               <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 8 }}>Role *</Text>
               {ROLES.map((r) => (
@@ -394,9 +473,11 @@ export default function TeamScreen() {
                 </>
               )}
 
-              <TouchableOpacity style={styles.submitBtn} onPress={handleCreateEmployee} disabled={createEmployee.isPending}>
-                {createEmployee.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Add Employee</Text>}
+              <TouchableOpacity style={styles.submitBtn} onPress={handleCreateEmployee} disabled={createEmployee.isPending || createWithInvite.isPending}>
+                {(createEmployee.isPending || createWithInvite.isPending) ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>{useInviteLink ? "Create & Get Invite Link" : "Add Employee"}</Text>}
               </TouchableOpacity>
+              </>
+              )}
             </ScrollView>
           </KeyboardAvoidingView>
         </View>

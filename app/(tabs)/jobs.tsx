@@ -104,6 +104,10 @@ export default function JobsScreen() {
     { jobId: selectedJob?.id || 0 },
     { enabled: !!selectedJob && canSeeBudget }
   );
+  const { data: laborCost } = trpc.clock.laborCostForJob.useQuery(
+    { jobId: selectedJob?.id || 0 },
+    { enabled: !!selectedJob && canSeeBudget }
+  );
 
   const createJob = trpc.jobs.create.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); setShowNewJob(false); resetJobForm(); } });
   const updateJob = trpc.jobs.update.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); } });
@@ -125,7 +129,10 @@ export default function JobsScreen() {
 
   // Budget figures — only computed for roles that can see them
   const totalBudget = canSeeBudget ? parseFloat(selectedJob?.totalBudget || "0") : 0;
-  const totalSpent = canSeeBudget ? (expenses || []).reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0) : 0;
+  const expenseSpent = canSeeBudget ? (expenses || []).reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0) : 0;
+  const laborSpent = canSeeBudget ? (laborCost?.totalCost || 0) : 0;
+  const laborHours = laborCost ? Math.round(laborCost.totalMinutes / 60 * 10) / 10 : 0;
+  const totalSpent = expenseSpent + laborSpent;
   const budgetPct = totalBudget > 0 ? Math.min(totalSpent / totalBudget, 1) : 0;
   const budgetBarColor = budgetPct < 0.6 ? colors.success : budgetPct < 0.85 ? colors.warning : colors.error;
 
@@ -379,6 +386,21 @@ export default function JobsScreen() {
                       <Text style={{ fontSize: 13, color: colors.muted }}>Spent: ${totalSpent.toLocaleString()}</Text>
                       <Text style={{ fontSize: 13, color: colors.muted }}>Remaining: ${Math.max(0, totalBudget - totalSpent).toLocaleString()}</Text>
                     </View>
+                  </View>
+
+                  {/* Labor Cost from Clock Entries */}
+                  <View style={{ backgroundColor: colors.primary + "10", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.primary + "30", marginBottom: 20 }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <View>
+                        <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 2 }}>Labor (from timeclock)</Text>
+                        <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>${laborSpent.toLocaleString()}</Text>
+                      </View>
+                      <View style={{ alignItems: "flex-end" }}>
+                        <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 2 }}>Hours Logged</Text>
+                        <Text style={{ fontSize: 20, fontWeight: "800", color: colors.primary }}>{laborHours}h</Text>
+                      </View>
+                    </View>
+                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>Auto-calculated from employee clock-in/out records and hourly rates</Text>
                   </View>
 
                   {/* Budget Categories */}

@@ -1,0 +1,6 @@
+Screenshot review (v2.5 pre-checkpoint):
+- Login screen shows "BuildTrack Pro" in gold color
+- Employee list shows real names: Demetrio (Laborer), Juan Melgoza (Foreman), Lupe Mejia (Owner), Pablo Carranza (Logistics), Pedro (Owner), Ricardo Ocampo (Foreman)
+- Role badges are colored: green for laborer, orange for foreman, gold for owner, blue for logistics
+- The gold theme is applied correctly
+- The user has already added some real employees to the system
