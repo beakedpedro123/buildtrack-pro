@@ -3,10 +3,11 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
+import { getApiBaseUrl } from "@/constants/oauth";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -22,7 +23,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import * as FileSystem from "expo-file-system/legacy";
 
 const WORK_CHECKLIST = [
   "Wall Framing",
@@ -62,11 +62,11 @@ export default function ReportsScreen() {
   const [notes, setNotes] = useState("");
   const [weather, setWeather] = useState("Clear");
   const [crewCount, setCrewCount] = useState("1");
-  const [photos, setPhotos] = useState<{ uri: string; base64: string }[]>([]);
+  // Store only URIs — no base64 needed
+  const [photos, setPhotos] = useState<{ uri: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
   const [expandedReport, setExpandedReport] = useState<number | null>(null);
-  const [expandedPhotos, setExpandedPhotos] = useState<any[]>([]);
-  const [loadingPhotos, setLoadingPhotos] = useState(false);
 
   const { data: jobs } = trpc.jobs.listActive.useQuery();
   const { data: recentReports } = trpc.reports.recent.useQuery({ limit: 20 });
@@ -78,9 +78,20 @@ export default function ReportsScreen() {
     { enabled: !!expandedReport }
   );
   const addMaterial = trpc.reports.addMaterial.useMutation();
-  const uploadPhoto = trpc.reports.uploadPhoto.useMutation();
+  // Keep the tRPC mutation for saving photo metadata to DB after upload
+  const savePhotoRecord = trpc.reports.uploadPhoto.useMutation();
 
   const canSubmitReport = employee?.role === "foreman" || employee?.role === "owner" || employee?.role === "secretary";
+
+  // Request permissions on mount
+  useEffect(() => {
+    (async () => {
+      if (Platform.OS !== "web") {
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+        await ImagePicker.requestCameraPermissionsAsync();
+      }
+    })();
+  }, []);
 
   const toggleWorkItem = (item: string) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -101,29 +112,7 @@ export default function ReportsScreen() {
     setMaterials((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Helper: read base64 from URI if not provided by ImagePicker
-  const getBase64FromUri = async (uri: string): Promise<string | null> => {
-    if (Platform.OS === "web") {
-      try {
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const dataUrl = reader.result as string;
-            resolve(dataUrl.split(",")[1] || null);
-          };
-          reader.readAsDataURL(blob);
-        });
-      } catch { return null; }
-    }
-    try {
-      return await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-    } catch { return null; }
-  };
-
   const pickPhoto = async () => {
-    // Request permission
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission Needed", "Please go to Settings and allow BuildTrack Pro to access your photos.");
@@ -131,27 +120,13 @@ export default function ReportsScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      quality: 0.7,
-      base64: true,
+      quality: 0.6,
       allowsMultipleSelection: true,
     });
     if (!result.canceled && result.assets.length > 0) {
-      const newPhotos: { uri: string; base64: string }[] = [];
-      for (const asset of result.assets) {
-        let b64 = asset.base64 || null;
-        if (!b64) {
-          // Fallback: read from file URI
-          b64 = await getBase64FromUri(asset.uri);
-        }
-        if (b64) {
-          newPhotos.push({ uri: asset.uri, base64: b64 });
-        }
-      }
-      if (newPhotos.length > 0) {
-        setPhotos((prev) => [...prev, ...newPhotos].slice(0, 10));
-      } else {
-        Alert.alert("Photo Error", "Could not read the selected photos. Please try again.");
-      }
+      const newPhotos = result.assets.map((asset) => ({ uri: asset.uri }));
+      setPhotos((prev) => [...prev, ...newPhotos].slice(0, 10));
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
 
@@ -162,21 +137,57 @@ export default function ReportsScreen() {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      quality: 0.7,
-      base64: true,
+      quality: 0.6,
     });
     if (!result.canceled && result.assets.length > 0) {
-      const asset = result.assets[0];
-      let b64 = asset.base64 || null;
-      if (!b64) {
-        // Fallback: read from file URI
-        b64 = await getBase64FromUri(asset.uri);
-      }
-      if (b64) {
-        setPhotos((prev) => [...prev, { uri: asset.uri, base64: b64! }].slice(0, 10));
+      setPhotos((prev) => [...prev, { uri: result.assets[0].uri }].slice(0, 10));
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  // Upload a single photo file to /api/upload using FormData (works on iOS/Android/Web)
+  const uploadPhotoFile = async (uri: string): Promise<string | null> => {
+    try {
+      const apiBase = getApiBaseUrl();
+      const uploadUrl = `${apiBase}/api/upload`;
+
+      // Create FormData with the file URI — React Native handles the file reading
+      const formData = new FormData();
+
+      if (Platform.OS === "web") {
+        // On web, fetch the blob from the URI
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        formData.append("file", blob, `photo_${Date.now()}.jpg`);
       } else {
-        Alert.alert("Photo Error", "Could not process the photo. Please try again.");
+        // On native (iOS/Android), pass the URI directly — RN handles it
+        const fileObj = {
+          uri: uri,
+          type: "image/jpeg",
+          name: `photo_${Date.now()}.jpg`,
+        } as any;
+        formData.append("file", fileObj);
       }
+
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        body: formData,
+        headers: {
+          // Don't set Content-Type — let fetch set it with the boundary
+        },
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("Photo upload failed:", response.status, errText);
+        return null;
+      }
+
+      const data = await response.json();
+      return data.url || null;
+    } catch (err) {
+      console.error("Photo upload error:", err);
+      return null;
     }
   };
 
@@ -190,7 +201,9 @@ export default function ReportsScreen() {
       return;
     }
     setSubmitting(true);
+    setUploadProgress("Creating report...");
     try {
+      // Step 1: Create the report
       const reportId = await createReport.mutateAsync({
         jobId: selectedJobId,
         submittedBy: employee.id,
@@ -201,8 +214,10 @@ export default function ReportsScreen() {
         crewCount: parseInt(crewCount) || 1,
       });
 
+      // Step 2: Add materials
       for (const mat of materials) {
         if (!mat.materialName) continue;
+        setUploadProgress("Saving materials...");
         await addMaterial.mutateAsync({
           reportId,
           jobId: selectedJobId,
@@ -217,24 +232,39 @@ export default function ReportsScreen() {
         });
       }
 
-      for (const photo of photos) {
-        await uploadPhoto.mutateAsync({
-          reportId,
-          jobId: selectedJobId,
-          uploadedBy: employee.id,
-          base64: photo.base64,
-        });
+      // Step 3: Upload photos via /api/upload, then save record via tRPC
+      let uploadedCount = 0;
+      for (let i = 0; i < photos.length; i++) {
+        setUploadProgress(`Uploading photo ${i + 1} of ${photos.length}...`);
+        const photoUrl = await uploadPhotoFile(photos[i].uri);
+        if (photoUrl) {
+          // Save the photo record to the database
+          await savePhotoRecord.mutateAsync({
+            reportId,
+            jobId: selectedJobId,
+            uploadedBy: employee.id,
+            base64: "", // Not used — we already uploaded via /api/upload
+            url: photoUrl, // Pass the S3 URL directly
+          });
+          uploadedCount++;
+        }
       }
 
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       utils.reports.recent.invalidate();
       setShowNewReport(false);
       resetForm();
-      Alert.alert("Report Submitted", "Your daily report has been saved successfully.");
-    } catch (e) {
-      Alert.alert("Error", "Failed to submit report. Please try again.");
+
+      const photoMsg = photos.length > 0
+        ? ` with ${uploadedCount}/${photos.length} photos`
+        : "";
+      Alert.alert("Report Submitted", `Your daily report has been saved successfully${photoMsg}.`);
+    } catch (e: any) {
+      console.error("Report submit error:", e);
+      Alert.alert("Error", `Failed to submit report: ${e?.message || "Please try again."}`);
     } finally {
       setSubmitting(false);
+      setUploadProgress("");
     }
   };
 
@@ -296,7 +326,7 @@ export default function ReportsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 24 }}
         renderItem={({ item }) => {
-          const workItems = (() => { try { return JSON.parse(item.workCompleted || "[]"); } catch { return []; } })();
+          const parsedWorkItems = (() => { try { return JSON.parse(item.workCompleted || "[]"); } catch { return []; } })();
           const isExpanded = expandedReport === item.id;
           return (
             <TouchableOpacity style={styles.reportCard} onPress={() => setExpandedReport(isExpanded ? null : item.id)}>
@@ -312,10 +342,10 @@ export default function ReportsScreen() {
               </View>
               {isExpanded && (
                 <View style={{ paddingHorizontal: 14, paddingBottom: 14 }}>
-                  {workItems.length > 0 && (
+                  {parsedWorkItems.length > 0 && (
                     <View style={{ marginBottom: 10 }}>
                       <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, marginBottom: 6 }}>Work Completed</Text>
-                      {workItems.map((w: string, i: number) => (
+                      {parsedWorkItems.map((w: string, i: number) => (
                         <View key={i} style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
                           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success, marginRight: 8 }} />
                           <Text style={{ fontSize: 13, color: colors.foreground }}>{w}</Text>
@@ -331,7 +361,7 @@ export default function ReportsScreen() {
                   ) : null}
 
                   {/* Report Photos */}
-                  {isExpanded && getPhotosQuery.data && getPhotosQuery.data.length > 0 && (
+                  {getPhotosQuery.data && getPhotosQuery.data.length > 0 && (
                     <View style={{ marginTop: 8 }}>
                       <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>Photos ({getPhotosQuery.data.length})</Text>
                       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -343,7 +373,7 @@ export default function ReportsScreen() {
                       </View>
                     </View>
                   )}
-                  {isExpanded && getPhotosQuery.isLoading && (
+                  {getPhotosQuery.isLoading && (
                     <View style={{ paddingVertical: 12, alignItems: "center" }}>
                       <ActivityIndicator size="small" color={colors.primary} />
                       <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>Loading photos...</Text>
@@ -474,6 +504,13 @@ export default function ReportsScreen() {
                     <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>🖼 Gallery</Text>
                   </TouchableOpacity>
                 </View>
+                {photos.length > 0 && (
+                  <View style={{ marginBottom: 8 }}>
+                    <Text style={{ fontSize: 12, color: colors.success, fontWeight: "600" }}>
+                      {photos.length} photo{photos.length !== 1 ? "s" : ""} ready to upload
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.photoGrid}>
                   {photos.map((p, i) => (
                     <TouchableOpacity key={i} style={styles.photoThumb} onPress={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}>
@@ -500,7 +537,14 @@ export default function ReportsScreen() {
               </View>
 
               <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={submitting}>
-                {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Submit Daily Report</Text>}
+                {submitting ? (
+                  <View style={{ alignItems: "center" }}>
+                    <ActivityIndicator color="#fff" />
+                    {uploadProgress ? <Text style={{ color: "#fff", fontSize: 12, marginTop: 4 }}>{uploadProgress}</Text> : null}
+                  </View>
+                ) : (
+                  <Text style={styles.submitBtnText}>Submit Daily Report</Text>
+                )}
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>

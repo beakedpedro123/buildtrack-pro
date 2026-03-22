@@ -174,12 +174,21 @@ const reportsRouter = router({
     base64: z.string(),
     mimeType: z.string().default("image/jpeg"),
     caption: z.string().optional(),
+    url: z.string().optional(),
   })).mutation(async ({ input }) => {
-    const buffer = Buffer.from(input.base64, "base64");
-    const key = `reports/${input.jobId}/${input.reportId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-    const { url } = await storagePut(key, buffer, input.mimeType);
-    const photoId = await db.addReportPhoto({ reportId: input.reportId, jobId: input.jobId, uploadedBy: input.uploadedBy, url, caption: input.caption });
-    return { id: photoId, url };
+    let photoUrl: string;
+    if (input.url) {
+      // Photo was already uploaded via /api/upload — just save the record
+      photoUrl = input.url;
+    } else {
+      // Legacy: upload from base64
+      const buffer = Buffer.from(input.base64, "base64");
+      const key = `reports/${input.jobId}/${input.reportId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+      const { url } = await storagePut(key, buffer, input.mimeType);
+      photoUrl = url;
+    }
+    const photoId = await db.addReportPhoto({ reportId: input.reportId, jobId: input.jobId, uploadedBy: input.uploadedBy, url: photoUrl, caption: input.caption });
+    return { id: photoId, url: photoUrl };
   }),
   getPhotos: publicProcedure.input(z.object({ reportId: z.number() })).query(({ input }) => db.getPhotosForReport(input.reportId)),
   getPhotosForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getPhotosForJob(input.jobId)),

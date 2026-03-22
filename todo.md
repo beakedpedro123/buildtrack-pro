@@ -262,3 +262,9 @@
 - [x] Remove Estimates tab from job detail view
 - [x] Remove QB estimates upload/extraction code from jobs.tsx
 - [x] Keep estimate data in DB for future separate estimating app integration
+
+## Phase 11 — Photo Upload Bug (Still Broken)
+
+- [x] Fix photo upload — rewritten to use FormData file upload instead of base64
+- [x] Fix report submission — photos now upload via /api/upload then save URL to DB
+- [x] Traced full pipeline: camera URI → FormData → /api/upload → S3 URL → tRPC save to DB
