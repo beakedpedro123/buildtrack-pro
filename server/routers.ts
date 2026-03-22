@@ -245,6 +245,9 @@ const meetingsRouter = router({
   transcribeAndSummarize: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
     const meeting = await db.getMeetingById(input.id);
     if (!meeting || !meeting.audioUrl) throw new Error("Meeting or audio not found");
+    // Get employee list for name matching in goals
+    const employees = await db.getAllEmployees();
+    const employeeNames = employees.map(e => e.name).join(", ");
     let transcript = "";
     try {
       const result = await transcribeAudio({ audioUrl: meeting.audioUrl, language: "en", prompt: "Construction management meeting" });
@@ -253,23 +256,36 @@ const meetingsRouter = router({
       transcript = "[Transcription failed — please review audio manually]";
     }
     let summary = "";
-    let suggestedGoals: string[] = [];
+    let suggestedGoals: { title: string; assignee?: string }[] = [];
     try {
       const llmResult = await invokeLLM({
         messages: [
-          { role: "system", content: `You are an assistant for a construction business. Given a meeting transcript, produce:\n1. A concise summary (3-5 sentences) of what was discussed.\n2. A list of 3-6 actionable weekly goals derived from the meeting.\nReturn JSON: { "summary": "...", "goals": ["..."] }` },
+          { role: "system", content: `You are an assistant for a construction business. The team members are: ${employeeNames}.\nGiven a meeting transcript, produce:\n1. A concise summary (3-5 sentences) of what was discussed.\n2. A list of 3-6 actionable weekly goals derived from the meeting. If a person's name is mentioned in relation to a task, include their name as the assignee.\nReturn JSON: { "summary": "...", "goals": [{ "title": "...", "assignee": "person name or null" }] }` },
           { role: "user", content: transcript || "No transcript available." },
         ],
         response_format: { type: "json_object" },
       });
       const parsed = JSON.parse(llmResult.choices[0].message.content as string);
       summary = parsed.summary || "";
-      suggestedGoals = Array.isArray(parsed.goals) ? parsed.goals : [];
+      if (Array.isArray(parsed.goals)) {
+        suggestedGoals = parsed.goals.map((g: any) => {
+          if (typeof g === "string") return { title: g };
+          return { title: g.title || g, assignee: g.assignee || null };
+        });
+      }
     } catch {
       summary = "[Summary generation failed]";
     }
+    // Build employee name-to-id map for matching
+    const nameToId: Record<string, number> = {};
+    employees.forEach(e => { nameToId[e.name.toLowerCase()] = e.id; });
+    const goalsWithIds = suggestedGoals.map(g => ({
+      title: g.title,
+      assignee: g.assignee || null,
+      assigneeId: g.assignee ? (nameToId[g.assignee.toLowerCase()] || null) : null,
+    }));
     await db.updateMeeting(input.id, { transcript, summary, status: "completed" });
-    return { transcript, summary, suggestedGoals };
+    return { transcript, summary, suggestedGoals: goalsWithIds };
   }),
   cancel: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
     await db.updateMeeting(input.id, { status: "cancelled" });

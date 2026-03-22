@@ -234,3 +234,18 @@
 - [ ] Build AI-powered estimate builder that learns from past estimates
 - [ ] Auto-suggest line items and pricing based on historical data
 - [ ] Make bidding workflow simpler with templates from past estimates
+
+## Phase 9 — Photo Upload Fix & Goals Assignment
+
+### Field Report Photos (Bug)
+- [x] Add explicit camera and media library permission requests
+- [x] Fix photo upload flow — photos not saving after camera capture
+- [x] Show uploaded photo count correctly (not stuck at 0/10)
+- [x] Verify photo displays in expanded report view
+
+### Goals Assignment
+- [x] Add employee picker when creating/editing goals (assign to Lupe, Pablo, Ricky, Juan, etc.)
+- [x] Filter goals view — each employee only sees goals assigned to them
+- [x] Owner/management sees all goals with assignee names
+- [x] AI meeting summary auto-suggests assignee from transcript
+- [x] Manual override option to reassign goals

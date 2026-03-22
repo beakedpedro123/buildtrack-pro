@@ -3,7 +3,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -66,6 +66,10 @@ export default function GoalsScreen() {
   const [newGoalTitle, setNewGoalTitle] = useState("");
   const [newGoalDescription, setNewGoalDescription] = useState("");
   const [newGoalPriority, setNewGoalPriority] = useState<Priority>("medium");
+  const [newGoalAssignee, setNewGoalAssignee] = useState<number | null>(null);
+  const [showAssigneePicker, setShowAssigneePicker] = useState(false);
+  const [filterAssignee, setFilterAssignee] = useState<number | "all">("all");
+  const [showFilterPicker, setShowFilterPicker] = useState(false);
 
   const weekDate = new Date();
   weekDate.setDate(weekDate.getDate() + weekOffset * 7);
@@ -75,6 +79,19 @@ export default function GoalsScreen() {
   const { data: goals, isLoading, refetch } = trpc.goals.list.useQuery({
     weekOf: weekStart.toISOString(),
   });
+  const { data: allEmployees } = trpc.employees.list.useQuery();
+
+  // Build a lookup map for employee names
+  const employeeMap = useMemo(() => {
+    const map: Record<number, string> = {};
+    (allEmployees || []).forEach((e: any) => { map[e.id] = e.name; });
+    return map;
+  }, [allEmployees]);
+
+  // Assignable employees (foreman, laborer, logistics)
+  const assignableEmployees = useMemo(() => {
+    return (allEmployees || []).filter((e: any) => e.isActive);
+  }, [allEmployees]);
 
   const createGoal = trpc.goals.create.useMutation({
     onSuccess: () => {
@@ -83,6 +100,7 @@ export default function GoalsScreen() {
       setNewGoalTitle("");
       setNewGoalDescription("");
       setNewGoalPriority("medium");
+      setNewGoalAssignee(null);
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
   });
@@ -93,9 +111,32 @@ export default function GoalsScreen() {
     onSuccess: () => utils.goals.list.invalidate(),
   });
 
-  // Goals visible to all except laborer
-  const canView = ["owner", "secretary", "logistics", "foreman"].includes(employee?.role || "");
-  const canManage = canView; // same roles can create/edit goals
+  // Roles that can view/manage goals
+  const isOwnerOrManager = ["owner", "secretary", "logistics"].includes(employee?.role || "");
+  const isForeman = employee?.role === "foreman";
+  const isLaborer = employee?.role === "laborer";
+  // Laborers and foremen can see their own goals; owners/managers see all
+  const canView = isOwnerOrManager || isForeman || isLaborer;
+  const canManage = isOwnerOrManager; // only owner/secretary/logistics can create/edit/delete
+
+  // Filter goals based on role and filter selection
+  const filteredGoals = useMemo(() => {
+    if (!goals) return [];
+    let filtered = [...goals];
+
+    // Non-managers only see goals assigned to them
+    if (!isOwnerOrManager) {
+      filtered = filtered.filter((g: any) => g.assignedTo === employee?.id);
+    } else if (filterAssignee !== "all") {
+      // Managers can filter by assignee
+      filtered = filtered.filter((g: any) => g.assignedTo === filterAssignee);
+    }
+
+    return filtered;
+  }, [goals, filterAssignee, isOwnerOrManager, employee?.id]);
+
+  const completedCount = filteredGoals.filter((g: any) => g.status === "completed").length;
+  const totalCount = filteredGoals.filter((g: any) => g.status !== "cancelled").length;
 
   const styles = StyleSheet.create({
     card: {
@@ -138,6 +179,21 @@ export default function GoalsScreen() {
       backgroundColor: colors.background,
       marginBottom: 12,
     },
+    assigneeChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1.5,
+      marginRight: 8,
+      marginBottom: 8,
+    },
+    filterChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      borderWidth: 1,
+      marginRight: 6,
+    },
   });
 
   if (!canView) {
@@ -152,10 +208,9 @@ export default function GoalsScreen() {
     );
   }
 
-  const completedCount = (goals || []).filter((g) => g.status === "completed").length;
-  const totalCount = (goals || []).filter((g) => g.status !== "cancelled").length;
-
   const handleStatusCycle = (goal: any) => {
+    // Foremen and laborers can update status on their own goals
+    if (!isOwnerOrManager && goal.assignedTo !== employee?.id) return;
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const cycle: GoalStatus[] = ["pending", "in_progress", "completed"];
     const current = goal.status as GoalStatus;
@@ -175,6 +230,17 @@ export default function GoalsScreen() {
     ]);
   };
 
+  const handleReassign = (goal: any) => {
+    if (!isOwnerOrManager) return;
+    const buttons = assignableEmployees.map((emp: any) => ({
+      text: emp.name,
+      onPress: () => updateGoal.mutate({ id: goal.id, assignedTo: emp.id }),
+    }));
+    buttons.push({ text: "Unassign", onPress: () => updateGoal.mutate({ id: goal.id, assignedTo: undefined as any }) });
+    buttons.push({ text: "Cancel", onPress: () => {} });
+    Alert.alert("Assign Goal To", "Select a team member:", buttons as any);
+  };
+
   const handleAddGoal = () => {
     if (!newGoalTitle.trim()) {
       Alert.alert("Title Required", "Please enter a goal title.");
@@ -186,10 +252,16 @@ export default function GoalsScreen() {
       priority: newGoalPriority,
       weekOf: weekStart.toISOString(),
       createdBy: employee?.id || 0,
+      assignedTo: newGoalAssignee || undefined,
     });
   };
 
   const PRIORITIES: Priority[] = ["low", "medium", "high"];
+
+  const getAssigneeName = (id: number | null | undefined): string => {
+    if (!id) return "Unassigned";
+    return employeeMap[id] || "Unknown";
+  };
 
   return (
     <ScreenContainer>
@@ -228,6 +300,35 @@ export default function GoalsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Filter by Assignee (only for managers) */}
+      {isOwnerOrManager && assignableEmployees.length > 0 && (
+        <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <TouchableOpacity
+              style={[styles.filterChip, {
+                borderColor: filterAssignee === "all" ? colors.primary : colors.border,
+                backgroundColor: filterAssignee === "all" ? colors.primary + "18" : "transparent",
+              }]}
+              onPress={() => setFilterAssignee("all")}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "600", color: filterAssignee === "all" ? colors.primary : colors.muted }}>All</Text>
+            </TouchableOpacity>
+            {assignableEmployees.map((emp: any) => (
+              <TouchableOpacity
+                key={emp.id}
+                style={[styles.filterChip, {
+                  borderColor: filterAssignee === emp.id ? colors.primary : colors.border,
+                  backgroundColor: filterAssignee === emp.id ? colors.primary + "18" : "transparent",
+                }]}
+                onPress={() => setFilterAssignee(filterAssignee === emp.id ? "all" : emp.id)}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "600", color: filterAssignee === emp.id ? colors.primary : colors.muted }}>{emp.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Progress Bar */}
       {totalCount > 0 && (
         <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
@@ -246,7 +347,7 @@ export default function GoalsScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.background }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>Add Weekly Goal</Text>
-            <TouchableOpacity onPress={() => { setShowAddGoal(false); setNewGoalTitle(""); setNewGoalDescription(""); }}>
+            <TouchableOpacity onPress={() => { setShowAddGoal(false); setNewGoalTitle(""); setNewGoalDescription(""); setNewGoalAssignee(null); }}>
               <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -272,6 +373,31 @@ export default function GoalsScreen() {
               multiline
               returnKeyType="done"
             />
+
+            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10 }}>Assign To</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 16 }}>
+              <TouchableOpacity
+                style={[styles.assigneeChip, {
+                  borderColor: !newGoalAssignee ? colors.primary : colors.border,
+                  backgroundColor: !newGoalAssignee ? colors.primary + "18" : "transparent",
+                }]}
+                onPress={() => setNewGoalAssignee(null)}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "600", color: !newGoalAssignee ? colors.primary : colors.muted }}>Everyone</Text>
+              </TouchableOpacity>
+              {assignableEmployees.map((emp: any) => (
+                <TouchableOpacity
+                  key={emp.id}
+                  style={[styles.assigneeChip, {
+                    borderColor: newGoalAssignee === emp.id ? colors.primary : colors.border,
+                    backgroundColor: newGoalAssignee === emp.id ? colors.primary + "18" : "transparent",
+                  }]}
+                  onPress={() => setNewGoalAssignee(newGoalAssignee === emp.id ? null : emp.id)}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: newGoalAssignee === emp.id ? colors.primary : colors.muted }}>{emp.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10 }}>Priority</Text>
             <View style={{ flexDirection: "row", marginBottom: 20 }}>
@@ -307,14 +433,16 @@ export default function GoalsScreen() {
         </View>
       ) : (
         <FlatList
-          data={goals || []}
-          keyExtractor={(item) => item.id.toString()}
+          data={filteredGoals}
+          keyExtractor={(item: any) => item.id.toString()}
           keyboardShouldPersistTaps="handled"
-          renderItem={({ item }) => {
+          renderItem={({ item }: { item: any }) => {
             const status = item.status as GoalStatus;
             const priority = item.priority as Priority;
+            const assigneeName = getAssigneeName(item.assignedTo);
+            const canUpdateStatus = isOwnerOrManager || item.assignedTo === employee?.id;
             return (
-              <TouchableOpacity style={styles.card} onPress={() => canManage && handleStatusCycle(item)} activeOpacity={canManage ? 0.75 : 1}>
+              <TouchableOpacity style={styles.card} onPress={() => canUpdateStatus && handleStatusCycle(item)} activeOpacity={canUpdateStatus ? 0.75 : 1}>
                 <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
                   <Text style={{ fontSize: 22, color: STATUS_COLORS[status], marginTop: 1 }}>{STATUS_ICONS[status]}</Text>
                   <View style={{ flex: 1 }}>
@@ -324,13 +452,22 @@ export default function GoalsScreen() {
                     {item.description ? (
                       <Text style={{ fontSize: 13, color: colors.muted, marginTop: 3, lineHeight: 18 }}>{item.description}</Text>
                     ) : null}
-                    <View style={{ flexDirection: "row", gap: 8, marginTop: 8, alignItems: "center" }}>
+                    <View style={{ flexDirection: "row", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <View style={{ backgroundColor: PRIORITY_COLORS[priority] + "22", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
                         <Text style={{ fontSize: 11, fontWeight: "700", color: PRIORITY_COLORS[priority], textTransform: "capitalize" }}>{priority}</Text>
                       </View>
                       <Text style={{ fontSize: 11, color: STATUS_COLORS[status], fontWeight: "600", textTransform: "capitalize" }}>
                         {status.replace("_", " ")}
                       </Text>
+                      {/* Assignee badge */}
+                      <TouchableOpacity
+                        onPress={() => isOwnerOrManager && handleReassign(item)}
+                        style={{ backgroundColor: item.assignedTo ? colors.primary + "18" : colors.border + "66", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: "600", color: item.assignedTo ? colors.primary : colors.muted }}>
+                          {assigneeName}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
                   {canManage && (
@@ -345,10 +482,17 @@ export default function GoalsScreen() {
           ListEmptyComponent={
             <View style={{ alignItems: "center", padding: 40 }}>
               <Text style={{ fontSize: 40 }}>🎯</Text>
-              <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginTop: 12 }}>No goals this week</Text>
+              <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginTop: 12 }}>
+                {!isOwnerOrManager ? "No goals assigned to you this week" : "No goals this week"}
+              </Text>
               {canManage && (
                 <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>
                   Tap "+ Goal" to add a weekly goal, or generate goals from a meeting summary.
+                </Text>
+              )}
+              {!isOwnerOrManager && (
+                <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>
+                  Your manager will assign goals to you here.
                 </Text>
               )}
             </View>

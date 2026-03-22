@@ -87,7 +87,7 @@ export default function MeetingsScreen() {
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [activeMeetingId, setActiveMeetingId] = useState<number | null>(null);
-  const [suggestedGoals, setSuggestedGoals] = useState<string[]>([]);
+  const [suggestedGoals, setSuggestedGoals] = useState<{ title: string; assignee: string | null; assigneeId: number | null }[]>([]);
   const [pushingGoals, setPushingGoals] = useState(false);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderLoading, setReminderLoading] = useState(false);
@@ -140,7 +140,7 @@ export default function MeetingsScreen() {
   const transcribeAndSummarize = trpc.meetings.transcribeAndSummarize.useMutation({
     onSuccess: (data) => {
       utils.meetings.list.invalidate();
-      setSuggestedGoals(data.suggestedGoals || []);
+      setSuggestedGoals((data.suggestedGoals || []) as any);
     },
   });
   const cancelMeeting = trpc.meetings.cancel.useMutation({
@@ -252,13 +252,14 @@ export default function MeetingsScreen() {
     setPushingGoals(true);
     try {
       const weekStart = getWeekStart(new Date());
-      for (const goalTitle of suggestedGoals) {
+      for (const goal of suggestedGoals) {
         await createGoal.mutateAsync({
-          title: goalTitle,
+          title: goal.title,
           meetingId: selectedMeetingId,
           weekOf: weekStart.toISOString(),
           priority: "medium",
           createdBy: employee.id,
+          assignedTo: goal.assigneeId || undefined,
         });
       }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -461,7 +462,12 @@ export default function MeetingsScreen() {
               {suggestedGoals.map((goal, i) => (
                 <View key={i} style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>
                   <Text style={{ fontSize: 14, color: colors.primary }}>•</Text>
-                  <Text style={{ fontSize: 14, color: colors.foreground, flex: 1, lineHeight: 20 }}>{goal}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, color: colors.foreground, lineHeight: 20 }}>{goal.title}</Text>
+                    {goal.assignee && (
+                      <Text style={{ fontSize: 12, color: colors.primary, marginTop: 2 }}>→ {goal.assignee}</Text>
+                    )}
+                  </View>
                 </View>
               ))}
               <TouchableOpacity

@@ -22,6 +22,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
 
 const WORK_CHECKLIST = [
   "Wall Framing",
@@ -100,38 +101,82 @@ export default function ReportsScreen() {
     setMaterials((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Helper: read base64 from URI if not provided by ImagePicker
+  const getBase64FromUri = async (uri: string): Promise<string | null> => {
+    if (Platform.OS === "web") {
+      try {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const dataUrl = reader.result as string;
+            resolve(dataUrl.split(",")[1] || null);
+          };
+          reader.readAsDataURL(blob);
+        });
+      } catch { return null; }
+    }
+    try {
+      return await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+    } catch { return null; }
+  };
+
   const pickPhoto = async () => {
+    // Request permission
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission needed", "Please allow photo access to upload site photos.");
+      Alert.alert("Permission Needed", "Please go to Settings and allow BuildTrack Pro to access your photos.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       quality: 0.7,
       base64: true,
       allowsMultipleSelection: true,
     });
-    if (!result.canceled) {
-        const newPhotos = result.assets
-        .filter((a: any) => a.base64)
-        .map((a: any) => ({ uri: a.uri, base64: a.base64! }));
-      setPhotos((prev) => [...prev, ...newPhotos].slice(0, 10));
+    if (!result.canceled && result.assets.length > 0) {
+      const newPhotos: { uri: string; base64: string }[] = [];
+      for (const asset of result.assets) {
+        let b64 = asset.base64 || null;
+        if (!b64) {
+          // Fallback: read from file URI
+          b64 = await getBase64FromUri(asset.uri);
+        }
+        if (b64) {
+          newPhotos.push({ uri: asset.uri, base64: b64 });
+        }
+      }
+      if (newPhotos.length > 0) {
+        setPhotos((prev) => [...prev, ...newPhotos].slice(0, 10));
+      } else {
+        Alert.alert("Photo Error", "Could not read the selected photos. Please try again.");
+      }
     }
   };
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission needed", "Please allow camera access.");
+      Alert.alert("Permission Needed", "Please go to Settings and allow BuildTrack Pro to use the camera.");
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
       quality: 0.7,
       base64: true,
     });
-    if (!result.canceled && result.assets[0].base64) {
-      setPhotos((prev) => [...prev, { uri: result.assets[0].uri, base64: result.assets[0].base64! }].slice(0, 10));
+    if (!result.canceled && result.assets.length > 0) {
+      const asset = result.assets[0];
+      let b64 = asset.base64 || null;
+      if (!b64) {
+        // Fallback: read from file URI
+        b64 = await getBase64FromUri(asset.uri);
+      }
+      if (b64) {
+        setPhotos((prev) => [...prev, { uri: asset.uri, base64: b64! }].slice(0, 10));
+      } else {
+        Alert.alert("Photo Error", "Could not process the photo. Please try again.");
+      }
     }
   };
 
