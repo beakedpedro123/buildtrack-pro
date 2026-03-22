@@ -4,6 +4,8 @@ import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
+import * as Print from "expo-print";
+import { shareAsync } from "expo-sharing";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -19,8 +21,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import * as DocumentPicker from "expo-document-picker";
-import { getApiBaseUrl } from "@/constants/oauth";
 
 const STATUS_LABELS: Record<string, string> = {
   active: "Active",
@@ -45,19 +45,11 @@ export default function JobsScreen() {
 
   const [filter, setFilter] = useState<"all" | "active" | "completed">("active");
   const [selectedJob, setSelectedJob] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "budget" | "estimates" | "reports" | "photos">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "budget" | "reports" | "photos">("overview");
   const [showNewJob, setShowNewJob] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showAddBudget, setShowAddBudget] = useState(false);
-  const [showAddEstimate, setShowAddEstimate] = useState(false);
-  const [pdfExtracting, setPdfExtracting] = useState(false);
-
-  // QB Estimate form
-  const [estNumber, setEstNumber] = useState("");
-  const [estClient, setEstClient] = useState("");
-  const [estAmount, setEstAmount] = useState("");
-  const [estLineItems, setEstLineItems] = useState("");
-  const [estNotes, setEstNotes] = useState("");
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // New job form
   const [jobName, setJobName] = useState("");
@@ -78,8 +70,7 @@ export default function JobsScreen() {
   // RBAC role helpers
   const role = employee?.role ?? "laborer";
   const canManage = role === "owner" || role === "secretary" || role === "logistics";
-  const canSeeBudget = canManage; // laborer & foreman cannot see dollar amounts
-  // Foreman can update job status but not create/delete jobs
+  const canSeeBudget = canManage;
   const canUpdateStatus = canManage || role === "foreman";
 
   const { data: allJobs, isLoading } = trpc.jobs.list.useQuery();
@@ -99,14 +90,6 @@ export default function JobsScreen() {
     { jobId: selectedJob?.id || 0 },
     { enabled: !!selectedJob && canSeeBudget }
   );
-  const { data: syncLogs } = trpc.budget.getSyncLogs.useQuery(
-    { limit: 5 },
-    { enabled: canSeeBudget }
-  );
-  const { data: qbEstimatesData } = trpc.qbEstimates.getForJob.useQuery(
-    { jobId: selectedJob?.id || 0 },
-    { enabled: !!selectedJob && canSeeBudget }
-  );
   const { data: laborCost } = trpc.clock.laborCostForJob.useQuery(
     { jobId: selectedJob?.id || 0 },
     { enabled: !!selectedJob && canSeeBudget }
@@ -116,59 +99,8 @@ export default function JobsScreen() {
   const updateJob = trpc.jobs.update.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); } });
   const addExpense = trpc.budget.addExpense.useMutation({ onSuccess: () => { utils.budget.getExpenses.invalidate(); utils.budget.getCategories.invalidate(); setShowAddExpense(false); resetExpForm(); } });
   const addBudgetCat = trpc.budget.createCategory.useMutation({ onSuccess: () => { utils.budget.getCategories.invalidate(); setShowAddBudget(false); setBudgetName(""); setBudgetAmount(""); } });
-  const syncToQB = trpc.budget.syncToQB.useMutation();
-  const createEstimate = trpc.qbEstimates.create.useMutation({ onSuccess: () => { utils.qbEstimates.getForJob.invalidate(); setShowAddEstimate(false); resetEstForm(); } });
-  const deleteEstimate = trpc.qbEstimates.delete.useMutation({ onSuccess: () => { utils.qbEstimates.getForJob.invalidate(); } });
-  const extractFromPdf = trpc.qbEstimates.extractFromPdf.useMutation({
-    onSuccess: (data) => {
-      utils.qbEstimates.getForJob.invalidate();
-      setPdfExtracting(false);
-      Alert.alert(
-        "Estimate Extracted",
-        `AI extracted ${data.lineItems.length} line items from the PDF.\n\nClient: ${data.clientName || "N/A"}\nTotal: $${parseFloat(data.totalAmount).toLocaleString()}\n\nThe estimate has been added to this job.`,
-      );
-    },
-    onError: (err) => {
-      setPdfExtracting(false);
-      Alert.alert("Extraction Failed", err.message || "Could not extract data from the PDF. Please try again.");
-    },
-  });
-
-  const handleUploadPdf = async () => {
-    if (!selectedJob || !employee) return;
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "application/pdf",
-        copyToCacheDirectory: true,
-      });
-      if (result.canceled || !result.assets?.length) return;
-      const file = result.assets[0];
-      setPdfExtracting(true);
-      // Upload PDF to server storage
-      const formData = new FormData();
-      formData.append("file", { uri: file.uri, name: file.name || "estimate.pdf", type: "application/pdf" } as any);
-      const apiBase = getApiBaseUrl() || "http://localhost:3000";
-      const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
-      if (!uploadRes.ok) {
-        setPdfExtracting(false);
-        Alert.alert("Upload Failed", "Could not upload the PDF. Please try again.");
-        return;
-      }
-      const uploadJson = await uploadRes.json();
-      // Now call AI extraction
-      extractFromPdf.mutate({
-        pdfUrl: uploadJson.url,
-        jobId: selectedJob.id,
-        requestingEmployeeId: employee.id,
-      });
-    } catch (err) {
-      setPdfExtracting(false);
-      Alert.alert("Error", "Could not pick or upload the PDF.");
-    }
-  };
 
   const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); };
-  const resetEstForm = () => { setEstNumber(""); setEstClient(""); setEstAmount(""); setEstLineItems(""); setEstNotes(""); };
   const resetExpForm = () => { setExpDesc(""); setExpAmount(""); setExpCategoryId(null); };
 
   const filteredJobs = (allJobs || []).filter((j) => {
@@ -177,7 +109,7 @@ export default function JobsScreen() {
     return true;
   });
 
-  // Budget figures — only computed for roles that can see them
+  // Budget figures
   const totalBudget = canSeeBudget ? parseFloat(selectedJob?.totalBudget || "0") : 0;
   const expenseSpent = canSeeBudget ? (expenses || []).reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0) : 0;
   const laborSpent = canSeeBudget ? (laborCost?.totalCost || 0) : 0;
@@ -186,7 +118,6 @@ export default function JobsScreen() {
   const budgetPct = totalBudget > 0 ? Math.min(totalSpent / totalBudget, 1) : 0;
   const budgetBarColor = budgetPct < 0.6 ? colors.success : budgetPct < 0.85 ? colors.warning : colors.error;
 
-  // Progress-only percentage for laborer/foreman (based on reports count as a proxy)
   const reportCount = (jobReports || []).length;
   const photoCount = (jobPhotos || []).length;
 
@@ -202,28 +133,189 @@ export default function JobsScreen() {
     });
   };
 
-  const handleSyncQB = async () => {
-    if (!employee) return;
-    Alert.alert("Sync to QuickBooks", "This will mark all unsynced expenses as synced. Continue?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sync Now",
-        onPress: async () => {
-          try {
-            const result = await syncToQB.mutateAsync({ triggeredBy: employee.id, syncType: "full" });
-            utils.budget.getSyncLogs.invalidate();
-            Alert.alert("Sync Complete", `${result.itemsSynced} items synced to QuickBooks.`);
-          } catch {
-            Alert.alert("Sync Failed", "Could not sync to QuickBooks. Please try again.");
-          }
-        },
-      },
-    ]);
+  // Generate PDF Budget Report
+  const handleGenerateBudgetPdf = async () => {
+    if (!selectedJob) return;
+    setGeneratingPdf(true);
+    try {
+      const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      const catRows = (budgetCategories || []).map((cat) => {
+        const spent = parseFloat(cat.spentAmount || "0");
+        const budgeted = parseFloat(cat.budgetedAmount || "0");
+        const pct = budgeted > 0 ? Math.round((spent / budgeted) * 100) : 0;
+        return `<tr><td>${cat.name}</td><td>$${budgeted.toLocaleString()}</td><td>$${spent.toLocaleString()}</td><td>${pct}%</td></tr>`;
+      }).join("");
+
+      const expenseRows = (expenses || []).map((exp) => {
+        return `<tr><td>${exp.description}</td><td>$${parseFloat(exp.amount).toLocaleString()}</td><td>${new Date(exp.expenseDate).toLocaleDateString()}</td></tr>`;
+      }).join("");
+
+      const remaining = Math.max(0, totalBudget - totalSpent);
+      const usedPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; padding: 32px; color: #1a1a1a; font-size: 13px; }
+  h1 { font-size: 22px; margin-bottom: 4px; color: #1a1a1a; }
+  h2 { font-size: 16px; margin-top: 28px; margin-bottom: 10px; color: #333; border-bottom: 2px solid #D4A843; padding-bottom: 4px; }
+  .subtitle { color: #666; font-size: 13px; margin-bottom: 24px; }
+  .summary-grid { display: flex; gap: 12px; margin-bottom: 20px; }
+  .summary-box { flex: 1; background: #f8f8f8; border-radius: 8px; padding: 14px; text-align: center; border: 1px solid #e0e0e0; }
+  .summary-value { font-size: 20px; font-weight: 800; color: #1a1a1a; }
+  .summary-label { font-size: 11px; color: #888; margin-top: 2px; }
+  .bar-container { height: 10px; background: #e5e7eb; border-radius: 5px; overflow: hidden; margin: 8px 0 16px; }
+  .bar-fill { height: 100%; border-radius: 5px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  th { background: #f5f5f5; text-align: left; padding: 8px 10px; font-size: 12px; font-weight: 700; color: #555; border-bottom: 2px solid #ddd; }
+  td { padding: 8px 10px; border-bottom: 1px solid #eee; font-size: 12px; }
+  .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #ddd; color: #999; font-size: 10px; text-align: center; }
+  .status-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+  @page { margin: 20px; }
+</style></head><body>
+  <h1>${selectedJob.name}</h1>
+  <p class="subtitle">${selectedJob.clientName || ""} ${selectedJob.address ? "· " + selectedJob.address : ""} · Generated ${today}</p>
+
+  <div class="summary-grid">
+    <div class="summary-box">
+      <div class="summary-value">$${totalBudget.toLocaleString()}</div>
+      <div class="summary-label">Total Budget</div>
+    </div>
+    <div class="summary-box">
+      <div class="summary-value">$${totalSpent.toLocaleString()}</div>
+      <div class="summary-label">Total Spent</div>
+    </div>
+    <div class="summary-box">
+      <div class="summary-value" style="color: ${remaining > 0 ? "#22C55E" : "#EF4444"}">$${remaining.toLocaleString()}</div>
+      <div class="summary-label">Remaining</div>
+    </div>
+    <div class="summary-box">
+      <div class="summary-value">${usedPct}%</div>
+      <div class="summary-label">Used</div>
+    </div>
+  </div>
+
+  <div class="bar-container">
+    <div class="bar-fill" style="width: ${usedPct}%; background: ${usedPct < 60 ? "#22C55E" : usedPct < 85 ? "#F59E0B" : "#EF4444"};"></div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="summary-box">
+      <div class="summary-value">$${laborSpent.toLocaleString()}</div>
+      <div class="summary-label">Labor Cost</div>
+    </div>
+    <div class="summary-box">
+      <div class="summary-value">${laborHours}h</div>
+      <div class="summary-label">Hours Logged</div>
+    </div>
+    <div class="summary-box">
+      <div class="summary-value">${reportCount}</div>
+      <div class="summary-label">Reports</div>
+    </div>
+    <div class="summary-box">
+      <div class="summary-value">${photoCount}</div>
+      <div class="summary-label">Photos</div>
+    </div>
+  </div>
+
+  ${(budgetCategories || []).length > 0 ? `
+  <h2>Budget Categories</h2>
+  <table>
+    <thead><tr><th>Category</th><th>Budgeted</th><th>Spent</th><th>Used</th></tr></thead>
+    <tbody>${catRows}</tbody>
+  </table>` : ""}
+
+  ${(expenses || []).length > 0 ? `
+  <h2>Expenses</h2>
+  <table>
+    <thead><tr><th>Description</th><th>Amount</th><th>Date</th></tr></thead>
+    <tbody>${expenseRows}</tbody>
+  </table>` : ""}
+
+  <div class="footer">BuildTrack Pro · ${selectedJob.name} Budget Report · ${today}</div>
+</body></html>`;
+
+      const { uri } = await Print.printToFileAsync({ html });
+      if (Platform.OS !== "web") {
+        await shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${selectedJob.name} Budget Report` });
+      }
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (err) {
+      Alert.alert("Error", "Could not generate PDF report. Please try again.");
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
-  // Tabs available depend on role — laborer/foreman never see the Budget or Estimates tabs
+  // Generate PDF Field Reports Summary
+  const handleGenerateReportsPdf = async () => {
+    if (!selectedJob) return;
+    setGeneratingPdf(true);
+    try {
+      const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      const reportRows = (jobReports || []).map((report) => {
+        let workItems: string[] = [];
+        try { workItems = JSON.parse(report.workCompleted || "[]"); } catch {}
+        const workStr = workItems.join(", ");
+        return `<tr>
+          <td>${new Date(report.reportDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</td>
+          <td>${report.crewCount}</td>
+          <td>${report.weatherCondition || "—"}</td>
+          <td style="max-width: 250px;">${workStr || "—"}</td>
+          <td>${report.notes || "—"}</td>
+        </tr>`;
+      }).join("");
+
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; padding: 32px; color: #1a1a1a; font-size: 13px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  h2 { font-size: 16px; margin-top: 24px; margin-bottom: 10px; color: #333; border-bottom: 2px solid #D4A843; padding-bottom: 4px; }
+  .subtitle { color: #666; font-size: 13px; margin-bottom: 24px; }
+  .stat { display: inline-block; background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px 18px; margin-right: 10px; text-align: center; }
+  .stat-value { font-size: 20px; font-weight: 800; }
+  .stat-label { font-size: 11px; color: #888; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th { background: #f5f5f5; text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700; color: #555; border-bottom: 2px solid #ddd; }
+  td { padding: 8px 10px; border-bottom: 1px solid #eee; font-size: 11px; vertical-align: top; }
+  .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #ddd; color: #999; font-size: 10px; text-align: center; }
+  @page { margin: 20px; }
+</style></head><body>
+  <h1>${selectedJob.name} — Field Reports</h1>
+  <p class="subtitle">${selectedJob.clientName || ""} ${selectedJob.address ? "· " + selectedJob.address : ""} · Generated ${today}</p>
+
+  <div style="margin-bottom: 20px;">
+    <div class="stat"><div class="stat-value">${reportCount}</div><div class="stat-label">Reports</div></div>
+    <div class="stat"><div class="stat-value">${photoCount}</div><div class="stat-label">Photos</div></div>
+  </div>
+
+  <h2>Daily Reports</h2>
+  <table>
+    <thead><tr><th>Date</th><th>Crew</th><th>Weather</th><th>Work Completed</th><th>Notes</th></tr></thead>
+    <tbody>${reportRows}</tbody>
+  </table>
+
+  <div class="footer">BuildTrack Pro · ${selectedJob.name} Field Reports · ${today}</div>
+</body></html>`;
+
+      const { uri } = await Print.printToFileAsync({ html });
+      if (Platform.OS !== "web") {
+        await shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${selectedJob.name} Field Reports` });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (err) {
+      Alert.alert("Error", "Could not generate PDF report. Please try again.");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  // Tabs available depend on role
   const availableTabs = canSeeBudget
-    ? (["overview", "budget", "estimates", "reports", "photos"] as const)
+    ? (["overview", "budget", "reports", "photos"] as const)
     : (["overview", "reports", "photos"] as const);
 
   const styles = StyleSheet.create({
@@ -236,8 +328,8 @@ export default function JobsScreen() {
     modalContainer: { flex: 1, backgroundColor: colors.background },
     modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
     modalTitle: { fontSize: 20, fontWeight: "800", color: colors.foreground },
-    tabRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
-    tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
+    tabRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border },
+    tab: { flex: 1, alignItems: "center", paddingVertical: 12 },
     tabText: { fontSize: 13, fontWeight: "600" },
     section: { padding: 20 },
     sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.foreground, marginBottom: 12 },
@@ -246,8 +338,8 @@ export default function JobsScreen() {
     kpiValue: { fontSize: 22, fontWeight: "800", color: colors.foreground },
     kpiLabel: { fontSize: 12, color: colors.muted, marginTop: 2 },
     expenseRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
-    syncCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 16, margin: 20, borderWidth: 1, borderColor: colors.border },
-    syncBtn: { backgroundColor: "#2CA01C", borderRadius: 10, padding: 14, alignItems: "center", marginTop: 12 },
+    pdfCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 16, margin: 20, borderWidth: 1, borderColor: colors.border },
+    pdfBtn: { backgroundColor: "#D4A843", borderRadius: 10, padding: 14, alignItems: "center", marginTop: 12 },
     catRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   });
 
@@ -255,7 +347,6 @@ export default function JobsScreen() {
     <ScreenContainer edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Jobs</Text>
-        {/* Only management can create jobs */}
         {canManage && (
           <TouchableOpacity style={styles.addBtn} onPress={() => setShowNewJob(true)}>
             <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>+ New Job</Text>
@@ -313,7 +404,7 @@ export default function JobsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Tabs — Budget tab hidden for laborer/foreman */}
+            {/* Tabs */}
             <View style={styles.tabRow}>
               {availableTabs.map((tab) => (
                 <TouchableOpacity
@@ -332,7 +423,6 @@ export default function JobsScreen() {
               {/* Overview Tab */}
               {activeTab === "overview" && (
                 <View style={styles.section}>
-                  {/* KPI Cards — laborer/foreman see reports & photos count only, no dollar amounts */}
                   <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>
                     <View style={styles.kpiCard}>
                       <Text style={styles.kpiValue}>{reportCount}</Text>
@@ -357,7 +447,6 @@ export default function JobsScreen() {
                     )}
                   </View>
 
-                  {/* Progress bar for laborer/foreman — shows job status visually without dollars */}
                   {!canSeeBudget && (
                     <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 20 }}>
                       <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>Job Progress</Text>
@@ -382,9 +471,7 @@ export default function JobsScreen() {
                   {[
                     { label: "Status", value: STATUS_LABELS[selectedJob.status] },
                     { label: "Address", value: selectedJob.address },
-                    // Client name visible to foreman/laborer so they know the site
                     { label: "Client", value: selectedJob.clientName },
-                    // Budget only visible to management
                     ...(canSeeBudget ? [
                       { label: "Client Phone", value: selectedJob.clientPhone },
                       { label: "Total Budget", value: selectedJob.totalBudget ? `$${parseFloat(selectedJob.totalBudget).toLocaleString()}` : null },
@@ -397,7 +484,6 @@ export default function JobsScreen() {
                     </View>
                   ))}
 
-                  {/* Status update — management + foreman can update status */}
                   {canUpdateStatus && (
                     <View style={{ marginTop: 20, gap: 10 }}>
                       <Text style={styles.sectionTitle}>Update Status</Text>
@@ -420,7 +506,7 @@ export default function JobsScreen() {
                 </View>
               )}
 
-              {/* Budget Tab — only rendered for management roles */}
+              {/* Budget Tab — management only */}
               {activeTab === "budget" && canSeeBudget && (
                 <View style={styles.section}>
                   {/* Budget Overview */}
@@ -438,12 +524,12 @@ export default function JobsScreen() {
                     </View>
                   </View>
 
-                  {/* Labor Cost from Clock Entries */}
+                  {/* Labor Cost */}
                   <View style={{ backgroundColor: colors.primary + "10", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.primary + "30", marginBottom: 20 }}>
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                       <View>
                         <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 2 }}>Labor (from timeclock)</Text>
-                        <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>${laborSpent.toLocaleString()}</Text>
+                        <Text style={{ fontSize: 22, fontWeight: "800", color: colors.primary }}>${laborSpent.toLocaleString()}</Text>
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
                         <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 2 }}>Hours Logged</Text>
@@ -499,114 +585,35 @@ export default function JobsScreen() {
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
                         <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>${parseFloat(exp.amount).toLocaleString()}</Text>
-                        {exp.qbSynced && <Text style={{ fontSize: 10, color: colors.success }}>QB Synced</Text>}
                       </View>
                     </View>
                   ))}
 
-                  {/* QuickBooks Sync — owner only */}
-                  <View style={styles.syncCard}>
-                    <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>QuickBooks Sync</Text>
-                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 8 }}>
-                      {(expenses || []).filter((e) => !e.qbSynced).length} unsynced expense{(expenses || []).filter((e) => !e.qbSynced).length !== 1 ? "s" : ""}
+                  {/* Generate PDF Report */}
+                  <View style={styles.pdfCard}>
+                    <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>Export Reports</Text>
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 12 }}>
+                      Generate professional PDF reports to share with clients, accountants, or your team.
                     </Text>
-                    {(syncLogs || []).slice(0, 2).map((log) => (
-                      <View key={log.id} style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: log.status === "success" ? colors.success : log.status === "failed" ? colors.error : colors.warning, marginRight: 8 }} />
-                        <Text style={{ fontSize: 12, color: colors.muted }}>
-                          {log.status} · {log.itemsSynced} items · {new Date(log.createdAt).toLocaleDateString()}
-                        </Text>
-                      </View>
-                    ))}
-                    {employee?.role === "owner" && (
-                      <TouchableOpacity style={styles.syncBtn} onPress={handleSyncQB} disabled={syncToQB.isPending}>
-                        {syncToQB.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Sync to QuickBooks</Text>}
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity style={styles.pdfBtn} onPress={handleGenerateBudgetPdf} disabled={generatingPdf}>
+                      {generatingPdf ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Generate Budget Report PDF</Text>}
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.pdfBtn, { backgroundColor: colors.primary, marginTop: 8 }]} onPress={handleGenerateReportsPdf} disabled={generatingPdf}>
+                      {generatingPdf ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Generate Field Reports PDF</Text>}
+                    </TouchableOpacity>
                   </View>
-                </View>
-              )}
-
-              {/* QB Estimates Tab — management only */}
-              {activeTab === "estimates" && canSeeBudget && (
-                <View style={styles.section}>
-                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                    <Text style={styles.sectionTitle}>Estimates</Text>
-                    {canManage && (
-                      <View style={{ flexDirection: "row", gap: 8 }}>
-                        <TouchableOpacity onPress={handleUploadPdf} disabled={pdfExtracting} style={{ backgroundColor: "#7C3AED20", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
-                          <Text style={{ color: "#7C3AED", fontWeight: "700", fontSize: 13 }}>{pdfExtracting ? "Extracting…" : "📄 Upload PDF"}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setShowAddEstimate(true)} style={{ backgroundColor: colors.primary + "20", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
-                          <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 13 }}>+ Manual</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                  {pdfExtracting && (
-                    <View style={{ alignItems: "center", paddingVertical: 20, marginBottom: 12, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border }}>
-                      <ActivityIndicator size="large" color="#7C3AED" />
-                      <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 14, marginTop: 12 }}>AI Extracting Estimate…</Text>
-                      <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Reading PDF and extracting line items</Text>
-                    </View>
-                  )}
-                  {(qbEstimatesData || []).length === 0 && (
-                    <View style={{ alignItems: "center", paddingVertical: 32 }}>
-                      <Text style={{ fontSize: 36, marginBottom: 8 }}>📋</Text>
-                      <Text style={{ color: colors.muted, fontSize: 14 }}>No estimates linked</Text>
-                      <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Upload a PDF to auto-extract line items, or add manually</Text>
-                    </View>
-                  )}
-                  {(qbEstimatesData || []).map((est) => {
-                    let lineItems: string[] = [];
-                    try { lineItems = JSON.parse(est.lineItems || "[]"); } catch {}
-                    return (
-                      <View key={est.id} style={{ backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 12 }}>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Est #{est.qbEstimateNumber || est.id}</Text>
-                            {est.clientName ? <Text style={{ fontSize: 13, color: colors.muted }}>{est.clientName}</Text> : null}
-                          </View>
-                          <View style={{ alignItems: "flex-end" }}>
-                            <Text style={{ fontSize: 18, fontWeight: "800", color: colors.primary }}>${parseFloat(est.totalAmount).toLocaleString()}</Text>
-                            <Text style={{ fontSize: 11, color: est.status === "accepted" ? colors.success : est.status === "rejected" ? colors.error : colors.warning, fontWeight: "600" }}>
-                              {(est.status || "pending").toUpperCase()}
-                            </Text>
-                          </View>
-                        </View>
-                        {lineItems.length > 0 && (
-                          <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
-                            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>Line Items</Text>
-                            {lineItems.slice(0, 5).map((item, i) => (
-                              <Text key={i} style={{ fontSize: 13, color: colors.foreground, marginBottom: 2 }}>• {item}</Text>
-                            ))}
-                            {lineItems.length > 5 && <Text style={{ fontSize: 12, color: colors.muted }}>+{lineItems.length - 5} more</Text>}
-                          </View>
-                        )}
-                        {est.notes ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8, fontStyle: "italic" }}>{est.notes}</Text> : null}
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
-                          <Text style={{ fontSize: 11, color: colors.muted }}>Synced {new Date(est.syncedAt).toLocaleDateString()}</Text>
-                          {canManage && (
-                            <TouchableOpacity onPress={() => {
-                              Alert.alert("Remove Estimate", "Remove this QB estimate from this job?", [
-                                { text: "Cancel", style: "cancel" },
-                                { text: "Remove", style: "destructive", onPress: () => deleteEstimate.mutate({ id: est.id, requestingEmployeeId: employee!.id }) },
-                              ]);
-                            }}>
-                              <Text style={{ fontSize: 12, color: colors.error, fontWeight: "600" }}>Remove</Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      </View>
-                    );
-                  })}
                 </View>
               )}
 
               {/* Reports Tab */}
               {activeTab === "reports" && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>{(jobReports || []).length} Field Reports</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                    <Text style={styles.sectionTitle}>{reportCount} Field Reports</Text>
+                    <TouchableOpacity onPress={handleGenerateReportsPdf} disabled={generatingPdf} style={{ backgroundColor: "#D4A84320", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
+                      <Text style={{ color: "#D4A843", fontWeight: "700", fontSize: 13 }}>{generatingPdf ? "Generating…" : "Export PDF"}</Text>
+                    </TouchableOpacity>
+                  </View>
                   {(jobReports || []).map((report) => {
                     const workItems = (() => { try { return JSON.parse(report.workCompleted || "[]"); } catch { return []; } })();
                     return (
@@ -635,7 +642,7 @@ export default function JobsScreen() {
               {/* Photos Tab */}
               {activeTab === "photos" && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>{(jobPhotos || []).length} Site Photos</Text>
+                  <Text style={styles.sectionTitle}>{photoCount} Site Photos</Text>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                     {(jobPhotos || []).map((photo) => (
                       <View key={photo.id} style={{ width: "31%", aspectRatio: 1, borderRadius: 8, overflow: "hidden", backgroundColor: colors.border }}>
@@ -654,7 +661,7 @@ export default function JobsScreen() {
               <View style={{ height: 32 }} />
             </ScrollView>
 
-            {/* Add Expense Modal — management only */}
+            {/* Add Expense Modal */}
             {canManage && (
               <Modal visible={showAddExpense} animationType="slide" presentationStyle="formSheet">
                 <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
@@ -677,7 +684,7 @@ export default function JobsScreen() {
                       </TouchableOpacity>
                     ))}
                     <TouchableOpacity
-                      style={[styles.syncBtn, { marginTop: 20, backgroundColor: colors.primary }]}
+                      style={[styles.pdfBtn, { marginTop: 20, backgroundColor: colors.primary }]}
                       onPress={async () => {
                         if (!expDesc.trim() || !expAmount || !employee) return;
                         await addExpense.mutateAsync({
@@ -698,52 +705,7 @@ export default function JobsScreen() {
               </Modal>
             )}
 
-            {/* Add QB Estimate Modal — management only */}
-            {canManage && (
-              <Modal visible={showAddEstimate} animationType="slide" presentationStyle="formSheet">
-                <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Link QB Estimate</Text>
-                    <TouchableOpacity onPress={() => { setShowAddEstimate(false); resetEstForm(); }}>
-                      <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <ScrollView style={{ padding: 20 }}>
-                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>QB Estimate # (optional)</Text>
-                    <TextInput style={styles.input} placeholder="e.g. 1042" placeholderTextColor={colors.muted} value={estNumber} onChangeText={setEstNumber} />
-                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Client Name (optional)</Text>
-                    <TextInput style={styles.input} placeholder="Client name from QB" placeholderTextColor={colors.muted} value={estClient} onChangeText={setEstClient} />
-                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Total Amount ($) *</Text>
-                    <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={colors.muted} value={estAmount} onChangeText={setEstAmount} keyboardType="decimal-pad" />
-                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Line Items (one per line)</Text>
-                    <TextInput style={[styles.input, { height: 100, textAlignVertical: "top" }]} placeholder={"Wall Framing - $5,000\nRoof Framing - $3,500\nMaterials - $8,000"} placeholderTextColor={colors.muted} value={estLineItems} onChangeText={setEstLineItems} multiline />
-                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Notes</Text>
-                    <TextInput style={[styles.input, { height: 60, textAlignVertical: "top" }]} placeholder="Any notes about this estimate..." placeholderTextColor={colors.muted} value={estNotes} onChangeText={setEstNotes} multiline />
-                    <TouchableOpacity
-                      style={[styles.syncBtn, { backgroundColor: colors.primary }]}
-                      onPress={async () => {
-                        if (!estAmount || !employee) return;
-                        const lineItemsArr = estLineItems.split("\n").map(s => s.trim()).filter(Boolean);
-                        await createEstimate.mutateAsync({
-                          jobId: selectedJob.id,
-                          qbEstimateNumber: estNumber || undefined,
-                          clientName: estClient || undefined,
-                          totalAmount: estAmount,
-                          lineItems: JSON.stringify(lineItemsArr),
-                          notes: estNotes || undefined,
-                          requestingEmployeeId: employee.id,
-                        });
-                      }}
-                      disabled={createEstimate.isPending || !estAmount}
-                    >
-                      {createEstimate.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Link Estimate</Text>}
-                    </TouchableOpacity>
-                  </ScrollView>
-                </KeyboardAvoidingView>
-              </Modal>
-            )}
-
-            {/* Add Budget Category Modal — management only */}
+            {/* Add Budget Category Modal */}
             {canManage && (
               <Modal visible={showAddBudget} animationType="slide" presentationStyle="formSheet">
                 <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
@@ -767,7 +729,7 @@ export default function JobsScreen() {
                       ))}
                     </View>
                     <TouchableOpacity
-                      style={[styles.syncBtn, { backgroundColor: colors.primary }]}
+                      style={[styles.pdfBtn, { backgroundColor: colors.primary }]}
                       onPress={async () => {
                         if (!budgetName.trim() || !budgetAmount) return;
                         await addBudgetCat.mutateAsync({ jobId: selectedJob.id, name: budgetName.trim(), budgetedAmount: budgetAmount });
@@ -784,7 +746,7 @@ export default function JobsScreen() {
         )}
       </Modal>
 
-      {/* New Job Modal — management only */}
+      {/* New Job Modal */}
       {canManage && (
         <Modal visible={showNewJob} animationType="slide" presentationStyle="formSheet">
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>

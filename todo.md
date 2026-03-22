@@ -249,3 +249,16 @@
 - [x] Owner/management sees all goals with assignee names
 - [x] AI meeting summary auto-suggests assignee from transcript
 - [x] Manual override option to reassign goals
+
+## Phase 10 — Replace QuickBooks with PDF Reports & Remove Estimates
+
+### Replace QuickBooks Sync
+- [x] Remove all QuickBooks sync buttons and references across all tabs
+- [x] Add PDF report generation for job budgets
+- [x] Add PDF report generation for daily field reports
+- [x] PDF reports shareable via system share sheet
+
+### Remove Estimates Tab
+- [x] Remove Estimates tab from job detail view
+- [x] Remove QB estimates upload/extraction code from jobs.tsx
+- [x] Keep estimate data in DB for future separate estimating app integration
