@@ -194,3 +194,43 @@
 ### Branding
 - [x] Integrate Carranza Custom Construction logo on dashboard
 - [x] Logo displayed prominently on main screen
+
+## Phase 8 — Critical Bug Fixes & Final Polish
+
+### Meeting Summary (Bug)
+- [x] Fix AI transcription/summary not generating after recording
+- [x] Ensure recording uploads to server correctly
+- [x] Ensure LLM generates summary from transcript
+- [x] Meeting summary syncs to goals tab for delegation
+
+### Goals Tab (Bug)
+- [x] Fix goal creation — text input and save not working
+- [x] Wire "Pull from Meeting" to import AI-suggested goals
+- [x] Goals assignable/visible to management for delegation
+
+### Estimate PDF Upload + AI Extraction
+- [x] Add PDF upload button to job estimates tab
+- [x] Server-side AI reads PDF and extracts all line items
+- [x] Auto-populate estimate line items from PDF data
+- [x] Test with Hardy/Gruett residence estimate PDFs
+
+### Field Report Photos (Bug)
+- [x] Fix photo upload not displaying in report view
+- [x] Verify S3 upload and URL retrieval working
+- [x] Show photo count and thumbnails on report cards
+
+### Employee Invite Flow (Bug)
+- [x] Fix broken invite link generation/sharing
+- [x] Smoother onboarding: generate invite code for new employees
+- [x] New employee can set their own name and PIN from invite
+
+### Full Polish Pass
+- [ ] Review all screens for dead ends, broken buttons, or missing feedback
+- [ ] Ensure all flows work end-to-end
+- [ ] App Store readiness check
+
+### Estimate Analysis & AI Bidding Helper
+- [x] Analyze Hardy and Gruett residence estimates for pricing patterns
+- [ ] Build AI-powered estimate builder that learns from past estimates
+- [ ] Auto-suggest line items and pricing based on historical data
+- [ ] Make bidding workflow simpler with templates from past estimates

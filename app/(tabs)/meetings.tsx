@@ -2,6 +2,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
+import { getApiBaseUrl } from "@/constants/oauth";
 import {
   isMeetingReminderEnabled,
   toggleMeetingReminder,
@@ -50,6 +51,15 @@ function getAutoTitle(): string {
   return `Friday Meeting — ${now.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
+function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 const STATUS_COLORS: Record<string, string> = {
   scheduled: "#0EA5E9",
   recording: "#EF4444",
@@ -78,6 +88,7 @@ export default function MeetingsScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [activeMeetingId, setActiveMeetingId] = useState<number | null>(null);
   const [suggestedGoals, setSuggestedGoals] = useState<string[]>([]);
+  const [pushingGoals, setPushingGoals] = useState(false);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderLoading, setReminderLoading] = useState(false);
 
@@ -116,7 +127,6 @@ export default function MeetingsScreen() {
       setShowNewMeeting(false);
       setNewTitle("");
       setUseAutoTitle(true);
-      // Immediately open the meeting detail so user can start recording
       setSelectedMeetingId(data.id);
       setScreen("detail");
     },
@@ -135,6 +145,9 @@ export default function MeetingsScreen() {
   });
   const cancelMeeting = trpc.meetings.cancel.useMutation({
     onSuccess: () => utils.meetings.list.invalidate(),
+  });
+  const createGoal = trpc.goals.create.useMutation({
+    onSuccess: () => utils.goals.list.invalidate(),
   });
 
   // Audio recorder
@@ -186,19 +199,21 @@ export default function MeetingsScreen() {
         await audioRecorder.stop();
         const uri = audioRecorder.uri;
         if (uri) {
-          // Upload audio to server storage
+          // Upload audio to server storage — use correct /api/upload endpoint
           const formData = new FormData();
           formData.append("file", { uri, name: `meeting_${activeMeetingId}.m4a`, type: "audio/m4a" } as any);
-          const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
+          const apiBase = getApiBaseUrl() || "http://localhost:3000";
           try {
-            const uploadRes = await fetch(`${apiBase}/upload`, { method: "POST", body: formData });
+            const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
             if (uploadRes.ok) {
               const json = await uploadRes.json();
               audioUrl = json.url || uri;
             } else {
+              console.warn("Upload response not ok:", uploadRes.status);
               audioUrl = uri;
             }
-          } catch {
+          } catch (uploadErr) {
+            console.warn("Upload error:", uploadErr);
             audioUrl = uri;
           }
         }
@@ -229,6 +244,30 @@ export default function MeetingsScreen() {
       await transcribeAndSummarize.mutateAsync({ id: meetingId });
     } catch {
       Alert.alert("Transcription Error", "Could not process the recording. Please try again.");
+    }
+  };
+
+  const handlePushGoalsToWeek = async () => {
+    if (!employee || suggestedGoals.length === 0 || !selectedMeetingId) return;
+    setPushingGoals(true);
+    try {
+      const weekStart = getWeekStart(new Date());
+      for (const goalTitle of suggestedGoals) {
+        await createGoal.mutateAsync({
+          title: goalTitle,
+          meetingId: selectedMeetingId,
+          weekOf: weekStart.toISOString(),
+          priority: "medium",
+          createdBy: employee.id,
+        });
+      }
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Goals Created", `${suggestedGoals.length} goals have been added to this week's goals. Go to the Goals tab to manage them.`);
+      setSuggestedGoals([]);
+    } catch {
+      Alert.alert("Error", "Failed to create some goals. Please try again.");
+    } finally {
+      setPushingGoals(false);
     }
   };
 
@@ -415,7 +454,7 @@ export default function MeetingsScreen() {
             </View>
           )}
 
-          {/* Suggested Goals */}
+          {/* Suggested Goals — with Push to Goals button */}
           {suggestedGoals.length > 0 && (
             <View style={[styles.card, { marginBottom: 16 }]}>
               <Text style={{ fontSize: 13, fontWeight: "700", color: colors.warning, marginBottom: 8 }}>Suggested Weekly Goals</Text>
@@ -425,7 +464,41 @@ export default function MeetingsScreen() {
                   <Text style={{ fontSize: 14, color: colors.foreground, flex: 1, lineHeight: 20 }}>{goal}</Text>
                 </View>
               ))}
-              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8 }}>Go to the Goals tab to add these as tracked weekly goals.</Text>
+              <TouchableOpacity
+                style={[styles.primaryBtn, { marginTop: 12 }, pushingGoals && { opacity: 0.7 }]}
+                onPress={handlePushGoalsToWeek}
+                disabled={pushingGoals}
+              >
+                {pushingGoals ? (
+                  <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                    <ActivityIndicator color="#fff" size="small" />
+                    <Text style={{ color: "#fff", fontWeight: "700" }}>Creating Goals…</Text>
+                  </View>
+                ) : (
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>🎯 Push {suggestedGoals.length} Goals to This Week</Text>
+                )}
+              </TouchableOpacity>
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8, textAlign: "center" }}>Goals will appear in the Goals tab for this week.</Text>
+            </View>
+          )}
+
+          {/* Re-generate goals from completed meeting */}
+          {selectedMeeting.status === "completed" && selectedMeeting.summary && suggestedGoals.length === 0 && canManage && (
+            <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+              <TouchableOpacity
+                style={styles.outlineBtn}
+                onPress={() => handleTranscribe(selectedMeeting.id)}
+                disabled={transcribeAndSummarize.isPending}
+              >
+                {transcribeAndSummarize.isPending ? (
+                  <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                    <ActivityIndicator color={colors.primary} size="small" />
+                    <Text style={{ color: colors.primary, fontWeight: "600" }}>Regenerating…</Text>
+                  </View>
+                ) : (
+                  <Text style={{ color: colors.primary, fontWeight: "600" }}>🔄 Regenerate Summary & Goals</Text>
+                )}
+              </TouchableOpacity>
             </View>
           )}
 
@@ -537,7 +610,6 @@ export default function MeetingsScreen() {
                 const title = useAutoTitle ? getAutoTitle() : newTitle.trim();
                 if (!title) { Alert.alert("Title Required", "Please enter a title or use auto-title."); return; }
                 const result = await createMeeting.mutateAsync({ title, createdBy: employee?.id || 0 });
-                // handleStartRecording will be called after modal closes via onSuccess navigation
                 setTimeout(() => handleStartRecording(result.id), 400);
               }}
               disabled={createMeeting.isPending}

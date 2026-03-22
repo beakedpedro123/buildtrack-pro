@@ -64,12 +64,18 @@ export default function ReportsScreen() {
   const [photos, setPhotos] = useState<{ uri: string; base64: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [expandedReport, setExpandedReport] = useState<number | null>(null);
+  const [expandedPhotos, setExpandedPhotos] = useState<any[]>([]);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
 
   const { data: jobs } = trpc.jobs.listActive.useQuery();
   const { data: recentReports } = trpc.reports.recent.useQuery({ limit: 20 });
   const { data: allJobs } = trpc.jobs.list.useQuery();
 
   const createReport = trpc.reports.create.useMutation();
+  const getPhotosQuery = trpc.reports.getPhotos.useQuery(
+    { reportId: expandedReport || 0 },
+    { enabled: !!expandedReport }
+  );
   const addMaterial = trpc.reports.addMaterial.useMutation();
   const uploadPhoto = trpc.reports.uploadPhoto.useMutation();
 
@@ -273,11 +279,31 @@ export default function ReportsScreen() {
                     </View>
                   )}
                   {item.notes ? (
-                    <View>
+                    <View style={{ marginBottom: 10 }}>
                       <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>Notes</Text>
                       <Text style={{ fontSize: 13, color: colors.muted }}>{item.notes}</Text>
                     </View>
                   ) : null}
+
+                  {/* Report Photos */}
+                  {isExpanded && getPhotosQuery.data && getPhotosQuery.data.length > 0 && (
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>Photos ({getPhotosQuery.data.length})</Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                        {getPhotosQuery.data.map((photo: any) => (
+                          <View key={photo.id} style={{ width: 100, height: 100, borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: colors.border }}>
+                            <Image source={{ uri: photo.url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                  {isExpanded && getPhotosQuery.isLoading && (
+                    <View style={{ paddingVertical: 12, alignItems: "center" }}>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>Loading photos...</Text>
+                    </View>
+                  )}
                 </View>
               )}
             </TouchableOpacity>

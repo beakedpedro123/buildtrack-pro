@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, lte, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertBudgetCategory,
@@ -427,7 +427,7 @@ export async function getWeeklyGoals(weekOf?: Date) {
     const end = new Date(start);
     end.setDate(end.getDate() + 7);
     return db.select().from(weeklyGoals)
-      .where(and(gte(weeklyGoals.weekOf, start), lte(weeklyGoals.weekOf, end)))
+      .where(and(gte(weeklyGoals.weekOf, start), lt(weeklyGoals.weekOf, end)))
       .orderBy(weeklyGoals.priority, weeklyGoals.createdAt);
   }
   return db.select().from(weeklyGoals).orderBy(desc(weeklyGoals.createdAt)).limit(50);

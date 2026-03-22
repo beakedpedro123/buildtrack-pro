@@ -66,7 +66,7 @@ export default function TeamScreen() {
   const [empEmail, setEmpEmail] = useState("");
   const [empRate, setEmpRate] = useState("");
   const [useInviteLink, setUseInviteLink] = useState(true);
-  const [inviteResult, setInviteResult] = useState<{ token: string; link: string } | null>(null);
+  const [inviteResult, setInviteResult] = useState<{ token: string; code: string } | null>(null);
 
   // Owner, secretary, logistics can add/edit employees
   const canManage = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
@@ -95,8 +95,9 @@ export default function TeamScreen() {
   const createWithInvite = trpc.employees.createWithInvite.useMutation({
     onSuccess: (data) => {
       utils.employees.list.invalidate();
-      const link = Linking.createURL(`/invite/${data.inviteToken}`);
-      setInviteResult({ token: data.inviteToken, link });
+      // Generate a short 6-char invite code from the token (uppercase alphanumeric)
+      const code = data.inviteToken.slice(0, 6).toUpperCase();
+      setInviteResult({ token: data.inviteToken, code });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
   });
@@ -160,7 +161,7 @@ export default function TeamScreen() {
     if (!inviteResult) return;
     try {
       await Share.share({
-        message: `You've been invited to join Carranza Custom Construction on BuildTrack Pro! Open this link to set up your account:\n\n${inviteResult.link}`,
+        message: `You've been invited to join Carranza Custom Construction on BuildTrack Pro!\n\nYour invite code: ${inviteResult.code}\n\nDownload the app and enter this code when you first open it to set up your account.`,
         title: "BuildTrack Pro Invite",
       });
     } catch (e) {
@@ -406,13 +407,14 @@ export default function TeamScreen() {
                 <View style={{ alignItems: "center", paddingVertical: 20 }}>
                   <Text style={{ fontSize: 48, marginBottom: 16 }}>✅</Text>
                   <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground, textAlign: "center", marginBottom: 8 }}>Invite Created!</Text>
-                  <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginBottom: 20 }}>Share this link with {empName} so they can set up their own PIN and log in.</Text>
-                  <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, width: "100%", marginBottom: 16 }}>
-                    <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 4 }}>Invite Link</Text>
-                    <Text style={{ fontSize: 13, color: colors.foreground }} selectable>{inviteResult.link}</Text>
+                  <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginBottom: 20 }}>Share this code with {empName} so they can set up their own PIN and log in.</Text>
+                  <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, width: "100%", marginBottom: 8, alignItems: "center" }}>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 8 }}>Invite Code</Text>
+                    <Text style={{ fontSize: 32, fontWeight: "900", color: colors.primary, letterSpacing: 6 }} selectable>{inviteResult.code}</Text>
                   </View>
+                  <Text style={{ fontSize: 12, color: colors.muted, textAlign: "center", marginBottom: 16 }}>The employee enters this code when they first open the app.</Text>
                   <TouchableOpacity style={[styles.submitBtn, { width: "100%" }]} onPress={handleShareInvite}>
-                    <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Share Invite Link</Text>
+                    <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Share via Text / Email</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={{ marginTop: 12, padding: 12 }} onPress={() => { setShowAddEmployee(false); resetForm(); }}>
                     <Text style={{ color: colors.primary, fontWeight: "600", fontSize: 15 }}>Done</Text>
@@ -426,7 +428,7 @@ export default function TeamScreen() {
                   style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: useInviteLink ? colors.primary : "transparent" }}
                   onPress={() => setUseInviteLink(true)}
                 >
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: useInviteLink ? "#fff" : colors.muted }}>Send Invite Link</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: useInviteLink ? "#fff" : colors.muted }}>Send Invite Code</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: !useInviteLink ? colors.primary : "transparent" }}
@@ -474,7 +476,7 @@ export default function TeamScreen() {
               )}
 
               <TouchableOpacity style={styles.submitBtn} onPress={handleCreateEmployee} disabled={createEmployee.isPending || createWithInvite.isPending}>
-                {(createEmployee.isPending || createWithInvite.isPending) ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>{useInviteLink ? "Create & Get Invite Link" : "Add Employee"}</Text>}
+                {(createEmployee.isPending || createWithInvite.isPending) ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>{useInviteLink ? "Create & Get Invite Code" : "Add Employee"}</Text>}
               </TouchableOpacity>
               </>
               )}

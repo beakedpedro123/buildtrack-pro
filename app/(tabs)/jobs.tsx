@@ -19,6 +19,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import * as DocumentPicker from "expo-document-picker";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 const STATUS_LABELS: Record<string, string> = {
   active: "Active",
@@ -48,6 +50,7 @@ export default function JobsScreen() {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showAddBudget, setShowAddBudget] = useState(false);
   const [showAddEstimate, setShowAddEstimate] = useState(false);
+  const [pdfExtracting, setPdfExtracting] = useState(false);
 
   // QB Estimate form
   const [estNumber, setEstNumber] = useState("");
@@ -116,6 +119,53 @@ export default function JobsScreen() {
   const syncToQB = trpc.budget.syncToQB.useMutation();
   const createEstimate = trpc.qbEstimates.create.useMutation({ onSuccess: () => { utils.qbEstimates.getForJob.invalidate(); setShowAddEstimate(false); resetEstForm(); } });
   const deleteEstimate = trpc.qbEstimates.delete.useMutation({ onSuccess: () => { utils.qbEstimates.getForJob.invalidate(); } });
+  const extractFromPdf = trpc.qbEstimates.extractFromPdf.useMutation({
+    onSuccess: (data) => {
+      utils.qbEstimates.getForJob.invalidate();
+      setPdfExtracting(false);
+      Alert.alert(
+        "Estimate Extracted",
+        `AI extracted ${data.lineItems.length} line items from the PDF.\n\nClient: ${data.clientName || "N/A"}\nTotal: $${parseFloat(data.totalAmount).toLocaleString()}\n\nThe estimate has been added to this job.`,
+      );
+    },
+    onError: (err) => {
+      setPdfExtracting(false);
+      Alert.alert("Extraction Failed", err.message || "Could not extract data from the PDF. Please try again.");
+    },
+  });
+
+  const handleUploadPdf = async () => {
+    if (!selectedJob || !employee) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "application/pdf",
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const file = result.assets[0];
+      setPdfExtracting(true);
+      // Upload PDF to server storage
+      const formData = new FormData();
+      formData.append("file", { uri: file.uri, name: file.name || "estimate.pdf", type: "application/pdf" } as any);
+      const apiBase = getApiBaseUrl() || "http://localhost:3000";
+      const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
+      if (!uploadRes.ok) {
+        setPdfExtracting(false);
+        Alert.alert("Upload Failed", "Could not upload the PDF. Please try again.");
+        return;
+      }
+      const uploadJson = await uploadRes.json();
+      // Now call AI extraction
+      extractFromPdf.mutate({
+        pdfUrl: uploadJson.url,
+        jobId: selectedJob.id,
+        requestingEmployeeId: employee.id,
+      });
+    } catch (err) {
+      setPdfExtracting(false);
+      Alert.alert("Error", "Could not pick or upload the PDF.");
+    }
+  };
 
   const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); };
   const resetEstForm = () => { setEstNumber(""); setEstClient(""); setEstAmount(""); setEstLineItems(""); setEstNotes(""); };
@@ -481,18 +531,30 @@ export default function JobsScreen() {
               {activeTab === "estimates" && canSeeBudget && (
                 <View style={styles.section}>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                    <Text style={styles.sectionTitle}>QuickBooks Estimates</Text>
+                    <Text style={styles.sectionTitle}>Estimates</Text>
                     {canManage && (
-                      <TouchableOpacity onPress={() => setShowAddEstimate(true)} style={{ backgroundColor: colors.primary + "20", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
-                        <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 13 }}>+ Link Estimate</Text>
-                      </TouchableOpacity>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <TouchableOpacity onPress={handleUploadPdf} disabled={pdfExtracting} style={{ backgroundColor: "#7C3AED20", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
+                          <Text style={{ color: "#7C3AED", fontWeight: "700", fontSize: 13 }}>{pdfExtracting ? "Extracting…" : "📄 Upload PDF"}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setShowAddEstimate(true)} style={{ backgroundColor: colors.primary + "20", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
+                          <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 13 }}>+ Manual</Text>
+                        </TouchableOpacity>
+                      </View>
                     )}
                   </View>
+                  {pdfExtracting && (
+                    <View style={{ alignItems: "center", paddingVertical: 20, marginBottom: 12, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border }}>
+                      <ActivityIndicator size="large" color="#7C3AED" />
+                      <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 14, marginTop: 12 }}>AI Extracting Estimate…</Text>
+                      <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Reading PDF and extracting line items</Text>
+                    </View>
+                  )}
                   {(qbEstimatesData || []).length === 0 && (
                     <View style={{ alignItems: "center", paddingVertical: 32 }}>
                       <Text style={{ fontSize: 36, marginBottom: 8 }}>📋</Text>
-                      <Text style={{ color: colors.muted, fontSize: 14 }}>No QB estimates linked</Text>
-                      <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Tap "+ Link Estimate" to add one from QuickBooks</Text>
+                      <Text style={{ color: colors.muted, fontSize: 14 }}>No estimates linked</Text>
+                      <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Upload a PDF to auto-extract line items, or add manually</Text>
                     </View>
                   )}
                   {(qbEstimatesData || []).map((est) => {

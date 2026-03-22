@@ -403,6 +403,54 @@ const qbEstimatesRouter = router({
     await db.deleteQbEstimate(input.id);
     return { success: true };
   }),
+  extractFromPdf: publicProcedure.input(z.object({
+    pdfUrl: z.string(),
+    jobId: z.number(),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "extract estimates");
+    // Use LLM with the PDF URL to extract line items
+    const llmResult = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `You are a construction estimate parser. Given a PDF estimate document, extract all line items, the total amount, client name, and estimate number. Return JSON:\n{\n  "estimateNumber": "string or null",\n  "clientName": "string or null",\n  "totalAmount": "number as string e.g. 41055.00",\n  "lineItems": ["Description - $Amount", ...],\n  "scopeOfWork": ["item1", "item2", ...],\n  "exclusions": ["item1", ...],\n  "totalSqft": "number or null",\n  "notes": "any important terms or conditions summary"\n}`,
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Please extract all line items and details from this construction estimate PDF." },
+            { type: "file_url", file_url: { url: input.pdfUrl, mime_type: "application/pdf" } },
+          ],
+        },
+      ],
+      response_format: { type: "json_object" },
+    });
+    const parsed = JSON.parse(llmResult.choices[0].message.content as string);
+    // Auto-create the estimate in the database
+    const lineItemsArr = Array.isArray(parsed.lineItems) ? parsed.lineItems : [];
+    const totalAmount = parsed.totalAmount || "0";
+    const id = await db.createQbEstimate({
+      jobId: input.jobId,
+      qbEstimateNumber: parsed.estimateNumber || undefined,
+      clientName: parsed.clientName || undefined,
+      totalAmount,
+      lineItems: JSON.stringify(lineItemsArr),
+      notes: parsed.notes || undefined,
+      status: "pending",
+    });
+    return {
+      id,
+      estimateNumber: parsed.estimateNumber,
+      clientName: parsed.clientName,
+      totalAmount,
+      lineItems: lineItemsArr,
+      scopeOfWork: parsed.scopeOfWork || [],
+      exclusions: parsed.exclusions || [],
+      totalSqft: parsed.totalSqft,
+      notes: parsed.notes,
+    };
+  }),
 });
 
 const kpiRouter = router({
