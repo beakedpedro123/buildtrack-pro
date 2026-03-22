@@ -268,3 +268,11 @@
 - [x] Fix photo upload — rewritten to use FormData file upload instead of base64
 - [x] Fix report submission — photos now upload via /api/upload then save URL to DB
 - [x] Traced full pipeline: camera URI → FormData → /api/upload → S3 URL → tRPC save to DB
+
+## Phase 12 — Photo Upload Still Broken
+
+- [x] Root cause: hand-rolled multipart parser corrupted binary data (latin1 encoding)
+- [x] Replaced with multer for proper multipart parsing on server
+- [x] Client uses native file URI in FormData (no base64 needed)
+- [x] Added Android pending result recovery for camera/gallery
+- [x] All 11 unit tests passing

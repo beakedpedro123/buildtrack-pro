@@ -7,10 +7,11 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -68,6 +69,10 @@ export default function ReportsScreen() {
   const [uploadProgress, setUploadProgress] = useState("");
   const [expandedReport, setExpandedReport] = useState<number | null>(null);
 
+  // Ref to track photos state in AppState listener
+  const photosRef = useRef(photos);
+  photosRef.current = photos;
+
   const { data: jobs } = trpc.jobs.listActive.useQuery();
   const { data: recentReports } = trpc.reports.recent.useQuery({ limit: 20 });
   const { data: allJobs } = trpc.jobs.list.useQuery();
@@ -87,10 +92,35 @@ export default function ReportsScreen() {
   useEffect(() => {
     (async () => {
       if (Platform.OS !== "web") {
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-        await ImagePicker.requestCameraPermissionsAsync();
+        const { status: libStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        const { status: camStatus } = await ImagePicker.requestCameraPermissionsAsync();
+        if (libStatus !== "granted" || camStatus !== "granted") {
+          console.log("Permissions not fully granted:", { libStatus, camStatus });
+        }
       }
     })();
+  }, []);
+
+  // Handle Android MainActivity destruction — recover pending image picker result
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const subscription = AppState.addEventListener("change", async (nextAppState) => {
+      if (nextAppState === "active") {
+        try {
+          const result = await ImagePicker.getPendingResultAsync();
+          if (result && Array.isArray(result) && result.length > 0) {
+            const pickerResult = result[0] as ImagePicker.ImagePickerResult;
+            if (!pickerResult.canceled && pickerResult.assets?.length > 0) {
+              const newPhotos = pickerResult.assets.map((asset) => ({ uri: asset.uri }));
+              setPhotos((prev) => [...prev, ...newPhotos].slice(0, 10));
+            }
+          }
+        } catch (e) {
+          // No pending result — that's fine
+        }
+      }
+    });
+    return () => subscription.remove();
   }, []);
 
   const toggleWorkItem = (item: string) => {
@@ -113,54 +143,70 @@ export default function ReportsScreen() {
   };
 
   const pickPhoto = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Needed", "Please go to Settings and allow BuildTrack Pro to access your photos.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.6,
-      allowsMultipleSelection: true,
-    });
-    if (!result.canceled && result.assets.length > 0) {
-      const newPhotos = result.assets.map((asset) => ({ uri: asset.uri }));
-      setPhotos((prev) => [...prev, ...newPhotos].slice(0, 10));
-      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Needed", "Please go to Settings and allow BuildTrack Pro to access your photos.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.7,
+        allowsMultipleSelection: true,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const newPhotos = result.assets.map((asset) => ({ uri: asset.uri }));
+        setPhotos((prev) => {
+          const updated = [...prev, ...newPhotos].slice(0, 10);
+          return updated;
+        });
+        if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (err: any) {
+      console.error("pickPhoto error:", err);
+      Alert.alert("Error", `Failed to pick photo: ${err?.message || "Unknown error"}`);
     }
   };
 
   const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Needed", "Please go to Settings and allow BuildTrack Pro to use the camera.");
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 0.6,
-    });
-    if (!result.canceled && result.assets.length > 0) {
-      setPhotos((prev) => [...prev, { uri: result.assets[0].uri }].slice(0, 10));
-      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Needed", "Please go to Settings and allow BuildTrack Pro to use the camera.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.7,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setPhotos((prev) => {
+          const updated = [...prev, { uri: result.assets[0].uri }].slice(0, 10);
+          return updated;
+        });
+        if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (err: any) {
+      console.error("takePhoto error:", err);
+      Alert.alert("Error", `Failed to take photo: ${err?.message || "Unknown error"}`);
     }
   };
 
-  // Upload a single photo file to /api/upload using FormData (works on iOS/Android/Web)
+  // Upload a single photo file to /api/upload using FormData
   const uploadPhotoFile = async (uri: string): Promise<string | null> => {
     try {
       const apiBase = getApiBaseUrl();
       const uploadUrl = `${apiBase}/api/upload`;
 
-      // Create FormData with the file URI — React Native handles the file reading
       const formData = new FormData();
 
       if (Platform.OS === "web") {
-        // On web, fetch the blob from the URI
+        // Web: fetch the blob from the object URL, then append
         const response = await fetch(uri);
         const blob = await response.blob();
         formData.append("file", blob, `photo_${Date.now()}.jpg`);
       } else {
-        // On native (iOS/Android), pass the URI directly — RN handles it
+        // Native (iOS/Android): Pass the URI directly as a file object
+        // React Native's FormData implementation handles reading the file from the URI
         const fileObj = {
           uri: uri,
           type: "image/jpeg",
@@ -172,9 +218,7 @@ export default function ReportsScreen() {
       const response = await fetch(uploadUrl, {
         method: "POST",
         body: formData,
-        headers: {
-          // Don't set Content-Type — let fetch set it with the boundary
-        },
+        // Do NOT set Content-Type header — fetch sets it automatically with the correct boundary
       });
 
       if (!response.ok) {
@@ -184,9 +228,10 @@ export default function ReportsScreen() {
       }
 
       const data = await response.json();
+      console.log("Photo uploaded successfully:", data.url);
       return data.url || null;
-    } catch (err) {
-      console.error("Photo upload error:", err);
+    } catch (err: any) {
+      console.error("Photo upload error:", err?.message || err);
       return null;
     }
   };
@@ -236,17 +281,23 @@ export default function ReportsScreen() {
       let uploadedCount = 0;
       for (let i = 0; i < photos.length; i++) {
         setUploadProgress(`Uploading photo ${i + 1} of ${photos.length}...`);
-        const photoUrl = await uploadPhotoFile(photos[i].uri);
-        if (photoUrl) {
-          // Save the photo record to the database
-          await savePhotoRecord.mutateAsync({
-            reportId,
-            jobId: selectedJobId,
-            uploadedBy: employee.id,
-            base64: "", // Not used — we already uploaded via /api/upload
-            url: photoUrl, // Pass the S3 URL directly
-          });
-          uploadedCount++;
+        try {
+          const photoUrl = await uploadPhotoFile(photos[i].uri);
+          if (photoUrl) {
+            // Save the photo record to the database
+            await savePhotoRecord.mutateAsync({
+              reportId,
+              jobId: selectedJobId,
+              uploadedBy: employee.id,
+              base64: "", // Not used — we already uploaded via /api/upload
+              url: photoUrl, // Pass the S3 URL directly
+            });
+            uploadedCount++;
+          } else {
+            console.warn(`Photo ${i + 1} upload returned null URL`);
+          }
+        } catch (photoErr: any) {
+          console.error(`Photo ${i + 1} failed:`, photoErr?.message || photoErr);
         }
       }
 
@@ -285,8 +336,8 @@ export default function ReportsScreen() {
     addBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
     reportCard: { marginHorizontal: 20, marginBottom: 10, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
     reportHeader: { padding: 14, flexDirection: "row", alignItems: "center" },
-    reportDate: { fontSize: 13, fontWeight: "700", color: colors.primary, width: 80 },
-    reportJob: { fontSize: 14, fontWeight: "600", color: colors.foreground, flex: 1 },
+    reportDate: { fontSize: 13, fontWeight: "700", color: colors.primary, marginRight: 10, minWidth: 50 },
+    reportJob: { fontSize: 15, fontWeight: "600", color: colors.foreground },
     reportBy: { fontSize: 12, color: colors.muted },
     modalContainer: { flex: 1, backgroundColor: colors.background },
     modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -497,10 +548,16 @@ export default function ReportsScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Site Photos ({photos.length}/10)</Text>
                 <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
-                  <TouchableOpacity style={[styles.addBtn, { flex: 1, justifyContent: "center" }]} onPress={takePhoto}>
+                  <TouchableOpacity
+                    style={[styles.addBtn, { flex: 1, justifyContent: "center" }]}
+                    onPress={takePhoto}
+                  >
                     <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>📷 Camera</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.addBtn, { flex: 1, justifyContent: "center", backgroundColor: "#1A2332" }]} onPress={pickPhoto}>
+                  <TouchableOpacity
+                    style={[styles.addBtn, { flex: 1, justifyContent: "center", backgroundColor: "#1A2332" }]}
+                    onPress={pickPhoto}
+                  >
                     <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>🖼 Gallery</Text>
                   </TouchableOpacity>
                 </View>
@@ -513,7 +570,9 @@ export default function ReportsScreen() {
                 )}
                 <View style={styles.photoGrid}>
                   {photos.map((p, i) => (
-                    <TouchableOpacity key={i} style={styles.photoThumb} onPress={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}>
+                    <TouchableOpacity key={`${i}-${p.uri.slice(-20)}`} style={styles.photoThumb} onPress={() => {
+                      setPhotos((prev) => prev.filter((_, idx) => idx !== i));
+                    }}>
                       <Image source={{ uri: p.uri }} style={{ width: "100%", height: "100%" }} />
                       <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 10, width: 20, height: 20, alignItems: "center", justifyContent: "center" }}>
                         <Text style={{ color: "#fff", fontSize: 12 }}>✕</Text>

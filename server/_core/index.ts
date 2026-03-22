@@ -2,10 +2,13 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import multer from "multer";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -56,53 +59,43 @@ async function startServer() {
 
   registerOAuthRoutes(app);
 
-  // File upload endpoint for audio recordings and PDFs
-  app.post("/api/upload", async (req, res) => {
+  // File upload endpoint for audio recordings, photos, and PDFs
+  // Uses multer for reliable multipart parsing (handles iOS/Android FormData correctly)
+  app.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
-      const chunks: Buffer[] = [];
-      req.on("data", (chunk: Buffer) => chunks.push(chunk));
-      req.on("end", async () => {
-        try {
-          const body = Buffer.concat(chunks);
-          const contentType = req.headers["content-type"] || "";
-          
-          // Handle multipart form data
-          if (contentType.includes("multipart/form-data")) {
-            const boundary = contentType.split("boundary=")[1];
-            if (!boundary) { res.status(400).json({ error: "No boundary" }); return; }
-            const bodyStr = body.toString("latin1");
-            const parts = bodyStr.split(`--${boundary}`);
-            for (const part of parts) {
-              if (part.includes("filename=")) {
-                const headerEnd = part.indexOf("\r\n\r\n");
-                if (headerEnd === -1) continue;
-                const fileData = part.slice(headerEnd + 4, part.lastIndexOf("\r\n"));
-                const fileBuffer = Buffer.from(fileData, "latin1");
-                const nameMatch = part.match(/filename="([^"]+)"/);
-                const fileName = nameMatch?.[1] || `upload_${Date.now()}`;
-                const mimeMatch = part.match(/Content-Type:\s*([^\r\n]+)/);
-                const mime = mimeMatch?.[1]?.trim() || "application/octet-stream";
-                const { storagePut } = await import("../storage");
-                const key = `uploads/${Date.now()}-${fileName}`;
-                const { url } = await storagePut(key, fileBuffer, mime);
-                res.json({ url, key, size: fileBuffer.length });
-                return;
-              }
+      const { storagePut } = await import("../storage");
+
+      if (req.file) {
+        // Multer parsed the multipart form successfully
+        const fileName = req.file.originalname || `upload_${Date.now()}`;
+        const mime = req.file.mimetype || "application/octet-stream";
+        const key = `uploads/${Date.now()}-${fileName}`;
+        const { url } = await storagePut(key, req.file.buffer, mime);
+        console.log(`[upload] Saved file: ${fileName} (${req.file.size} bytes) -> ${key}`);
+        res.json({ url, key, size: req.file.size });
+      } else {
+        // Fallback: raw body upload (non-multipart, e.g. direct binary POST)
+        const chunks: Buffer[] = [];
+        req.on("data", (chunk: Buffer) => chunks.push(chunk));
+        req.on("end", async () => {
+          try {
+            const body = Buffer.concat(chunks);
+            if (body.length === 0) {
+              res.status(400).json({ error: "No file data received" });
+              return;
             }
-            res.status(400).json({ error: "No file found in upload" });
-          } else {
-            // Handle raw body upload
-            const { storagePut } = await import("../storage");
-            const ext = contentType.includes("audio") ? "m4a" : contentType.includes("pdf") ? "pdf" : "bin";
+            const contentType = req.headers["content-type"] || "application/octet-stream";
+            const ext = contentType.includes("audio") ? "m4a" : contentType.includes("pdf") ? "pdf" : contentType.includes("image") ? "jpg" : "bin";
             const key = `uploads/${Date.now()}.${ext}`;
-            const { url } = await storagePut(key, body, contentType || "application/octet-stream");
+            const { url } = await storagePut(key, body, contentType);
+            console.log(`[upload] Saved raw: ${key} (${body.length} bytes)`);
             res.json({ url, key, size: body.length });
+          } catch (err) {
+            console.error("Upload processing error:", err);
+            res.status(500).json({ error: "Upload failed" });
           }
-        } catch (err) {
-          console.error("Upload processing error:", err);
-          res.status(500).json({ error: "Upload failed" });
-        }
-      });
+        });
+      }
     } catch (err) {
       console.error("Upload error:", err);
       res.status(500).json({ error: "Upload failed" });
