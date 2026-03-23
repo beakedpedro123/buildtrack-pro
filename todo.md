@@ -342,3 +342,24 @@
 - [x] Add liability insurance rate per job
 - [x] Show cost breakdown per job: labor + taxes + workers comp + insurance
 - [x] Sync these rates with the labor cost data on the Home screen
+
+## Phase 16 — Budget Alert System
+
+### Backend
+- [x] Created getBudgetAlerts server function: calculates total spend per job (labor + overhead + expenses)
+- [x] Created budgetAlerts.getAlerts tRPC endpoint for budget threshold checks
+- [x] Alert thresholds: 80% warning (yellow), 90% danger (orange), 100%+ critical (red)
+
+### Client UI
+- [x] Budget Alerts section on Home screen with color-coded banners for owner
+- [x] Each alert shows: job name, % used, spend breakdown (labor/overhead/expenses), progress bar
+- [x] Budget alert banner in Jobs Budget tab when job exceeds 80%/90%/100%
+- [x] Color-coded: green < 80%, yellow 80-90%, orange 90-100%, red > 100%
+
+### Goal Deadlines
+- [x] Added deadline column to weeklyGoals table
+- [x] Quick deadline picker: No Deadline, End of Week, Tomorrow, +3 Days, +1 Week
+- [x] Deadline sent with goal creation and update mutations
+- [x] Overdue indicator (red) on goal cards for past-deadline goals
+- [x] "Due Soon" indicator (yellow) for goals due within 24 hours
+- [x] Deadline badge with date shown on goal cards

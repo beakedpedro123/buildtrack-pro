@@ -744,3 +744,81 @@ export async function getLaborCostByEmployee(startDate: Date, endDate: Date) {
   }
   return Object.values(empAgg).sort((a, b) => b.totalCost - a.totalCost);
 }
+
+
+// ─── Budget Alerts ──────────────────────────────────────────────────────────
+/**
+ * Get budget alert status for all active jobs.
+ * Calculates total spend (labor + overhead + expenses) vs totalBudget.
+ * Returns array with alert level: "ok" | "warning" (80%) | "danger" (90%) | "critical" (100%+)
+ */
+export async function getBudgetAlerts() {
+  const db = await getDb();
+  if (!db) return [];
+
+  const activeJobsList = await db.select().from(jobs).where(eq(jobs.status, "active"));
+  const allClockEntries = await db.select().from(clockEntries);
+  const allEmployees = await db.select().from(employees);
+  const allExpenses = await db.select().from(expenses);
+  const empMap = new Map(allEmployees.map(e => [e.id, e]));
+
+  const results: {
+    jobId: number;
+    jobName: string;
+    totalBudget: number;
+    laborCost: number;
+    overheadCost: number;
+    expensesCost: number;
+    totalSpend: number;
+    percentUsed: number;
+    alertLevel: "ok" | "warning" | "danger" | "critical";
+  }[] = [];
+
+  for (const job of activeJobsList) {
+    const budget = parseFloat((job.totalBudget as string) || "0");
+    if (budget <= 0) continue; // Skip jobs with no budget set
+
+    // Calculate labor cost for this job
+    const jobEntries = allClockEntries.filter(e => e.jobId === job.id && e.clockOut);
+    let laborCost = 0;
+    for (const entry of jobEntries) {
+      const mins = Math.floor((new Date(entry.clockOut!).getTime() - new Date(entry.clockIn).getTime()) / 60000);
+      const emp = empMap.get(entry.employeeId);
+      if (emp?.hourlyRate) {
+        laborCost += (mins / 60) * parseFloat(emp.hourlyRate as string);
+      }
+    }
+
+    // Calculate overhead
+    const taxRate = parseFloat((job.taxRate as string) || "0");
+    const workersCompRate = parseFloat((job.workersCompRate as string) || "0");
+    const liabilityInsRate = parseFloat((job.liabilityInsRate as string) || "0");
+    const overheadCost = laborCost * ((taxRate + workersCompRate + liabilityInsRate) / 100);
+
+    // Calculate expenses
+    const jobExpenses = allExpenses.filter(e => e.jobId === job.id);
+    const expensesCost = jobExpenses.reduce((sum, e) => sum + parseFloat((e.amount as string) || "0"), 0);
+
+    const totalSpend = laborCost + overheadCost + expensesCost;
+    const percentUsed = budget > 0 ? (totalSpend / budget) * 100 : 0;
+
+    let alertLevel: "ok" | "warning" | "danger" | "critical" = "ok";
+    if (percentUsed >= 100) alertLevel = "critical";
+    else if (percentUsed >= 90) alertLevel = "danger";
+    else if (percentUsed >= 80) alertLevel = "warning";
+
+    results.push({
+      jobId: job.id,
+      jobName: job.name,
+      totalBudget: Math.round(budget * 100) / 100,
+      laborCost: Math.round(laborCost * 100) / 100,
+      overheadCost: Math.round(overheadCost * 100) / 100,
+      expensesCost: Math.round(expensesCost * 100) / 100,
+      totalSpend: Math.round(totalSpend * 100) / 100,
+      percentUsed: Math.round(percentUsed * 10) / 10,
+      alertLevel,
+    });
+  }
+
+  return results.sort((a, b) => b.percentUsed - a.percentUsed);
+}

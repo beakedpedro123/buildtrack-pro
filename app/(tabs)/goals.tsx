@@ -67,6 +67,7 @@ export default function GoalsScreen() {
   const [newGoalDescription, setNewGoalDescription] = useState("");
   const [newGoalPriority, setNewGoalPriority] = useState<Priority>("medium");
   const [newGoalAssignee, setNewGoalAssignee] = useState<number | null>(null);
+  const [newGoalDeadline, setNewGoalDeadline] = useState<string>(""); // ISO date string
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   const [filterAssignee, setFilterAssignee] = useState<number | "all">("all");
   const [showFilterPicker, setShowFilterPicker] = useState(false);
@@ -101,6 +102,7 @@ export default function GoalsScreen() {
       setNewGoalDescription("");
       setNewGoalPriority("medium");
       setNewGoalAssignee(null);
+      setNewGoalDeadline("");
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
   });
@@ -255,6 +257,7 @@ export default function GoalsScreen() {
       weekOf: weekStart.toISOString(),
       createdBy: employee?.id || 0,
       assignedTo: newGoalAssignee || undefined,
+      deadline: newGoalDeadline || undefined,
     });
   };
 
@@ -349,7 +352,7 @@ export default function GoalsScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.background }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>Add Weekly Goal</Text>
-            <TouchableOpacity onPress={() => { setShowAddGoal(false); setNewGoalTitle(""); setNewGoalDescription(""); setNewGoalAssignee(null); }}>
+            <TouchableOpacity onPress={() => { setShowAddGoal(false); setNewGoalTitle(""); setNewGoalDescription(""); setNewGoalAssignee(null); setNewGoalDeadline(""); }}>
               <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -414,6 +417,34 @@ export default function GoalsScreen() {
               ))}
             </View>
 
+            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10 }}>Deadline (optional)</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+              {/* Quick deadline buttons */}
+              {[
+                { label: "No Deadline", value: "" },
+                { label: "End of Week", value: (() => { const d = new Date(weekStart); d.setDate(d.getDate() + 4); d.setHours(17, 0, 0, 0); return d.toISOString(); })() },
+                { label: "Tomorrow", value: (() => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(17, 0, 0, 0); return d.toISOString(); })() },
+                { label: "+3 Days", value: (() => { const d = new Date(); d.setDate(d.getDate() + 3); d.setHours(17, 0, 0, 0); return d.toISOString(); })() },
+                { label: "+1 Week", value: (() => { const d = new Date(); d.setDate(d.getDate() + 7); d.setHours(17, 0, 0, 0); return d.toISOString(); })() },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.label}
+                  style={[styles.assigneeChip, {
+                    borderColor: newGoalDeadline === opt.value ? colors.primary : colors.border,
+                    backgroundColor: newGoalDeadline === opt.value ? colors.primary + "18" : "transparent",
+                  }]}
+                  onPress={() => setNewGoalDeadline(opt.value)}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: newGoalDeadline === opt.value ? colors.primary : colors.muted }}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {newGoalDeadline ? (
+              <Text style={{ fontSize: 12, color: colors.primary, marginBottom: 12, fontWeight: "600" }}>
+                Due: {new Date(newGoalDeadline).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </Text>
+            ) : null}
+
             <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 16 }}>
               Week: {formatWeekLabel(weekDate)}
             </Text>
@@ -470,6 +501,22 @@ export default function GoalsScreen() {
                           {assigneeName}
                         </Text>
                       </TouchableOpacity>
+                      {/* Deadline badge */}
+                      {item.deadline && (() => {
+                        const dl = new Date(item.deadline);
+                        const now = new Date();
+                        const isOverdue = dl < now && status !== "completed" && status !== "cancelled";
+                        const isDueSoon = !isOverdue && dl.getTime() - now.getTime() < 24 * 60 * 60 * 1000 && status !== "completed" && status !== "cancelled";
+                        const deadlineColor = isOverdue ? colors.error : isDueSoon ? colors.warning : colors.muted;
+                        return (
+                          <View style={{ backgroundColor: deadlineColor + "18", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, flexDirection: "row", alignItems: "center", gap: 3 }}>
+                            <Text style={{ fontSize: 10 }}>{isOverdue ? "\u23F0" : "\uD83D\uDCC5"}</Text>
+                            <Text style={{ fontSize: 11, fontWeight: "700", color: deadlineColor }}>
+                              {isOverdue ? "OVERDUE" : isDueSoon ? "Due Soon" : dl.toLocaleDateString([], { month: "short", day: "numeric" })}
+                            </Text>
+                          </View>
+                        );
+                      })()}
                     </View>
                   </View>
                   {canManage && (

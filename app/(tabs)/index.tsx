@@ -116,6 +116,10 @@ export default function DashboardScreen() {
     { enabled: !!employee && !isManagement }
   );
 
+  // Budget alerts (owner/management only)
+  const { data: budgetAlerts } = trpc.budgetAlerts.getAlerts.useQuery(undefined, { enabled: isOwner });
+  const activeAlerts = useMemo(() => (budgetAlerts || []).filter(a => a.alertLevel !== "ok"), [budgetAlerts]);
+
   // Labor cost data (management only)
   const { data: byJob } = trpc.laborDashboard.byJob.useQuery(
     { startDate, endDate },
@@ -164,6 +168,12 @@ export default function DashboardScreen() {
     avatar: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", marginRight: 12 },
     avatarText: { color: "#fff", fontWeight: "700", fontSize: 14 },
     logoutBtn: { marginHorizontal: 20, marginTop: 8, marginBottom: 32, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
+    alertBanner: { marginHorizontal: 20, marginBottom: 12, borderRadius: 14, padding: 14, borderWidth: 1.5 },
+    alertRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+    alertDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+    alertJobName: { flex: 1, fontSize: 13, fontWeight: "700" },
+    alertPct: { fontSize: 13, fontWeight: "800" },
+    alertDetail: { fontSize: 11, marginTop: 2, marginLeft: 16 },
     // Labor cost styles
     periodRow: { flexDirection: "row", paddingHorizontal: 20, marginBottom: 12, gap: 8 },
     periodBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1.5 },
@@ -308,6 +318,48 @@ export default function DashboardScreen() {
               );
             })}
             <View style={{ height: 12 }} />
+          </>
+        )}
+
+        {/* ═══ BUDGET ALERTS (owner only) ═══ */}
+        {isOwner && activeAlerts.length > 0 && (
+          <>
+            <View style={[styles.sectionHeader, { marginTop: 4 }]}>
+              <Text style={styles.sectionTitle}>Budget Alerts</Text>
+              <View style={{ backgroundColor: colors.error + "22", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.error }}>{activeAlerts.length}</Text>
+              </View>
+            </View>
+            {activeAlerts.map((alert) => {
+              const alertColors = {
+                warning: { bg: "#FEF3C7", border: "#F59E0B", text: "#92400E", dot: "#F59E0B" },
+                danger: { bg: "#FFF1F0", border: "#F97316", text: "#9A3412", dot: "#F97316" },
+                critical: { bg: "#FEE2E2", border: "#EF4444", text: "#991B1B", dot: "#EF4444" },
+                ok: { bg: colors.surface, border: colors.border, text: colors.foreground, dot: colors.success },
+              };
+              const ac = alertColors[alert.alertLevel];
+              return (
+                <View key={alert.jobId} style={[styles.alertBanner, { backgroundColor: ac.bg, borderColor: ac.border }]}>
+                  <View style={styles.alertRow as any}>
+                    <View style={[styles.alertDot, { backgroundColor: ac.dot }]} />
+                    <Text style={[styles.alertJobName, { color: ac.text }]} numberOfLines={1}>{alert.jobName}</Text>
+                    <Text style={[styles.alertPct, { color: ac.dot }]}>{alert.percentUsed}%</Text>
+                  </View>
+                  <Text style={[styles.alertDetail, { color: ac.text }]}>
+                    {formatCurrency(alert.totalSpend)} of {formatCurrency(alert.totalBudget)} budget used
+                  </Text>
+                  <View style={{ flexDirection: "row", marginLeft: 16, marginTop: 4, gap: 12 }}>
+                    <Text style={{ fontSize: 10, color: ac.text }}>Labor: {formatCurrency(alert.laborCost)}</Text>
+                    <Text style={{ fontSize: 10, color: ac.text }}>Overhead: {formatCurrency(alert.overheadCost)}</Text>
+                    <Text style={{ fontSize: 10, color: ac.text }}>Expenses: {formatCurrency(alert.expensesCost)}</Text>
+                  </View>
+                  {/* Progress bar */}
+                  <View style={{ height: 4, backgroundColor: ac.border + "33", borderRadius: 2, marginTop: 8, marginHorizontal: 16 }}>
+                    <View style={{ height: 4, borderRadius: 2, backgroundColor: ac.dot, width: `${Math.min(alert.percentUsed, 100)}%` }} />
+                  </View>
+                </View>
+              );
+            })}
           </>
         )}
 

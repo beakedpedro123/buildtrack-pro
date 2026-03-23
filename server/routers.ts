@@ -322,9 +322,14 @@ const goalsRouter = router({
     assignedTo: z.number().optional(),
     weekOf: z.string(),
     priority: z.enum(["low", "medium", "high"]).default("medium"),
+    deadline: z.string().optional(),
     createdBy: z.number(),
   })).mutation(async ({ input }) => {
-    const id = await db.createWeeklyGoal({ ...input, weekOf: new Date(input.weekOf) });
+    const id = await db.createWeeklyGoal({
+      ...input,
+      weekOf: new Date(input.weekOf),
+      deadline: input.deadline ? new Date(input.deadline) : undefined,
+    });
     return { id };
   }),
   update: publicProcedure.input(z.object({
@@ -334,10 +339,15 @@ const goalsRouter = router({
     status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
     priority: z.enum(["low", "medium", "high"]).optional(),
     assignedTo: z.number().optional(),
+    deadline: z.string().nullable().optional(),
     completedAt: z.string().optional(),
   })).mutation(async ({ input }) => {
-    const { id, completedAt, ...rest } = input;
-    await db.updateWeeklyGoal(id, { ...rest, completedAt: completedAt ? new Date(completedAt) : undefined });
+    const { id, completedAt, deadline, ...rest } = input;
+    await db.updateWeeklyGoal(id, {
+      ...rest,
+      completedAt: completedAt ? new Date(completedAt) : undefined,
+      deadline: deadline === null ? null : deadline ? new Date(deadline) : undefined,
+    } as any);
     return { success: true };
   }),
   delete: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
@@ -484,6 +494,10 @@ const qbEstimatesRouter = router({
   }),
 });
 
+const budgetAlertsRouter = router({
+  getAlerts: publicProcedure.query(() => db.getBudgetAlerts()),
+});
+
 const laborDashboardRouter = router({
   byJob: publicProcedure.input(z.object({
     startDate: z.string(),
@@ -572,6 +586,7 @@ export const appRouter = router({
   qbEstimates: qbEstimatesRouter,
   kpi: kpiRouter,
   laborDashboard: laborDashboardRouter,
+  budgetAlerts: budgetAlertsRouter,
 });
 
 export type AppRouter = typeof appRouter;

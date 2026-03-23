@@ -197,6 +197,7 @@ export const weeklyGoals = mysqlTable("weeklyGoals", {
   weekOf: timestamp("weekOf").notNull(),
   status: mysqlEnum("status", ["pending", "in_progress", "completed", "cancelled"]).default("pending").notNull(),
   priority: mysqlEnum("priority", ["low", "medium", "high"]).default("medium").notNull(),
+  deadline: timestamp("deadline"),
   createdBy: int("createdBy").notNull(),
   completedAt: timestamp("completedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

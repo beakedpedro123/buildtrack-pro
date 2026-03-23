@@ -119,7 +119,21 @@ export default function JobsScreen() {
   const laborHours = laborCost ? Math.round(laborCost.totalMinutes / 60 * 10) / 10 : 0;
   const totalSpent = expenseSpent + laborSpent;
   const budgetPct = totalBudget > 0 ? Math.min(totalSpent / totalBudget, 1) : 0;
+  const budgetPctRaw = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
   const budgetBarColor = budgetPct < 0.6 ? colors.success : budgetPct < 0.85 ? colors.warning : colors.error;
+  const budgetAlertLevel = budgetPctRaw >= 100 ? "critical" : budgetPctRaw >= 90 ? "danger" : budgetPctRaw >= 80 ? "warning" : "ok";
+  const budgetAlertMessages: Record<string, string> = {
+    warning: "This job has used 80%+ of its budget. Review spending.",
+    danger: "This job has used 90%+ of its budget. Immediate attention needed.",
+    critical: "This job has exceeded its budget!",
+    ok: "",
+  };
+  const budgetAlertColors: Record<string, { bg: string; border: string; text: string }> = {
+    warning: { bg: "#FEF3C7", border: "#F59E0B", text: "#92400E" },
+    danger: { bg: "#FFF1F0", border: "#F97316", text: "#9A3412" },
+    critical: { bg: "#FEE2E2", border: "#EF4444", text: "#991B1B" },
+    ok: { bg: colors.surface, border: colors.border, text: colors.foreground },
+  };
 
   const reportCount = (jobReports || []).length;
   const photoCount = (jobPhotos || []).length;
@@ -570,6 +584,24 @@ export default function JobsScreen() {
               {/* Budget Tab — management only */}
               {activeTab === "budget" && canSeeBudget && (
                 <View style={styles.section}>
+                  {/* Budget Alert Banner */}
+                  {budgetAlertLevel !== "ok" && totalBudget > 0 && (
+                    <View style={{ backgroundColor: budgetAlertColors[budgetAlertLevel].bg, borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: budgetAlertColors[budgetAlertLevel].border, marginBottom: 14 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                        <Text style={{ fontSize: 16, marginRight: 8 }}>{budgetAlertLevel === "critical" ? "\u26A0\uFE0F" : budgetAlertLevel === "danger" ? "\u26A0\uFE0F" : "\u26A0\uFE0F"}</Text>
+                        <Text style={{ fontSize: 14, fontWeight: "800", color: budgetAlertColors[budgetAlertLevel].text }}>
+                          {budgetAlertLevel === "critical" ? "OVER BUDGET" : budgetAlertLevel === "danger" ? "BUDGET DANGER" : "BUDGET WARNING"}
+                        </Text>
+                        <Text style={{ fontSize: 14, fontWeight: "800", color: budgetAlertColors[budgetAlertLevel].border, marginLeft: "auto" }}>
+                          {Math.round(budgetPctRaw)}%
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 12, color: budgetAlertColors[budgetAlertLevel].text, marginLeft: 24 }}>
+                        {budgetAlertMessages[budgetAlertLevel]}
+                      </Text>
+                    </View>
+                  )}
+
                   {/* Budget Overview */}
                   <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 20 }}>
                     <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 4 }}>Total Budget</Text>
