@@ -438,3 +438,11 @@
 - [x] Created eas.json with development, preview, and production profiles
 - [x] Verified app.config.ts has correct iOS bundle identifier
 - [x] Providing step-by-step instructions for user
+
+## Phase 21 — Sync iOS Build with Latest Code
+
+- [ ] Remove standalone KPIs tab from tab bar (already done in sandbox)
+- [ ] Ensure Safety tab is visible (already done in sandbox)
+- [ ] Ensure Labor Costs are on Dashboard (already done in sandbox)
+- [ ] Rebuild iOS from sandbox code to match Android
+- [ ] Rebuild Android APK from same code for parity
