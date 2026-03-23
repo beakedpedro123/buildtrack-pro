@@ -425,3 +425,9 @@
 - [x] Laborer Home: clean view with company logo, name, clock status card, daily motivational quote, quick actions
 - [x] Foreman Home: personal view with clock status, quick actions (Field Report, Safety, Goals), jobsites
 - [x] Creative laborer features: daily motivational quotes, large clock timer, quick-access buttons
+
+## Phase 20 — EAS Build Configuration for iOS
+
+- [x] Created eas.json with development, preview, and production profiles
+- [x] Verified app.config.ts has correct iOS bundle identifier
+- [x] Providing step-by-step instructions for user
