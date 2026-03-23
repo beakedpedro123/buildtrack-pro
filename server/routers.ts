@@ -94,6 +94,9 @@ const jobsRouter = router({
     longitude: z.number().optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
+    taxRate: z.string().optional(),
+    workersCompRate: z.string().optional(),
+    liabilityInsRate: z.string().optional(),
     createdBy: z.number(),
   })).mutation(({ input }) => {
     const data = { ...input, startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined };
@@ -108,6 +111,9 @@ const jobsRouter = router({
     totalBudget: z.string().optional(),
     notes: z.string().optional(),
     endDate: z.string().optional(),
+    taxRate: z.string().optional(),
+    workersCompRate: z.string().optional(),
+    liabilityInsRate: z.string().optional(),
   })).mutation(({ input }) => {
     const { id, ...rest } = input;
     const data = { ...rest, endDate: rest.endDate ? new Date(rest.endDate) : undefined };

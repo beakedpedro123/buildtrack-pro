@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE jobs ADD COLUMN taxRate DECIMAL(5,2) DEFAULT 0; ALTER TABLE jobs ADD COLUMN workersCompRate DECIMAL(5,2) DEFAULT 0; ALTER TABLE jobs ADD COLUMN liabilityInsRate DECIMAL(5,2) DEFAULT 0;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute ALTER TABLE jobs ADD COLUMN taxRate DECIMAL(5,2) DEFAULT 0; ALTER TABLE jobs ADD COLUMN workersCompRate DECIMAL(5,2) DEFAULT 0; ALTER TABLE jobs ADD COLUMN liabilityInsRate DECIMAL(5,2) DEFAULT 0;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 3747
+}

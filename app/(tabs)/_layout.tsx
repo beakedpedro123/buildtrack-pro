@@ -108,7 +108,7 @@ export default function TabLayout() {
         options={{
           title: "Labor $",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="chart.line.uptrend.xyaxis" color={color} />,
-          href: (role === "owner" || role === "secretary" || role === "logistics") ? undefined : null,
+          href: null,
         }}
       />
       <Tabs.Screen
@@ -116,7 +116,7 @@ export default function TabLayout() {
         options={{
           title: "KPIs",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="chart.bar.fill" color={color} />,
-          href: (role === "owner" || role === "secretary" || role === "logistics" || role === "foreman") ? undefined : null,
+          href: null,
         }}
       />
       <Tabs.Screen

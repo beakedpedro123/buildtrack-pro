@@ -1,5 +1,5 @@
-import { View, type ViewProps } from "react-native";
-import { SafeAreaView, type Edge } from "react-native-safe-area-context";
+import { Platform, View, type ViewProps } from "react-native";
+import { SafeAreaView, useSafeAreaInsets, type Edge } from "react-native-safe-area-context";
 
 import { cn } from "@/lib/utils";
 
@@ -28,15 +28,8 @@ export interface ScreenContainerProps extends ViewProps {
  *
  * The outer View extends to full screen (including status bar area) with the background color,
  * while the inner SafeAreaView ensures content is within safe bounds.
- *
- * Usage:
- * ```tsx
- * <ScreenContainer className="p-4">
- *   <Text className="text-2xl font-bold text-foreground">
- *     Welcome
- *   </Text>
- * </ScreenContainer>
- * ```
+ * An additional top padding is applied to prevent UI elements from overlapping
+ * with the status bar/notch on devices with smaller safe area insets.
  */
 export function ScreenContainer({
   children,
@@ -47,6 +40,13 @@ export function ScreenContainer({
   style,
   ...props
 }: ScreenContainerProps) {
+  const insets = useSafeAreaInsets();
+  // On native, add extra top padding if the device's safe area inset is small
+  // This prevents UI elements from being too close to the status bar / notch
+  const extraTopPadding = Platform.OS !== "web" && edges.includes("top")
+    ? Math.max(0, 8 - Math.max(insets.top - 44, 0))
+    : 0;
+
   return (
     <View
       className={cn(
@@ -59,7 +59,7 @@ export function ScreenContainer({
       <SafeAreaView
         edges={edges}
         className={cn("flex-1", safeAreaClassName)}
-        style={style}
+        style={[style, extraTopPadding > 0 ? { paddingTop: extraTopPadding } : undefined]}
       >
         <View className={cn("flex-1", className)}>{children}</View>
       </SafeAreaView>

@@ -57,6 +57,9 @@ export default function JobsScreen() {
   const [jobClient, setJobClient] = useState("");
   const [jobBudget, setJobBudget] = useState("");
   const [jobNotes, setJobNotes] = useState("");
+  const [jobTaxRate, setJobTaxRate] = useState("");
+  const [jobWorkersComp, setJobWorkersComp] = useState("");
+  const [jobLiabilityIns, setJobLiabilityIns] = useState("");
 
   // Expense form
   const [expDesc, setExpDesc] = useState("");
@@ -100,7 +103,7 @@ export default function JobsScreen() {
   const addExpense = trpc.budget.addExpense.useMutation({ onSuccess: () => { utils.budget.getExpenses.invalidate(); utils.budget.getCategories.invalidate(); setShowAddExpense(false); resetExpForm(); } });
   const addBudgetCat = trpc.budget.createCategory.useMutation({ onSuccess: () => { utils.budget.getCategories.invalidate(); setShowAddBudget(false); setBudgetName(""); setBudgetAmount(""); } });
 
-  const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); };
+  const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); setJobTaxRate(""); setJobWorkersComp(""); setJobLiabilityIns(""); };
   const resetExpForm = () => { setExpDesc(""); setExpAmount(""); setExpCategoryId(null); };
 
   const filteredJobs = (allJobs || []).filter((j) => {
@@ -129,6 +132,9 @@ export default function JobsScreen() {
       clientName: jobClient || undefined,
       totalBudget: jobBudget || undefined,
       notes: jobNotes || undefined,
+      taxRate: jobTaxRate || undefined,
+      workersCompRate: jobWorkersComp || undefined,
+      liabilityInsRate: jobLiabilityIns || undefined,
       createdBy: employee.id,
     });
   };
@@ -484,6 +490,61 @@ export default function JobsScreen() {
                     </View>
                   ))}
 
+                  {/* Editable Overhead Rates — management only */}
+                  {canManage && (
+                    <View style={{ marginTop: 20, backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 10 }}>Overhead Rates (%)</Text>
+                      <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10 }}>These rates are applied to labor costs for this job.</Text>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 4 }}>Tax</Text>
+                          <TextInput
+                            style={[styles.input, { marginBottom: 0 }]}
+                            placeholder="0"
+                            placeholderTextColor={colors.muted}
+                            keyboardType="decimal-pad"
+                            defaultValue={selectedJob.taxRate || "0"}
+                            onEndEditing={(e) => {
+                              const val = e.nativeEvent.text;
+                              updateJob.mutate({ id: selectedJob.id, taxRate: val });
+                              setSelectedJob({ ...selectedJob, taxRate: val });
+                            }}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 4 }}>Workers Comp</Text>
+                          <TextInput
+                            style={[styles.input, { marginBottom: 0 }]}
+                            placeholder="0"
+                            placeholderTextColor={colors.muted}
+                            keyboardType="decimal-pad"
+                            defaultValue={selectedJob.workersCompRate || "0"}
+                            onEndEditing={(e) => {
+                              const val = e.nativeEvent.text;
+                              updateJob.mutate({ id: selectedJob.id, workersCompRate: val });
+                              setSelectedJob({ ...selectedJob, workersCompRate: val });
+                            }}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 4 }}>Liability Ins</Text>
+                          <TextInput
+                            style={[styles.input, { marginBottom: 0 }]}
+                            placeholder="0"
+                            placeholderTextColor={colors.muted}
+                            keyboardType="decimal-pad"
+                            defaultValue={selectedJob.liabilityInsRate || "0"}
+                            onEndEditing={(e) => {
+                              const val = e.nativeEvent.text;
+                              updateJob.mutate({ id: selectedJob.id, liabilityInsRate: val });
+                              setSelectedJob({ ...selectedJob, liabilityInsRate: val });
+                            }}
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  )}
+
                   {canUpdateStatus && (
                     <View style={{ marginTop: 20, gap: 10 }}>
                       <Text style={styles.sectionTitle}>Update Status</Text>
@@ -528,7 +589,7 @@ export default function JobsScreen() {
                   <View style={{ backgroundColor: colors.primary + "10", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.primary + "30", marginBottom: 20 }}>
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                       <View>
-                        <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 2 }}>Labor (from timeclock)</Text>
+                        <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 2 }}>Base Labor</Text>
                         <Text style={{ fontSize: 22, fontWeight: "800", color: colors.primary }}>${laborSpent.toLocaleString()}</Text>
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
@@ -536,7 +597,45 @@ export default function JobsScreen() {
                         <Text style={{ fontSize: 20, fontWeight: "800", color: colors.primary }}>{laborHours}h</Text>
                       </View>
                     </View>
-                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>Auto-calculated from employee clock-in/out records and hourly rates</Text>
+                    {/* Overhead breakdown */}
+                    {(() => {
+                      const taxR = parseFloat(selectedJob?.taxRate || "0");
+                      const wcR = parseFloat(selectedJob?.workersCompRate || "0");
+                      const liR = parseFloat(selectedJob?.liabilityInsRate || "0");
+                      const taxAmt = Math.round(laborSpent * (taxR / 100) * 100) / 100;
+                      const wcAmt = Math.round(laborSpent * (wcR / 100) * 100) / 100;
+                      const liAmt = Math.round(laborSpent * (liR / 100) * 100) / 100;
+                      const totalOverhead = taxAmt + wcAmt + liAmt;
+                      const totalLabor = laborSpent + totalOverhead;
+                      const hasRates = taxR > 0 || wcR > 0 || liR > 0;
+                      if (!hasRates) return <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>Set tax/workers comp/insurance rates in job settings to see full cost breakdown</Text>;
+                      return (
+                        <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: colors.primary + "30", paddingTop: 10 }}>
+                          {taxR > 0 && (
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                              <Text style={{ fontSize: 12, color: colors.muted }}>Payroll Tax ({taxR}%)</Text>
+                              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground }}>${taxAmt.toLocaleString()}</Text>
+                            </View>
+                          )}
+                          {wcR > 0 && (
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                              <Text style={{ fontSize: 12, color: colors.muted }}>Workers Comp ({wcR}%)</Text>
+                              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground }}>${wcAmt.toLocaleString()}</Text>
+                            </View>
+                          )}
+                          {liR > 0 && (
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                              <Text style={{ fontSize: 12, color: colors.muted }}>Liability Ins ({liR}%)</Text>
+                              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground }}>${liAmt.toLocaleString()}</Text>
+                            </View>
+                          )}
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4, borderTopWidth: 1, borderTopColor: colors.primary + "30", paddingTop: 6 }}>
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>Total Labor Cost</Text>
+                            <Text style={{ fontSize: 15, fontWeight: "800", color: colors.primary }}>${totalLabor.toLocaleString()}</Text>
+                          </View>
+                        </View>
+                      );
+                    })()}
                   </View>
 
                   {/* Budget Categories */}
@@ -767,6 +866,18 @@ export default function JobsScreen() {
               <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={colors.muted} value={jobBudget} onChangeText={setJobBudget} keyboardType="decimal-pad" />
               <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Notes</Text>
               <TextInput style={[styles.input, { height: 80, textAlignVertical: "top" }]} placeholder="Any notes about this job..." placeholderTextColor={colors.muted} value={jobNotes} onChangeText={setJobNotes} multiline />
+
+              <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 10 }}>Overhead Rates (%)</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10 }}>Applied to labor costs for this job. Leave blank or 0 if not applicable.</Text>
+                <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 4 }}>Payroll Tax Rate (%)</Text>
+                <TextInput style={styles.input} placeholder="e.g. 7.65" placeholderTextColor={colors.muted} value={jobTaxRate} onChangeText={setJobTaxRate} keyboardType="decimal-pad" />
+                <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 4 }}>Workers Comp Rate (%)</Text>
+                <TextInput style={styles.input} placeholder="e.g. 12.5" placeholderTextColor={colors.muted} value={jobWorkersComp} onChangeText={setJobWorkersComp} keyboardType="decimal-pad" />
+                <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 4 }}>Liability Insurance Rate (%)</Text>
+                <TextInput style={styles.input} placeholder="e.g. 3.0" placeholderTextColor={colors.muted} value={jobLiabilityIns} onChangeText={setJobLiabilityIns} keyboardType="decimal-pad" />
+              </View>
+
               <TouchableOpacity
                 style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 8 }}
                 onPress={handleCreateJob}

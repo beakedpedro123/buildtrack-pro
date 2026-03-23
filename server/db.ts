@@ -618,13 +618,31 @@ export async function getLaborCostByJob(startDate: Date, endDate: Date) {
       jobAgg[entry.jobId].totalCost += (mins / 60) * parseFloat(emp.hourlyRate as string);
     }
   }
-  return Object.values(jobAgg).map(j => ({
-    jobId: j.jobId,
-    jobName: j.jobName,
-    totalMinutes: j.totalMinutes,
-    totalCost: Math.round(j.totalCost * 100) / 100,
-    employeeCount: j.employeeIds.size,
-  })).sort((a, b) => b.totalCost - a.totalCost);
+  return Object.values(jobAgg).map(j => {
+    const job = jobMap.get(j.jobId);
+    const baseLaborCost = Math.round(j.totalCost * 100) / 100;
+    const taxRate = parseFloat((job?.taxRate as string) || "0");
+    const workersCompRate = parseFloat((job?.workersCompRate as string) || "0");
+    const liabilityInsRate = parseFloat((job?.liabilityInsRate as string) || "0");
+    const taxCost = Math.round(baseLaborCost * (taxRate / 100) * 100) / 100;
+    const workersCompCost = Math.round(baseLaborCost * (workersCompRate / 100) * 100) / 100;
+    const liabilityInsCost = Math.round(baseLaborCost * (liabilityInsRate / 100) * 100) / 100;
+    const totalWithOverhead = Math.round((baseLaborCost + taxCost + workersCompCost + liabilityInsCost) * 100) / 100;
+    return {
+      jobId: j.jobId,
+      jobName: j.jobName,
+      totalMinutes: j.totalMinutes,
+      totalCost: baseLaborCost,
+      taxRate,
+      taxCost,
+      workersCompRate,
+      workersCompCost,
+      liabilityInsRate,
+      liabilityInsCost,
+      totalWithOverhead,
+      employeeCount: j.employeeIds.size,
+    };
+  }).sort((a, b) => b.totalCost - a.totalCost);
 }
 
 /**

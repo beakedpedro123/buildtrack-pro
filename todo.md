@@ -320,3 +320,25 @@
 - [x] Owner, Secretary, and Logistics can clock any employee in/out at will
 - [x] Add employee picker for management roles on Clock screen
 - [x] Management can clock out any currently clocked-in employee
+
+## Phase 15 — UI Cleanup, Keyboard Fix, Taxes/Insurance
+
+### Tab Cleanup
+- [x] Remove KPI tab from tab layout
+- [x] Remove Labor Cost tab from tab layout
+- [x] Move labor cost dashboard data into Home screen (replace recent reports section)
+
+### Keyboard Fix
+- [x] Fix keyboard covering text inputs across the entire app
+- [x] Ensure content scrolls up when keyboard opens so user can see what they're typing
+
+### SafeArea Top Spacing
+- [x] Add extra top padding on all screens to prevent UI elements overlapping with status bar/notch
+- [x] Tested with different inset sizes (small notch, iPhone X, iPhone 14 Pro)
+
+### Taxes, Workers Comp, Liability Insurance
+- [x] Add configurable tax rate per job
+- [x] Add workers comp rate per job
+- [x] Add liability insurance rate per job
+- [x] Show cost breakdown per job: labor + taxes + workers comp + insurance
+- [x] Sync these rates with the labor cost data on the Home screen
