@@ -478,6 +478,26 @@ const qbEstimatesRouter = router({
   }),
 });
 
+const laborDashboardRouter = router({
+  byJob: publicProcedure.input(z.object({
+    startDate: z.string(),
+    endDate: z.string(),
+  })).query(async ({ input }) => {
+    return db.getLaborCostByJob(new Date(input.startDate), new Date(input.endDate));
+  }),
+  weeklyTrend: publicProcedure.input(z.object({
+    weeks: z.number().default(8),
+  })).query(async ({ input }) => {
+    return db.getWeeklyLaborCostTrend(input.weeks);
+  }),
+  byEmployee: publicProcedure.input(z.object({
+    startDate: z.string(),
+    endDate: z.string(),
+  })).query(async ({ input }) => {
+    return db.getLaborCostByEmployee(new Date(input.startDate), new Date(input.endDate));
+  }),
+});
+
 const kpiRouter = router({
   list: publicProcedure.query(() => db.getAllKpis()),
   getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getKpiById(input.id)),
@@ -545,6 +565,7 @@ export const appRouter = router({
   payroll: payrollRouter,
   qbEstimates: qbEstimatesRouter,
   kpi: kpiRouter,
+  laborDashboard: laborDashboardRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -586,3 +586,143 @@ export async function getLaborCostForJob(jobId: number) {
   }
   return { totalMinutes, totalCost: Math.round(totalCost * 100) / 100 };
 }
+
+// ─── Labor Cost Dashboard Queries ────────────────────────────────────────────
+
+/**
+ * Get labor cost breakdown per job for a date range.
+ * Returns: array of { jobId, jobName, totalMinutes, totalCost, employeeCount }
+ */
+export async function getLaborCostByJob(startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const entries = await db.select().from(clockEntries)
+    .where(and(gte(clockEntries.clockIn, startDate), lte(clockEntries.clockIn, endDate)));
+  const allEmployees = await db.select().from(employees);
+  const allJobs = await db.select().from(jobs);
+  const empMap = new Map(allEmployees.map(e => [e.id, e]));
+  const jobMap = new Map(allJobs.map(j => [j.id, j]));
+
+  const jobAgg: Record<number, { jobId: number; jobName: string; totalMinutes: number; totalCost: number; employeeIds: Set<number> }> = {};
+  for (const entry of entries) {
+    if (!entry.clockOut) continue;
+    const mins = Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000);
+    if (!jobAgg[entry.jobId]) {
+      const job = jobMap.get(entry.jobId);
+      jobAgg[entry.jobId] = { jobId: entry.jobId, jobName: job?.name || `Job #${entry.jobId}`, totalMinutes: 0, totalCost: 0, employeeIds: new Set() };
+    }
+    jobAgg[entry.jobId].totalMinutes += mins;
+    jobAgg[entry.jobId].employeeIds.add(entry.employeeId);
+    const emp = empMap.get(entry.employeeId);
+    if (emp?.hourlyRate) {
+      jobAgg[entry.jobId].totalCost += (mins / 60) * parseFloat(emp.hourlyRate as string);
+    }
+  }
+  return Object.values(jobAgg).map(j => ({
+    jobId: j.jobId,
+    jobName: j.jobName,
+    totalMinutes: j.totalMinutes,
+    totalCost: Math.round(j.totalCost * 100) / 100,
+    employeeCount: j.employeeIds.size,
+  })).sort((a, b) => b.totalCost - a.totalCost);
+}
+
+/**
+ * Get weekly labor cost trend for the past N weeks.
+ * Returns: array of { weekStart, weekLabel, totalMinutes, totalCost, jobCount }
+ */
+export async function getWeeklyLaborCostTrend(weeks: number = 8) {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  // Go back to the start of the current week (Monday)
+  const dayOfWeek = now.getDay();
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const currentMonday = new Date(now);
+  currentMonday.setDate(now.getDate() + mondayOffset);
+  currentMonday.setHours(0, 0, 0, 0);
+
+  const startDate = new Date(currentMonday);
+  startDate.setDate(startDate.getDate() - (weeks - 1) * 7);
+
+  const entries = await db.select().from(clockEntries)
+    .where(gte(clockEntries.clockIn, startDate));
+  const allEmployees = await db.select().from(employees);
+  const empMap = new Map(allEmployees.map(e => [e.id, e]));
+
+  // Build week buckets
+  const weekBuckets: { weekStart: string; weekLabel: string; totalMinutes: number; totalCost: number; jobIds: Set<number> }[] = [];
+  for (let i = 0; i < weeks; i++) {
+    const ws = new Date(startDate);
+    ws.setDate(ws.getDate() + i * 7);
+    const month = ws.toLocaleString("en-US", { month: "short" });
+    const day = ws.getDate();
+    weekBuckets.push({
+      weekStart: ws.toISOString(),
+      weekLabel: `${month} ${day}`,
+      totalMinutes: 0,
+      totalCost: 0,
+      jobIds: new Set(),
+    });
+  }
+
+  for (const entry of entries) {
+    if (!entry.clockOut) continue;
+    const clockInDate = new Date(entry.clockIn);
+    const diffDays = Math.floor((clockInDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const bucketIdx = Math.floor(diffDays / 7);
+    if (bucketIdx < 0 || bucketIdx >= weeks) continue;
+
+    const mins = Math.floor((new Date(entry.clockOut).getTime() - clockInDate.getTime()) / 60000);
+    weekBuckets[bucketIdx].totalMinutes += mins;
+    weekBuckets[bucketIdx].jobIds.add(entry.jobId);
+    const emp = empMap.get(entry.employeeId);
+    if (emp?.hourlyRate) {
+      weekBuckets[bucketIdx].totalCost += (mins / 60) * parseFloat(emp.hourlyRate as string);
+    }
+  }
+
+  return weekBuckets.map(b => ({
+    weekStart: b.weekStart,
+    weekLabel: b.weekLabel,
+    totalMinutes: b.totalMinutes,
+    totalCost: Math.round(b.totalCost * 100) / 100,
+    jobCount: b.jobIds.size,
+  }));
+}
+
+/**
+ * Get labor cost breakdown per employee for a date range.
+ * Returns: array of { employeeId, employeeName, role, hourlyRate, totalMinutes, totalCost }
+ */
+export async function getLaborCostByEmployee(startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const entries = await db.select().from(clockEntries)
+    .where(and(gte(clockEntries.clockIn, startDate), lte(clockEntries.clockIn, endDate)));
+  const allEmployees = await db.select().from(employees);
+  const empMap = new Map(allEmployees.map(e => [e.id, e]));
+
+  const empAgg: Record<number, { employeeId: number; employeeName: string; role: string; hourlyRate: string | null; totalMinutes: number; totalCost: number }> = {};
+  for (const entry of entries) {
+    if (!entry.clockOut) continue;
+    const mins = Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000);
+    if (!empAgg[entry.employeeId]) {
+      const emp = empMap.get(entry.employeeId);
+      empAgg[entry.employeeId] = {
+        employeeId: entry.employeeId,
+        employeeName: emp?.name || `Employee #${entry.employeeId}`,
+        role: emp?.role || "laborer",
+        hourlyRate: emp?.hourlyRate as string | null,
+        totalMinutes: 0,
+        totalCost: 0,
+      };
+    }
+    empAgg[entry.employeeId].totalMinutes += mins;
+    const emp = empMap.get(entry.employeeId);
+    if (emp?.hourlyRate) {
+      empAgg[entry.employeeId].totalCost += (mins / 60) * parseFloat(emp.hourlyRate as string);
+    }
+  }
+  return Object.values(empAgg).sort((a, b) => b.totalCost - a.totalCost);
+}

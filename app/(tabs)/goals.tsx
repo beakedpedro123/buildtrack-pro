@@ -112,11 +112,11 @@ export default function GoalsScreen() {
   });
 
   // Roles that can view/manage goals
+  const isOwner = employee?.role === "owner";
   const isOwnerOrManager = ["owner", "secretary", "logistics"].includes(employee?.role || "");
   const isForeman = employee?.role === "foreman";
-  const isLaborer = employee?.role === "laborer";
-  // Laborers and foremen can see their own goals; owners/managers see all
-  const canView = isOwnerOrManager || isForeman || isLaborer;
+  // Laborers cannot access goals at all; foreman/logistics/secretary see only their own
+  const canView = isOwnerOrManager || isForeman;
   const canManage = isOwnerOrManager; // only owner/secretary/logistics can create/edit/delete
 
   // Filter goals based on role and filter selection
@@ -124,16 +124,18 @@ export default function GoalsScreen() {
     if (!goals) return [];
     let filtered = [...goals];
 
-    // Non-managers only see goals assigned to them
-    if (!isOwnerOrManager) {
+    if (isOwner) {
+      // Owner sees all goals, but can filter by assignee
+      if (filterAssignee !== "all") {
+        filtered = filtered.filter((g: any) => g.assignedTo === filterAssignee);
+      }
+    } else {
+      // Secretary, logistics, foreman — only see goals assigned to them
       filtered = filtered.filter((g: any) => g.assignedTo === employee?.id);
-    } else if (filterAssignee !== "all") {
-      // Managers can filter by assignee
-      filtered = filtered.filter((g: any) => g.assignedTo === filterAssignee);
     }
 
     return filtered;
-  }, [goals, filterAssignee, isOwnerOrManager, employee?.id]);
+  }, [goals, filterAssignee, isOwner, employee?.id]);
 
   const completedCount = filteredGoals.filter((g: any) => g.status === "completed").length;
   const totalCount = filteredGoals.filter((g: any) => g.status !== "cancelled").length;
@@ -300,8 +302,8 @@ export default function GoalsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Filter by Assignee (only for managers) */}
-      {isOwnerOrManager && assignableEmployees.length > 0 && (
+      {/* Filter by Assignee (only for owner) */}
+      {isOwner && assignableEmployees.length > 0 && (
         <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <TouchableOpacity

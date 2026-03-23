@@ -283,3 +283,40 @@
 - [x] Fixed mediaTypes API: changed from v55 array format to v17 MediaTypeOptions.Images
 - [x] Added expo-image-picker plugin to app.config.ts with camera/photo library permissions
 - [x] All 12 unit tests passing — awaiting re-publish to verify on device
+
+## Phase 14 — Labor Cost KPI Dashboard
+
+### Backend API
+- [x] Add laborCostDashboard tRPC endpoint: aggregate clock entries by job with employee hourly rates
+- [x] Add weeklyLaborCost tRPC endpoint: aggregate clock entries by week across all jobs
+- [x] Add laborCostByEmployee tRPC endpoint: aggregate per-employee labor cost for a date range
+
+### Dashboard Screen
+- [x] Create new labor-costs.tsx tab screen for the Labor Cost Dashboard
+- [x] Summary cards: Total Labor Spend (this week), Total Labor Spend (this month), Active Jobs count
+- [x] Per-Job breakdown: horizontal bar chart showing labor cost per active job
+- [x] Weekly trend: line/bar chart showing labor cost per week for the past 8 weeks
+- [x] Per-Employee breakdown: list showing each employee's hours and labor cost for selected period
+- [x] Period selector: toggle between This Week / This Month / Last 30 Days
+- [x] Role guard: only Owner, Secretary, Logistics can access (Owner sees dollar amounts, others see hours only)
+
+### Navigation
+- [x] Add labor-costs tab to _layout.tsx with appropriate icon
+- [x] Add icon mapping for dashboard icon in icon-symbol.tsx
+
+## Phase 14b — Goals, Reports, and Clock Fixes
+
+### Weekly Goals
+- [x] Remove laborer access to Goals tab entirely
+- [x] Each person only sees goals assigned to them (not all goals)
+- [x] Owner can see all goals and reassign any goal to any employee
+- [x] Owner can adjust/reassign existing goals freely
+
+### Field Reports
+- [x] Enable Logistics role to create field reports (now all roles can submit)
+- [x] Foreman, Logistics, and Laborer can all submit reports
+
+### Clock Management
+- [x] Owner, Secretary, and Logistics can clock any employee in/out at will
+- [x] Add employee picker for management roles on Clock screen
+- [x] Management can clock out any currently clocked-in employee

@@ -61,6 +61,8 @@ const MAPPING = {
   "mic.fill": "mic",
   "target": "track-changes",
   "flag.fill": "flag",
+  "chart.line.uptrend.xyaxis": "show-chart",
+  "dollarsign.square.fill": "payments",
 } as IconMapping;
 
 /**

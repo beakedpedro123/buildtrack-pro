@@ -29,6 +29,7 @@ export default function TabLayout() {
   const canManageTeam = role === "owner" || role === "secretary" || role === "logistics";
   const canViewPayroll = role === "owner" || role === "secretary";
   const canMeetings = role === "owner" || role === "secretary" || role === "logistics" || role === "foreman";
+  const canViewGoals = role === "owner" || role === "secretary" || role === "logistics" || role === "foreman";
   const isFieldRole = role === "foreman" || role === "laborer";
 
   return (
@@ -68,7 +69,7 @@ export default function TabLayout() {
         options={{
           title: "Clock",
           tabBarIcon: ({ color }) => <IconSymbol size={30} name="clock.fill" color={color} />,
-          href: isFieldRole ? undefined : null,
+          href: undefined,
         }}
       />
       <Tabs.Screen
@@ -99,7 +100,15 @@ export default function TabLayout() {
         options={{
           title: "Goals",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="target" color={color} />,
-          href: canMeetings ? undefined : null,
+          href: canViewGoals ? undefined : null,
+        }}
+      />
+      <Tabs.Screen
+        name="labor-costs"
+        options={{
+          title: "Labor $",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="chart.line.uptrend.xyaxis" color={color} />,
+          href: (role === "owner" || role === "secretary" || role === "logistics") ? undefined : null,
         }}
       />
       <Tabs.Screen
