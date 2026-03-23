@@ -565,6 +565,70 @@ const kpiRouter = router({
   getHistory: publicProcedure.input(z.object({ kpiId: z.number(), limit: z.number().default(12) })).query(({ input }) => db.getKpiHistory(input.kpiId, input.limit)),
 });
 
+const safetyTopicsRouter = router({
+  list: publicProcedure.input(z.object({ activeOnly: z.boolean().default(true) })).query(({ input }) => db.getSafetyTopics(input.activeOnly)),
+  create: publicProcedure.input(z.object({
+    title: z.string().min(1).max(255),
+    content: z.string().optional(),
+    category: z.string().optional(),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "create safety topics");
+    const id = await db.createSafetyTopic({ title: input.title, content: input.content, category: input.category, createdBy: input.requestingEmployeeId });
+    return { id };
+  }),
+  update: publicProcedure.input(z.object({
+    id: z.number(),
+    title: z.string().optional(),
+    content: z.string().optional(),
+    category: z.string().optional(),
+    isActive: z.boolean().optional(),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "update safety topics");
+    const { id, requestingEmployeeId, ...data } = input;
+    await db.updateSafetyTopic(id, data);
+    return { success: true };
+  }),
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "delete safety topics");
+    await db.deleteSafetyTopic(input.id);
+    return { success: true };
+  }),
+});
+
+const safetyMeetingsRouter = router({
+  list: publicProcedure.input(z.object({ limit: z.number().default(50) })).query(({ input }) => db.getSafetyMeetings(input.limit)),
+  forJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getSafetyMeetingsForJob(input.jobId)),
+  forWeek: publicProcedure.input(z.object({ startDate: z.string(), endDate: z.string() })).query(({ input }) => 
+    db.getSafetyMeetingsForWeek(new Date(input.startDate), new Date(input.endDate))
+  ),
+  create: publicProcedure.input(z.object({
+    topicId: z.number().optional(),
+    jobId: z.number(),
+    meetingType: z.enum(["safety_toolbox", "daily_goals"]),
+    title: z.string().min(1).max(255),
+    notes: z.string().optional(),
+    attendees: z.string().optional(),
+    attendeeCount: z.number().optional(),
+    photoUrl: z.string().optional(),
+    conductedBy: z.number(),
+    conductedAt: z.string(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.conductedBy, ["owner", "secretary", "logistics", "foreman"], "create safety meetings");
+    const id = await db.createSafetyMeeting({
+      ...input,
+      conductedAt: new Date(input.conductedAt),
+    });
+    return { id };
+  }),
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics", "foreman"], "delete safety meetings");
+    await db.deleteSafetyMeeting(input.id);
+    return { success: true };
+  }),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -587,6 +651,8 @@ export const appRouter = router({
   kpi: kpiRouter,
   laborDashboard: laborDashboardRouter,
   budgetAlerts: budgetAlertsRouter,
+  safetyTopics: safetyTopicsRouter,
+  safetyMeetings: safetyMeetingsRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -363,3 +363,30 @@
 - [x] Overdue indicator (red) on goal cards for past-deadline goals
 - [x] "Due Soon" indicator (yellow) for goals due within 24 hours
 - [x] Deadline badge with date shown on goal cards
+
+## Phase 17 — Foreman Access Restrictions & Safety Meetings
+
+### Foreman Access — Hide Dollar Amounts
+- [x] Foreman sees budget as percentages only — no dollar amounts anywhere (canSeeDollars = isManagement)
+- [x] Foreman cannot see hourly rates, labor costs, or expense totals (canSeeDollars = isManagement)
+- [x] Foreman job detail Budget tab restricted to management only
+- [x] Home screen: foreman sees hours only, no cost data
+- [x] Laborer access remains minimal: just hours, clock in/out, settings
+
+### Safety Meetings Tab (Foreman)
+- [x] Created safetyMeetings DB table (topic, date, attendees, notes, photos, jobId, conductedBy)
+- [x] Created safetyTopics DB table (title, content, category, createdBy, isActive)
+- [x] tRPC endpoints: create/list/delete safety meetings, create/list/update/delete safety topics
+- [x] Safety tab visible to Foreman and management roles
+- [x] Document safety meeting: topic, attendees, notes, photos — same layout as field reports
+- [x] Management can post safety topics that sync to foreman's Safety tab
+
+### Meeting Schedule Tracking
+- [x] Safety meetings required 3x per week — compliance card on Safety tab
+- [x] Daily goal review meetings required every day — compliance card on Safety tab
+- [x] Weekly compliance summary: X/3 safety meetings, X/5 goal reviews completed
+- [x] Color-coded status: green (met target), yellow/warning (behind)
+
+### Icon & Navigation
+- [x] Added shield.fill and shield.checkmark.fill icon mappings
+- [x] Added Safety tab to _layout.tsx for Foreman and management roles

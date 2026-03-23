@@ -249,8 +249,35 @@ export const kpiHistory = mysqlTable("kpiHistory", {
   recordedBy: int("recordedBy").notNull(),
   recordedAt: timestamp("recordedAt").defaultNow().notNull(),
 });
+// ─── Safety Topics (posted by management for foreman) ────────────────────────────────────────────────────────
+export const safetyTopics = mysqlTable("safetyTopics", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content"),
+  category: varchar("category", { length: 64 }).default("general"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
 
-// ─── Types ─────────────────────────────────────────────────────────────────
+// ─── Safety Meetings (documented by foreman) ──────────────────────────────────────────────────────────
+export const safetyMeetings = mysqlTable("safetyMeetings", {
+  id: int("id").autoincrement().primaryKey(),
+  topicId: int("topicId"),
+  jobId: int("jobId").notNull(),
+  meetingType: mysqlEnum("meetingType", ["safety_toolbox", "daily_goals"]).default("safety_toolbox").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  notes: text("notes"),
+  attendees: text("attendees"), // JSON array of employee names/IDs
+  attendeeCount: int("attendeeCount").default(0),
+  photoUrl: text("photoUrl"),
+  conductedBy: int("conductedBy").notNull(),
+  conductedAt: timestamp("conductedAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+// ─── Types ───────────────────────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
@@ -299,3 +326,9 @@ export type InsertKpiMetric = typeof kpiMetrics.$inferInsert;
 
 export type KpiHistory = typeof kpiHistory.$inferSelect;
 export type InsertKpiHistory = typeof kpiHistory.$inferInsert;
+
+export type SafetyTopic = typeof safetyTopics.$inferSelect;
+export type InsertSafetyTopic = typeof safetyTopics.$inferInsert;
+
+export type SafetyMeeting = typeof safetyMeetings.$inferSelect;
+export type InsertSafetyMeeting = typeof safetyMeetings.$inferInsert;

@@ -104,6 +104,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="safety"
+        options={{
+          title: "Safety",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="shield.fill" color={color} />,
+          href: canMeetings ? undefined : null,
+        }}
+      />
+      <Tabs.Screen
         name="labor-costs"
         options={{
           title: "Labor $",

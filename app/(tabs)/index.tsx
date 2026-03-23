@@ -120,32 +120,36 @@ export default function DashboardScreen() {
   const { data: budgetAlerts } = trpc.budgetAlerts.getAlerts.useQuery(undefined, { enabled: isOwner });
   const activeAlerts = useMemo(() => (budgetAlerts || []).filter(a => a.alertLevel !== "ok"), [budgetAlerts]);
 
-  // Labor cost data (management only)
+  // Labor cost data (management + foreman for hours only)
+  const canSeeLaborData = isManagement || isForeman;
   const { data: byJob } = trpc.laborDashboard.byJob.useQuery(
     { startDate, endDate },
-    { enabled: isManagement }
+    { enabled: canSeeLaborData }
   );
   const { data: weeklyTrend } = trpc.laborDashboard.weeklyTrend.useQuery(
     { weeks: 8 },
-    { enabled: isManagement }
+    { enabled: canSeeLaborData }
   );
   const { data: byEmployee } = trpc.laborDashboard.byEmployee.useQuery(
     { startDate, endDate },
-    { enabled: isManagement }
+    { enabled: canSeeLaborData }
   );
 
   const totalCost = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalCost, 0), [byJob]);
   const totalMinutes = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalMinutes, 0), [byJob]);
 
+  // canSeeDollars: only owner/secretary/logistics see dollar amounts
+  const canSeeDollars = isManagement;
+
   const maxJobCost = useMemo(() => {
     if (!byJob || byJob.length === 0) return 1;
-    return Math.max(...byJob.map(j => isOwner ? j.totalCost : j.totalMinutes)) || 1;
-  }, [byJob, isOwner]);
+    return Math.max(...byJob.map(j => canSeeDollars && isOwner ? j.totalCost : j.totalMinutes)) || 1;
+  }, [byJob, canSeeDollars, isOwner]);
 
   const maxWeeklyCost = useMemo(() => {
     if (!weeklyTrend || weeklyTrend.length === 0) return 1;
-    return Math.max(...weeklyTrend.map(w => isOwner ? w.totalCost : w.totalMinutes)) || 1;
-  }, [weeklyTrend, isOwner]);
+    return Math.max(...weeklyTrend.map(w => canSeeDollars && isOwner ? w.totalCost : w.totalMinutes)) || 1;
+  }, [weeklyTrend, canSeeDollars, isOwner]);
 
   const elapsed = activeEntry ? now.getTime() - new Date(activeEntry.clockIn).getTime() : 0;
   const activeJobForEntry = activeJobs?.find((j) => j.id === activeEntry?.jobId);
@@ -363,11 +367,11 @@ export default function DashboardScreen() {
           </>
         )}
 
-        {/* ═══ LABOR COST DASHBOARD (management only) ═══ */}
-        {isManagement && (
+        {/* ═══ LABOR COST DASHBOARD (management + foreman sees % only) ═══ */}
+        {(isManagement || isForeman) && (
           <>
             <View style={[styles.sectionHeader, { marginTop: 4 }]}>
-              <Text style={styles.sectionTitle}>Labor Costs</Text>
+              <Text style={styles.sectionTitle}>{isOwner || isManagement ? "Labor Costs" : "Labor Hours"}</Text>
             </View>
 
             {/* Period Selector */}
@@ -402,10 +406,10 @@ export default function DashboardScreen() {
             <View style={styles.summaryRow}>
               <View style={styles.summaryCard}>
                 <Text style={[styles.summaryValue, { color: colors.primary }]}>
-                  {isOwner ? formatCurrency(totalCost) : formatHours(totalMinutes)}
+                  {canSeeDollars && isOwner ? formatCurrency(totalCost) : formatHours(totalMinutes)}
                 </Text>
                 <Text style={styles.summaryLabel}>
-                  {isOwner ? `Total Spend (${periodLabel})` : `Total Hours (${periodLabel})`}
+                  {canSeeDollars && isOwner ? `Total Spend (${periodLabel})` : `Total Hours (${periodLabel})`}
                 </Text>
               </View>
               <View style={styles.summaryCard}>
@@ -430,13 +434,13 @@ export default function DashboardScreen() {
                 </Text>
                 <View style={styles.weeklyChart}>
                   {weeklyTrend.map((w, i) => {
-                    const value = isOwner ? w.totalCost : w.totalMinutes;
+                    const value = canSeeDollars && isOwner ? w.totalCost : w.totalMinutes;
                     const height = maxWeeklyCost > 0 ? Math.max((value / maxWeeklyCost) * 80, 2) : 2;
                     const isCurrentWeek = i === weeklyTrend.length - 1;
                     return (
                       <View key={i} style={{ flex: 1, alignItems: "center" }}>
                         <Text style={{ fontSize: 8, fontWeight: "600", color: colors.muted, marginBottom: 3 }}>
-                          {isOwner ? formatCurrency(value) : formatHours(value)}
+                          {canSeeDollars && isOwner ? formatCurrency(value) : formatHours(value)}
                         </Text>
                         <View
                           style={[
@@ -462,13 +466,13 @@ export default function DashboardScreen() {
             {byJob && byJob.length > 0 && (
               <>
                 <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, paddingHorizontal: 20, marginBottom: 8 }}>
-                  Cost by Job ({periodLabel})
+                  {canSeeDollars ? "Cost" : "Hours"} by Job ({periodLabel})
                 </Text>
                 <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
                   {byJob.slice(0, 8).map((job) => {
-                    const value = isOwner ? job.totalCost : job.totalMinutes;
+                    const value = canSeeDollars && isOwner ? job.totalCost : job.totalMinutes;
                     const pct = maxJobCost > 0 ? (value / maxJobCost) * 100 : 0;
-                    const hasOverhead = isOwner && (job.taxRate > 0 || job.workersCompRate > 0 || job.liabilityInsRate > 0);
+                    const hasOverhead = canSeeDollars && isOwner && (job.taxRate > 0 || job.workersCompRate > 0 || job.liabilityInsRate > 0);
                     return (
                       <View key={job.jobId} style={{ marginBottom: hasOverhead ? 12 : 0 }}>
                         <View style={styles.barRow}>
@@ -477,7 +481,7 @@ export default function DashboardScreen() {
                             <View style={[styles.barFill, { width: `${Math.max(pct, 2)}%`, backgroundColor: colors.primary }]} />
                           </View>
                           <Text style={[styles.barValue, { color: colors.foreground }]}>
-                            {isOwner ? formatCurrency(job.totalCost) : formatHours(job.totalMinutes)}
+                            {canSeeDollars && isOwner ? formatCurrency(job.totalCost) : formatHours(job.totalMinutes)}
                           </Text>
                         </View>
                         {hasOverhead && (
@@ -531,7 +535,7 @@ export default function DashboardScreen() {
                       </View>
                       <View>
                         <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, textAlign: "right" }}>{formatHours(emp.totalMinutes)}</Text>
-                        {isOwner && (
+                        {canSeeDollars && isOwner && (
                           <Text style={{ fontSize: 10, color: colors.muted, textAlign: "right" }}>{formatCurrency(emp.totalCost)}</Text>
                         )}
                       </View>
@@ -568,7 +572,7 @@ export default function DashboardScreen() {
             </View>
             <View style={{ paddingHorizontal: 20 }}>
               {(myJobs || []).map((job) => (
-                <JobCard key={job.id} job={job} onPress={() => router.push("/jobs" as any)} />
+                <JobCard key={job.id} job={job} onPress={() => router.push("/jobs" as any)} hideBudget />
               ))}
               {(!myJobs || myJobs.length === 0) && (
                 <Text style={{ color: colors.muted, fontSize: 14, paddingBottom: 16 }}>No jobs assigned. Contact your manager.</Text>

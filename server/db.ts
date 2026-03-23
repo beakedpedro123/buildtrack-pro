@@ -32,6 +32,10 @@ import {
   InsertQbEstimate,
   InsertKpiMetric,
   InsertKpiHistory,
+  safetyTopics,
+  safetyMeetings,
+  InsertSafetyTopic,
+  InsertSafetyMeeting,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -821,4 +825,94 @@ export async function getBudgetAlerts() {
   }
 
   return results.sort((a, b) => b.percentUsed - a.percentUsed);
+}
+
+// ─── Safety Topics ────────────────────────────────────────────────────────
+export async function getSafetyTopics(activeOnly = true) {
+  const db = await getDb();
+  if (!db) return [];
+  if (activeOnly) {
+    return db.select().from(safetyTopics).where(eq(safetyTopics.isActive, true)).orderBy(desc(safetyTopics.createdAt));
+  }
+  return db.select().from(safetyTopics).orderBy(desc(safetyTopics.createdAt));
+}
+
+export async function createSafetyTopic(data: { title: string; content?: string; category?: string; createdBy: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(safetyTopics).values({
+    title: data.title,
+    content: data.content || null,
+    category: data.category || "general",
+    createdBy: data.createdBy,
+  });
+  return (result as any).insertId as number;
+}
+
+export async function updateSafetyTopic(id: number, data: { title?: string; content?: string; category?: string; isActive?: boolean }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(safetyTopics).set(data).where(eq(safetyTopics.id, id));
+}
+
+export async function deleteSafetyTopic(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(safetyTopics).where(eq(safetyTopics.id, id));
+}
+
+// ─── Safety Meetings ──────────────────────────────────────────────────────
+export async function getSafetyMeetings(limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(safetyMeetings).orderBy(desc(safetyMeetings.conductedAt)).limit(limit);
+}
+
+export async function getSafetyMeetingsForJob(jobId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(safetyMeetings).where(eq(safetyMeetings.jobId, jobId)).orderBy(desc(safetyMeetings.conductedAt));
+}
+
+export async function getSafetyMeetingsForWeek(startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(safetyMeetings)
+    .where(and(gte(safetyMeetings.conductedAt, startDate), lte(safetyMeetings.conductedAt, endDate)))
+    .orderBy(desc(safetyMeetings.conductedAt));
+}
+
+export async function createSafetyMeeting(data: {
+  topicId?: number;
+  jobId: number;
+  meetingType: "safety_toolbox" | "daily_goals";
+  title: string;
+  notes?: string;
+  attendees?: string;
+  attendeeCount?: number;
+  photoUrl?: string;
+  conductedBy: number;
+  conductedAt: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(safetyMeetings).values({
+    topicId: data.topicId || null,
+    jobId: data.jobId,
+    meetingType: data.meetingType,
+    title: data.title,
+    notes: data.notes || null,
+    attendees: data.attendees || null,
+    attendeeCount: data.attendeeCount || 0,
+    photoUrl: data.photoUrl || null,
+    conductedBy: data.conductedBy,
+    conductedAt: data.conductedAt,
+  });
+  return (result as any).insertId as number;
+}
+
+export async function deleteSafetyMeeting(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(safetyMeetings).where(eq(safetyMeetings.id, id));
 }

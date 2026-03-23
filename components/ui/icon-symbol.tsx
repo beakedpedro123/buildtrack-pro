@@ -63,7 +63,9 @@ const MAPPING = {
   "flag.fill": "flag",
   "chart.line.uptrend.xyaxis": "show-chart",
   "dollarsign.square.fill": "payments",
-} as IconMapping;
+  "shield.fill": "shield" as const,
+  "shield.checkmark.fill": "verified-user" as const,
+} satisfies Record<string, ComponentProps<typeof MaterialIcons>["name"]>;
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.
