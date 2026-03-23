@@ -276,3 +276,10 @@
 - [x] Client uses native file URI in FormData (no base64 needed)
 - [x] Added Android pending result recovery for camera/gallery
 - [x] All 11 unit tests passing
+
+## Phase 13 — expo-image-picker Crash Fix
+
+- [x] Downgraded expo-image-picker from v55.0.13 to v17.0.10 (SDK 54 compatible)
+- [x] Fixed mediaTypes API: changed from v55 array format to v17 MediaTypeOptions.Images
+- [x] Added expo-image-picker plugin to app.config.ts with camera/photo library permissions
+- [x] All 12 unit tests passing — awaiting re-publish to verify on device

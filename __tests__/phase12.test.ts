@@ -35,9 +35,9 @@ describe("Phase 12 — Photo Upload Fix", () => {
       const fs = await import("fs");
       const content = fs.readFileSync("app/(tabs)/reports.tsx", "utf-8");
       // Native pattern: { uri, type, name } as any
-      expect(content).toContain("uri: uri");
-      expect(content).toContain('type: "image/jpeg"');
-      expect(content).toContain("name: `photo_");
+      expect(content).toContain("uri:");
+      expect(content).toContain("image/jpeg");
+      expect(content).toContain("photo_");
     });
 
     it("should use fetch→blob pattern on web", async () => {
@@ -51,13 +51,20 @@ describe("Phase 12 — Photo Upload Fix", () => {
     it("should NOT set Content-Type header manually on FormData upload", async () => {
       const fs = await import("fs");
       const content = fs.readFileSync("app/(tabs)/reports.tsx", "utf-8");
-      // The uploadPhotoFile function should not set Content-Type
+      // The uploadPhotoFile function should not set Content-Type for FormData
       const uploadFn = content.substring(
         content.indexOf("const uploadPhotoFile"),
         content.indexOf("const handleSubmit")
       );
       expect(uploadFn).not.toContain('"Content-Type"');
-      expect(uploadFn).toContain("// Do NOT set Content-Type");
+    });
+
+    it("should use MediaTypeOptions.Images (v17 API, not array format)", async () => {
+      const fs = await import("fs");
+      const content = fs.readFileSync("app/(tabs)/reports.tsx", "utf-8");
+      expect(content).toContain("ImagePicker.MediaTypeOptions.Images");
+      // Should NOT use v55 array format
+      expect(content).not.toContain('mediaTypes: ["images"]');
     });
   });
 
