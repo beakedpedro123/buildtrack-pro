@@ -7,6 +7,7 @@ import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { useEffect, useState, useMemo } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   Alert,
@@ -33,6 +34,7 @@ function formatTime(date: Date | string) {
 
 export default function ClockScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
   const { addClockEntry, pendingCount } = useOfflineQueue();
   const [now, setNow] = useState(new Date());
@@ -244,7 +246,7 @@ export default function ClockScreen() {
     modalContainer: { flex: 1, backgroundColor: colors.background },
     modalHeader: {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-      paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16,
+      paddingHorizontal: 20, paddingTop: Math.max(insets.top + 12, 28), paddingBottom: 16,
       borderBottomWidth: 1, borderBottomColor: colors.border,
     },
     modalTitle: { fontSize: 20, fontWeight: "800", color: colors.foreground },

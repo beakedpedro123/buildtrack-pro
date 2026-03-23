@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   Alert,
@@ -51,6 +52,7 @@ function formatDuration(ms: number) {
 
 export default function TeamScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
   const utils = trpc.useUtils();
 
@@ -205,7 +207,7 @@ export default function TeamScreen() {
     roleBadgeText: { fontSize: 11, fontWeight: "700", color: "#fff" },
     onSiteDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success, marginLeft: 8 },
     modalContainer: { flex: 1, backgroundColor: colors.background },
-    modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+    modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: Math.max(insets.top + 12, 28), paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
     modalTitle: { fontSize: 20, fontWeight: "800", color: colors.foreground },
     section: { padding: 20 },
     sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.foreground, marginBottom: 12 },

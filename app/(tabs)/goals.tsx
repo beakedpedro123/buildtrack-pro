@@ -4,6 +4,7 @@ import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
 import { useState, useMemo } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   Alert,
@@ -60,6 +61,7 @@ function formatWeekLabel(date: Date): string {
 
 export default function GoalsScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
   const [weekOffset, setWeekOffset] = useState(0);
   const [showAddGoal, setShowAddGoal] = useState(false);
@@ -350,7 +352,7 @@ export default function GoalsScreen() {
       {/* Add Goal Modal */}
       <Modal visible={showAddGoal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowAddGoal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.background }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: Math.max(insets.top + 12, 28), paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>Add Weekly Goal</Text>
             <TouchableOpacity onPress={() => { setShowAddGoal(false); setNewGoalTitle(""); setNewGoalDescription(""); setNewGoalAssignee(null); setNewGoalDeadline(""); }}>
               <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>

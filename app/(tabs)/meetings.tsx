@@ -16,6 +16,7 @@ import {
 } from "expo-audio";
 import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   Alert,
@@ -78,6 +79,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function MeetingsScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
   const [screen, setScreen] = useState<Screen>("list");
   const [selectedMeetingId, setSelectedMeetingId] = useState<number | null>(null);
@@ -554,7 +556,7 @@ export default function MeetingsScreen() {
       {/* New Meeting Modal */}
       <Modal visible={showNewMeeting} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowNewMeeting(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.background }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: Math.max(insets.top + 12, 28), paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>Schedule Meeting</Text>
             <TouchableOpacity onPress={() => { setShowNewMeeting(false); setNewTitle(""); setUseAutoTitle(true); }}>
               <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>

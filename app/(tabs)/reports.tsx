@@ -8,6 +8,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useState, useEffect, useRef } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   Alert,
@@ -53,6 +54,7 @@ interface MaterialRow {
 
 export default function ReportsScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
   const utils = trpc.useUtils();
 
@@ -340,7 +342,7 @@ export default function ReportsScreen() {
     reportJob: { fontSize: 15, fontWeight: "600", color: colors.foreground },
     reportBy: { fontSize: 12, color: colors.muted },
     modalContainer: { flex: 1, backgroundColor: colors.background },
-    modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+    modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: Math.max(insets.top + 12, 28), paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
     modalTitle: { fontSize: 20, fontWeight: "800", color: colors.foreground },
     section: { paddingHorizontal: 20, paddingTop: 20 },
     sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.foreground, marginBottom: 12 },

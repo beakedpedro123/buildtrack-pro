@@ -403,3 +403,25 @@
 - [x] Categories: fall_protection, electrical, excavation, scaffolding, ppe, fire, chemical, equipment, heat_stress, general
 - [x] Each topic includes title, detailed talking points/content, and discussion prompts
 - [x] Topics ready for foremen to select during toolbox talks
+
+## Phase 19 — UI Spacing Fixes (Device-Specific)
+
+### Bottom Grey Border
+- [x] Tab bar background now matches app background color (colors.background)
+- [x] Tab bar extends fully to bottom edge
+
+### Top Content Too High
+- [x] Added 12pt extra top padding in ScreenContainer for native devices
+- [x] Job detail modal header uses Math.max(insets.top + 12, 28) for safe spacing
+- [x] All screens have sufficient clearance from status bar
+
+### Modal Header Top Padding (all screens)
+- [x] Fixed modal headers in jobs.tsx, reports.tsx, team.tsx, kpis.tsx, meetings.tsx, goals.tsx, clock.tsx
+- [x] All use Math.max(insets.top + 12, 28) for pageSheet/formSheet modals
+
+### Role-Based Home Screen
+- [x] Management (owner/secretary/logistics): full dashboard with labor costs, budget alerts, collapsible active jobs
+- [x] Active Jobs section is now collapsible (tap to expand/collapse)
+- [x] Laborer Home: clean view with company logo, name, clock status card, daily motivational quote, quick actions
+- [x] Foreman Home: personal view with clock status, quick actions (Field Report, Safety, Goals), jobsites
+- [x] Creative laborer features: daily motivational quotes, large clock timer, quick-access buttons

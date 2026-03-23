@@ -41,10 +41,10 @@ export function ScreenContainer({
   ...props
 }: ScreenContainerProps) {
   const insets = useSafeAreaInsets();
-  // On native, add extra top padding if the device's safe area inset is small
-  // This prevents UI elements from being too close to the status bar / notch
+  // On native, always add extra top padding to push content down ~1/4 inch
+  // This ensures UI elements never overlap with the status bar on any device
   const extraTopPadding = Platform.OS !== "web" && edges.includes("top")
-    ? Math.max(0, 8 - Math.max(insets.top - 44, 0))
+    ? 12
     : 0;
 
   return (
