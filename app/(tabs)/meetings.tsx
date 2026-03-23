@@ -204,7 +204,7 @@ export default function MeetingsScreen() {
           // Upload audio to server storage — use correct /api/upload endpoint
           const formData = new FormData();
           formData.append("file", { uri, name: `meeting_${activeMeetingId}.m4a`, type: "audio/m4a" } as any);
-          const apiBase = getApiBaseUrl() || "http://localhost:3000";
+          const apiBase = getApiBaseUrl();
           try {
             const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
             if (uploadRes.ok) {

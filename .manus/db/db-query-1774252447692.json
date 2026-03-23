@@ -1,0 +1,58 @@
+{
+  "query": "SELECT id, name, role, isActive FROM employees ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute SELECT id, name, role, isActive FROM employees ORDER BY id;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Pedro",
+      "role": "owner",
+      "isActive": "1"
+    },
+    {
+      "id": "9",
+      "name": "Pablo carranza",
+      "role": "logistics",
+      "isActive": "0"
+    },
+    {
+      "id": "10",
+      "name": "Ricardo Ocampo",
+      "role": "foreman",
+      "isActive": "1"
+    },
+    {
+      "id": "12",
+      "name": "Pablo Carranza",
+      "role": "logistics",
+      "isActive": "1"
+    },
+    {
+      "id": "14",
+      "name": "Juan Melgoza",
+      "role": "foreman",
+      "isActive": "1"
+    },
+    {
+      "id": "30003",
+      "name": "Lupe Mejia",
+      "role": "owner",
+      "isActive": "1"
+    },
+    {
+      "id": "60001",
+      "name": "Demetrio",
+      "role": "laborer",
+      "isActive": "1"
+    },
+    {
+      "id": "90001",
+      "name": "Elias Bonilla",
+      "role": "laborer",
+      "isActive": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\trole\tisActive\n1\tPedro\towner\t1\n9\tPablo carranza\tlogistics\t0\n10\tRicardo Ocampo\tforeman\t1\n12\tPablo Carranza\tlogistics\t1\n14\tJuan Melgoza\tforeman\t1\n30003\tLupe Mejia\towner\t1\n60001\tDemetrio\tlaborer\t1\n90001\tElias Bonilla\tlaborer\t1\n",
+  "stderr": "",
+  "execution_time_ms": 423
+}

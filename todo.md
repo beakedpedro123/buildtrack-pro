@@ -232,6 +232,13 @@
 ### Estimate Analysis & AI Bidding Helper
 - [x] Analyze Hardy and Gruett residence estimates for pricing patterns
 - [ ] Build AI-powered estimate builder that learns from past estimates
+
+## Phase 19 — Backend Deployment
+
+- [x] Expose backend API server publicly
+- [x] Update mobile app to point to public backend URL
+- [ ] Rebuild app for iOS/Android with new backend URL (pending user rebuild)
+- [ ] Verify data loads on Android and iOS devices
 - [ ] Auto-suggest line items and pricing based on historical data
 - [ ] Make bidding workflow simpler with templates from past estimates
 
