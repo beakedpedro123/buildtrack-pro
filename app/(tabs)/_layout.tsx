@@ -30,6 +30,7 @@ export default function TabLayout() {
   const canViewPayroll = role === "owner" || role === "secretary";
   const canMeetings = role === "owner" || role === "secretary" || role === "logistics" || role === "foreman";
   const canViewGoals = role === "owner" || role === "secretary" || role === "logistics" || role === "foreman";
+  const canViewSafety = role === "owner" || role === "logistics" || role === "foreman";
   const isFieldRole = role === "foreman" || role === "laborer";
 
   return (
@@ -108,7 +109,7 @@ export default function TabLayout() {
         options={{
           title: "Safety",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="shield.fill" color={color} />,
-          href: canMeetings ? undefined : null,
+          href: canViewSafety ? undefined : null,
         }}
       />
       <Tabs.Screen

@@ -390,3 +390,16 @@
 ### Icon & Navigation
 - [x] Added shield.fill and shield.checkmark.fill icon mappings
 - [x] Added Safety tab to _layout.tsx for Foreman and management roles
+
+## Phase 18 — OSHA Safety Topics Library & Access Restriction
+
+### Safety Tab Access
+- [x] Restrict Safety tab to Owner, Logistics, and Foreman only (canViewSafety)
+- [x] Remove Secretary access to Safety tab
+- [x] Laborers cannot see Safety tab (already excluded)
+
+### OSHA Safety Topics Library
+- [x] Pre-populated 30 OSHA-aligned safety topics into the database
+- [x] Categories: fall_protection, electrical, excavation, scaffolding, ppe, fire, chemical, equipment, heat_stress, general
+- [x] Each topic includes title, detailed talking points/content, and discussion prompts
+- [x] Topics ready for foremen to select during toolbox talks

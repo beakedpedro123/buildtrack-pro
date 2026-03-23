@@ -72,9 +72,11 @@ export default function SafetyScreen() {
   const [newTopicCategory, setNewTopicCategory] = useState("general");
   const [addingTopic, setAddingTopic] = useState(false);
 
-  const isManagement = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
+  const isOwner = employee?.role === "owner";
+  const isLogistics = employee?.role === "logistics";
   const isForeman = employee?.role === "foreman";
-  const canDocument = isForeman || isManagement;
+  const canManageTopics = isOwner || isLogistics; // Secretary excluded from safety
+  const canDocument = isForeman || canManageTopics;
 
   const { data: jobs } = trpc.jobs.listActive.useQuery();
   const { data: topics } = trpc.safetyTopics.list.useQuery({ activeOnly: true });
@@ -434,7 +436,7 @@ export default function SafetyScreen() {
   }
 
   // ─── TOPICS MANAGEMENT (management only) ───
-  if (screen === "topics" && isManagement) {
+  if (screen === "topics" && canManageTopics) {
     return (
       <ScreenContainer>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -521,7 +523,7 @@ export default function SafetyScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Safety</Text>
         <View style={styles.actionRow}>
-          {isManagement && (
+          {canManageTopics && (
             <TouchableOpacity
               style={[styles.actionBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
               onPress={() => setScreen("topics")}

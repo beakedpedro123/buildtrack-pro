@@ -132,7 +132,7 @@ describe("Phase 17 — Safety Tab UI", () => {
 
   it("safety.tsx has topic management for management roles", () => {
     const src = readFile("app/(tabs)/safety.tsx");
-    expect(src).toContain("isManagement");
+    expect(src).toContain("canManageTopics");
     expect(src).toContain("Post New Topic");
     expect(src).toContain("handleAddTopic");
     expect(src).toContain("handleDeleteTopic");
