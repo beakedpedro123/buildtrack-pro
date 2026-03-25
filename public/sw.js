@@ -79,10 +79,10 @@ define(['./workbox-c5fd805d'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "registerSW.js",
-    "revision": "1872c500de691dce40960bb85481de07"
+    "revision": "beed6bffa22d0d1bd85da2fde8b3851d"
   }, {
     "url": "index.html",
-    "revision": "6db4c82ca505687541557cc7c85ba9fb"
+    "revision": "bbd74972bf9878019efa8a2bbf7722c9"
   }, {
     "url": "icons/icon-512.png",
     "revision": "9fb6e13023654f7bf6d55fcfc9a40b1c"
@@ -93,10 +93,10 @@ define(['./workbox-c5fd805d'], (function (workbox) { 'use strict';
     "url": "icons/company-logo.png",
     "revision": "7d79dd5a93c1ff34e1711ae4a1e24338"
   }, {
-    "url": "assets/index-DWmEazYk.css",
+    "url": "assets/index-FtaHHqcp.js",
     "revision": null
   }, {
-    "url": "assets/index-Bway8cBQ.js",
+    "url": "assets/index-DWmEazYk.css",
     "revision": null
   }, {
     "url": "icons/company-logo.png",
@@ -109,7 +109,7 @@ define(['./workbox-c5fd805d'], (function (workbox) { 'use strict';
     "revision": "9fb6e13023654f7bf6d55fcfc9a40b1c"
   }, {
     "url": "manifest.webmanifest",
-    "revision": "c0a3a75974c8bb4e991c0a1b22481666"
+    "revision": "177b431d9ca8fdbf36567f6d091a90a1"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html")));

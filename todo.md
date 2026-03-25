@@ -591,3 +591,13 @@
 - [x] Run expo prebuild to generate android/ directory with correct gradle.properties
 - [x] Remove /android from .gitignore so prebuilt config is included in checkpoint
 - [x] Force minSdkVersion 24 in android/build.gradle ext block after expo-root-project plugin
+
+## Phase 32 — Fix Production Web: Serve PWA via /api/web/
+- [x] Discovered deployment platform only proxies /api/* to Express (non-API routes return Cloudflare 404)
+- [x] Rebuild PWA with Vite base="/api/web/" so all asset paths use /api/web/ prefix
+- [x] Add BrowserRouter basename="/api/web" for correct client-side routing
+- [x] Serve PWA static files at /api/web/* route in Express server
+- [x] SPA fallback for /api/web/* routes serves index.html
+- [x] Verified all API calls use same backend as iOS/Android (buildtrack-dnjxcthz.manus.space/api/trpc)
+- [x] PWA auth uses same employee selection as mobile apps
+- [x] All data syncs to same database across web, Android, and iOS

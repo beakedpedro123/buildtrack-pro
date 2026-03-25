@@ -122,55 +122,42 @@ async function startServer() {
     }),
   );
 
-  // Debug endpoint to diagnose file paths on deployed server
-  app.get("/api/debug-paths", (_req: Request, res: Response) => {
-    const candidates = [
-      path.join(__dirname, "public"),
-      path.join(__dirname, "..", "..", "public"),
-      path.join(__dirname, "..", "public"),
-      path.join(process.cwd(), "public"),
-      path.join(process.cwd(), "dist", "public"),
-    ];
-    const results = candidates.map(p => ({
-      path: p,
-      exists: fs.existsSync(p),
-      hasIndex: fs.existsSync(path.join(p, "index.html")),
-      contents: fs.existsSync(p) ? (function() { try { return fs.readdirSync(p); } catch { return ["unreadable"]; } })() : [],
-    }));
-    let cwdContents: string[] = [];
-    try { cwdContents = fs.readdirSync(process.cwd()); } catch { cwdContents = ["unreadable"]; }
-    res.json({
-      __dirname,
-      cwd: process.cwd(),
-      cwdContents,
-      candidates: results,
-    });
-  });
-
-  // Serve PWA static files from public/ directory
-  // Try multiple possible locations to handle dev, local prod, and deployed prod
-  const candidates = [
+  // Resolve PWA public directory
+  const publicCandidates = [
     path.join(__dirname, "public"),                  // dist/public (deployed prod)
     path.join(__dirname, "..", "..", "public"),      // server/_core/../../public (dev)
     path.join(__dirname, "..", "public"),             // dist/../public (alt prod)
     path.join(process.cwd(), "public"),               // cwd/public (fallback)
     path.join(process.cwd(), "dist", "public"),       // cwd/dist/public (fallback)
   ];
-  const publicDir = candidates.find(p => fs.existsSync(path.join(p, "index.html"))) || candidates[0];
-  console.log(`[server] __dirname: ${__dirname}`);
-  console.log(`[server] cwd: ${process.cwd()}`);
+  const publicDir = publicCandidates.find(p => fs.existsSync(path.join(p, "index.html"))) || publicCandidates[0];
   console.log(`[server] publicDir: ${publicDir}`);
   console.log(`[server] publicDir exists: ${fs.existsSync(publicDir)}`);
   console.log(`[server] index.html exists: ${fs.existsSync(path.join(publicDir, "index.html"))}`);
-  try { console.log(`[server] publicDir contents: ${fs.readdirSync(publicDir).join(", ")}`); } catch(e) { console.log(`[server] publicDir not readable`); }
+
+  // Serve PWA through /api/web/* routes
+  // The deployment platform only proxies /api/* to Express, so we must serve
+  // all PWA static files under /api/web/ prefix
+  app.use("/api/web", express.static(publicDir));
+
+  // SPA fallback for /api/web/* routes (PWA is built with base=/api/web/)
+  app.get("/api/web/*", (_req: Request, res: Response) => {
+    const indexPath = path.join(publicDir, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('PWA not found');
+    }
+  });
+
+  // Also serve at root for dev server (non-proxied environments)
   app.use(express.static(publicDir));
-  // SPA fallback: serve index.html for any non-API route
   app.get("*", (_req: Request, res: Response) => {
     const indexPath = path.join(publicDir, "index.html");
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
-      res.status(404).send(`Not Found. publicDir=${publicDir}, exists=${fs.existsSync(publicDir)}, indexExists=${fs.existsSync(indexPath)}`);
+      res.status(404).json({ error: 'Not found' });
     }
   });
 
