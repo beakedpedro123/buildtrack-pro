@@ -682,3 +682,8 @@
 - [x] Fix "Since Invalid Date" — clockIn timestamp not parsed correctly
 - [x] Fix clock-in/out not working on web (iPad) — error message on submit
 - [x] Ensure clock data syncs correctly between Android APK and web PWA
+
+## Phase 45 — Fix PWA deployment: old cached bundle still serving
+- [x] Verify deployment pipeline copies updated PWA to correct location
+- [x] Force service worker cache bust so users get new code
+- [x] Confirm clockInTime references are gone from production bundle
