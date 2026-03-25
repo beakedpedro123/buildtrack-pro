@@ -616,3 +616,12 @@
 - [x] Created withMinSdk24 config plugin that injects ext block before expo-root-project during prebuild
 - [x] Plugin survives prebuild --clean regeneration
 - [x] Verified: build.gradle has ext{minSdkVersion=24} BEFORE apply plugin: expo-root-project
+
+## Phase 36 — PWA Feature Parity with Android
+- [x] Add photo upload (file picker) to Daily Field Report form in PWA
+- [x] Add photo upload to Meeting Document form in PWA (safety meetings)
+- [x] Add "+ New Meeting" button and create meeting flow for foremen/office managers
+- [x] Ensure all role-based access works (foreman, office manager can create reports/meetings)
+- [x] Rebuild PWA with /api/web/ base path and deploy
+- [x] Add photo upload to New Report creation modal (upload during creation)
+- [x] Add Meetings quick action to foreman dashboard
