@@ -150,15 +150,17 @@ async function startServer() {
     }
   });
 
-  // Also serve at root for dev server (non-proxied environments)
-  app.use(express.static(publicDir));
+  // Redirect root and /api/ to /api/web/ for the PWA
+  app.get("/", (_req: Request, res: Response) => {
+    res.redirect(301, "/api/web/");
+  });
+  app.get("/api", (_req: Request, res: Response) => {
+    res.redirect(301, "/api/web/");
+  });
+
+  // Catch-all: redirect any unmatched route to /api/web/ (SPA support)
   app.get("*", (_req: Request, res: Response) => {
-    const indexPath = path.join(publicDir, "index.html");
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      res.status(404).json({ error: 'Not found' });
-    }
+    res.redirect(302, "/api/web/");
   });
 
   const preferredPort = parseInt(process.env.PORT || "3000");

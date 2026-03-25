@@ -633,3 +633,9 @@
 - [x] Hardcoded minSdkVersion 24 in app/build.gradle (no longer depends on rootProject.ext)
 - [x] Verified android/ directory has correct settings after prebuild --clean
 - [x] Save checkpoint and re-publish
+
+## Phase 38 — Fix Deployed Web URL Returning "Not Found"
+- [x] Diagnose why buildtrack-dnjxcthz.manus.space returns not found (root / not proxied to Express)
+- [x] Fix server routing: added redirects from / and /api to /api/web/
+- [x] Rebuilt server dist with redirect fix
+- [ ] Save checkpoint and re-deploy
