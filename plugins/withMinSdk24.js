@@ -1,15 +1,18 @@
 /**
- * Expo Config Plugin to force minSdkVersion 24 in android/build.gradle
+ * Expo Config Plugin to force minSdkVersion 24 across all Android build files.
  * 
- * This injects an ext block BEFORE the expo-root-project plugin applies,
- * so setIfNotExist() in ExpoRootProjectPlugin sees our values first.
+ * Belt-and-suspenders approach:
+ * 1. Sets ext block in build.gradle BEFORE expo-root-project plugin
+ * 2. Ensures gradle.properties has android.minSdkVersion=24
+ * 3. Hardcodes minSdkVersion 24 in app/build.gradle defaultConfig
  * 
  * Hermes (React Native 0.81) requires minSdkVersion 24+.
  */
-const { withProjectBuildGradle } = require("expo/config-plugins");
+const { withProjectBuildGradle, withAppBuildGradle, withGradleProperties } = require("expo/config-plugins");
 
 function withMinSdk24(config) {
-  return withProjectBuildGradle(config, (config) => {
+  // 1. Force ext block in root build.gradle
+  config = withProjectBuildGradle(config, (config) => {
     if (config.modResults.language === "groovy") {
       let contents = config.modResults.contents;
 
@@ -38,14 +41,56 @@ ext {
       if (contents.includes(pluginLine)) {
         contents = contents.replace(pluginLine, extBlock + pluginLine);
       } else {
-        // Fallback: append at the end
-        contents += "\n" + extBlock;
+        // Fallback: prepend at the very beginning
+        contents = extBlock + "\n" + contents;
       }
 
       config.modResults.contents = contents;
     }
     return config;
   });
+
+  // 2. Hardcode minSdkVersion in app/build.gradle as fallback
+  config = withAppBuildGradle(config, (config) => {
+    if (config.modResults.language === "groovy") {
+      let contents = config.modResults.contents;
+
+      // Replace rootProject.ext.minSdkVersion with hardcoded 24
+      contents = contents.replace(
+        /minSdkVersion\s+rootProject\.ext\.minSdkVersion/g,
+        "minSdkVersion 24"
+      );
+
+      config.modResults.contents = contents;
+    }
+    return config;
+  });
+
+  // 3. Ensure gradle.properties has the correct values
+  config = withGradleProperties(config, (config) => {
+    const props = config.modResults;
+    
+    const overrides = {
+      "android.minSdkVersion": "24",
+      "android.compileSdkVersion": "35",
+      "android.targetSdkVersion": "35",
+    };
+
+    for (const [key, value] of Object.entries(overrides)) {
+      const existingIndex = props.findIndex(
+        (p) => p.type === "property" && p.key === key
+      );
+      if (existingIndex >= 0) {
+        props[existingIndex].value = value;
+      } else {
+        props.push({ type: "property", key, value });
+      }
+    }
+
+    return config;
+  });
+
+  return config;
 }
 
 module.exports = withMinSdk24;

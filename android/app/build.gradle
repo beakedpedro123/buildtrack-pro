@@ -90,7 +90,7 @@ android {
     namespace 'space.manus.construction.manager.t20260317205444'
     defaultConfig {
         applicationId 'space.manus.construction.manager.t20260317205444'
-        minSdkVersion rootProject.ext.minSdkVersion
+        minSdkVersion 24
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.1"

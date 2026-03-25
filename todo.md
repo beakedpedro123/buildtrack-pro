@@ -625,3 +625,11 @@
 - [x] Rebuild PWA with /api/web/ base path and deploy
 - [x] Add photo upload to New Report creation modal (upload during creation)
 - [x] Add Meetings quick action to foreman dashboard
+
+## Phase 37 — Fix Android Build (minSdkVersion 22 vs 24 + NODE_ENV)
+- [x] Fix minSdkVersion from 22 to 24 in all gradle/config files (build.gradle ext, gradle.properties, app/build.gradle)
+- [x] Fix NODE_ENV environment variable missing during build (added env to eas.json)
+- [x] Enhanced config plugin withMinSdk24 — now modifies build.gradle, app/build.gradle, AND gradle.properties
+- [x] Hardcoded minSdkVersion 24 in app/build.gradle (no longer depends on rootProject.ext)
+- [x] Verified android/ directory has correct settings after prebuild --clean
+- [x] Save checkpoint and re-publish
