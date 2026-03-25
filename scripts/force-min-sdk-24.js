@@ -143,13 +143,8 @@ const settingsGradlePath = path.join(ROOT, 'android/settings.gradle');
 if (fs.existsSync(settingsGradlePath)) {
   let sg = fs.readFileSync(settingsGradlePath, 'utf8');
   
-  // Add a forced override after useExpoVersionCatalog
-  if (sg.includes('useExpoVersionCatalog') && !sg.includes('// FORCE minSdk in version catalog')) {
-    sg = sg.replace(
-      /(useExpoVersionCatalog\(\))/,
-      `$1\n\n// FORCE minSdk in version catalog\nversionCatalogs {\n    named("expoLibs") {\n        version("minSdk", "${MIN_SDK}")\n    }\n}`
-    );
-  }
+  // Remove any versionCatalogs block that might have been added before (incompatible with older Gradle)
+  sg = sg.replace(/\/\/ FORCE minSdk in version catalog\nversionCatalogs \{[\s\S]*?\}\n\}/g, '');
   
   fs.writeFileSync(settingsGradlePath, sg, 'utf8');
   log(`PATCHED (settings.gradle): ${settingsGradlePath}`);

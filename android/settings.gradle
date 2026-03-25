@@ -39,13 +39,6 @@ expoAutolinking.useExpoVersionCatalog { catalog ->
     catalog.version("targetSdk", "35")
 }
 
-// FORCE minSdk in version catalog
-versionCatalogs {
-    named("expoLibs") {
-        version("minSdk", "24")
-    }
-}
-
 include ':app'
 includeBuild(expoAutolinking.reactNativeGradlePlugin)
 
