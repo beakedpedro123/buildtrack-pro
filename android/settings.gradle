@@ -33,7 +33,11 @@ expoAutolinking.useExpoModules()
 
 rootProject.name = 'BuildTrack Pro'
 
-expoAutolinking.useExpoVersionCatalog()
+expoAutolinking.useExpoVersionCatalog { catalog ->
+    catalog.version("minSdk", "24")
+    catalog.version("compileSdk", "35")
+    catalog.version("targetSdk", "35")
+}
 
 include ':app'
 includeBuild(expoAutolinking.reactNativeGradlePlugin)

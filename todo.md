@@ -646,4 +646,12 @@
 - [x] Added postinstall + eas-build-post-install hooks to auto-run fix after npm install
 - [x] Created android/init.gradle to force minSdkVersion 24 at Gradle level
 - [x] Also patches react-native version catalog as fallback
-- [ ] Save checkpoint and re-publish
+- [x] Save checkpoint and re-publish
+
+## Phase 40 — DEFINITIVE Fix for Android Build (minSdkVersion 22 persists)
+- [x] Analyzed build server behavior: Manus build runs prebuild which regenerates android/
+- [x] Added settings.gradle override: catalog.version("minSdk", "24") in useExpoVersionCatalog
+- [x] Added withDangerousMod to patch react-native version catalog TOML directly
+- [x] Now 6 layers of defense: settings.gradle, build.gradle ext, app/build.gradle, gradle.properties, version catalog TOML, postinstall script
+- [x] Verified all files correct after prebuild --clean
+- [x] Saved checkpoint for re-publish
