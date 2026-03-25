@@ -655,3 +655,14 @@
 - [x] Now 6 layers of defense: settings.gradle, build.gradle ext, app/build.gradle, gradle.properties, version catalog TOML, postinstall script
 - [x] Verified all files correct after prebuild --clean
 - [x] Saved checkpoint for re-publish
+
+## Phase 41 — Fix Photo Upload on Deployed PWA
+- [x] Photo uploads now working — user was using wrong URL
+- [x] Correct URL: https://buildtrack-dnjxcthz.manus.space/api/web/
+
+## Phase 42 — Fix Clock-In on Web + Pivot File Upload for Foremen
+- [x] Fix clock-in not working on the PWA web version (clockInTime→clockIn, clockOutTime→clockOut, jobId required)
+- [x] Add file/photo upload capability to Pivot chat for foremen (canAttachFiles: true)
+- [x] Ensure foremen can upload documents and pictures when talking to Pivot
+- [x] Hide job budget dollar amounts from foremen (show only percentage + progress bar)
+- [x] Rebuilt PWA and deployed without breaking existing features
