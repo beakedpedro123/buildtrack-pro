@@ -590,3 +590,4 @@
 - [x] Set minSdkVersion to 24 + buildArchs arm64-v8a in expo-build-properties to fix Hermes CMake error
 - [x] Run expo prebuild to generate android/ directory with correct gradle.properties
 - [x] Remove /android from .gitignore so prebuilt config is included in checkpoint
+- [x] Force minSdkVersion 24 in android/build.gradle ext block after expo-root-project plugin
