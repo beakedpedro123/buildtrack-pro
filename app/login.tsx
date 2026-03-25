@@ -20,7 +20,7 @@ type Step = "select" | "pin";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
-  secretary: "Secretary",
+  secretary: "Office Manager",
   logistics: "Logistics",
   foreman: "Foreman",
   laborer: "Laborer",

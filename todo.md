@@ -446,3 +446,23 @@
 - [ ] Ensure Labor Costs are on Dashboard (already done in sandbox)
 - [ ] Rebuild iOS from sandbox code to match Android
 - [ ] Rebuild Android APK from same code for parity
+
+## Phase 22 — Comprehensive Audit & Fixes
+
+### Database Fix
+- [x] Fix Lupe Mejia role from "owner" to "secretary" in database
+
+### Mobile App Label Fixes
+- [x] Fix "Secretary" → "Office Manager" in team.tsx ROLE_LABELS
+- [x] Fix "Secretary" → "Office Manager" in profile.tsx ROLE_LABELS
+- [x] Fix "Secretary" → "Office Manager" in login.tsx ROLE_LABELS
+
+### Mobile App Permission Fixes
+- [x] Fix canSeeRates in team.tsx to include secretary role
+- [x] Fix canSeePayRate in hours.tsx to include secretary role
+- [x] Fix canSeeDollars in labor-costs.tsx to include secretary and logistics roles
+
+### PWA Missing Pages (Critical)
+- [x] Create LaborCostsPage.tsx for /more/labor route
+- [x] Create HoursPage.tsx for /more/hours route
+- [x] Add routes to App.tsx for both new pages

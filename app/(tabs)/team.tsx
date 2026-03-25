@@ -32,7 +32,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
-  secretary: "Secretary",
+  secretary: "Office Manager",
   logistics: "Logistics",
   foreman: "Foreman",
   laborer: "Laborer",
@@ -75,7 +75,7 @@ export default function TeamScreen() {
   // Secretary and logistics can view the team list
   const canViewTeam = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
   // Only owner can see hourly rates
-  const canSeeRates = employee?.role === "owner";
+  const canSeeRates = employee?.role === "owner" || employee?.role === "secretary";
   // Owner, secretary, logistics can alter time entries
   const canAlterTime = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
   // Laborer/foreman can only tap their own card (to see their own info)

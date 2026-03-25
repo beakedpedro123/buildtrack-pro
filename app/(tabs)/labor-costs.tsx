@@ -58,7 +58,7 @@ export default function LaborCostsScreen() {
   const colors = useColors();
   const { employee } = useAppAuth();
   const role = employee?.role ?? "laborer";
-  const canSeeDollars = role === "owner";
+  const canSeeDollars = role === "owner" || role === "secretary" || role === "logistics";
   const canAccess = role === "owner" || role === "secretary" || role === "logistics";
 
   const [period, setPeriod] = useState<Period>("week");
