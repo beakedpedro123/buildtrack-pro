@@ -601,3 +601,8 @@
 - [x] Verified all API calls use same backend as iOS/Android (buildtrack-dnjxcthz.manus.space/api/trpc)
 - [x] PWA auth uses same employee selection as mobile apps
 - [x] All data syncs to same database across web, Android, and iOS
+
+## Phase 33 — Fix App Logo (Question Mark)
+- [x] Verified BuildTrack Pro app icon exists (hardhat with checkmark)
+- [x] All icon locations already have the correct 444KB icon file
+- [x] Uploaded icon to S3 and added logoUrl to app.json extra section
