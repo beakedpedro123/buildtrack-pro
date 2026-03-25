@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import path from "path";
 import multer from "multer";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
@@ -113,6 +114,14 @@ async function startServer() {
       createContext,
     }),
   );
+
+  // Serve PWA static files from public/ directory
+  const publicDir = path.join(__dirname, "..", "..", "public");
+  app.use(express.static(publicDir));
+  // SPA fallback: serve index.html for any non-API route
+  app.get("*", (_req: any, res: any) => {
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
 
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);

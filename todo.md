@@ -551,3 +551,8 @@
 ## Phase 26 — Android Build Fix
 - [x] Fix minSdkVersion from 22 to 24, set compileSdkVersion 35, targetSdkVersion 34, removed buildArchs restriction
 - [x] PWA web version accessible at dev server URL; deployed domain serves API backend
+
+## Phase 27 — PWA Permanent Web Deployment
+- [x] Build PWA for production
+- [x] Deploy PWA via same server (public/ folder served by Express, same domain as API)
+- [x] Provide 2 sharing methods: QR code image + invite page at /invite.html
