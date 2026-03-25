@@ -638,4 +638,12 @@
 - [x] Diagnose why buildtrack-dnjxcthz.manus.space returns not found (root / not proxied to Express)
 - [x] Fix server routing: added redirects from / and /api to /api/web/
 - [x] Rebuilt server dist with redirect fix
-- [ ] Save checkpoint and re-deploy
+- [x] Save checkpoint and re-deploy
+
+## Phase 39 — Fix Persistent Android Build Failure (minSdkVersion 22 + NODE_ENV)
+- [x] Investigated: all local files correct (24), build server somehow gets 22
+- [x] Created scripts/fix-min-sdk.js nuclear fix that patches all gradle files
+- [x] Added postinstall + eas-build-post-install hooks to auto-run fix after npm install
+- [x] Created android/init.gradle to force minSdkVersion 24 at Gradle level
+- [x] Also patches react-native version catalog as fallback
+- [ ] Save checkpoint and re-publish
