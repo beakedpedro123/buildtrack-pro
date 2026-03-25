@@ -556,3 +556,13 @@
 - [x] Build PWA for production
 - [x] Deploy PWA via same server (public/ folder served by Express, same domain as API)
 - [x] Provide 2 sharing methods: QR code image + invite page at /invite.html
+
+## Phase 28 — Pivot UX Fixes + Deployment Fix
+- [x] Fix deployment __dirname error in ESM build (server crashes on deploy)
+- [x] Remove Pivot auto-greeting on open — wait for user to say something first
+- [x] Fix scroll performance in Pivot chat — use FlatList instead of ScrollView
+- [x] Fix keyboard covering input on Android — add KeyboardAvoidingView to PivotChat
+- [x] Fix keyboard covering input on other pages that have text inputs (KeyboardAvoidingView in modal)
+- [x] Generate modern robot avatar for Pivot (custom PivotAvatar component with glowing robot face)
+- [x] Update PWA PivotChat to match — no auto-greeting, smooth scroll, modern avatar (PWA uses browser scroll, no auto-greeting)
+- [x] Ensure all 3 platforms (web, Android, iOS) have identical code and behavior

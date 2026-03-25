@@ -5,7 +5,7 @@
  *   owner / logistics  → Full access: voice, files, URLs, business context, cross-tab actions
  *   secretary          → Full access: voice, files, URLs, payroll/HR focus
  *   foreman            → Voice + text only, field-focused responses
- *   laborer            → No access (component renders null)
+ *   laborer            → Text only, goals and safety focused
  */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
@@ -13,7 +13,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   Modal,
   KeyboardAvoidingView,
   Platform,
@@ -21,6 +21,8 @@ import {
   StyleSheet,
   Pressable,
   Alert,
+  Keyboard,
+  Dimensions,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -40,6 +42,7 @@ import { useColors } from "@/hooks/use-colors";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Message {
+  id: string;
   role: "user" | "assistant";
   content: string;
   attachments?: Attachment[];
@@ -70,10 +73,10 @@ const ROLE_ACCESS: Record<Role, {
     label: "AI Business Assistant",
     placeholder: "Ask Pivot anything...",
     suggestions: [
+      "Sup Pivot, what's going on today?",
       "Analyze my labor costs this week",
       "Help me create a KPI",
       "Draft a safety talk",
-      "Create a goal for the team",
     ],
   },
   logistics: {
@@ -83,9 +86,9 @@ const ROLE_ACCESS: Record<Role, {
     label: "AI Business Assistant",
     placeholder: "Ask Pivot anything...",
     suggestions: [
+      "Hey Pivot, what's the plan?",
       "What jobs are active?",
       "Help me schedule crew",
-      "Create a team goal",
     ],
   },
   secretary: {
@@ -95,10 +98,9 @@ const ROLE_ACCESS: Record<Role, {
     label: "Office Assistant",
     placeholder: "Ask about payroll, hours, reports...",
     suggestions: [
-      "Summarize payroll this week",
+      "Sup Pivot, any payroll issues?",
       "Who has the most hours?",
       "Flag any overtime",
-      "Generate a payroll summary",
     ],
   },
   foreman: {
@@ -108,8 +110,8 @@ const ROLE_ACCESS: Record<Role, {
     label: "Field Assistant",
     placeholder: "Ask about safety, tasks, techniques...",
     suggestions: [
+      "Sup Pivot, what are my goals?",
       "Safety tips for framing",
-      "How do I assign tasks?",
       "Best practices for steel erection",
     ],
   },
@@ -140,6 +142,50 @@ function getFileIcon(type: Attachment["type"]): string {
   }
 }
 
+let msgCounter = 0;
+function nextMsgId(): string {
+  return `msg_${Date.now()}_${++msgCounter}`;
+}
+
+// ─── Modern Robot Avatar ─────────────────────────────────────────────────────
+
+function PivotAvatar({ size = 38 }: { size?: number }) {
+  return (
+    <View style={{
+      width: size, height: size, borderRadius: size / 2,
+      backgroundColor: "#1a1a2e",
+      alignItems: "center", justifyContent: "center",
+      borderWidth: 2, borderColor: "#D4AF37",
+      shadowColor: "#D4AF37", shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.4, shadowRadius: 6, elevation: 4,
+    }}>
+      {/* Robot face */}
+      <View style={{ alignItems: "center" }}>
+        {/* Eyes */}
+        <View style={{ flexDirection: "row", gap: size * 0.15, marginBottom: size * 0.04 }}>
+          <View style={{
+            width: size * 0.18, height: size * 0.12, borderRadius: size * 0.06,
+            backgroundColor: "#D4AF37",
+            shadowColor: "#D4AF37", shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.8, shadowRadius: 3,
+          }} />
+          <View style={{
+            width: size * 0.18, height: size * 0.12, borderRadius: size * 0.06,
+            backgroundColor: "#D4AF37",
+            shadowColor: "#D4AF37", shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.8, shadowRadius: 3,
+          }} />
+        </View>
+        {/* Mouth - thin line */}
+        <View style={{
+          width: size * 0.3, height: size * 0.04, borderRadius: size * 0.02,
+          backgroundColor: "#D4AF3788",
+        }} />
+      </View>
+    </View>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function PivotChat() {
@@ -152,7 +198,9 @@ export function PivotChat() {
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
 
   const chatMutation = trpc.pivot.chat.useMutation();
   const transcribeMutation = trpc.pivot.transcribeVoice.useMutation();
@@ -173,47 +221,28 @@ export function PivotChat() {
     })();
   }, [access.canUseVoice]);
 
-  // Greeting when chat opens — send "sup Pivot" automatically to get goals-aware response
+  // Track keyboard visibility
   useEffect(() => {
-    if (open && messages.length === 0 && access.canUseChat && employee) {
-      const name = (employee as any)?.name?.split(" ")[0] || "there";
-      // Auto-send a greeting to Pivot so it returns goals and personalized response
-      const autoGreet = async () => {
-        const greetMsg: Message = { role: "user", content: `Hey Pivot` };
-        setMessages([greetMsg]);
-        setLoading(true);
-        try {
-          const result = await chatMutation.mutateAsync({
-            messages: [{ role: "user", content: `Hey Pivot` }],
-            employeeId: (employee as any).id,
-            context: { currentPage: "mobile-app" },
-          });
-          setMessages([greetMsg, { role: "assistant", content: result.message }]);
-        } catch {
-          const hour = new Date().getHours();
-          const timeGreet = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
-          let fallback = "";
-          if (role === "secretary") {
-            fallback = `Good ${timeGreet}, ${name}! I'm Pivot, your office assistant.\n\nI can help with payroll, hours, and reports.`;
-          } else if (role === "foreman") {
-            fallback = `Good ${timeGreet}, ${name}! I'm Pivot, your field assistant.\n\nAsk me about safety, goals, or construction techniques.`;
-          } else if (role === "laborer") {
-            fallback = `Hey ${name}! I'm Pivot.\n\nI can show you your goals and help with safety questions.`;
-          } else {
-            fallback = `Good ${timeGreet}, ${name}! I'm Pivot, your AI business assistant.\n\nI have access to your live business data. Ask me anything.`;
-          }
-          setMessages([{ role: "assistant", content: fallback }]);
-        } finally {
-          setLoading(false);
-        }
-      };
-      autoGreet();
-    }
-  }, [open]);
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardVisible(false)
+    );
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
+  // NO auto-greeting — wait for user to say something first
+  // When chat opens, just show suggestions. Pivot speaks only when spoken to.
+
+  // Scroll to bottom when new messages arrive
   useEffect(() => {
-    if (open) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-  }, [messages, open]);
+    if (messages.length > 0) {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 150);
+    }
+  }, [messages.length, loading]);
 
   // ─── Voice recording ─────────────────────────────────────────────────────────
 
@@ -242,15 +271,12 @@ export function PivotChat() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsTranscribing(true);
     try {
-      // Upload audio file to server storage
       const apiBase = getApiBaseUrl();
       const formData = new FormData();
       formData.append("file", { uri, name: `pivot_voice_${Date.now()}.m4a`, type: "audio/m4a" } as any);
       const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
       if (!uploadRes.ok) throw new Error("Upload failed");
       const { url } = await uploadRes.json();
-
-      // Transcribe via server
       const result = await transcribeMutation.mutateAsync({ audioUrl: url });
       if (result.text?.trim()) {
         setInput(result.text.trim());
@@ -325,12 +351,22 @@ export function PivotChat() {
     const attachments = atts || pendingAttachments;
     if ((!text.trim() && !attachments.length) || loading || !employee) return;
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const userMsg: Message = { role: "user", content: text || "(See attached file)", attachments: attachments.length ? attachments : undefined };
+    
+    const userMsg: Message = {
+      id: nextMsgId(),
+      role: "user",
+      content: text || "(See attached file)",
+      attachments: attachments.length ? attachments : undefined,
+    };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
     setPendingAttachments([]);
     setLoading(true);
+
+    // Dismiss keyboard after sending so user can see the response
+    Keyboard.dismiss();
+
     try {
       const result = await chatMutation.mutateAsync({
         messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
@@ -338,20 +374,42 @@ export function PivotChat() {
         attachments: attachments.length ? attachments : undefined,
         context: { currentPage: "mobile-app" },
       });
-      setMessages((prev) => [...prev, { role: "assistant", content: result.message }]);
+      setMessages((prev) => [...prev, { id: nextMsgId(), role: "assistant", content: result.message }]);
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch {
-      setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I had trouble connecting. Please try again." }]);
+      setMessages((prev) => [...prev, { id: nextMsgId(), role: "assistant", content: "Sorry, I had trouble connecting. Please try again." }]);
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── Don't render for laborers ────────────────────────────────────────────────
+  // ─── Don't render for roles without chat access ──────────────────────────────
 
   if (!employee || !access.canUseChat) return null;
 
   const isRecording = recorderState.isRecording;
+
+  // ─── Render message item for FlatList ────────────────────────────────────────
+
+  const renderMessage = ({ item }: { item: Message }) => (
+    <View>
+      {item.attachments?.map((att, ai) => (
+        <View key={ai} style={[s.attachmentChip, { alignSelf: item.role === "user" ? "flex-end" : "flex-start" }]}>
+          <Text>{getFileIcon(att.type)}</Text>
+          <Text style={[s.attachmentChipText, { color: colors.foreground }]} numberOfLines={1}>{att.name}</Text>
+        </View>
+      ))}
+      <View style={item.role === "user" ? s.userBubble : [s.aiBubble, { backgroundColor: colors.background, borderColor: colors.border }]}>
+        {item.role === "assistant" && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <PivotAvatar size={20} />
+            <Text style={{ fontSize: 11, fontWeight: "600", color: "#D4AF37" }}>Pivot</Text>
+          </View>
+        )}
+        <Text style={item.role === "user" ? s.userText : [s.aiText, { color: colors.foreground }]}>{item.content}</Text>
+      </View>
+    </View>
+  );
 
   // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -360,26 +418,27 @@ export function PivotChat() {
       position: "absolute",
       bottom: 80,
       right: 16,
-      width: 52,
-      height: 52,
-      borderRadius: 26,
-      backgroundColor: "#D4AF37",
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: "#1a1a2e",
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.4,
+      shadowColor: "#D4AF37",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.5,
       shadowRadius: 8,
       elevation: 8,
       zIndex: 100,
+      borderWidth: 2,
+      borderColor: "#D4AF37",
     },
-    fabText: { fontSize: 24 },
     modal: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
     panel: {
-      height: "75%",
+      height: "80%",
       backgroundColor: colors.surface,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
       overflow: "hidden",
     },
     header: {
@@ -391,36 +450,29 @@ export function PivotChat() {
       backgroundColor: colors.background,
       gap: 10,
     },
-    avatar: {
-      width: 38, height: 38, borderRadius: 19,
-      backgroundColor: "#D4AF37",
-      alignItems: "center", justifyContent: "center",
-    },
-    headerTitle: { fontSize: 16, fontWeight: "700", color: colors.foreground },
-    headerSub: { fontSize: 11, color: "#D4AF37" },
-    messages: { flex: 1, padding: 12 },
+    headerTitle: { fontSize: 17, fontWeight: "700", color: colors.foreground },
+    headerSub: { fontSize: 11, color: "#D4AF37", fontWeight: "500" },
+    messages: { flex: 1, paddingHorizontal: 12, paddingTop: 8 },
     userBubble: {
       alignSelf: "flex-end",
       backgroundColor: "#D4AF37",
-      borderRadius: 16,
+      borderRadius: 18,
       borderBottomRightRadius: 4,
-      padding: 10,
-      marginBottom: 8,
-      maxWidth: "85%",
+      padding: 12,
+      marginBottom: 10,
+      maxWidth: "82%",
     },
-    userText: { color: "#000", fontSize: 14 },
+    userText: { color: "#000", fontSize: 15, lineHeight: 21 },
     aiBubble: {
       alignSelf: "flex-start",
-      backgroundColor: colors.background,
-      borderRadius: 16,
+      borderRadius: 18,
       borderBottomLeftRadius: 4,
-      padding: 10,
-      marginBottom: 8,
-      maxWidth: "85%",
+      padding: 12,
+      marginBottom: 10,
+      maxWidth: "88%",
       borderWidth: 0.5,
-      borderColor: colors.border,
     },
-    aiText: { color: colors.foreground, fontSize: 14, lineHeight: 20 },
+    aiText: { fontSize: 15, lineHeight: 22 },
     attachmentChip: {
       flexDirection: "row",
       alignItems: "center",
@@ -433,35 +485,56 @@ export function PivotChat() {
       borderColor: "#D4AF3744",
       marginBottom: 4,
     },
-    attachmentChipText: { fontSize: 11, color: colors.foreground, maxWidth: 120 },
+    attachmentChipText: { fontSize: 11, maxWidth: 120 },
+    welcomeContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+    },
+    welcomeText: {
+      fontSize: 22,
+      fontWeight: "700",
+      color: colors.foreground,
+      marginTop: 16,
+      textAlign: "center",
+    },
+    welcomeSub: {
+      fontSize: 14,
+      color: colors.muted,
+      marginTop: 8,
+      textAlign: "center",
+      lineHeight: 20,
+    },
     suggestions: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 6,
-      padding: 10,
+      gap: 8,
+      padding: 12,
     },
     suggestion: {
-      paddingHorizontal: 10,
-      paddingVertical: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
       borderRadius: 20,
       backgroundColor: colors.background,
       borderWidth: 0.5,
-      borderColor: colors.border,
+      borderColor: "#D4AF3744",
     },
-    suggestionText: { fontSize: 11, color: colors.muted },
+    suggestionText: { fontSize: 13, color: colors.muted },
     pendingAtts: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: 6,
       paddingHorizontal: 12,
-      paddingBottom: 6,
+      paddingVertical: 6,
       borderTopWidth: 0.5,
       borderTopColor: colors.border,
     },
     inputRow: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-end",
       padding: 10,
+      paddingBottom: Platform.OS === "ios" ? 10 : 10,
       gap: 8,
       borderTopWidth: 0.5,
       borderTopColor: colors.border,
@@ -469,25 +542,27 @@ export function PivotChat() {
     },
     textInput: {
       flex: 1,
-      fontSize: 14,
+      fontSize: 15,
       color: colors.foreground,
       backgroundColor: colors.surface,
-      borderRadius: 20,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
+      borderRadius: 22,
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 10,
       borderWidth: 0.5,
-      borderColor: isRecording ? "#FF4444" : colors.border,
+      borderColor: colors.border,
       maxHeight: 100,
+      minHeight: 42,
     },
     iconBtn: {
-      width: 38, height: 38, borderRadius: 19,
+      width: 40, height: 40, borderRadius: 20,
       alignItems: "center", justifyContent: "center",
       backgroundColor: colors.surface,
       borderWidth: 0.5,
       borderColor: colors.border,
     },
     sendBtn: {
-      width: 38, height: 38, borderRadius: 19,
+      width: 40, height: 40, borderRadius: 20,
       alignItems: "center", justifyContent: "center",
       backgroundColor: "#D4AF37",
     },
@@ -508,7 +583,7 @@ export function PivotChat() {
 
   return (
     <>
-      {/* Floating Action Button */}
+      {/* Floating Action Button — Modern Robot */}
       <TouchableOpacity
         style={s.fab}
         onPress={() => {
@@ -517,7 +592,7 @@ export function PivotChat() {
         }}
         activeOpacity={0.85}
       >
-        <Text style={s.fabText}>🤖</Text>
+        <PivotAvatar size={40} />
       </TouchableOpacity>
 
       {/* Chat Modal */}
@@ -527,17 +602,16 @@ export function PivotChat() {
         animationType="slide"
         onRequestClose={() => setOpen(false)}
       >
-        <Pressable style={s.modal} onPress={() => setOpen(false)}>
+        <Pressable style={s.modal} onPress={() => { Keyboard.dismiss(); setOpen(false); }}>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={{ flex: 1, justifyContent: "flex-end" }}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
           >
             <Pressable style={s.panel} onPress={(e) => e.stopPropagation()}>
               {/* Header */}
               <View style={s.header}>
-                <View style={s.avatar}>
-                  <Text style={{ fontSize: 20 }}>🤖</Text>
-                </View>
+                <PivotAvatar size={42} />
                 <View>
                   <Text style={s.headerTitle}>Pivot</Text>
                   <Text style={s.headerSub}>{access.label}</Text>
@@ -545,47 +619,61 @@ export function PivotChat() {
                 <View style={{ marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#22C55E" }} />
                   <Text style={{ fontSize: 11, color: colors.muted }}>Online</Text>
-                  <TouchableOpacity onPress={() => setOpen(false)} style={{ marginLeft: 8, padding: 4 }}>
-                    <Text style={{ fontSize: 18, color: colors.muted }}>✕</Text>
+                  <TouchableOpacity onPress={() => { Keyboard.dismiss(); setOpen(false); }} style={{ marginLeft: 8, padding: 4 }}>
+                    <Text style={{ fontSize: 20, color: colors.muted }}>✕</Text>
                   </TouchableOpacity>
                 </View>
               </View>
 
-              {/* Messages */}
-              <ScrollView
-                ref={scrollRef}
-                style={s.messages}
-                onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
-              >
-                {messages.map((msg, i) => (
-                  <View key={i}>
-                    {msg.attachments?.map((att, ai) => (
-                      <View key={ai} style={[s.attachmentChip, { alignSelf: msg.role === "user" ? "flex-end" : "flex-start" }]}>
-                        <Text>{getFileIcon(att.type)}</Text>
-                        <Text style={s.attachmentChipText} numberOfLines={1}>{att.name}</Text>
-                      </View>
-                    ))}
-                    <View style={msg.role === "user" ? s.userBubble : s.aiBubble}>
-                      <Text style={msg.role === "user" ? s.userText : s.aiText}>{msg.content}</Text>
-                    </View>
-                  </View>
-                ))}
-                {loading && (
-                  <View style={s.aiBubble}>
-                    <ActivityIndicator size="small" color="#D4AF37" />
-                  </View>
-                )}
-                {isTranscribing && (
-                  <View style={[s.userBubble, { backgroundColor: "#D4AF3733" }]}>
-                    <Text style={{ color: "#D4AF37", fontSize: 13 }}>🎤 Transcribing your voice...</Text>
-                  </View>
-                )}
-              </ScrollView>
+              {/* Messages or Welcome Screen */}
+              {messages.length === 0 ? (
+                <View style={s.welcomeContainer}>
+                  <PivotAvatar size={72} />
+                  <Text style={s.welcomeText}>Hey, I'm Pivot</Text>
+                  <Text style={s.welcomeSub}>
+                    {role === "owner" ? "Your AI business assistant. Ask me anything about your projects, costs, or team." :
+                     role === "secretary" ? "Your office assistant. I can help with payroll, hours, and reports." :
+                     role === "foreman" ? "Your field assistant. Ask about safety, goals, or construction techniques." :
+                     "Your team assistant. I can show you your goals and help with questions."}
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  ref={flatListRef}
+                  data={messages}
+                  keyExtractor={(item) => item.id}
+                  renderItem={renderMessage}
+                  style={s.messages}
+                  onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                  onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+                  removeClippedSubviews={Platform.OS === "android"}
+                  maxToRenderPerBatch={10}
+                  windowSize={15}
+                  ListFooterComponent={
+                    <>
+                      {loading && (
+                        <View style={[s.aiBubble, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            <PivotAvatar size={20} />
+                            <ActivityIndicator size="small" color="#D4AF37" />
+                            <Text style={{ fontSize: 12, color: colors.muted }}>Thinking...</Text>
+                          </View>
+                        </View>
+                      )}
+                      {isTranscribing && (
+                        <View style={[s.userBubble, { backgroundColor: "#D4AF3733" }]}>
+                          <Text style={{ color: "#D4AF37", fontSize: 13 }}>🎤 Transcribing your voice...</Text>
+                        </View>
+                      )}
+                    </>
+                  }
+                />
+              )}
 
-              {/* Suggestions */}
-              {messages.length <= 1 && (
+              {/* Suggestions — show when no messages or only 1 exchange */}
+              {messages.length <= 2 && (
                 <View style={s.suggestions}>
-                  {access.suggestions.slice(0, 3).map((sug) => (
+                  {access.suggestions.map((sug) => (
                     <TouchableOpacity key={sug} style={s.suggestion} onPress={() => sendMessage(sug)}>
                       <Text style={s.suggestionText}>{sug}</Text>
                     </TouchableOpacity>
@@ -603,7 +691,7 @@ export function PivotChat() {
                       onPress={() => setPendingAttachments((prev) => prev.filter((_, j) => j !== i))}
                     >
                       <Text>{getFileIcon(att.type)}</Text>
-                      <Text style={s.attachmentChipText} numberOfLines={1}>{att.name}</Text>
+                      <Text style={[s.attachmentChipText, { color: colors.foreground }]} numberOfLines={1}>{att.name}</Text>
                       <Text style={{ fontSize: 10, color: colors.muted }}>✕</Text>
                     </TouchableOpacity>
                   ))}
@@ -634,6 +722,7 @@ export function PivotChat() {
 
                 {/* Text input */}
                 <TextInput
+                  ref={inputRef}
                   style={s.textInput}
                   value={input}
                   onChangeText={setInput}
@@ -642,7 +731,10 @@ export function PivotChat() {
                   multiline
                   editable={!loading && !isRecording && !isTranscribing}
                   returnKeyType="send"
-                  onSubmitEditing={() => sendMessage(input)}
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => {
+                    if (input.trim()) sendMessage(input);
+                  }}
                 />
 
                 {/* Voice mic button — only for eligible roles */}

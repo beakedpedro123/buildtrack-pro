@@ -1,13 +1,19 @@
 import "dotenv/config";
-import express from "express";
+import express, { Request, Response } from "express";
 import { createServer } from "http";
 import net from "net";
 import path from "path";
+import { fileURLToPath } from "url";
 import multer from "multer";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+
+// ESM compatibility: derive __dirname from import.meta.url
+// Works in both tsx (dev) and esbuild ESM output (production)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -103,7 +109,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/health", (_req, res) => {
+  app.get("/api/health", (_req: Request, res: Response) => {
     res.json({ ok: true, timestamp: Date.now() });
   });
 
@@ -116,10 +122,15 @@ async function startServer() {
   );
 
   // Serve PWA static files from public/ directory
-  const publicDir = path.join(__dirname, "..", "..", "public");
+  // In dev: __dirname is server/_core/, so go up 2 levels to project root
+  // In prod (dist/): __dirname is dist/, so go up 1 level to project root
+  const isDist = __dirname.includes("dist");
+  const publicDir = isDist
+    ? path.join(__dirname, "..", "public")
+    : path.join(__dirname, "..", "..", "public");
   app.use(express.static(publicDir));
   // SPA fallback: serve index.html for any non-API route
-  app.get("*", (_req: any, res: any) => {
+  app.get("*", (_req: Request, res: Response) => {
     res.sendFile(path.join(publicDir, "index.html"));
   });
 
