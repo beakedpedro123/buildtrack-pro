@@ -122,6 +122,31 @@ async function startServer() {
     }),
   );
 
+  // Debug endpoint to diagnose file paths on deployed server
+  app.get("/api/debug-paths", (_req: Request, res: Response) => {
+    const candidates = [
+      path.join(__dirname, "public"),
+      path.join(__dirname, "..", "..", "public"),
+      path.join(__dirname, "..", "public"),
+      path.join(process.cwd(), "public"),
+      path.join(process.cwd(), "dist", "public"),
+    ];
+    const results = candidates.map(p => ({
+      path: p,
+      exists: fs.existsSync(p),
+      hasIndex: fs.existsSync(path.join(p, "index.html")),
+      contents: fs.existsSync(p) ? (function() { try { return fs.readdirSync(p); } catch { return ["unreadable"]; } })() : [],
+    }));
+    let cwdContents: string[] = [];
+    try { cwdContents = fs.readdirSync(process.cwd()); } catch { cwdContents = ["unreadable"]; }
+    res.json({
+      __dirname,
+      cwd: process.cwd(),
+      cwdContents,
+      candidates: results,
+    });
+  });
+
   // Serve PWA static files from public/ directory
   // Try multiple possible locations to handle dev, local prod, and deployed prod
   const candidates = [
@@ -141,7 +166,12 @@ async function startServer() {
   app.use(express.static(publicDir));
   // SPA fallback: serve index.html for any non-API route
   app.get("*", (_req: Request, res: Response) => {
-    res.sendFile(path.join(publicDir, "index.html"));
+    const indexPath = path.join(publicDir, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send(`Not Found. publicDir=${publicDir}, exists=${fs.existsSync(publicDir)}, indexExists=${fs.existsSync(indexPath)}`);
+    }
   });
 
   const preferredPort = parseInt(process.env.PORT || "3000");
