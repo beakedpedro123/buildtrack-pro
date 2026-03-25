@@ -588,3 +588,5 @@
 
 ## Phase 31 — Fix Android Build (minSdkVersion)
 - [x] Set minSdkVersion to 24 + buildArchs arm64-v8a in expo-build-properties to fix Hermes CMake error
+- [x] Run expo prebuild to generate android/ directory with correct gradle.properties
+- [x] Remove /android from .gitignore so prebuilt config is included in checkpoint
