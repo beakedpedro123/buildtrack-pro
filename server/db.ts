@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, lt, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertBudgetCategory,
@@ -36,6 +36,8 @@ import {
   safetyMeetings,
   InsertSafetyTopic,
   InsertSafetyMeeting,
+  pivotMemory,
+  pivotConversations,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -958,4 +960,71 @@ export async function getAllCurrentWeekGoals() {
   return dbConn.select().from(weeklyGoals)
     .where(and(gte(weeklyGoals.weekOf, weekStart), lt(weeklyGoals.weekOf, weekEnd)))
     .orderBy(weeklyGoals.priority, weeklyGoals.createdAt);
+}
+
+
+// ─── Pivot Memory ─────────────────────────────────────────────────────────────
+export async function getPivotMemory(employeeId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+  const rows = await dbConn.select().from(pivotMemory).where(eq(pivotMemory.employeeId, employeeId)).limit(1);
+  return rows[0] || null;
+}
+
+export async function upsertPivotMemory(employeeId: number, data: {
+  conversationSummary?: string;
+  preferences?: string;
+  ownerPatterns?: string;
+  preferredLanguage?: string;
+}) {
+  const dbConn = await getDb();
+  if (!dbConn) return;
+  const existing = await getPivotMemory(employeeId);
+  if (existing) {
+    await dbConn.update(pivotMemory)
+      .set({
+        ...(data.conversationSummary !== undefined && { conversationSummary: data.conversationSummary }),
+        ...(data.preferences !== undefined && { preferences: data.preferences }),
+        ...(data.ownerPatterns !== undefined && { ownerPatterns: data.ownerPatterns }),
+        ...(data.preferredLanguage !== undefined && { preferredLanguage: data.preferredLanguage }),
+        interactionCount: sql`${pivotMemory.interactionCount} + 1`,
+        lastInteraction: new Date(),
+      })
+      .where(eq(pivotMemory.employeeId, employeeId));
+  } else {
+    await dbConn.insert(pivotMemory).values({
+      employeeId,
+      conversationSummary: data.conversationSummary || null,
+      preferences: data.preferences || null,
+      ownerPatterns: data.ownerPatterns || null,
+      preferredLanguage: data.preferredLanguage || "en",
+      interactionCount: 1,
+    });
+  }
+}
+
+export async function getRecentPivotConversations(employeeId: number, limit = 20) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  return dbConn.select().from(pivotConversations)
+    .where(eq(pivotConversations.employeeId, employeeId))
+    .orderBy(desc(pivotConversations.createdAt))
+    .limit(limit);
+}
+
+export async function savePivotConversation(employeeId: number, role: string, content: string, language = "en") {
+  const dbConn = await getDb();
+  if (!dbConn) return;
+  await dbConn.insert(pivotConversations).values({
+    employeeId,
+    role,
+    content,
+    language,
+  });
+}
+
+export async function updatePivotLanguage(employeeId: number, language: string) {
+  const dbConn = await getDb();
+  if (!dbConn) return;
+  await upsertPivotMemory(employeeId, { preferredLanguage: language });
 }

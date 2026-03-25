@@ -30,7 +30,7 @@ export default function TabLayout() {
   const canViewPayroll = role === "owner" || role === "secretary";
   const canMeetings = role === "owner" || role === "secretary" || role === "logistics" || role === "foreman";
   const canViewGoals = role === "owner" || role === "secretary" || role === "logistics" || role === "foreman";
-  const canViewSafety = role === "owner" || role === "logistics" || role === "foreman";
+  // Safety is now merged into Meetings tab
   const isFieldRole = role === "foreman" || role === "laborer";
 
   return (
@@ -109,7 +109,7 @@ export default function TabLayout() {
         options={{
           title: "Safety",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="shield.fill" color={color} />,
-          href: canViewSafety ? undefined : null,
+          href: null,
         }}
       />
       <Tabs.Screen

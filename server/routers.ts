@@ -656,6 +656,74 @@ const pivotRouter = router({
     const isManagement = ["owner", "secretary", "logistics"].includes(employee.role);
     const isForeman = employee.role === "foreman";
     const isLaborer = employee.role === "laborer";
+    const isOwner = employee.role === "owner";
+
+    // ── Load Pivot Memory for this employee ─────────────────────────────────
+    let memory = await db.getPivotMemory(input.employeeId);
+    let memoryContext = "";
+    let preferredLang = memory?.preferredLanguage || "en";
+    let ownerPatternsContext = "";
+
+    if (memory) {
+      if (memory.conversationSummary) {
+        memoryContext = `\n## Memory — What You Remember About ${employee.name}\n${memory.conversationSummary}\n`;
+      }
+      if (memory.preferences) {
+        try {
+          const prefs = JSON.parse(memory.preferences);
+          memoryContext += `\n## ${employee.name}'s Preferences\n`;
+          for (const [k, v] of Object.entries(prefs)) {
+            memoryContext += `- ${k}: ${v}\n`;
+          }
+        } catch {}
+      }
+      if (isOwner && memory.ownerPatterns) {
+        try {
+          const patterns = JSON.parse(memory.ownerPatterns);
+          ownerPatternsContext = `\n## Pedro's Decision Patterns (OWNER-ONLY — only show to Pedro)\n`;
+          for (const [k, v] of Object.entries(patterns)) {
+            ownerPatternsContext += `- ${k}: ${v}\n`;
+          }
+          ownerPatternsContext += `Use these patterns to anticipate Pedro's needs and proactively suggest actions.\n`;
+        } catch {}
+      }
+    }
+
+    // ── Load recent conversation history from DB ────────────────────────────
+    let recentHistory = "";
+    try {
+      const recentConvos = await db.getRecentPivotConversations(input.employeeId, 10);
+      if (recentConvos.length > 0) {
+        recentHistory = `\n## Recent Conversation History (last ${recentConvos.length} messages)\n`;
+        for (const c of recentConvos.reverse()) {
+          recentHistory += `[${c.role}]: ${c.content.substring(0, 200)}${c.content.length > 200 ? "..." : ""}\n`;
+        }
+      }
+    } catch {}
+
+    // ── Detect language from user message ────────────────────────────────────
+    const lastUserMsg = input.messages.length > 0 ? input.messages[input.messages.length - 1].content.trim() : "";
+    const lastUserMsgLower = lastUserMsg.toLowerCase();
+    const spanishPatterns = /\b(hola|que onda|buenos dias|buenas tardes|buenas noches|como estas|oye|mira|necesito|por favor|gracias|trabajo|meta|metas|seguridad|horas|pago|jefe|hermano)\b/i;
+    const isSpanishMsg = spanishPatterns.test(lastUserMsg);
+    if (isSpanishMsg && preferredLang === "en") {
+      preferredLang = "es";
+      // Save language preference
+      db.updatePivotLanguage(input.employeeId, "es").catch(() => {});
+    }
+
+    // ── Language instruction ─────────────────────────────────────────────────
+    const languageBlock = preferredLang === "es" ? `
+## LANGUAGE — RESPOND IN SPANISH
+This user prefers Mexican Spanish. Respond ENTIRELY in natural Mexican Spanish — not formal Spain Spanish.
+Use common Mexican expressions naturally: "¿Qué onda?", "Órale", "Chido", "Ándale", "Échale ganas", "A darle"
+Keep construction terms in their common Mexican usage ("la troca", "el marco", "el acero", "la madera")
+If they switch to English, switch back to English.
+Goals and data should still be presented clearly but in Spanish.
+` : `
+## LANGUAGE — RESPOND IN ENGLISH
+This user communicates in English. If they write in Spanish, switch to Mexican Spanish for that response.
+`;
 
     // ── Gather goals for this employee ──────────────────────────────────────
     let goalsContext = "";
@@ -732,30 +800,66 @@ const pivotRouter = router({
     }
 
     // ── Detect casual greetings ──────────────────────────────────────────────
-    const lastUserMsg = input.messages.length > 0 ? input.messages[input.messages.length - 1].content.toLowerCase().trim() : "";
-    const isGreeting = /^(sup|hey|hi|hello|yo|what'?s? ?up|morning|afternoon|evening|howdy|hola|que onda|what'?s good)/i.test(lastUserMsg) || lastUserMsg.includes("pivot") && lastUserMsg.length < 40;
+    const isGreeting = /^(sup|hey|hi|hello|yo|what'?s? ?up|morning|afternoon|evening|howdy|hola|que onda|what'?s good|buenos|buenas)/i.test(lastUserMsgLower) || (lastUserMsgLower.includes("pivot") && lastUserMsgLower.length < 40);
 
     // ── Personality instructions ─────────────────────────────────────────────
     const personalityBlock = `
 ## Your Personality — Pivot
 You are Pivot. You are NOT a generic chatbot. You have a distinct personality:
 - You're confident, direct, and a little witty — like a trusted foreman who also happens to be tech-savvy
-- You use construction metaphors naturally ("Let's nail this down", "We're building momentum")
-- You remember what the user talked about in this conversation and reference it
-- You NEVER repeat the same greeting twice in a row — vary your opening every time
+- You use construction metaphors naturally ("Let's nail this down", "We're building momentum", "Time to frame up this plan")
+- You remember what the user talked about in previous conversations (see Memory section) and reference it naturally
+- You NEVER repeat the same greeting twice in a row — vary your opening every time creatively
 - When someone says "sup Pivot" or "hey Pivot" — respond with their name, a quick vibe check (time of day, day of week), then immediately list their goals for the week with status and any overdue items
 - If goals are overdue, mention them firmly but supportively — "Hey, that framing goal from Monday is past due. Need help getting it across the finish line?"
 - You adapt your tone: more casual with laborers and foremen, more business-focused with the owner, more organized/helpful with the Office Manager
-- You learn from the conversation — if someone mentions a preference or pattern, acknowledge it and adapt
+- You learn from every conversation — if someone mentions a preference, pattern, or habit, remember it and adapt in future conversations
 - End responses with something actionable when possible — don't just inform, suggest next steps
 - Keep it real — if you don't know something, say so. Don't make up numbers.
 - You're Pedro's right hand in the digital world. He calls you his friend.
+- You grow and evolve — each conversation makes you smarter about this team and this business.
 `;
 
-    const greetingInstruction = isGreeting ? `\n## IMPORTANT — GREETING DETECTED\nThe user just greeted you. You MUST:\n1. Greet them back using their first name with a UNIQUE greeting (never the same one twice)\n2. Mention what day it is and set the tone for the day\n3. Immediately list their goals for this week with status\n4. Highlight any overdue goals with urgency\n5. Give a quick motivational line relevant to their role\n6. If they're the owner, also mention any business highlights or concerns from the data\n7. If they're the Office Manager, mention any payroll or scheduling items to watch\nDo NOT ask "how can I help you" — just dive into their goals and status.\n` : "";
+    const greetingInstruction = isGreeting ? `\n## IMPORTANT — GREETING DETECTED\nThe user just greeted you. You MUST:\n1. Greet them back using their first name with a UNIQUE, CREATIVE greeting (never the same one twice — use different styles: sometimes funny, sometimes motivational, sometimes casual)\n2. Mention what day it is and set the tone for the day\n3. Immediately list their goals for this week with status\n4. Highlight any overdue goals with urgency\n5. Give a quick motivational line relevant to their role\n6. If they're the owner, also mention any business highlights or concerns from the data\n7. If they're the Office Manager, mention any payroll or scheduling items to watch\n8. Reference something from their memory/past conversations if available to show you remember them\nDo NOT ask "how can I help you" — just dive into their goals and status.\n` : "";
 
     // ── Build system prompt based on role ────────────────────────────────────
     let systemPrompt = "";
+
+    const calculationBlock = `
+## Advanced Calculation Capabilities
+You can perform complex construction calculations. When asked, show your work step by step:
+
+**Lumber Takeoffs:**
+- Board feet = (thickness × width × length) / 12
+- Linear feet calculations for studs, plates, headers
+- Stud count = (wall length / 16") + 1 for 16" OC, (wall length / 24") + 1 for 24" OC
+- Add 10-15% waste factor
+- Current Utah lumber pricing: always note prices fluctuate, suggest verifying with supplier
+
+**Steel Calculations:**
+- Weight per linear foot for common steel sections
+- Connection bolt patterns and spacing
+- Moment of inertia calculations for beam selection
+
+**Labor Cost Projections:**
+- Hourly rate × hours × crew size = labor cost
+- Overtime = 1.5× after 40 hours/week
+- Productivity factors: framing ~500-800 SF/day per crew, steel erection varies by complexity
+- Always factor in setup/teardown time
+
+**Material Estimates:**
+- Sheathing: wall area / 32 SF per sheet + 10% waste
+- Nails/fasteners: ~30 lbs per 1000 SF of framing
+- Concrete: volume in cubic yards = (L × W × D) / 27
+
+**Bid Analysis:**
+- Compare line items against Utah market rates
+- Flag items more than 15% above/below market
+- Calculate profit margins and markup percentages
+- Break down cost per square foot
+
+Always show your math clearly and explain each step.
+`;
 
     if (isManagement) {
       systemPrompt = `You are Pivot, an AI business assistant built specifically for Pedro Carranza and the management team of Carranza Custom Construction. You are like a trusted business partner — knowledgeable, direct, and focused on helping grow the company.
@@ -764,10 +868,15 @@ Carranza Custom Construction specializes in framing and steel erection, with add
 
 You are talking to: ${employee.name} (${employee.role === "secretary" ? "Office Manager" : employee.role === "logistics" ? "Logistics Manager" : "Owner"})
 ${personalityBlock}
+${languageBlock}
 ${greetingInstruction}
+${memoryContext}
+${recentHistory}
+${isOwner ? ownerPatternsContext : ""}
 ${businessContext}
 ${goalsContext}
 ${allGoalsContext}
+${calculationBlock}
 
 ## Your Capabilities
 - Analyze labor costs, job profitability, and crew efficiency
@@ -779,6 +888,7 @@ ${allGoalsContext}
 - Explain construction industry benchmarks and best practices
 - Help plan future integrations (QuickBooks sync, material ordering, etc.)
 - Analyze uploaded documents: PDFs, Word docs, Excel spreadsheets, images, and URLs
+- Perform advanced construction calculations (lumber takeoffs, steel, labor projections, material estimates)
 
 ## Cross-Tab Actions You Can Execute
 You can help initiate actions across all app tabs. When asked, respond with a clear formatted action block:
@@ -828,6 +938,15 @@ ${employee.role === "secretary" ? `## Office Manager Special Capabilities (THIS 
 - Help with any administrative or scheduling questions
 ` : ""}
 
+${isOwner ? `## Owner-Only: Pattern Learning
+You are learning Pedro's patterns and decision-making style. After each conversation:
+- Note any preferences he expresses (e.g., "I always want to see labor costs first")
+- Track recurring topics or concerns
+- Remember his communication style and adapt
+- Proactively surface insights based on patterns you've observed
+This information is PRIVATE to Pedro — never share it with other team members.
+` : ""}
+
 Current page: ${input.context?.currentPage || "unknown"} — tailor your response to what the user is viewing.
 
 Always be specific, use real numbers from the live data above, and proactively surface insights. If labor costs are high, mention it. If a job looks over budget, flag it. If safety talks are behind schedule, bring it up.
@@ -838,8 +957,12 @@ If an attachment is provided, analyze it thoroughly and reference specific detai
     } else if (isForeman) {
       systemPrompt = `You are Pivot, the field assistant for Carranza Custom Construction. You're talking to ${employee.name}, a foreman.
 ${personalityBlock}
+${languageBlock}
 ${greetingInstruction}
+${memoryContext}
+${recentHistory}
 ${goalsContext}
+${calculationBlock}
 
 ## Your Capabilities for Foremen
 - Help with safety procedures, OSHA compliance, and best practices for framing and steel erection
@@ -849,6 +972,7 @@ ${goalsContext}
 - Help draft safety talk scripts for your crew
 - Daily motivation and team management tips
 - Explain how to use BuildTrack Pro features
+- Perform construction calculations (lumber takeoffs, material estimates, labor projections)
 
 When the foreman greets you, always show their goals and any overdue items first, then ask if they need anything.
 Keep responses practical, direct, and field-ready. No fluff.`;
@@ -856,7 +980,10 @@ Keep responses practical, direct, and field-ready. No fluff.`;
       // Laborer
       systemPrompt = `You are Pivot, the team assistant for Carranza Custom Construction. You're talking to ${employee.name}, a laborer.
 ${personalityBlock}
+${languageBlock}
 ${greetingInstruction}
+${memoryContext}
+${recentHistory}
 ${goalsContext}
 
 ## Your Capabilities for Laborers
@@ -866,6 +993,7 @@ ${goalsContext}
 - Answer questions about construction techniques (framing, steel erection, carpentry)
 - Daily motivation and encouragement
 - Explain how to use BuildTrack Pro features
+- Help with basic calculations (measurements, material counts)
 
 When the laborer greets you, show their assigned goals with status and deadlines. If goals are overdue, mention them supportively.
 Keep responses short, practical, and encouraging. You're here to help them succeed.`;
@@ -890,7 +1018,6 @@ Keep responses short, practical, and encouraging. You're here to help them succe
           } else if (att.type === "pdf") {
             contentParts.push({ type: "file_url", file_url: { url: att.url, mime_type: "application/pdf" } });
           } else {
-            // Word/Excel/URL — add as text reference
             contentParts.push({ type: "text", text: `\n[Attached file: ${att.name || att.url} (${att.type}). URL: ${att.url}]` });
           }
         }
@@ -903,7 +1030,79 @@ Keep responses short, practical, and encouraging. You're here to help them succe
     const result = await invokeLLM({ messages: llmMessages });
     const content = result.choices?.[0]?.message?.content;
     if (!content) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No response from AI" });
+
+    // ── Save conversation to memory ─────────────────────────────────────────
+    try {
+      // Save user message
+      if (lastUserMsg) {
+        await db.savePivotConversation(input.employeeId, "user", lastUserMsg, preferredLang);
+      }
+      // Save assistant response
+      await db.savePivotConversation(input.employeeId, "assistant", content as string, preferredLang);
+
+      // Update memory summary every 5 interactions using AI
+      const currentMemory = await db.getPivotMemory(input.employeeId);
+      const interactionCount = (currentMemory?.interactionCount || 0) + 1;
+
+      if (interactionCount % 5 === 0) {
+        // Generate a memory summary
+        const recentConvos = await db.getRecentPivotConversations(input.employeeId, 20);
+        const convoText = recentConvos.reverse().map((c: any) => `[${c.role}]: ${c.content}`).join("\n");
+        const summaryResult = await invokeLLM({
+          messages: [
+            { role: "system", content: `You are a memory summarizer. Analyze the conversation below and produce a concise summary of:\n1. Key topics discussed\n2. User preferences and patterns noticed\n3. Important decisions or action items\n4. Communication style preferences\nKeep it under 500 words. Be specific and actionable.${isOwner ? "\n\nALSO produce a separate section called OWNER_PATTERNS with any decision-making patterns, recurring concerns, or business priorities you notice." : ""}` },
+            { role: "user", content: `Previous summary: ${currentMemory?.conversationSummary || "None yet"}\n\nRecent conversations:\n${convoText}` },
+          ],
+        });
+        const summaryContent = summaryResult.choices?.[0]?.message?.content;
+        if (summaryContent) {
+          const updateData: any = { conversationSummary: summaryContent as string, preferredLanguage: preferredLang };
+          // Extract owner patterns if present
+          if (isOwner && (summaryContent as string).includes("OWNER_PATTERNS")) {
+            const patternMatch = (summaryContent as string).match(/OWNER_PATTERNS[:\s]*([\s\S]*?)$/i);
+            if (patternMatch) {
+              const existingPatterns = currentMemory?.ownerPatterns ? JSON.parse(currentMemory.ownerPatterns) : {};
+              existingPatterns.latestAnalysis = patternMatch[1].trim();
+              existingPatterns.updatedAt = new Date().toISOString();
+              updateData.ownerPatterns = JSON.stringify(existingPatterns);
+            }
+          }
+          await db.upsertPivotMemory(input.employeeId, updateData);
+        }
+      } else {
+        // Just update interaction count and language
+        await db.upsertPivotMemory(input.employeeId, { preferredLanguage: preferredLang });
+      }
+    } catch (memErr) {
+      console.warn("[Pivot] Memory save failed:", memErr);
+    }
+
     return { message: content as string };
+  }),
+
+  // ── Get/Set Language Preference ────────────────────────────────────────────
+  getLanguage: publicProcedure.input(z.object({ employeeId: z.number() })).query(async ({ input }) => {
+    const memory = await db.getPivotMemory(input.employeeId);
+    return { language: memory?.preferredLanguage || "en" };
+  }),
+
+  setLanguage: publicProcedure.input(z.object({ employeeId: z.number(), language: z.string() })).mutation(async ({ input }) => {
+    await db.updatePivotLanguage(input.employeeId, input.language);
+    return { success: true };
+  }),
+
+  // ── Get Memory (owner-only for pattern viewing) ───────────────────────────
+  getMemory: publicProcedure.input(z.object({ employeeId: z.number() })).query(async ({ input }) => {
+    const employee = await db.getEmployeeById(input.employeeId);
+    if (!employee) throw new TRPCError({ code: "NOT_FOUND" });
+    const memory = await db.getPivotMemory(input.employeeId);
+    return {
+      conversationSummary: memory?.conversationSummary || null,
+      preferences: memory?.preferences ? JSON.parse(memory.preferences) : null,
+      ownerPatterns: employee.role === "owner" && memory?.ownerPatterns ? JSON.parse(memory.ownerPatterns) : null,
+      interactionCount: memory?.interactionCount || 0,
+      preferredLanguage: memory?.preferredLanguage || "en",
+    };
   }),
 
   transcribeVoice: publicProcedure.input(z.object({

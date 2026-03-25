@@ -277,6 +277,29 @@ export const safetyMeetings = mysqlTable("safetyMeetings", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
+// ─── Pivot Memory (conversation history & preferences) ────────────────────────
+export const pivotMemory = mysqlTable("pivotMemory", {
+  id: int("id").autoincrement().primaryKey(),
+  employeeId: int("employeeId").notNull(),
+  preferredLanguage: varchar("preferredLanguage", { length: 10 }).default("en").notNull(),
+  conversationSummary: text("conversationSummary"), // AI-generated summary of past conversations
+  preferences: text("preferences"), // JSON: topics of interest, communication style, patterns
+  ownerPatterns: text("ownerPatterns"), // JSON: owner-only decision patterns Pivot has learned
+  interactionCount: int("interactionCount").default(0).notNull(),
+  lastInteraction: timestamp("lastInteraction").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const pivotConversations = mysqlTable("pivotConversations", {
+  id: int("id").autoincrement().primaryKey(),
+  employeeId: int("employeeId").notNull(),
+  role: varchar("role", { length: 20 }).notNull(), // "user" or "assistant"
+  content: text("content").notNull(),
+  language: varchar("language", { length: 10 }).default("en").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 // ─── Types ───────────────────────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -332,3 +355,9 @@ export type InsertSafetyTopic = typeof safetyTopics.$inferInsert;
 
 export type SafetyMeeting = typeof safetyMeetings.$inferSelect;
 export type InsertSafetyMeeting = typeof safetyMeetings.$inferInsert;
+
+export type PivotMemory = typeof pivotMemory.$inferSelect;
+export type InsertPivotMemory = typeof pivotMemory.$inferInsert;
+
+export type PivotConversation = typeof pivotConversations.$inferSelect;
+export type InsertPivotConversation = typeof pivotConversations.$inferInsert;

@@ -50,6 +50,13 @@
       "when": 1774249415641,
       "tag": "0006_calm_menace",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1774425567199,
+      "tag": "0007_familiar_power_man",
+      "breakpoints": true
     }
   ]
 }

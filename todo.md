@@ -506,3 +506,44 @@
 ## Phase 24 — Daily Meeting Photo Removal
 - [x] Remove photo option from daily meeting (goals review) form on mobile app — keep photos only for safety meetings
 - [x] Remove photo option from daily meeting (goals review) form on PWA — photos not present on PWA meeting form
+
+## Phase 25 — Pivot Memory, Spanish Support, Tab Merge, Code Audit
+
+### Pivot Memory System (Server-Side)
+- [x] Create pivot_memory table in drizzle schema (employeeId, conversationSummary, preferences JSON, language, lastInteraction)
+- [x] Add db functions to save/load pivot memory per employee
+- [x] Update pivot router to load memory before building system prompt and save after each conversation
+- [x] Store user preferences (language, patterns, topics of interest) in memory
+- [x] Owner-only pattern learning section — Pivot learns Pedro's decision patterns and surfaces them
+
+### Spanish Language Support
+- [x] Detect when user writes in Spanish and respond in Spanish
+- [x] Add language preference to pivot_memory — employees can set preferred language
+- [x] Pivot speaks Mexican Spanish naturally (not formal/Spain Spanish)
+- [x] Goals assigned in Spanish get Spanish descriptions from Pivot
+- [x] System prompt includes bilingual instructions
+
+### Advanced Calculations
+- [x] Pivot can do lumber takeoff calculations (board feet, linear feet, costs)
+- [x] Pivot can calculate labor cost projections and overtime estimates
+- [x] Pivot can help with material estimates and bid analysis
+- [x] Add calculation examples to the system prompt
+
+### Merge Meetings + Safety Tabs (Mobile)
+- [x] Combine meetings.tsx and safety.tsx into a single unified tab
+- [x] Safety huddle (Mon/Wed/Fri) is the top priority section
+- [x] Daily goals review meetings below safety
+- [x] Keep all existing functionality from both tabs
+- [x] Owner sees both meeting types; foreman sees safety + goals; laborer sees goals only
+
+### PWA Updates
+- [x] Update PWA PivotChat to send/receive language preference
+- [x] Update PWA safety/meetings pages to match merged structure
+- [x] Ensure PWA pivot memory works the same as mobile
+
+### Code Audit for Apple/Android Readiness
+- [x] Fix TypeScript errors that could cause crashes (0 errors on mobile, PWA has expected tRPC type inference issues only)
+- [x] Verify all icon mappings exist in icon-symbol.tsx
+- [x] Check for missing imports or undefined references
+- [x] Ensure no hardcoded URLs or test data
+- [x] Verify all tRPC procedure names match between client and server
