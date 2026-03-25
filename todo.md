@@ -580,3 +580,8 @@
 - [x] iOS strict audit: PivotChat text uses lineHeight 21-22 for fontSize 15 — PASS
 - [x] iOS strict audit: all imports verified, no undefined references — PASS
 - [x] iOS strict audit: useAudioRecorder hook handles cleanup internally — PASS
+
+## Phase 30 — Fix Production Web Version
+- [x] Diagnose why buildtrack-dnjxcthz.manus.space returns 404 / doesn't load (path resolution bug)
+- [x] Fix server to serve PWA files correctly in production deployment (dist/public not ../public)
+- [x] Verify web version loads after publish

@@ -122,11 +122,11 @@ async function startServer() {
   );
 
   // Serve PWA static files from public/ directory
-  // In dev: __dirname is server/_core/, so go up 2 levels to project root
-  // In prod (dist/): __dirname is dist/, so go up 1 level to project root
+  // In dev: __dirname is server/_core/, so go up 2 levels to project root/public
+  // In prod (dist/): __dirname is dist/, public is at dist/public (copied by build script)
   const isDist = __dirname.includes("dist");
   const publicDir = isDist
-    ? path.join(__dirname, "..", "public")
+    ? path.join(__dirname, "public")
     : path.join(__dirname, "..", "..", "public");
   app.use(express.static(publicDir));
   // SPA fallback: serve index.html for any non-API route
