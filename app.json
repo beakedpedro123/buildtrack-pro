@@ -94,11 +94,12 @@
             "minSdkVersion": 24,
             "buildArchs": ["arm64-v8a"],
             "compileSdkVersion": 35,
-            "targetSdkVersion": 34,
+            "targetSdkVersion": 35,
             "kotlinVersion": "2.0.21"
           }
         }
-      ]
+      ],
+      "./plugins/withMinSdk24"
     ],
     "experiments": {
       "typedRoutes": true,

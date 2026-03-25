@@ -20,13 +20,16 @@ allprojects {
   }
 }
 
+// [withMinSdk24] Force minSdkVersion
+// Hermes (React Native 0.81) requires minSdkVersion 24+
+// Must be set BEFORE expo-root-project plugin (uses setIfNotExist)
+ext {
+    minSdkVersion = 24
+    compileSdkVersion = 35
+    targetSdkVersion = 35
+    buildToolsVersion = "35.0.0"
+    ndkVersion = "27.1.12297006"
+}
+// [/withMinSdk24]
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
-
-// Force minSdkVersion to 24 — Hermes (React Native 0.81) requires SDK 24+
-// This overrides any default set by expo-root-project plugin
-ext {
-    minSdkVersion = Integer.parseInt(findProperty('android.minSdkVersion') ?: '24')
-    compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '35')
-    targetSdkVersion = Integer.parseInt(findProperty('android.targetSdkVersion') ?: '34')
-}

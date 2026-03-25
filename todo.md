@@ -611,3 +611,8 @@
 - [x] Found broken logo refs: /icons/company-logo.png doesn't work because only /api/* is proxied
 - [x] Fixed paths to /api/web/icons/company-logo.png in Layout.tsx and LoginPage.tsx
 - [x] Rebuilt PWA and server dist with correct paths
+
+## Phase 35 — Fix Android Build minSdkVersion (Again)
+- [x] Created withMinSdk24 config plugin that injects ext block before expo-root-project during prebuild
+- [x] Plugin survives prebuild --clean regeneration
+- [x] Verified: build.gradle has ext{minSdkVersion=24} BEFORE apply plugin: expo-root-project
