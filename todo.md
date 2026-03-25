@@ -606,3 +606,8 @@
 - [x] Verified BuildTrack Pro app icon exists (hardhat with checkmark)
 - [x] All icon locations already have the correct 444KB icon file
 - [x] Uploaded icon to S3 and added logoUrl to app.json extra section
+
+## Phase 34 — Fix PWA Logo (Broken Image)
+- [x] Found broken logo refs: /icons/company-logo.png doesn't work because only /api/* is proxied
+- [x] Fixed paths to /api/web/icons/company-logo.png in Layout.tsx and LoginPage.tsx
+- [x] Rebuilt PWA and server dist with correct paths
