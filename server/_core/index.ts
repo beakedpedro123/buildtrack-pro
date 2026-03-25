@@ -3,6 +3,7 @@ import express, { Request, Response } from "express";
 import { createServer } from "http";
 import net from "net";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -122,12 +123,21 @@ async function startServer() {
   );
 
   // Serve PWA static files from public/ directory
-  // In dev: __dirname is server/_core/, so go up 2 levels to project root/public
-  // In prod (dist/): __dirname is dist/, public is at dist/public (copied by build script)
-  const isDist = __dirname.includes("dist");
-  const publicDir = isDist
-    ? path.join(__dirname, "public")
-    : path.join(__dirname, "..", "..", "public");
+  // Try multiple possible locations to handle dev, local prod, and deployed prod
+  const candidates = [
+    path.join(__dirname, "public"),                  // dist/public (deployed prod)
+    path.join(__dirname, "..", "..", "public"),      // server/_core/../../public (dev)
+    path.join(__dirname, "..", "public"),             // dist/../public (alt prod)
+    path.join(process.cwd(), "public"),               // cwd/public (fallback)
+    path.join(process.cwd(), "dist", "public"),       // cwd/dist/public (fallback)
+  ];
+  const publicDir = candidates.find(p => fs.existsSync(path.join(p, "index.html"))) || candidates[0];
+  console.log(`[server] __dirname: ${__dirname}`);
+  console.log(`[server] cwd: ${process.cwd()}`);
+  console.log(`[server] publicDir: ${publicDir}`);
+  console.log(`[server] publicDir exists: ${fs.existsSync(publicDir)}`);
+  console.log(`[server] index.html exists: ${fs.existsSync(path.join(publicDir, "index.html"))}`);
+  try { console.log(`[server] publicDir contents: ${fs.readdirSync(publicDir).join(", ")}`); } catch(e) { console.log(`[server] publicDir not readable`); }
   app.use(express.static(publicDir));
   // SPA fallback: serve index.html for any non-API route
   app.get("*", (_req: Request, res: Response) => {
