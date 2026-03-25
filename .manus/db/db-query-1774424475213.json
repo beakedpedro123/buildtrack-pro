@@ -1,0 +1,16 @@
+{
+  "query": "SHOW TABLES LIKE '%safety%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute SHOW TABLES LIKE '%safety%';",
+  "rows": [
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh (%safety%)": "safetyMeetings"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh (%safety%)": "safetyTopics"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_dNJxctHZxj6wCg3jq4j4kh (%safety%)\nsafetyMeetings\nsafetyTopics\n",
+  "stderr": "",
+  "execution_time_ms": 343
+}

@@ -1,0 +1,202 @@
+{
+  "query": "SELECT id, title, category, LENGTH(content) as content_length FROM `safetyTopics` ORDER BY id LIMIT 35;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute SELECT id, title, category, LENGTH(content) as content_length FROM `safetyTopics` ORDER BY id LIMIT 35;",
+  "rows": [
+    {
+      "id": "1",
+      "title": "Fall Protection Basics",
+      "category": "fall_protection",
+      "content_length": "435"
+    },
+    {
+      "id": "2",
+      "title": "Ladder Safety",
+      "category": "fall_protection",
+      "content_length": "437"
+    },
+    {
+      "id": "3",
+      "title": "Scaffold Safety",
+      "category": "scaffolding",
+      "content_length": "408"
+    },
+    {
+      "id": "4",
+      "title": "Electrical Safety Awareness",
+      "category": "electrical",
+      "content_length": "444"
+    },
+    {
+      "id": "5",
+      "title": "Lockout/Tagout Procedures",
+      "category": "electrical",
+      "content_length": "432"
+    },
+    {
+      "id": "6",
+      "title": "Excavation & Trench Safety",
+      "category": "excavation",
+      "content_length": "476"
+    },
+    {
+      "id": "7",
+      "title": "PPE — Hard Hats & Head Protection",
+      "category": "ppe",
+      "content_length": "424"
+    },
+    {
+      "id": "8",
+      "title": "PPE — Eye & Face Protection",
+      "category": "ppe",
+      "content_length": "384"
+    },
+    {
+      "id": "9",
+      "title": "PPE — Hand Protection & Gloves",
+      "category": "ppe",
+      "content_length": "434"
+    },
+    {
+      "id": "10",
+      "title": "PPE — Hearing Protection",
+      "category": "ppe",
+      "content_length": "410"
+    },
+    {
+      "id": "11",
+      "title": "Heat Illness Prevention",
+      "category": "heat_stress",
+      "content_length": "490"
+    },
+    {
+      "id": "12",
+      "title": "Cold Weather Safety",
+      "category": "general",
+      "content_length": "471"
+    },
+    {
+      "id": "13",
+      "title": "Fire Prevention on Construction Sites",
+      "category": "fire",
+      "content_length": "485"
+    },
+    {
+      "id": "14",
+      "title": "Hot Work Safety",
+      "category": "fire",
+      "content_length": "439"
+    },
+    {
+      "id": "15",
+      "title": "Silica Dust Exposure",
+      "category": "chemical",
+      "content_length": "490"
+    },
+    {
+      "id": "16",
+      "title": "Hazard Communication (HazCom)",
+      "category": "chemical",
+      "content_length": "408"
+    },
+    {
+      "id": "17",
+      "title": "Crane & Rigging Safety",
+      "category": "equipment",
+      "content_length": "414"
+    },
+    {
+      "id": "18",
+      "title": "Forklift & Equipment Safety",
+      "category": "equipment",
+      "content_length": "414"
+    },
+    {
+      "id": "19",
+      "title": "Power Tool Safety",
+      "category": "equipment",
+      "content_length": "431"
+    },
+    {
+      "id": "20",
+      "title": "Housekeeping & Slip/Trip/Fall Prevention",
+      "category": "general",
+      "content_length": "379"
+    },
+    {
+      "id": "21",
+      "title": "Struck-By Hazards",
+      "category": "general",
+      "content_length": "411"
+    },
+    {
+      "id": "22",
+      "title": "Caught-In/Between Hazards",
+      "category": "general",
+      "content_length": "449"
+    },
+    {
+      "id": "23",
+      "title": "Concrete & Masonry Safety",
+      "category": "chemical",
+      "content_length": "415"
+    },
+    {
+      "id": "24",
+      "title": "Confined Space Entry",
+      "category": "general",
+      "content_length": "498"
+    },
+    {
+      "id": "25",
+      "title": "Back Injury Prevention & Proper Lifting",
+      "category": "general",
+      "content_length": "391"
+    },
+    {
+      "id": "26",
+      "title": "Emergency Action Plan",
+      "category": "general",
+      "content_length": "465"
+    },
+    {
+      "id": "27",
+      "title": "Respiratory Protection",
+      "category": "ppe",
+      "content_length": "482"
+    },
+    {
+      "id": "28",
+      "title": "Nail Gun Safety",
+      "category": "equipment",
+      "content_length": "445"
+    },
+    {
+      "id": "29",
+      "title": "Working Near Utilities",
+      "category": "electrical",
+      "content_length": "432"
+    },
+    {
+      "id": "30",
+      "title": "Stairway Safety During Construction",
+      "category": "fall_protection",
+      "content_length": "424"
+    },
+    {
+      "id": "31",
+      "title": "Daily Stretch & Flex",
+      "category": "general",
+      "content_length": "432"
+    },
+    {
+      "id": "30001",
+      "title": "Nail embedded wood",
+      "category": "general",
+      "content_length": "410"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tcategory\tcontent_length\n1\tFall Protection Basics\tfall_protection\t435\n2\tLadder Safety\tfall_protection\t437\n3\tScaffold Safety\tscaffolding\t408\n4\tElectrical Safety Awareness\telectrical\t444\n5\tLockout/Tagout Procedures\telectrical\t432\n6\tExcavation & Trench Safety\texcavation\t476\n7\tPPE — Hard Hats & Head Protection\tppe\t424\n8\tPPE — Eye & Face Protection\tppe\t384\n9\tPPE — Hand Protection & Gloves\tppe\t434\n10\tPPE — Hearing Protection\tppe\t410\n11\tHeat Illness Prevention\theat_stress\t490\n12\tCold Weather Safety\tgeneral\t471\n13\tFire Prevention on Construction Sites\tfire\t485\n14\tHot Work Safety\tfire\t439\n15\tSilica Dust Exposure\tchemical\t490\n16\tHazard Communication (HazCom)\tchemical\t408\n17\tCrane & Rigging Safety\tequipment\t414\n18\tForklift & Equipment Safety\tequipment\t414\n19\tPower Tool Safety\tequipment\t431\n20\tHousekeeping & Slip/Trip/Fall Prevention\tgeneral\t379\n21\tStruck-By Hazards\tgeneral\t411\n22\tCaught-In/Between Hazards\tgeneral\t449\n23\tConcrete & Masonry Safety\tchemical\t415\n24\tConfined Space Entry\tgeneral\t498\n25\tBack Injury Prevention & Proper Lifting\tgeneral\t391\n26\tEmergency Action Plan\tgeneral\t465\n27\tRespiratory Protection\tppe\t482\n28\tNail Gun Safety\tequipment\t445\n29\tWorking Near Utilities\telectrical\t432\n30\tStairway Safety During Construction\tfall_protection\t424\n31\tDaily Stretch & Flex\tgeneral\t432\n30001\tNail embedded wood\tgeneral\t410\n",
+  "stderr": "",
+  "execution_time_ms": 348
+}

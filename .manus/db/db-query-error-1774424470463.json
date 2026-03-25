@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, title, LENGTH(content) as content_length FROM safety_topics ORDER BY id LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute SELECT id, title, LENGTH(content) as content_length FROM safety_topics ORDER BY id LIMIT 10;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table 'dnjxcthzxj6wcg3jq4j4kh.safety_topics' doesn't exist"
+  ]
+}

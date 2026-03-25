@@ -1,0 +1,70 @@
+{
+  "query": "SELECT id, name, role FROM employees WHERE isActive = 1 ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute SELECT id, name, role FROM employees WHERE isActive = 1 ORDER BY id;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Pedro",
+      "role": "owner"
+    },
+    {
+      "id": "10",
+      "name": "Ricardo Ocampo",
+      "role": "foreman"
+    },
+    {
+      "id": "14",
+      "name": "Juan Melgoza",
+      "role": "foreman"
+    },
+    {
+      "id": "100",
+      "name": "Pablo Carranza",
+      "role": "secretary"
+    },
+    {
+      "id": "30003",
+      "name": "Lupe Mejia",
+      "role": "secretary"
+    },
+    {
+      "id": "60001",
+      "name": "Demetrio",
+      "role": "laborer"
+    },
+    {
+      "id": "90001",
+      "name": "Elias Bonilla",
+      "role": "laborer"
+    },
+    {
+      "id": "120001",
+      "name": "Jose marquina",
+      "role": "laborer"
+    },
+    {
+      "id": "150001",
+      "name": "Alberto mendoza",
+      "role": "logistics"
+    },
+    {
+      "id": "180001",
+      "name": "Reed mccluskey",
+      "role": "logistics"
+    },
+    {
+      "id": "180002",
+      "name": "David lopez",
+      "role": "laborer"
+    },
+    {
+      "id": "180003",
+      "name": "Javier leyva",
+      "role": "laborer"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\trole\n1\tPedro\towner\n10\tRicardo Ocampo\tforeman\n14\tJuan Melgoza\tforeman\n100\tPablo Carranza\tsecretary\n30003\tLupe Mejia\tsecretary\n60001\tDemetrio\tlaborer\n90001\tElias Bonilla\tlaborer\n120001\tJose marquina\tlaborer\n150001\tAlberto mendoza\tlogistics\n180001\tReed mccluskey\tlogistics\n180002\tDavid lopez\tlaborer\n180003\tJavier leyva\tlaborer\n",
+  "stderr": "",
+  "execution_time_ms": 348
+}

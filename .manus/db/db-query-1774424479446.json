@@ -1,0 +1,60 @@
+{
+  "query": "SELECT id, title, LENGTH(content) as content_length FROM safetyTopics ORDER BY id LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute SELECT id, title, LENGTH(content) as content_length FROM safetyTopics ORDER BY id LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "title": "Fall Protection Basics",
+      "content_length": "1347"
+    },
+    {
+      "id": "2",
+      "title": "Ladder Safety",
+      "content_length": "1461"
+    },
+    {
+      "id": "3",
+      "title": "Scaffold Safety",
+      "content_length": "1615"
+    },
+    {
+      "id": "4",
+      "title": "Electrical Safety Awareness",
+      "content_length": "1504"
+    },
+    {
+      "id": "5",
+      "title": "Lockout/Tagout Procedures",
+      "content_length": "1694"
+    },
+    {
+      "id": "6",
+      "title": "Excavation & Trench Safety",
+      "content_length": "1609"
+    },
+    {
+      "id": "7",
+      "title": "PPE — Hard Hats & Head Protection",
+      "content_length": "1739"
+    },
+    {
+      "id": "8",
+      "title": "PPE — Eye & Face Protection",
+      "content_length": "1672"
+    },
+    {
+      "id": "9",
+      "title": "PPE — Hand Protection & Gloves",
+      "content_length": "1720"
+    },
+    {
+      "id": "10",
+      "title": "PPE — Hearing Protection",
+      "content_length": "1768"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tcontent_length\n1\tFall Protection Basics\t1347\n2\tLadder Safety\t1461\n3\tScaffold Safety\t1615\n4\tElectrical Safety Awareness\t1504\n5\tLockout/Tagout Procedures\t1694\n6\tExcavation & Trench Safety\t1609\n7\tPPE — Hard Hats & Head Protection\t1739\n8\tPPE — Eye & Face Protection\t1672\n9\tPPE — Hand Protection & Gloves\t1720\n10\tPPE — Hearing Protection\t1768\n",
+  "stderr": "",
+  "execution_time_ms": 352
+}

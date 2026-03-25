@@ -1,0 +1,22 @@
+{
+  "query": "SELECT id, title, content FROM `safetyTopics` WHERE id = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute SELECT id, title, content FROM `safetyTopics` WHERE id = 1;",
+  "rows": [
+    {
+      "id": "1",
+      "title": "Fall Protection Basics",
+      "content": "Key Points:"
+    }
+  ],
+  "messages": [
+    "• Always use fall protection when working at heights of 6 feet or more",
+    "• Inspect harnesses, lanyards, and anchor points before each use",
+    "• Never alter or remove guardrails without authorization",
+    "• Know the difference between fall arrest, fall restraint, and positioning systems",
+    "• Report damaged equipment immediately",
+    "Discussion: What fall hazards exist on our current job site? How can we eliminate or reduce them?"
+  ],
+  "stdout": "id\ttitle\tcontent\n1\tFall Protection Basics\tKey Points:\n• Always use fall protection when working at heights of 6 feet or more\n• Inspect harnesses, lanyards, and anchor points before each use\n• Never alter or remove guardrails without authorization\n• Know the difference between fall arrest, fall restraint, and positioning systems\n• Report damaged equipment immediately\n\nDiscussion: What fall hazards exist on our current job site? How can we eliminate or reduce them?\n",
+  "stderr": "",
+  "execution_time_ms": 352
+}

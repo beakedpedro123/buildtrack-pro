@@ -59,20 +59,166 @@ function formatWeekLabel(date: Date): string {
   return `${start.toLocaleDateString([], { month: "short", day: "numeric" })} – ${end.toLocaleDateString([], { month: "short", day: "numeric" })}`;
 }
 
+// ─── Date/Time Picker Component ──────────────────────────────────────────────
+function DateTimePicker({
+  value,
+  onChange,
+  colors,
+}: {
+  value: string;
+  onChange: (iso: string) => void;
+  colors: any;
+}) {
+  const parsed = value ? new Date(value) : null;
+  const [month, setMonth] = useState(parsed ? parsed.getMonth() : new Date().getMonth());
+  const [year, setYear] = useState(parsed ? parsed.getFullYear() : new Date().getFullYear());
+  const [selectedDay, setSelectedDay] = useState(parsed ? parsed.getDate() : 0);
+  const [hour, setHour] = useState(parsed ? parsed.getHours() % 12 || 12 : 5);
+  const [minute, setMinute] = useState(parsed ? parsed.getMinutes() : 0);
+  const [ampm, setAmpm] = useState(parsed ? (parsed.getHours() >= 12 ? "PM" : "AM") : "PM");
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayOfWeek = new Date(year, month, 1).getDay();
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const dayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+  const handleDayPress = (day: number) => {
+    setSelectedDay(day);
+    const h24 = ampm === "PM" ? (hour === 12 ? 12 : hour + 12) : (hour === 12 ? 0 : hour);
+    const d = new Date(year, month, day, h24, minute, 0, 0);
+    onChange(d.toISOString());
+  };
+
+  const handleTimeChange = (newHour: number, newMinute: number, newAmpm: string) => {
+    setHour(newHour);
+    setMinute(newMinute);
+    setAmpm(newAmpm);
+    if (selectedDay > 0) {
+      const h24 = newAmpm === "PM" ? (newHour === 12 ? 12 : newHour + 12) : (newHour === 12 ? 0 : newHour);
+      const d = new Date(year, month, selectedDay, h24, newMinute, 0, 0);
+      onChange(d.toISOString());
+    }
+  };
+
+  const prevMonth = () => {
+    if (month === 0) { setMonth(11); setYear(y => y - 1); }
+    else setMonth(m => m - 1);
+    setSelectedDay(0);
+  };
+  const nextMonth = () => {
+    if (month === 11) { setMonth(0); setYear(y => y + 1); }
+    else setMonth(m => m + 1);
+    setSelectedDay(0);
+  };
+
+  const today = new Date();
+  const isToday = (day: number) => day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+
+  return (
+    <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}>
+      {/* Month/Year Header */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <TouchableOpacity onPress={prevMonth} style={{ padding: 8 }}>
+          <Text style={{ color: colors.primary, fontSize: 18, fontWeight: "700" }}>‹</Text>
+        </TouchableOpacity>
+        <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "700" }}>{monthNames[month]} {year}</Text>
+        <TouchableOpacity onPress={nextMonth} style={{ padding: 8 }}>
+          <Text style={{ color: colors.primary, fontSize: 18, fontWeight: "700" }}>›</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Day names */}
+      <View style={{ flexDirection: "row", marginBottom: 4 }}>
+        {dayNames.map(d => (
+          <View key={d} style={{ flex: 1, alignItems: "center" }}>
+            <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "600" }}>{d}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Calendar grid */}
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+        {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+          <View key={`empty-${i}`} style={{ width: "14.28%", height: 36 }} />
+        ))}
+        {Array.from({ length: daysInMonth }).map((_, i) => {
+          const day = i + 1;
+          const sel = day === selectedDay;
+          const td = isToday(day);
+          return (
+            <TouchableOpacity
+              key={day}
+              onPress={() => handleDayPress(day)}
+              style={{
+                width: "14.28%", height: 36, alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <View style={{
+                width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center",
+                backgroundColor: sel ? colors.primary : "transparent",
+                borderWidth: td && !sel ? 1.5 : 0,
+                borderColor: colors.primary,
+              }}>
+                <Text style={{
+                  fontSize: 13, fontWeight: sel || td ? "700" : "400",
+                  color: sel ? "#fff" : td ? colors.primary : colors.foreground,
+                }}>{day}</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Time Picker */}
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 12, gap: 6 }}>
+        <Text style={{ fontSize: 13, color: colors.muted, fontWeight: "600", marginRight: 4 }}>Time:</Text>
+        {/* Hour */}
+        <TouchableOpacity
+          onPress={() => { const h = hour >= 12 ? 1 : hour + 1; handleTimeChange(h, minute, ampm); }}
+          style={{ backgroundColor: colors.background, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.border }}
+        >
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>{String(hour).padStart(2, "0")}</Text>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>:</Text>
+        {/* Minute */}
+        <TouchableOpacity
+          onPress={() => { const m = minute >= 45 ? 0 : minute + 15; handleTimeChange(hour, m, ampm); }}
+          style={{ backgroundColor: colors.background, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.border }}
+        >
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>{String(minute).padStart(2, "0")}</Text>
+        </TouchableOpacity>
+        {/* AM/PM */}
+        <TouchableOpacity
+          onPress={() => { const newAmpm = ampm === "AM" ? "PM" : "AM"; handleTimeChange(hour, minute, newAmpm); }}
+          style={{ backgroundColor: colors.primary + "22", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.primary }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>{ampm}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Clear button */}
+      <TouchableOpacity onPress={() => { setSelectedDay(0); onChange(""); }} style={{ alignSelf: "center", marginTop: 8, padding: 6 }}>
+        <Text style={{ fontSize: 12, color: colors.muted }}>Clear Deadline</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 export default function GoalsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
   const [weekOffset, setWeekOffset] = useState(0);
   const [showAddGoal, setShowAddGoal] = useState(false);
+  const [showEditGoal, setShowEditGoal] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<any>(null);
   const [newGoalTitle, setNewGoalTitle] = useState("");
   const [newGoalDescription, setNewGoalDescription] = useState("");
   const [newGoalPriority, setNewGoalPriority] = useState<Priority>("medium");
   const [newGoalAssignee, setNewGoalAssignee] = useState<number | null>(null);
-  const [newGoalDeadline, setNewGoalDeadline] = useState<string>(""); // ISO date string
-  const [showAssigneePicker, setShowAssigneePicker] = useState(false);
+  const [newGoalDeadline, setNewGoalDeadline] = useState<string>("");
   const [filterAssignee, setFilterAssignee] = useState<number | "all">("all");
-  const [showFilterPicker, setShowFilterPicker] = useState(false);
 
   const weekDate = new Date();
   weekDate.setDate(weekDate.getDate() + weekOffset * 7);
@@ -84,14 +230,12 @@ export default function GoalsScreen() {
   });
   const { data: allEmployees } = trpc.employees.list.useQuery();
 
-  // Build a lookup map for employee names
   const employeeMap = useMemo(() => {
     const map: Record<number, string> = {};
     (allEmployees || []).forEach((e: any) => { map[e.id] = e.name; });
     return map;
   }, [allEmployees]);
 
-  // Assignable employees (foreman, laborer, logistics)
   const assignableEmployees = useMemo(() => {
     return (allEmployees || []).filter((e: any) => e.isActive);
   }, [allEmployees]);
@@ -100,49 +244,74 @@ export default function GoalsScreen() {
     onSuccess: () => {
       utils.goals.list.invalidate();
       setShowAddGoal(false);
-      setNewGoalTitle("");
-      setNewGoalDescription("");
-      setNewGoalPriority("medium");
-      setNewGoalAssignee(null);
-      setNewGoalDeadline("");
+      resetForm();
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
   });
   const updateGoal = trpc.goals.update.useMutation({
-    onSuccess: () => utils.goals.list.invalidate(),
+    onSuccess: () => {
+      utils.goals.list.invalidate();
+      setShowEditGoal(false);
+      setEditingGoal(null);
+    },
   });
   const deleteGoal = trpc.goals.delete.useMutation({
     onSuccess: () => utils.goals.list.invalidate(),
   });
 
-  // Roles that can view/manage goals
+  const resetForm = () => {
+    setNewGoalTitle("");
+    setNewGoalDescription("");
+    setNewGoalPriority("medium");
+    setNewGoalAssignee(null);
+    setNewGoalDeadline("");
+  };
+
+  // Roles
   const isOwner = employee?.role === "owner";
   const isOwnerOrManager = ["owner", "secretary", "logistics"].includes(employee?.role || "");
   const isForeman = employee?.role === "foreman";
-  // Laborers cannot access goals at all; foreman/logistics/secretary see only their own
-  const canView = isOwnerOrManager || isForeman;
-  const canManage = isOwnerOrManager; // only owner/secretary/logistics can create/edit/delete
+  const isLaborer = employee?.role === "laborer";
 
-  // Filter goals based on role and filter selection
+  // Foreman can now create goals for laborers; management can create for anyone
+  const canView = true; // Everyone can view their goals
+  const canManage = isOwnerOrManager || isForeman; // Foreman can create goals too
+
+  // Filter goals
   const filteredGoals = useMemo(() => {
     if (!goals) return [];
     let filtered = [...goals];
 
     if (isOwner) {
-      // Owner sees all goals, but can filter by assignee
       if (filterAssignee !== "all") {
         filtered = filtered.filter((g: any) => g.assignedTo === filterAssignee);
       }
+    } else if (isLaborer) {
+      // Laborers only see goals assigned to them
+      filtered = filtered.filter((g: any) => g.assignedTo === employee?.id);
+    } else if (isForeman) {
+      // Foreman sees goals assigned to them AND goals they created for laborers
+      filtered = filtered.filter((g: any) =>
+        g.assignedTo === employee?.id || g.createdBy === employee?.id
+      );
     } else {
-      // Secretary, logistics, foreman — only see goals assigned to them
+      // Secretary, logistics — see goals assigned to them
       filtered = filtered.filter((g: any) => g.assignedTo === employee?.id);
     }
 
     return filtered;
-  }, [goals, filterAssignee, isOwner, employee?.id]);
+  }, [goals, filterAssignee, isOwner, isForeman, isLaborer, employee?.id]);
 
   const completedCount = filteredGoals.filter((g: any) => g.status === "completed").length;
   const totalCount = filteredGoals.filter((g: any) => g.status !== "cancelled").length;
+
+  // Foreman can only assign to laborers and themselves
+  const foremanAssignees = useMemo(() => {
+    if (!isForeman) return assignableEmployees;
+    return (allEmployees || []).filter((e: any) =>
+      e.isActive && (e.role === "laborer" || e.id === employee?.id)
+    );
+  }, [isForeman, allEmployees, assignableEmployees, employee?.id]);
 
   const styles = StyleSheet.create({
     card: {
@@ -159,13 +328,6 @@ export default function GoalsScreen() {
       borderRadius: 12,
       paddingVertical: 14,
       alignItems: "center",
-    },
-    outlineBtn: {
-      borderRadius: 12,
-      paddingVertical: 12,
-      alignItems: "center",
-      borderWidth: 1.5,
-      borderColor: colors.primary,
     },
     priorityBtn: {
       paddingHorizontal: 14,
@@ -202,21 +364,8 @@ export default function GoalsScreen() {
     },
   });
 
-  if (!canView) {
-    return (
-      <ScreenContainer>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
-          <Text style={{ fontSize: 40, marginBottom: 16 }}>🔒</Text>
-          <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>Access Restricted</Text>
-          <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginTop: 8 }}>Weekly goals are visible to management and foremen.</Text>
-        </View>
-      </ScreenContainer>
-    );
-  }
-
   const handleStatusCycle = (goal: any) => {
-    // Foremen and laborers can update status on their own goals
-    if (!isOwnerOrManager && goal.assignedTo !== employee?.id) return;
+    if (!isOwnerOrManager && !isForeman && goal.assignedTo !== employee?.id) return;
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const cycle: GoalStatus[] = ["pending", "in_progress", "completed"];
     const current = goal.status as GoalStatus;
@@ -236,15 +385,28 @@ export default function GoalsScreen() {
     ]);
   };
 
-  const handleReassign = (goal: any) => {
-    if (!isOwnerOrManager) return;
-    const buttons = assignableEmployees.map((emp: any) => ({
-      text: emp.name,
-      onPress: () => updateGoal.mutate({ id: goal.id, assignedTo: emp.id }),
-    }));
-    buttons.push({ text: "Unassign", onPress: () => updateGoal.mutate({ id: goal.id, assignedTo: undefined as any }) });
-    buttons.push({ text: "Cancel", onPress: () => {} });
-    Alert.alert("Assign Goal To", "Select a team member:", buttons as any);
+  const openEditModal = (goal: any) => {
+    setEditingGoal(goal);
+    setNewGoalTitle(goal.title || "");
+    setNewGoalDescription(goal.description || "");
+    setNewGoalPriority(goal.priority || "medium");
+    setNewGoalAssignee(goal.assignedTo || null);
+    setNewGoalDeadline(goal.deadline || "");
+    setShowEditGoal(true);
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingGoal) return;
+    updateGoal.mutate({
+      id: editingGoal.id,
+      title: newGoalTitle.trim() || undefined,
+      description: newGoalDescription.trim() || undefined,
+      priority: newGoalPriority,
+      assignedTo: newGoalAssignee || undefined,
+      deadline: newGoalDeadline || null,
+    });
+    resetForm();
   };
 
   const handleAddGoal = () => {
@@ -270,15 +432,122 @@ export default function GoalsScreen() {
     return employeeMap[id] || "Unknown";
   };
 
+  const currentAssignees = isForeman ? foremanAssignees : assignableEmployees;
+
+  // ─── Goal Form (shared between Add and Edit) ────────────────────────────────
+  const renderGoalForm = (isEdit: boolean) => (
+    <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Goal Title *</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. Complete framing on Unit 38"
+        placeholderTextColor={colors.muted}
+        value={newGoalTitle}
+        onChangeText={setNewGoalTitle}
+        autoFocus={!isEdit}
+        returnKeyType="next"
+      />
+
+      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Description (optional)</Text>
+      <TextInput
+        style={[styles.input, { minHeight: 80, textAlignVertical: "top" }]}
+        placeholder="Add more details about this goal…"
+        placeholderTextColor={colors.muted}
+        value={newGoalDescription}
+        onChangeText={setNewGoalDescription}
+        multiline
+        returnKeyType="done"
+      />
+
+      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10 }}>Assign To</Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 16 }}>
+        <TouchableOpacity
+          style={[styles.assigneeChip, {
+            borderColor: !newGoalAssignee ? colors.primary : colors.border,
+            backgroundColor: !newGoalAssignee ? colors.primary + "18" : "transparent",
+          }]}
+          onPress={() => setNewGoalAssignee(null)}
+        >
+          <Text style={{ fontSize: 13, fontWeight: "600", color: !newGoalAssignee ? colors.primary : colors.muted }}>Everyone</Text>
+        </TouchableOpacity>
+        {currentAssignees.map((emp: any) => (
+          <TouchableOpacity
+            key={emp.id}
+            style={[styles.assigneeChip, {
+              borderColor: newGoalAssignee === emp.id ? colors.primary : colors.border,
+              backgroundColor: newGoalAssignee === emp.id ? colors.primary + "18" : "transparent",
+            }]}
+            onPress={() => setNewGoalAssignee(newGoalAssignee === emp.id ? null : emp.id)}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "600", color: newGoalAssignee === emp.id ? colors.primary : colors.muted }}>{emp.name}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10 }}>Priority</Text>
+      <View style={{ flexDirection: "row", marginBottom: 20 }}>
+        {PRIORITIES.map((p) => (
+          <TouchableOpacity
+            key={p}
+            style={[styles.priorityBtn, { borderColor: PRIORITY_COLORS[p], backgroundColor: newGoalPriority === p ? PRIORITY_COLORS[p] + "22" : "transparent" }]}
+            onPress={() => setNewGoalPriority(p)}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "600", color: PRIORITY_COLORS[p], textTransform: "capitalize" }}>{p}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10 }}>Deadline — Pick Date & Time</Text>
+      <DateTimePicker value={newGoalDeadline} onChange={setNewGoalDeadline} colors={colors} />
+
+      {newGoalDeadline ? (
+        <Text style={{ fontSize: 13, color: colors.primary, marginTop: 10, marginBottom: 8, fontWeight: "700", textAlign: "center" }}>
+          Due: {new Date(newGoalDeadline).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} at {new Date(newGoalDeadline).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </Text>
+      ) : null}
+
+      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8, marginBottom: 16 }}>
+        Week: {formatWeekLabel(weekDate)}
+      </Text>
+
+      <TouchableOpacity
+        style={[styles.primaryBtn, (createGoal.isPending || updateGoal.isPending) && { opacity: 0.7 }]}
+        onPress={isEdit ? handleSaveEdit : handleAddGoal}
+        disabled={createGoal.isPending || updateGoal.isPending}
+      >
+        {(createGoal.isPending || updateGoal.isPending) ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>{isEdit ? "Save Changes" : "Add Goal"}</Text>
+        )}
+      </TouchableOpacity>
+
+      {isEdit && (
+        <TouchableOpacity
+          style={{ marginTop: 12, alignItems: "center", paddingVertical: 12 }}
+          onPress={() => {
+            setShowEditGoal(false);
+            setEditingGoal(null);
+            resetForm();
+          }}
+        >
+          <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "600" }}>Cancel</Text>
+        </TouchableOpacity>
+      )}
+    </ScrollView>
+  );
+
   return (
     <ScreenContainer>
       {/* Header */}
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
-        <Text style={{ fontSize: 26, fontWeight: "700", color: colors.foreground }}>Weekly Goals</Text>
+        <Text style={{ fontSize: 26, fontWeight: "700", color: colors.foreground }}>
+          {isLaborer ? "My Goals" : "Weekly Goals"}
+        </Text>
         {canManage && (
           <TouchableOpacity
             style={{ backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}
-            onPress={() => setShowAddGoal(true)}
+            onPress={() => { resetForm(); setShowAddGoal(true); }}
           >
             <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>+ Goal</Text>
           </TouchableOpacity>
@@ -353,112 +622,27 @@ export default function GoalsScreen() {
       <Modal visible={showAddGoal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowAddGoal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.background }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: Math.max(insets.top + 12, 28), paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>Add Weekly Goal</Text>
-            <TouchableOpacity onPress={() => { setShowAddGoal(false); setNewGoalTitle(""); setNewGoalDescription(""); setNewGoalAssignee(null); setNewGoalDeadline(""); }}>
+            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>
+              {isForeman ? "Create Goal for Team" : "Add Weekly Goal"}
+            </Text>
+            <TouchableOpacity onPress={() => { setShowAddGoal(false); resetForm(); }}>
               <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Goal Title *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Complete framing on Job #3"
-              placeholderTextColor={colors.muted}
-              value={newGoalTitle}
-              onChangeText={setNewGoalTitle}
-              autoFocus
-              returnKeyType="next"
-            />
+          {renderGoalForm(false)}
+        </KeyboardAvoidingView>
+      </Modal>
 
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Description (optional)</Text>
-            <TextInput
-              style={[styles.input, { minHeight: 80, textAlignVertical: "top" }]}
-              placeholder="Add more details about this goal…"
-              placeholderTextColor={colors.muted}
-              value={newGoalDescription}
-              onChangeText={setNewGoalDescription}
-              multiline
-              returnKeyType="done"
-            />
-
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10 }}>Assign To</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 16 }}>
-              <TouchableOpacity
-                style={[styles.assigneeChip, {
-                  borderColor: !newGoalAssignee ? colors.primary : colors.border,
-                  backgroundColor: !newGoalAssignee ? colors.primary + "18" : "transparent",
-                }]}
-                onPress={() => setNewGoalAssignee(null)}
-              >
-                <Text style={{ fontSize: 13, fontWeight: "600", color: !newGoalAssignee ? colors.primary : colors.muted }}>Everyone</Text>
-              </TouchableOpacity>
-              {assignableEmployees.map((emp: any) => (
-                <TouchableOpacity
-                  key={emp.id}
-                  style={[styles.assigneeChip, {
-                    borderColor: newGoalAssignee === emp.id ? colors.primary : colors.border,
-                    backgroundColor: newGoalAssignee === emp.id ? colors.primary + "18" : "transparent",
-                  }]}
-                  onPress={() => setNewGoalAssignee(newGoalAssignee === emp.id ? null : emp.id)}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: newGoalAssignee === emp.id ? colors.primary : colors.muted }}>{emp.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10 }}>Priority</Text>
-            <View style={{ flexDirection: "row", marginBottom: 20 }}>
-              {PRIORITIES.map((p) => (
-                <TouchableOpacity
-                  key={p}
-                  style={[styles.priorityBtn, { borderColor: PRIORITY_COLORS[p], backgroundColor: newGoalPriority === p ? PRIORITY_COLORS[p] + "22" : "transparent" }]}
-                  onPress={() => setNewGoalPriority(p)}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: PRIORITY_COLORS[p], textTransform: "capitalize" }}>{p}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10 }}>Deadline (optional)</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-              {/* Quick deadline buttons */}
-              {[
-                { label: "No Deadline", value: "" },
-                { label: "End of Week", value: (() => { const d = new Date(weekStart); d.setDate(d.getDate() + 4); d.setHours(17, 0, 0, 0); return d.toISOString(); })() },
-                { label: "Tomorrow", value: (() => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(17, 0, 0, 0); return d.toISOString(); })() },
-                { label: "+3 Days", value: (() => { const d = new Date(); d.setDate(d.getDate() + 3); d.setHours(17, 0, 0, 0); return d.toISOString(); })() },
-                { label: "+1 Week", value: (() => { const d = new Date(); d.setDate(d.getDate() + 7); d.setHours(17, 0, 0, 0); return d.toISOString(); })() },
-              ].map((opt) => (
-                <TouchableOpacity
-                  key={opt.label}
-                  style={[styles.assigneeChip, {
-                    borderColor: newGoalDeadline === opt.value ? colors.primary : colors.border,
-                    backgroundColor: newGoalDeadline === opt.value ? colors.primary + "18" : "transparent",
-                  }]}
-                  onPress={() => setNewGoalDeadline(opt.value)}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: newGoalDeadline === opt.value ? colors.primary : colors.muted }}>{opt.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {newGoalDeadline ? (
-              <Text style={{ fontSize: 12, color: colors.primary, marginBottom: 12, fontWeight: "600" }}>
-                Due: {new Date(newGoalDeadline).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-              </Text>
-            ) : null}
-
-            <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 16 }}>
-              Week: {formatWeekLabel(weekDate)}
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.primaryBtn, createGoal.isPending && { opacity: 0.7 }]}
-              onPress={handleAddGoal}
-              disabled={createGoal.isPending}
-            >
-              {createGoal.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Add Goal</Text>}
+      {/* Edit Goal Modal */}
+      <Modal visible={showEditGoal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setShowEditGoal(false); setEditingGoal(null); resetForm(); }}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: Math.max(insets.top + 12, 28), paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>Edit Goal</Text>
+            <TouchableOpacity onPress={() => { setShowEditGoal(false); setEditingGoal(null); resetForm(); }}>
+              <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Close</Text>
             </TouchableOpacity>
-          </ScrollView>
+          </View>
+          {renderGoalForm(true)}
         </KeyboardAvoidingView>
       </Modal>
 
@@ -475,11 +659,20 @@ export default function GoalsScreen() {
             const status = item.status as GoalStatus;
             const priority = item.priority as Priority;
             const assigneeName = getAssigneeName(item.assignedTo);
-            const canUpdateStatus = isOwnerOrManager || item.assignedTo === employee?.id;
+            const canUpdateStatus = isOwnerOrManager || isForeman || item.assignedTo === employee?.id;
+            const canEdit = isOwnerOrManager || (isForeman && item.createdBy === employee?.id) || item.assignedTo === employee?.id;
             return (
-              <TouchableOpacity style={styles.card} onPress={() => canUpdateStatus && handleStatusCycle(item)} activeOpacity={canUpdateStatus ? 0.75 : 1}>
+              <TouchableOpacity
+                style={styles.card}
+                onPress={() => canEdit ? openEditModal(item) : (canUpdateStatus && handleStatusCycle(item))}
+                onLongPress={() => canUpdateStatus && handleStatusCycle(item)}
+                activeOpacity={0.75}
+              >
                 <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-                  <Text style={{ fontSize: 22, color: STATUS_COLORS[status], marginTop: 1 }}>{STATUS_ICONS[status]}</Text>
+                  {/* Status icon — tap to cycle */}
+                  <TouchableOpacity onPress={() => canUpdateStatus && handleStatusCycle(item)} style={{ paddingTop: 2 }}>
+                    <Text style={{ fontSize: 22, color: STATUS_COLORS[status] }}>{STATUS_ICONS[status]}</Text>
+                  </TouchableOpacity>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 15, fontWeight: "700", color: status === "completed" ? colors.muted : colors.foreground, textDecorationLine: status === "completed" ? "line-through" : "none" }}>
                       {item.title}
@@ -495,14 +688,12 @@ export default function GoalsScreen() {
                         {status.replace("_", " ")}
                       </Text>
                       {/* Assignee badge */}
-                      <TouchableOpacity
-                        onPress={() => isOwnerOrManager && handleReassign(item)}
-                        style={{ backgroundColor: item.assignedTo ? colors.primary + "18" : colors.border + "66", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}
-                      >
+                      <View style={{ backgroundColor: item.assignedTo ? colors.primary + "18" : colors.border + "66", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
                         <Text style={{ fontSize: 11, fontWeight: "600", color: item.assignedTo ? colors.primary : colors.muted }}>
                           {assigneeName}
                         </Text>
-                      </TouchableOpacity>
+                      </View>
+
                       {/* Deadline badge */}
                       {item.deadline && (() => {
                         const dl = new Date(item.deadline);
@@ -514,11 +705,16 @@ export default function GoalsScreen() {
                           <View style={{ backgroundColor: deadlineColor + "18", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, flexDirection: "row", alignItems: "center", gap: 3 }}>
                             <Text style={{ fontSize: 10 }}>{isOverdue ? "\u23F0" : "\uD83D\uDCC5"}</Text>
                             <Text style={{ fontSize: 11, fontWeight: "700", color: deadlineColor }}>
-                              {isOverdue ? "OVERDUE" : isDueSoon ? "Due Soon" : dl.toLocaleDateString([], { month: "short", day: "numeric" })}
+                              {isOverdue ? "OVERDUE" : isDueSoon ? "Due Soon" : `${dl.toLocaleDateString([], { month: "short", day: "numeric" })} ${dl.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
                             </Text>
                           </View>
                         );
                       })()}
+
+                      {/* Edit hint */}
+                      {canEdit && (
+                        <Text style={{ fontSize: 10, color: colors.muted }}>tap to edit</Text>
+                      )}
                     </View>
                   </View>
                   {canManage && (
@@ -534,16 +730,16 @@ export default function GoalsScreen() {
             <View style={{ alignItems: "center", padding: 40 }}>
               <Text style={{ fontSize: 40 }}>🎯</Text>
               <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginTop: 12 }}>
-                {!isOwnerOrManager ? "No goals assigned to you this week" : "No goals this week"}
+                {isLaborer ? "No goals assigned to you this week" : !isOwnerOrManager && !isForeman ? "No goals this week" : "No goals this week"}
               </Text>
               {canManage && (
                 <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>
                   Tap "+ Goal" to add a weekly goal, or generate goals from a meeting summary.
                 </Text>
               )}
-              {!isOwnerOrManager && (
+              {isLaborer && (
                 <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>
-                  Your manager will assign goals to you here.
+                  Your foreman or manager will assign goals to you here.
                 </Text>
               )}
             </View>

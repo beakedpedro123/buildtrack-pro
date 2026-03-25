@@ -916,3 +916,46 @@ export async function deleteSafetyMeeting(id: number) {
   if (!db) return;
   await db.delete(safetyMeetings).where(eq(safetyMeetings.id, id));
 }
+
+
+// ─── Goals by Employee (for Pivot context) ──────────────────────────────────
+export async function getGoalsForEmployee(employeeId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  const now = new Date();
+  const weekStart = new Date(now);
+  const day = weekStart.getDay();
+  const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+  weekStart.setDate(diff);
+  weekStart.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  return dbConn.select().from(weeklyGoals)
+    .where(
+      and(
+        gte(weeklyGoals.weekOf, weekStart),
+        lt(weeklyGoals.weekOf, weekEnd),
+        or(
+          eq(weeklyGoals.assignedTo, employeeId),
+          isNull(weeklyGoals.assignedTo)
+        )
+      )
+    )
+    .orderBy(weeklyGoals.priority, weeklyGoals.createdAt);
+}
+
+export async function getAllCurrentWeekGoals() {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  const now = new Date();
+  const weekStart = new Date(now);
+  const day = weekStart.getDay();
+  const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+  weekStart.setDate(diff);
+  weekStart.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  return dbConn.select().from(weeklyGoals)
+    .where(and(gte(weeklyGoals.weekOf, weekStart), lt(weeklyGoals.weekOf, weekEnd)))
+    .orderBy(weeklyGoals.priority, weeklyGoals.createdAt);
+}

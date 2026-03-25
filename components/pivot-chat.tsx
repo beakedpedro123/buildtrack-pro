@@ -114,12 +114,16 @@ const ROLE_ACCESS: Record<Role, {
     ],
   },
   laborer: {
-    canUseChat: false,
+    canUseChat: true,
     canUseVoice: false,
     canAttachFiles: false,
-    label: "",
-    placeholder: "",
-    suggestions: [],
+    label: "Team Assistant",
+    placeholder: "Ask about your goals, safety, tasks...",
+    suggestions: [
+      "Sup Pivot, what are my goals?",
+      "Safety tips for today",
+      "How do I clock in?",
+    ],
   },
 };
 
@@ -169,21 +173,41 @@ export function PivotChat() {
     })();
   }, [access.canUseVoice]);
 
-  // Greeting when chat opens
+  // Greeting when chat opens — send "sup Pivot" automatically to get goals-aware response
   useEffect(() => {
-    if (open && messages.length === 0 && access.canUseChat) {
-      const hour = new Date().getHours();
-      const timeGreet = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+    if (open && messages.length === 0 && access.canUseChat && employee) {
       const name = (employee as any)?.name?.split(" ")[0] || "there";
-      let greeting = "";
-      if (role === "secretary") {
-        greeting = `Good ${timeGreet}, ${name}! I'm Pivot, your office assistant.\n\nI can help with payroll, hours, and reports. Tap 🎤 to speak to me.`;
-      } else if (role === "foreman") {
-        greeting = `Good ${timeGreet}, ${name}! I'm Pivot, your field assistant.\n\nAsk me about safety, construction techniques, or how to use the app. Tap 🎤 to speak.`;
-      } else {
-        greeting = `Good ${timeGreet}, ${name}! I'm Pivot, your AI business assistant.\n\nI have access to your live business data. Ask me anything, or attach a PDF, image, or Excel file. Tap 🎤 to speak.`;
-      }
-      setMessages([{ role: "assistant", content: greeting }]);
+      // Auto-send a greeting to Pivot so it returns goals and personalized response
+      const autoGreet = async () => {
+        const greetMsg: Message = { role: "user", content: `Hey Pivot` };
+        setMessages([greetMsg]);
+        setLoading(true);
+        try {
+          const result = await chatMutation.mutateAsync({
+            messages: [{ role: "user", content: `Hey Pivot` }],
+            employeeId: (employee as any).id,
+            context: { currentPage: "mobile-app" },
+          });
+          setMessages([greetMsg, { role: "assistant", content: result.message }]);
+        } catch {
+          const hour = new Date().getHours();
+          const timeGreet = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+          let fallback = "";
+          if (role === "secretary") {
+            fallback = `Good ${timeGreet}, ${name}! I'm Pivot, your office assistant.\n\nI can help with payroll, hours, and reports.`;
+          } else if (role === "foreman") {
+            fallback = `Good ${timeGreet}, ${name}! I'm Pivot, your field assistant.\n\nAsk me about safety, goals, or construction techniques.`;
+          } else if (role === "laborer") {
+            fallback = `Hey ${name}! I'm Pivot.\n\nI can show you your goals and help with safety questions.`;
+          } else {
+            fallback = `Good ${timeGreet}, ${name}! I'm Pivot, your AI business assistant.\n\nI have access to your live business data. Ask me anything.`;
+          }
+          setMessages([{ role: "assistant", content: fallback }]);
+        } finally {
+          setLoading(false);
+        }
+      };
+      autoGreet();
     }
   }, [open]);
 

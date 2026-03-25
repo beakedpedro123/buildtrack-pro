@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, name, role FROM employees WHERE name LIKE '%Lupe%' OR name LIKE '%lupe%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute SELECT id, name, role FROM employees WHERE name LIKE '%Lupe%' OR name LIKE '%lupe%';",
+  "rows": [
+    {
+      "id": "30003",
+      "name": "Lupe Mejia",
+      "role": "secretary"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\trole\n30003\tLupe Mejia\tsecretary\n",
+  "stderr": "",
+  "execution_time_ms": 343
+}

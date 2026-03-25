@@ -1,0 +1,67 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "budgetCategories"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "clockEntries"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "dailyReports"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "employees"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "expenses"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "jobAssignments"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "jobs"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "kpiHistory"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "kpiMetrics"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "materialEntries"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "meetings"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "qbEstimates"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "qbSyncLog"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "reportPhotos"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "safetyMeetings"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "safetyTopics"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "users"
+    },
+    {
+      "Tables_in_dNJxctHZxj6wCg3jq4j4kh": "weeklyGoals"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_dNJxctHZxj6wCg3jq4j4kh\n__drizzle_migrations\nbudgetCategories\nclockEntries\ndailyReports\nemployees\nexpenses\njobAssignments\njobs\nkpiHistory\nkpiMetrics\nmaterialEntries\nmeetings\nqbEstimates\nqbSyncLog\nreportPhotos\nsafetyMeetings\nsafetyTopics\nusers\nweeklyGoals\n",
+  "stderr": "",
+  "execution_time_ms": 348
+}

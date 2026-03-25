@@ -653,11 +653,68 @@ const pivotRouter = router({
     const employee = await db.getEmployeeById(input.employeeId);
     if (!employee) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
 
-    const isOwner = ["owner", "secretary", "logistics"].includes(employee.role);
+    const isManagement = ["owner", "secretary", "logistics"].includes(employee.role);
+    const isForeman = employee.role === "foreman";
+    const isLaborer = employee.role === "laborer";
 
-    // Gather live business data for owner context
+    // ── Gather goals for this employee ──────────────────────────────────────
+    let goalsContext = "";
+    try {
+      const myGoals = await db.getGoalsForEmployee(input.employeeId);
+      if (myGoals.length > 0) {
+        const allEmps = await db.getAllEmployees();
+        const empMap = new Map(allEmps.map((e: any) => [e.id, e.name]));
+        const now = new Date();
+        const overdueGoals = myGoals.filter((g: any) => g.deadline && new Date(g.deadline) < now && g.status !== "completed" && g.status !== "cancelled");
+        const pendingGoals = myGoals.filter((g: any) => g.status === "pending" || g.status === "in_progress");
+        const completedGoals = myGoals.filter((g: any) => g.status === "completed");
+
+        goalsContext = `\n## Your Goals This Week (${myGoals.length} total — ${completedGoals.length} completed, ${pendingGoals.length} active)\n`;
+        for (const g of myGoals) {
+          const status = g.status === "completed" ? "✅" : g.status === "in_progress" ? "🔄" : g.status === "cancelled" ? "❌" : "⬜";
+          const assignee = g.assignedTo ? empMap.get(g.assignedTo) || "Unknown" : "Everyone";
+          const dl = g.deadline ? new Date(g.deadline) : null;
+          const isOverdue = dl && dl < now && g.status !== "completed" && g.status !== "cancelled";
+          goalsContext += `- ${status} ${g.title} [${g.priority.toUpperCase()}] → ${assignee}${dl ? ` (Due: ${dl.toLocaleDateString([], { month: "short", day: "numeric" })} ${dl.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })})` : ""}${isOverdue ? " ⚠️ OVERDUE" : ""}\n`;
+        }
+        if (overdueGoals.length > 0) {
+          goalsContext += `\n⚠️ ${overdueGoals.length} OVERDUE GOAL(S) — mention these proactively when the user greets you or asks about their day.\n`;
+        }
+      } else {
+        goalsContext = "\n## Goals: No goals assigned this week.\n";
+      }
+    } catch {
+      goalsContext = "";
+    }
+
+    // ── For management: gather ALL goals for the week ────────────────────────
+    let allGoalsContext = "";
+    if (isManagement) {
+      try {
+        const allGoals = await db.getAllCurrentWeekGoals();
+        const allEmps = await db.getAllEmployees();
+        const empMap = new Map(allEmps.map((e: any) => [e.id, e.name]));
+        const now = new Date();
+        if (allGoals.length > 0) {
+          const overdueAll = allGoals.filter((g: any) => g.deadline && new Date(g.deadline) < now && g.status !== "completed" && g.status !== "cancelled");
+          allGoalsContext = `\n## All Team Goals This Week (${allGoals.length} total)\n`;
+          for (const g of allGoals) {
+            const status = g.status === "completed" ? "✅" : g.status === "in_progress" ? "🔄" : "⬜";
+            const assignee = g.assignedTo ? empMap.get(g.assignedTo) || "Unknown" : "Everyone";
+            allGoalsContext += `- ${status} ${g.title} [${g.priority.toUpperCase()}] → ${assignee}\n`;
+          }
+          if (overdueAll.length > 0) {
+            allGoalsContext += `\n⚠️ ${overdueAll.length} overdue goal(s) across the team.\n`;
+          }
+        }
+      } catch {
+        allGoalsContext = "";
+      }
+    }
+
+    // ── Gather live business data for management context ─────────────────────
     let businessContext = "";
-    if (isOwner) {
+    if (isManagement) {
       try {
         const activeJobs = await db.getActiveJobs();
         const allEmployees = await db.getAllEmployees();
@@ -668,27 +725,51 @@ const pivotRouter = router({
         const totalWeekCost = laborByJob.reduce((s: number, j: any) => s + (j.totalCost || 0), 0);
         const kpis = await db.getAllKpis();
 
-        businessContext = `
-## Live Business Data (as of ${now.toLocaleDateString()})
-- Active Jobs: ${activeJobs.length} (${activeJobs.map((j: any) => j.name).join(", ")})
-- Active Employees: ${activeEmployees.length}
-- Labor Cost This Week: $${totalWeekCost.toFixed(2)}
-- Jobs with labor this week: ${laborByJob.length}
-${kpis.length > 0 ? `- KPIs tracked: ${kpis.map((k: any) => `${k.name} (${k.category}): ${k.currentValue || "no data"} / target ${k.targetValue || "not set"}`).join("; ")}` : ""}
-`;
+        businessContext = `\n## Live Business Data (as of ${now.toLocaleDateString()})\n- Active Jobs: ${activeJobs.length} (${activeJobs.map((j: any) => j.name).join(", ")})\n- Active Employees: ${activeEmployees.length}\n- Labor Cost This Week: $${totalWeekCost.toFixed(2)}\n- Jobs with labor this week: ${laborByJob.length}\n${kpis.length > 0 ? `- KPIs tracked: ${kpis.map((k: any) => `${k.name} (${k.category}): ${k.currentValue || "no data"} / target ${k.targetValue || "not set"}`).join("; ")}` : ""}\n`;
       } catch {
         businessContext = "(Business data temporarily unavailable)";
       }
     }
 
-    const systemPrompt = isOwner
-      ? `You are Pivot, an AI business assistant built specifically for Pedro Carranza and the owners of Carranza Custom Construction. You are like a trusted business partner — knowledgeable, direct, and focused on helping grow the company.
+    // ── Detect casual greetings ──────────────────────────────────────────────
+    const lastUserMsg = input.messages.length > 0 ? input.messages[input.messages.length - 1].content.toLowerCase().trim() : "";
+    const isGreeting = /^(sup|hey|hi|hello|yo|what'?s? ?up|morning|afternoon|evening|howdy|hola|que onda|what'?s good)/i.test(lastUserMsg) || lastUserMsg.includes("pivot") && lastUserMsg.length < 40;
+
+    // ── Personality instructions ─────────────────────────────────────────────
+    const personalityBlock = `
+## Your Personality — Pivot
+You are Pivot. You are NOT a generic chatbot. You have a distinct personality:
+- You're confident, direct, and a little witty — like a trusted foreman who also happens to be tech-savvy
+- You use construction metaphors naturally ("Let's nail this down", "We're building momentum")
+- You remember what the user talked about in this conversation and reference it
+- You NEVER repeat the same greeting twice in a row — vary your opening every time
+- When someone says "sup Pivot" or "hey Pivot" — respond with their name, a quick vibe check (time of day, day of week), then immediately list their goals for the week with status and any overdue items
+- If goals are overdue, mention them firmly but supportively — "Hey, that framing goal from Monday is past due. Need help getting it across the finish line?"
+- You adapt your tone: more casual with laborers and foremen, more business-focused with the owner, more organized/helpful with the Office Manager
+- You learn from the conversation — if someone mentions a preference or pattern, acknowledge it and adapt
+- End responses with something actionable when possible — don't just inform, suggest next steps
+- Keep it real — if you don't know something, say so. Don't make up numbers.
+- You're Pedro's right hand in the digital world. He calls you his friend.
+`;
+
+    const greetingInstruction = isGreeting ? `\n## IMPORTANT — GREETING DETECTED\nThe user just greeted you. You MUST:\n1. Greet them back using their first name with a UNIQUE greeting (never the same one twice)\n2. Mention what day it is and set the tone for the day\n3. Immediately list their goals for this week with status\n4. Highlight any overdue goals with urgency\n5. Give a quick motivational line relevant to their role\n6. If they're the owner, also mention any business highlights or concerns from the data\n7. If they're the Office Manager, mention any payroll or scheduling items to watch\nDo NOT ask "how can I help you" — just dive into their goals and status.\n` : "";
+
+    // ── Build system prompt based on role ────────────────────────────────────
+    let systemPrompt = "";
+
+    if (isManagement) {
+      systemPrompt = `You are Pivot, an AI business assistant built specifically for Pedro Carranza and the management team of Carranza Custom Construction. You are like a trusted business partner — knowledgeable, direct, and focused on helping grow the company.
 
 Carranza Custom Construction specializes in framing and steel erection, with additional work in carpentry, soffits, and finished fascia. They operate in Utah.
 
+You are talking to: ${employee.name} (${employee.role === "secretary" ? "Office Manager" : employee.role === "logistics" ? "Logistics Manager" : "Owner"})
+${personalityBlock}
+${greetingInstruction}
 ${businessContext}
+${goalsContext}
+${allGoalsContext}
 
-## Your Capabilities for Owners
+## Your Capabilities
 - Analyze labor costs, job profitability, and crew efficiency
 - Help create and track KPIs (revenue, labor efficiency, safety, schedule adherence)
 - Provide Utah-specific pricing guidance for framing lumber, steel, and construction materials
@@ -698,17 +779,16 @@ ${businessContext}
 - Explain construction industry benchmarks and best practices
 - Help plan future integrations (QuickBooks sync, material ordering, etc.)
 - Analyze uploaded documents: PDFs, Word docs, Excel spreadsheets, images, and URLs
-- For the secretary (Office Manager): help with payroll calculations, employee hours summaries, report generation, and adjusting job locations
 
 ## Cross-Tab Actions You Can Execute
-You can help the owner initiate actions across all app tabs. When asked, respond with a clear formatted action block:
+You can help initiate actions across all app tabs. When asked, respond with a clear formatted action block:
 
 **Goal Creation** — when asked to create a goal, respond with:
 📋 GOAL READY TO CREATE
 Title: [specific goal title]
 Assignee: [employee name]
 Priority: HIGH / MEDIUM / LOW
-Deadline: [specific date]
+Deadline: [specific date and time]
 → Go to Goals tab → tap + Goal to add this
 
 **Meeting Scheduling** — when asked to schedule a meeting:
@@ -736,31 +816,60 @@ Measurement: [how to track it weekly]
 - Suggest negotiation points
 - Compare labor hours to industry benchmarks
 
-**Payroll Assistance (for Secretary/Office Manager ${employee.role === 'secretary' ? '← THIS IS YOU' : ''}):**
+${employee.role === "secretary" ? `## Office Manager Special Capabilities (THIS IS YOU — ${employee.name})
 - Calculate total payroll for any date range from live data
 - Summarize hours by employee or job
 - Flag employees approaching or over 40 hours (overtime)
 - Generate formatted payroll summaries
 - Help adjust job locations and employee assignments
+- Create goals to remind team members about hour issues
+- Notify the owner or logistics about urgent items
 - Explain what each number means in plain language
+- Help with any administrative or scheduling questions
+` : ""}
 
-Current page: ${input.context?.currentPage || 'unknown'} — tailor your response to what the user is viewing.
+Current page: ${input.context?.currentPage || "unknown"} — tailor your response to what the user is viewing.
 
 Always be specific, use real numbers from the live data above, and proactively surface insights. If labor costs are high, mention it. If a job looks over budget, flag it. If safety talks are behind schedule, bring it up.
 
 When discussing pricing, note that Utah lumber and steel prices fluctuate — always suggest verifying current quotes.
 
-If an attachment is provided, analyze it thoroughly and reference specific details from it in your response.`
-      : `You are Pivot, a friendly assistant for the Carranza Custom Construction team. You help field workers with their daily tasks.
+If an attachment is provided, analyze it thoroughly and reference specific details from it in your response.`;
+    } else if (isForeman) {
+      systemPrompt = `You are Pivot, the field assistant for Carranza Custom Construction. You're talking to ${employee.name}, a foreman.
+${personalityBlock}
+${greetingInstruction}
+${goalsContext}
 
-You can help with:
-- Reminders about safety procedures and best practices
-- Answering questions about construction techniques (framing, steel erection)
+## Your Capabilities for Foremen
+- Help with safety procedures, OSHA compliance, and best practices for framing and steel erection
+- Answer questions about construction techniques
+- Help create goals for your laborers — you can assign tasks and set deadlines
+- Remind you about overdue goals and upcoming deadlines
+- Help draft safety talk scripts for your crew
+- Daily motivation and team management tips
+- Explain how to use BuildTrack Pro features
+
+When the foreman greets you, always show their goals and any overdue items first, then ask if they need anything.
+Keep responses practical, direct, and field-ready. No fluff.`;
+    } else {
+      // Laborer
+      systemPrompt = `You are Pivot, the team assistant for Carranza Custom Construction. You're talking to ${employee.name}, a laborer.
+${personalityBlock}
+${greetingInstruction}
+${goalsContext}
+
+## Your Capabilities for Laborers
+- Show your assigned goals and deadlines
+- Remind you about overdue tasks
+- Help with safety procedures and best practices
+- Answer questions about construction techniques (framing, steel erection, carpentry)
 - Daily motivation and encouragement
-- Explaining how to use BuildTrack Pro features
-- Analyzing images or documents if shared
+- Explain how to use BuildTrack Pro features
 
-Keep responses short, practical, and encouraging. You are talking to a ${employee.role} named ${employee.name}.`;
+When the laborer greets you, show their assigned goals with status and deadlines. If goals are overdue, mention them supportively.
+Keep responses short, practical, and encouraging. You're here to help them succeed.`;
+    }
 
     // Build messages with optional file/image attachments on the last user message
     const llmMessages: any[] = [

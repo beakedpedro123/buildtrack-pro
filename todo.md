@@ -466,3 +466,43 @@
 - [x] Create LaborCostsPage.tsx for /more/labor route
 - [x] Create HoursPage.tsx for /more/hours route
 - [x] Add routes to App.tsx for both new pages
+
+## Phase 23 — Goals Overhaul, Pivot Personality, Safety Topics
+
+### Goals System Overhaul
+- [x] Replace quick deadline buttons with exact date/time picker
+- [x] Make goals clickable to open edit modal (adjust title, description, priority, assignee, deadline)
+- [x] Allow foreman to create goals for laborers (expand canManage to include foreman)
+- [x] Laborers can see their assigned goals (expand canView to include laborer)
+- [x] Secretary can create goals to remind team about hour issues or notify owner/logistics
+
+### Pivot AI Personality Upgrade
+- [x] When user says "sup Pivot" or "hey Pivot" — respond with their daily goals and role-specific info
+- [x] Pivot reminds users about overdue goals when they open chat
+- [x] Secretary gets payroll help from Pivot (already partially done, verify and enhance)
+- [x] Pivot has unique personality — varied greetings, learns patterns, adapts over time
+- [x] Pivot gives different responses each time (not repetitive greetings)
+- [x] Foreman gets goals info and safety reminders from Pivot
+- [x] Laborer gets their goals when they greet Pivot
+
+### Safety Topics Expansion
+- [x] Double the content length of all 32 OSHA safety topics in the database
+- [x] Each topic should have detailed talking points, real-world examples, and discussion questions
+
+### PWA Goals Page Updates (match mobile)
+- [x] Update PWA GoalsPage with same date/time picker and edit modal
+- [x] Foreman can create goals on PWA
+- [x] Laborers can view their goals on PWA
+
+### Verify Screenshot Items
+- [x] Verify: Payroll fix — secretary sees all dollar amounts
+- [x] Verify: Secretary daily message — motivational message on home screen
+- [x] Verify: Pivot file attachments — PDF, Word, Excel, images, URLs
+- [x] Verify: Photo uploads in Reports — camera/file picker
+- [x] Verify: Photo uploads in Meetings (safety only, removed from daily goals)
+- [x] Verify: Job creation with estimate upload
+- [x] Verify: Pivot cross-tab actions — create goals, schedule meetings, safety talks
+
+## Phase 24 — Daily Meeting Photo Removal
+- [x] Remove photo option from daily meeting (goals review) form on mobile app — keep photos only for safety meetings
+- [x] Remove photo option from daily meeting (goals review) form on PWA — photos not present on PWA meeting form

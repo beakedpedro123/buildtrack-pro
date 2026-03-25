@@ -395,28 +395,32 @@ export default function SafetyScreen() {
             </View>
           </View>
 
-          {/* Photo */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Photo (optional)</Text>
-          </View>
-          {photo && (
-            <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
-              <Image source={{ uri: photo.uri }} style={{ width: "100%", height: 180, borderRadius: 10 }} />
-              <TouchableOpacity onPress={() => setPhoto(null)} style={{ position: "absolute", top: 8, right: 28, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 12, padding: 4 }}>
-                <IconSymbol name="xmark" size={16} color="#fff" />
-              </TouchableOpacity>
-            </View>
+          {/* Photo — only for safety toolbox talks, not daily goals reviews */}
+          {meetingType === "safety_toolbox" && (
+            <>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Photo (optional)</Text>
+              </View>
+              {photo && (
+                <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
+                  <Image source={{ uri: photo.uri }} style={{ width: "100%", height: 180, borderRadius: 10 }} />
+                  <TouchableOpacity onPress={() => setPhoto(null)} style={{ position: "absolute", top: 8, right: 28, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 12, padding: 4 }}>
+                    <IconSymbol name="xmark" size={16} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              )}
+              <View style={styles.photoRow}>
+                <TouchableOpacity style={styles.photoBtn} onPress={takePhoto}>
+                  <IconSymbol name="camera.fill" size={18} color={colors.primary} />
+                  <Text style={styles.photoBtnText}>Camera</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.photoBtn} onPress={pickPhoto}>
+                  <IconSymbol name="photo.fill" size={18} color={colors.primary} />
+                  <Text style={styles.photoBtnText}>Gallery</Text>
+                </TouchableOpacity>
+              </View>
+            </>
           )}
-          <View style={styles.photoRow}>
-            <TouchableOpacity style={styles.photoBtn} onPress={takePhoto}>
-              <IconSymbol name="camera.fill" size={18} color={colors.primary} />
-              <Text style={styles.photoBtnText}>Camera</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.photoBtn} onPress={pickPhoto}>
-              <IconSymbol name="photo.fill" size={18} color={colors.primary} />
-              <Text style={styles.photoBtnText}>Gallery</Text>
-            </TouchableOpacity>
-          </View>
 
           {/* Submit */}
           <TouchableOpacity
