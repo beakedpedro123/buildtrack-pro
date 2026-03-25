@@ -2,8 +2,8 @@
   "expo": {
     "name": "BuildTrack Pro",
     "slug": "construction-manager",
-    "version": "1.0.0",
-    "runtimeVersion": "1.0.0",
+    "version": "1.0.1",
+    "runtimeVersion": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "manust20260317205444",
@@ -91,6 +91,7 @@
         {
           "android": {
             "minSdkVersion": 24,
+            "buildArchs": ["arm64-v8a"],
             "compileSdkVersion": 35,
             "targetSdkVersion": 34,
             "kotlinVersion": "2.0.21"

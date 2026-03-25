@@ -585,3 +585,6 @@
 - [x] Diagnose why buildtrack-dnjxcthz.manus.space returns 404 / doesn't load (path resolution bug)
 - [x] Fix server to serve PWA files correctly in production deployment (dist/public not ../public)
 - [x] Verify web version loads after publish
+
+## Phase 31 — Fix Android Build (minSdkVersion)
+- [x] Set minSdkVersion to 24 + buildArchs arm64-v8a in expo-build-properties to fix Hermes CMake error
