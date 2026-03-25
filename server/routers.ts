@@ -629,6 +629,96 @@ const safetyMeetingsRouter = router({
   }),
 });
 
+// ── Pivot AI Chat Router ──────────────────────────────────────────────────
+const pivotRouter = router({
+  chat: publicProcedure.input(z.object({
+    messages: z.array(z.object({
+      role: z.enum(["user", "assistant"]),
+      content: z.string(),
+    })),
+    employeeId: z.number(),
+    context: z.object({
+      currentPage: z.string().optional(),
+      activeJobsCount: z.number().optional(),
+      onSiteCount: z.number().optional(),
+      totalEmployees: z.number().optional(),
+      totalLaborCost: z.number().optional(),
+    }).optional(),
+  })).mutation(async ({ input }) => {
+    const employee = await db.getEmployeeById(input.employeeId);
+    if (!employee) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+
+    const isOwner = ["owner", "secretary", "logistics"].includes(employee.role);
+
+    // Gather live business data for owner context
+    let businessContext = "";
+    if (isOwner) {
+      try {
+        const activeJobs = await db.getActiveJobs();
+        const allEmployees = await db.getAllEmployees();
+        const activeEmployees = allEmployees.filter((e: any) => e.isActive);
+        const now = new Date();
+        const weekStart = new Date(now); weekStart.setDate(now.getDate() - 7); weekStart.setHours(0,0,0,0);
+        const laborByJob = await db.getLaborCostByJob(weekStart, now);
+        const totalWeekCost = laborByJob.reduce((s: number, j: any) => s + (j.totalCost || 0), 0);
+        const kpis = await db.getAllKpis();
+
+        businessContext = `
+## Live Business Data (as of ${now.toLocaleDateString()})
+- Active Jobs: ${activeJobs.length} (${activeJobs.map((j: any) => j.name).join(", ")})
+- Active Employees: ${activeEmployees.length}
+- Labor Cost This Week: $${totalWeekCost.toFixed(2)}
+- Jobs with labor this week: ${laborByJob.length}
+${kpis.length > 0 ? `- KPIs tracked: ${kpis.map((k: any) => `${k.name} (${k.category}): ${k.currentValue || "no data"} / target ${k.targetValue || "not set"}`).join("; ")}` : ""}
+`;
+      } catch {
+        businessContext = "(Business data temporarily unavailable)";
+      }
+    }
+
+    const systemPrompt = isOwner
+      ? `You are Pivot, an AI business assistant built specifically for Pedro Carranza and the owners of Carranza Custom Construction. You are like a trusted business partner — knowledgeable, direct, and focused on helping grow the company.
+
+Carranza Custom Construction specializes in framing and steel erection, with additional work in carpentry, soffits, and finished fascia. They operate in Utah.
+
+${businessContext}
+
+## Your Capabilities for Owners
+- Analyze labor costs, job profitability, and crew efficiency
+- Help create and track KPIs (revenue, labor efficiency, safety, schedule adherence)
+- Provide Utah-specific pricing guidance for framing lumber, steel, and construction materials
+- Analyze bid estimates and flag risks
+- Suggest improvements to crew scheduling and job management
+- Help draft safety talks, meeting agendas, and weekly goals
+- Explain construction industry benchmarks and best practices
+- Help plan future integrations (QuickBooks sync, material ordering, etc.)
+
+Always be specific, use real numbers when available, and proactively surface insights the owner might not have asked for. If you notice something in the business data that needs attention, mention it.
+
+When discussing pricing, note that Utah lumber and steel prices fluctuate — always acknowledge this and suggest the user verify current quotes.`
+      : `You are Pivot, a friendly assistant for the Carranza Custom Construction team. You help field workers with their daily tasks.
+
+You can help with:
+- Reminders about safety procedures and best practices
+- Answering questions about construction techniques (framing, steel erection)
+- Daily motivation and encouragement
+- Explaining how to use BuildTrack Pro features
+
+Keep responses short, practical, and encouraging. You are talking to a ${employee.role} named ${employee.name}.`;
+
+    const result = await invokeLLM({
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...input.messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+      ],
+    });
+
+    const content = result.choices?.[0]?.message?.content;
+    if (!content) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No response from AI" });
+    return { message: content as string };
+  }),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -653,6 +743,7 @@ export const appRouter = router({
   budgetAlerts: budgetAlertsRouter,
   safetyTopics: safetyTopicsRouter,
   safetyMeetings: safetyMeetingsRouter,
+  pivot: pivotRouter,
 });
 
 export type AppRouter = typeof appRouter;
