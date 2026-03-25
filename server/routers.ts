@@ -637,6 +637,11 @@ const pivotRouter = router({
       content: z.string(),
     })),
     employeeId: z.number(),
+    attachments: z.array(z.object({
+      url: z.string(),
+      type: z.enum(["image", "pdf", "document", "spreadsheet", "url"]),
+      name: z.string().optional(),
+    })).optional(),
     context: z.object({
       currentPage: z.string().optional(),
       activeJobsCount: z.number().optional(),
@@ -687,15 +692,65 @@ ${businessContext}
 - Analyze labor costs, job profitability, and crew efficiency
 - Help create and track KPIs (revenue, labor efficiency, safety, schedule adherence)
 - Provide Utah-specific pricing guidance for framing lumber, steel, and construction materials
-- Analyze bid estimates and flag risks
+- Analyze bid estimates and flag risks — if a PDF or image estimate is shared, extract line items and flag any concerns
 - Suggest improvements to crew scheduling and job management
 - Help draft safety talks, meeting agendas, and weekly goals
 - Explain construction industry benchmarks and best practices
 - Help plan future integrations (QuickBooks sync, material ordering, etc.)
+- Analyze uploaded documents: PDFs, Word docs, Excel spreadsheets, images, and URLs
+- For the secretary (Office Manager): help with payroll calculations, employee hours summaries, report generation, and adjusting job locations
 
-Always be specific, use real numbers when available, and proactively surface insights the owner might not have asked for. If you notice something in the business data that needs attention, mention it.
+## Cross-Tab Actions You Can Execute
+You can help the owner initiate actions across all app tabs. When asked, respond with a clear formatted action block:
 
-When discussing pricing, note that Utah lumber and steel prices fluctuate — always acknowledge this and suggest the user verify current quotes.`
+**Goal Creation** — when asked to create a goal, respond with:
+📋 GOAL READY TO CREATE
+Title: [specific goal title]
+Assignee: [employee name]
+Priority: HIGH / MEDIUM / LOW
+Deadline: [specific date]
+→ Go to Goals tab → tap + Goal to add this
+
+**Meeting Scheduling** — when asked to schedule a meeting:
+📅 MEETING READY TO SCHEDULE
+Title: [meeting title]
+Date & Time: [specific date and time]
+Attendees: [names]
+Agenda: [key points]
+→ Go to Meetings tab → tap + New Meeting
+
+**Safety Talk** — provide a complete ready-to-use script with topic title, 3-5 key points, discussion questions, and sign-off reminder.
+
+**KPI Creation** — when asked to create a KPI:
+📊 KPI READY TO CREATE
+Name: [KPI name]
+Category: labor_efficiency / safety / schedule / revenue
+Target: [specific number]
+Unit: [hours/dollars/percentage]
+Measurement: [how to track it weekly]
+
+**Estimate Analysis** — when an estimate PDF/Excel is attached:
+- Extract and list ALL line items with costs
+- Calculate totals and subtotals
+- Flag items that seem high vs. Utah market rates
+- Suggest negotiation points
+- Compare labor hours to industry benchmarks
+
+**Payroll Assistance (for Secretary/Office Manager ${employee.role === 'secretary' ? '← THIS IS YOU' : ''}):**
+- Calculate total payroll for any date range from live data
+- Summarize hours by employee or job
+- Flag employees approaching or over 40 hours (overtime)
+- Generate formatted payroll summaries
+- Help adjust job locations and employee assignments
+- Explain what each number means in plain language
+
+Current page: ${input.context?.currentPage || 'unknown'} — tailor your response to what the user is viewing.
+
+Always be specific, use real numbers from the live data above, and proactively surface insights. If labor costs are high, mention it. If a job looks over budget, flag it. If safety talks are behind schedule, bring it up.
+
+When discussing pricing, note that Utah lumber and steel prices fluctuate — always suggest verifying current quotes.
+
+If an attachment is provided, analyze it thoroughly and reference specific details from it in your response.`
       : `You are Pivot, a friendly assistant for the Carranza Custom Construction team. You help field workers with their daily tasks.
 
 You can help with:
@@ -703,19 +758,55 @@ You can help with:
 - Answering questions about construction techniques (framing, steel erection)
 - Daily motivation and encouragement
 - Explaining how to use BuildTrack Pro features
+- Analyzing images or documents if shared
 
 Keep responses short, practical, and encouraging. You are talking to a ${employee.role} named ${employee.name}.`;
 
-    const result = await invokeLLM({
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...input.messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-      ],
-    });
+    // Build messages with optional file/image attachments on the last user message
+    const llmMessages: any[] = [
+      { role: "system", content: systemPrompt },
+    ];
+    // Add all messages except the last
+    for (let i = 0; i < input.messages.length - 1; i++) {
+      llmMessages.push({ role: input.messages[i].role, content: input.messages[i].content });
+    }
+    // Add last message with attachments if present
+    if (input.messages.length > 0) {
+      const lastMsg = input.messages[input.messages.length - 1];
+      if (lastMsg.role === "user" && input.attachments && input.attachments.length > 0) {
+        const contentParts: any[] = [{ type: "text", text: lastMsg.content || "Please analyze the attached file(s)." }];
+        for (const att of input.attachments) {
+          if (att.type === "image") {
+            contentParts.push({ type: "image_url", image_url: { url: att.url, detail: "high" } });
+          } else if (att.type === "pdf") {
+            contentParts.push({ type: "file_url", file_url: { url: att.url, mime_type: "application/pdf" } });
+          } else {
+            // Word/Excel/URL — add as text reference
+            contentParts.push({ type: "text", text: `\n[Attached file: ${att.name || att.url} (${att.type}). URL: ${att.url}]` });
+          }
+        }
+        llmMessages.push({ role: "user", content: contentParts });
+      } else {
+        llmMessages.push({ role: lastMsg.role, content: lastMsg.content });
+      }
+    }
 
+    const result = await invokeLLM({ messages: llmMessages });
     const content = result.choices?.[0]?.message?.content;
     if (!content) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No response from AI" });
     return { message: content as string };
+  }),
+
+  transcribeVoice: publicProcedure.input(z.object({
+    audioUrl: z.string().url(),
+  })).mutation(async ({ input }) => {
+    try {
+      const result = await transcribeAudio({ audioUrl: input.audioUrl, language: "en" });
+      const text = (result as any)?.text || "";
+      return { text: text || "" };
+    } catch {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Transcription failed" });
+    }
   }),
 });
 

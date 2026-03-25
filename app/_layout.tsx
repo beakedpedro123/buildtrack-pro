@@ -22,6 +22,7 @@ import {
 import type { EdgeInsets, Metrics, Rect } from "react-native-safe-area-context";
 import { trpc, createTRPCClient } from "@/lib/trpc";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
+import { PivotChat } from "@/components/pivot-chat";
 
 // Set up notification handler at module level (before any component mounts)
 if (Platform.OS !== "web") {
@@ -117,6 +118,7 @@ export default function RootLayout() {
                   <Stack.Screen name="oauth/callback" />
                 </Stack>
                 <StatusBar style="auto" />
+                <PivotChat />
               </OfflineQueueProvider>
             </AuthProvider>
           </QueryClientProvider>
