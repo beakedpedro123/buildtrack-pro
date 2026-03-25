@@ -566,3 +566,17 @@
 - [x] Generate modern robot avatar for Pivot (custom PivotAvatar component with glowing robot face)
 - [x] Update PWA PivotChat to match — no auto-greeting, smooth scroll, modern avatar (PWA uses browser scroll, no auto-greeting)
 - [x] Ensure all 3 platforms (web, Android, iOS) have identical code and behavior
+
+## Phase 29 — PWA Rebuild + iOS Strict Code Audit
+- [x] Update PWA PivotChat: remove auto-greeting, add modern robot avatar, improve scroll
+- [x] Rebuild PWA for production and deploy to buildtrack-dnjxcthz.manus.space
+- [x] iOS strict audit: no Animated.createAnimatedComponent(Svg) found — PASS
+- [x] iOS strict audit: no gesture worklet callbacks found — PASS (no custom gestures used)
+- [x] iOS strict audit: inline styles noted but non-crashing; PivotChat uses StyleSheet.create
+- [x] iOS strict audit: all lists use FlatList with keyExtractor — PASS
+- [x] iOS strict audit: Pressable className globally disabled via nativewind-pressable — PASS
+- [x] iOS strict audit: all 12 tab screens use ScreenContainer — PASS
+- [x] iOS strict audit: no blocking main thread operations found — PASS
+- [x] iOS strict audit: PivotChat text uses lineHeight 21-22 for fontSize 15 — PASS
+- [x] iOS strict audit: all imports verified, no undefined references — PASS
+- [x] iOS strict audit: useAudioRecorder hook handles cleanup internally — PASS

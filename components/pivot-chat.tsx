@@ -237,12 +237,19 @@ export function PivotChat() {
   // NO auto-greeting — wait for user to say something first
   // When chat opens, just show suggestions. Pivot speaks only when spoken to.
 
-  // Scroll to bottom when new messages arrive
+  // Scroll to bottom when new messages arrive or keyboard shows
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 150);
+  }, []);
+
   useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 150);
-    }
-  }, [messages.length, loading]);
+    if (messages.length > 0) scrollToBottom();
+  }, [messages.length, loading, scrollToBottom]);
+
+  // Also scroll when keyboard appears so input stays visible
+  useEffect(() => {
+    if (keyboardVisible && messages.length > 0) scrollToBottom();
+  }, [keyboardVisible, messages.length, scrollToBottom]);
 
   // ─── Voice recording ─────────────────────────────────────────────────────────
 
@@ -435,7 +442,8 @@ export function PivotChat() {
     },
     modal: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
     panel: {
-      height: "80%",
+      maxHeight: "85%",
+      flex: 1,
       backgroundColor: colors.surface,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
@@ -534,7 +542,7 @@ export function PivotChat() {
       flexDirection: "row",
       alignItems: "flex-end",
       padding: 10,
-      paddingBottom: Platform.OS === "ios" ? 10 : 10,
+      paddingBottom: Platform.OS === "ios" ? 10 : 12,
       gap: 8,
       borderTopWidth: 0.5,
       borderTopColor: colors.border,
@@ -606,7 +614,7 @@ export function PivotChat() {
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={{ flex: 1, justifyContent: "flex-end" }}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
           >
             <Pressable style={s.panel} onPress={(e) => e.stopPropagation()}>
               {/* Header */}
