@@ -676,3 +676,9 @@
 - [x] Nuclear postinstall script patches node_modules + android/ + gradle files
 - [x] Verified zero traces of 22 in any file after prebuild --clean
 - [x] Save checkpoint and re-publish
+
+## Phase 44 — Fix PWA Clock NaN/Invalid Date
+- [x] Fix "NaNh NaNm" display on clock page — time format parsing broken
+- [x] Fix "Since Invalid Date" — clockIn timestamp not parsed correctly
+- [x] Fix clock-in/out not working on web (iPad) — error message on submit
+- [x] Ensure clock data syncs correctly between Android APK and web PWA
