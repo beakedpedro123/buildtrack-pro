@@ -95,7 +95,14 @@ android {
         versionCode 1
         versionName "1.0.1"
 
-        buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+        buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'
+        // [NUCLEAR] Force CMake to use API level 24
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_NATIVE_API_LEVEL=24"
+            }
+        }
+}\""
     }
     signingConfigs {
         debug {

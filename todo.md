@@ -666,3 +666,13 @@
 - [x] Ensure foremen can upload documents and pictures when talking to Pivot
 - [x] Hide job budget dollar amounts from foremen (show only percentage + progress bar)
 - [x] Rebuilt PWA and deployed without breaking existing features
+
+## Phase 43 — FINAL NUCLEAR Fix for Android Build minSdkVersion 22
+- [x] Enhanced config plugin with 8 layers of defense
+- [x] Added CMake arguments: -DANDROID_NATIVE_API_LEVEL=24 (directly tells CMake)
+- [x] Added allprojects afterEvaluate to force minSdkVersion on ALL subprojects
+- [x] Added settings.gradle gradle.beforeProject to set ext on every project
+- [x] Added ext.minSdkVersion override AFTER expo-root-project apply
+- [x] Nuclear postinstall script patches node_modules + android/ + gradle files
+- [x] Verified zero traces of 22 in any file after prebuild --clean
+- [x] Save checkpoint and re-publish

@@ -1,0 +1,18 @@
+
+// Auto-generated: Force minSdkVersion to 24
+allprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                if (it.hasProperty('defaultConfig')) {
+                    it.defaultConfig {
+                        if (minSdkVersion.apiLevel < 24) {
+                            minSdkVersion 24
+                        }
+                    }
+                }
+            }
+        }
+        project.ext.set("minSdkVersion", 24)
+    }
+}

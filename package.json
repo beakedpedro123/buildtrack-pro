@@ -17,10 +17,11 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "qr": "node scripts/generate_qr.mjs",
-    "postinstall": "node scripts/fix-min-sdk.js",
-    "eas-build-post-install": "node scripts/fix-min-sdk.js",
+    "postinstall": "node scripts/force-min-sdk-24.js",
+    "eas-build-post-install": "node scripts/force-min-sdk-24.js",
     "eas-build-pre-install": "echo EAS_BUILD_PRE_INSTALL",
-    "expo-prebuild": "node scripts/fix-min-sdk.js"
+    "expo-prebuild": "node scripts/force-min-sdk-24.js",
+    "preandroid": "node scripts/force-min-sdk-24.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

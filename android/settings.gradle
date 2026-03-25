@@ -39,5 +39,19 @@ expoAutolinking.useExpoVersionCatalog { catalog ->
     catalog.version("targetSdk", "35")
 }
 
+// FORCE minSdk in version catalog
+versionCatalogs {
+    named("expoLibs") {
+        version("minSdk", "24")
+    }
+}
+
 include ':app'
 includeBuild(expoAutolinking.reactNativeGradlePlugin)
+
+// [NUCLEAR] Force minSdkVersion on every project
+gradle.beforeProject { proj ->
+    proj.ext.set("minSdkVersion", 24)
+    proj.ext.set("compileSdkVersion", 35)
+    proj.ext.set("targetSdkVersion", 35)
+}

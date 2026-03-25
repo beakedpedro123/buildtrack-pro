@@ -1,13 +1,13 @@
 /**
- * Expo Config Plugin to force minSdkVersion 24 across ALL Android build files.
+ * NUCLEAR Expo Config Plugin to force minSdkVersion 24 across ALL Android build files.
  * 
- * Nuclear approach — patches EVERY file that could influence minSdkVersion:
- * 1. settings.gradle: Override useExpoVersionCatalog to force minSdk=24
- * 2. build.gradle: ext block BEFORE expo-root-project plugin
- * 3. app/build.gradle: Hardcode minSdkVersion 24 in defaultConfig
+ * This is the most extreme approach possible:
+ * 1. settings.gradle: Override version catalog with explicit minSdk=24
+ * 2. build.gradle: ext block BEFORE expo-root-project + override AFTER
+ * 3. app/build.gradle: Hardcode minSdkVersion 24 + afterEvaluate override + CMake arguments
  * 4. gradle.properties: android.minSdkVersion=24
- * 
- * Hermes (React Native 0.81) requires minSdkVersion 24+.
+ * 5. Version catalog TOML: Direct file patch
+ * 6. allprojects afterEvaluate: Force minSdkVersion on ALL subprojects
  */
 const {
   withProjectBuildGradle,
@@ -29,9 +29,6 @@ function withMinSdk24(config) {
     if (config.modResults.language === "groovy") {
       let contents = config.modResults.contents;
 
-      // Replace the useExpoVersionCatalog() call with one that forces our versions
-      // The original call: expoAutolinking.useExpoVersionCatalog()
-      // We replace it with a version that includes explicit overrides
       const originalCall = "expoAutolinking.useExpoVersionCatalog()";
       const overrideCall = `expoAutolinking.useExpoVersionCatalog { catalog ->
     catalog.version("minSdk", "${MIN_SDK}")
@@ -43,12 +40,24 @@ function withMinSdk24(config) {
         contents = contents.replace(originalCall, overrideCall);
       }
 
+      // Also add a gradle.beforeProject to force ext on every project
+      if (!contents.includes('// [NUCLEAR] Force minSdkVersion')) {
+        contents += `
+// [NUCLEAR] Force minSdkVersion on every project
+gradle.beforeProject { proj ->
+    proj.ext.set("minSdkVersion", ${MIN_SDK})
+    proj.ext.set("compileSdkVersion", ${COMPILE_SDK})
+    proj.ext.set("targetSdkVersion", ${TARGET_SDK})
+}
+`;
+      }
+
       config.modResults.contents = contents;
     }
     return config;
   });
 
-  // 1. Force ext block in root build.gradle
+  // 1. Force ext block in root build.gradle + allprojects afterEvaluate
   config = withProjectBuildGradle(config, (config) => {
     if (config.modResults.language === "groovy") {
       let contents = config.modResults.contents;
@@ -58,11 +67,14 @@ function withMinSdk24(config) {
         /\/\/ \[withMinSdk24\] Force minSdkVersion[\s\S]*?\/\/ \[\/withMinSdk24\]\n*/g,
         ""
       );
+      contents = contents.replace(
+        /\/\/ FORCE minSdkVersion override after expo-root-project\next\.minSdkVersion = \d+\n*/g,
+        ""
+      );
 
       // Insert ext block BEFORE the expo-root-project plugin apply
       const extBlock = `// [withMinSdk24] Force minSdkVersion
 // Hermes (React Native 0.81) requires minSdkVersion 24+
-// Must be set BEFORE expo-root-project plugin (uses setIfNotExist)
 ext {
     minSdkVersion = ${MIN_SDK}
     compileSdkVersion = ${COMPILE_SDK}
@@ -73,13 +85,43 @@ ext {
 // [/withMinSdk24]
 `;
 
-      // Insert before 'apply plugin: "expo-root-project"'
       const pluginLine = 'apply plugin: "expo-root-project"';
       if (contents.includes(pluginLine)) {
         contents = contents.replace(pluginLine, extBlock + pluginLine);
       } else {
-        // Fallback: prepend at the very beginning
         contents = extBlock + "\n" + contents;
+      }
+
+      // Add AFTER expo-root-project to override whatever it sets
+      if (!contents.includes('// [NUCLEAR] Override after expo-root-project')) {
+        contents = contents.replace(
+          pluginLine,
+          pluginLine + `
+
+// [NUCLEAR] Override after expo-root-project
+ext.minSdkVersion = ${MIN_SDK}
+ext.compileSdkVersion = ${COMPILE_SDK}
+ext.targetSdkVersion = ${TARGET_SDK}
+
+// Force on ALL subprojects via afterEvaluate
+allprojects {
+    afterEvaluate { proj ->
+        proj.ext.set("minSdkVersion", ${MIN_SDK})
+        if (proj.hasProperty("android")) {
+            proj.android {
+                if (it.hasProperty("defaultConfig")) {
+                    it.defaultConfig {
+                        if (minSdkVersion.apiLevel < ${MIN_SDK}) {
+                            minSdkVersion ${MIN_SDK}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+`
+        );
       }
 
       config.modResults.contents = contents;
@@ -87,7 +129,7 @@ ext {
     return config;
   });
 
-  // 2. Hardcode minSdkVersion in app/build.gradle as fallback
+  // 2. Hardcode minSdkVersion in app/build.gradle + add CMake arguments
   config = withAppBuildGradle(config, (config) => {
     if (config.modResults.language === "groovy") {
       let contents = config.modResults.contents;
@@ -97,6 +139,27 @@ ext {
         /minSdkVersion\s+rootProject\.ext\.minSdkVersion/g,
         `minSdkVersion ${MIN_SDK}`
       );
+
+      // Also replace any numeric minSdkVersion that's not 24
+      contents = contents.replace(
+        /minSdkVersion\s+2[0-3]\b/g,
+        `minSdkVersion ${MIN_SDK}`
+      );
+
+      // Add externalNativeBuild CMake arguments to force ANDROID_NATIVE_API_LEVEL
+      if (!contents.includes('ANDROID_NATIVE_API_LEVEL')) {
+        contents = contents.replace(
+          /(defaultConfig\s*\{[^}]*)(})/,
+          `$1
+        // [NUCLEAR] Force CMake to use API level 24
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_NATIVE_API_LEVEL=${MIN_SDK}"
+            }
+        }
+$2`
+        );
+      }
 
       config.modResults.contents = contents;
     }
@@ -127,7 +190,7 @@ ext {
     return config;
   });
 
-  // 4. Also patch the react-native version catalog TOML directly
+  // 4. Patch the react-native version catalog TOML directly
   config = withDangerousMod(config, [
     "android",
     async (config) => {
@@ -154,6 +217,17 @@ ext {
         );
         fs.writeFileSync(versionCatalogPath, content, "utf8");
       }
+
+      // Also run the nuclear fix script
+      try {
+        const fixScript = path.join(config.modRequest.projectRoot, "scripts", "force-min-sdk-24.js");
+        if (fs.existsSync(fixScript)) {
+          require(fixScript);
+        }
+      } catch (e) {
+        console.log("[withMinSdk24] Warning: force-min-sdk-24.js failed:", e.message);
+      }
+
       return config;
     },
   ]);

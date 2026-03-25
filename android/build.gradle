@@ -1,5 +1,9 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
+ext {
+    minSdkVersion = 24
+}
+
 buildscript {
   repositories {
     google()
@@ -22,7 +26,6 @@ allprojects {
 
 // [withMinSdk24] Force minSdkVersion
 // Hermes (React Native 0.81) requires minSdkVersion 24+
-// Must be set BEFORE expo-root-project plugin (uses setIfNotExist)
 ext {
     minSdkVersion = 24
     compileSdkVersion = 35
@@ -32,4 +35,29 @@ ext {
 }
 // [/withMinSdk24]
 apply plugin: "expo-root-project"
+
+// [NUCLEAR] Override after expo-root-project
+ext.minSdkVersion = 24
+ext.compileSdkVersion = 35
+ext.targetSdkVersion = 35
+
+// Force on ALL subprojects via afterEvaluate
+allprojects {
+    afterEvaluate { proj ->
+        proj.ext.set("minSdkVersion", 24)
+        if (proj.hasProperty("android")) {
+            proj.android {
+                if (it.hasProperty("defaultConfig")) {
+                    it.defaultConfig {
+                        if (minSdkVersion.apiLevel < 24) {
+                            minSdkVersion 24
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 apply plugin: "com.facebook.react.rootproject"
