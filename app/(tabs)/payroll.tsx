@@ -89,8 +89,8 @@ export default function PayrollScreen() {
 
   // RBAC: payroll screen is for owner/secretary/logistics only
   const canAccessPayroll = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
-  // Only the owner can see individual hourly rates and total payroll cost
-  const canSeeRates = employee?.role === "owner";
+  // Owner and secretary (Office Manager) can see individual hourly rates and total payroll cost
+  const canSeeRates = employee?.role === "owner" || employee?.role === "secretary";
 
   if (!canAccessPayroll) {
     return (

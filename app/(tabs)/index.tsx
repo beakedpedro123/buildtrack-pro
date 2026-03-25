@@ -31,7 +31,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
-  secretary: "Secretary",
+  secretary: "Office Manager",
   logistics: "Logistics",
   foreman: "Foreman",
   laborer: "Laborer",
@@ -162,13 +162,13 @@ export default function DashboardScreen() {
 
   const maxJobCost = useMemo(() => {
     if (!byJob || byJob.length === 0) return 1;
-    return Math.max(...byJob.map(j => canSeeDollars && isOwner ? j.totalCost : j.totalMinutes)) || 1;
-  }, [byJob, canSeeDollars, isOwner]);
+    return Math.max(...byJob.map(j => canSeeDollars ? j.totalCost : j.totalMinutes)) || 1;
+  }, [byJob, canSeeDollars]);
 
   const maxWeeklyCost = useMemo(() => {
     if (!weeklyTrend || weeklyTrend.length === 0) return 1;
-    return Math.max(...weeklyTrend.map(w => canSeeDollars && isOwner ? w.totalCost : w.totalMinutes)) || 1;
-  }, [weeklyTrend, canSeeDollars, isOwner]);
+    return Math.max(...weeklyTrend.map(w => canSeeDollars ? w.totalCost : w.totalMinutes)) || 1;
+  }, [weeklyTrend, canSeeDollars]);
 
   const elapsed = activeEntry ? now.getTime() - new Date(activeEntry.clockIn).getTime() : 0;
   const activeJobForEntry = (activeJobs || myJobs || []).find((j) => j.id === activeEntry?.jobId);
@@ -478,6 +478,11 @@ export default function DashboardScreen() {
               {now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
             </Text>
           </View>
+          {!isOwner && (
+            <Text style={{ fontSize: 13, fontStyle: "italic", color: colors.muted, marginTop: 6 }}>
+              {getDailyQuote()}
+            </Text>
+          )}
         </View>
 
         {/* Management KPIs */}
@@ -571,7 +576,7 @@ export default function DashboardScreen() {
         {/* ═══ LABOR COST DASHBOARD (management only) ═══ */}
         <>
           <View style={[styles.sectionHeader, { marginTop: 4 }]}>
-            <Text style={styles.sectionTitle}>{isOwner ? "Labor Costs" : "Labor Overview"}</Text>
+            <Text style={styles.sectionTitle}>{canSeeDollars ? "Labor Costs" : "Labor Overview"}</Text>
           </View>
 
           {/* Period Selector */}
@@ -606,10 +611,10 @@ export default function DashboardScreen() {
           <View style={styles.summaryRow}>
             <View style={styles.summaryCard}>
               <Text style={[styles.summaryValue, { color: colors.primary }]}>
-                {isOwner ? formatCurrency(totalCost) : formatHours(totalMinutes)}
+                {canSeeDollars ? formatCurrency(totalCost) : formatHours(totalMinutes)}
               </Text>
               <Text style={styles.summaryLabel}>
-                {isOwner ? `Total Spend (${periodLabel})` : `Total Hours (${periodLabel})`}
+                {canSeeDollars ? `Total Spend (${periodLabel})` : `Total Hours (${periodLabel})`}
               </Text>
             </View>
             <View style={styles.summaryCard}>
@@ -634,13 +639,13 @@ export default function DashboardScreen() {
               </Text>
               <View style={styles.weeklyChart}>
                 {weeklyTrend.map((w, i) => {
-                  const value = isOwner ? w.totalCost : w.totalMinutes;
+                  const value = canSeeDollars ? w.totalCost : w.totalMinutes;
                   const height = maxWeeklyCost > 0 ? Math.max((value / maxWeeklyCost) * 80, 2) : 2;
                   const isCurrentWeek = i === weeklyTrend.length - 1;
                   return (
                     <View key={i} style={{ flex: 1, alignItems: "center" }}>
                       <Text style={{ fontSize: 8, fontWeight: "600", color: colors.muted, marginBottom: 3 }}>
-                        {isOwner ? formatCurrency(value) : formatHours(value)}
+                        {canSeeDollars ? formatCurrency(value) : formatHours(value)}
                       </Text>
                       <View
                         style={[
@@ -668,13 +673,13 @@ export default function DashboardScreen() {
           {byJob && byJob.length > 0 && (
             <>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, paddingHorizontal: 20, marginBottom: 8 }}>
-                {isOwner ? "Cost" : "Hours"} by Job ({periodLabel})
+                {canSeeDollars ? "Cost" : "Hours"} by Job ({periodLabel})
               </Text>
               <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
                 {byJob.slice(0, 8).map((job) => {
-                  const value = isOwner ? job.totalCost : job.totalMinutes;
+                  const value = canSeeDollars ? job.totalCost : job.totalMinutes;
                   const pct = maxJobCost > 0 ? (value / maxJobCost) * 100 : 0;
-                  const hasOverhead = isOwner && (job.taxRate > 0 || job.workersCompRate > 0 || job.liabilityInsRate > 0);
+                  const hasOverhead = canSeeDollars && (job.taxRate > 0 || job.workersCompRate > 0 || job.liabilityInsRate > 0);
                   return (
                     <View key={job.jobId} style={{ marginBottom: hasOverhead ? 12 : 0 }}>
                       <View style={styles.barRow}>
@@ -683,7 +688,7 @@ export default function DashboardScreen() {
                           <View style={[styles.barFill, { width: `${Math.max(pct, 2)}%`, backgroundColor: colors.primary }]} />
                         </View>
                         <Text style={[styles.barValue, { color: colors.foreground }]}>
-                          {isOwner ? formatCurrency(job.totalCost) : formatHours(job.totalMinutes)}
+                          {canSeeDollars ? formatCurrency(job.totalCost) : formatHours(job.totalMinutes)}
                         </Text>
                       </View>
                       {hasOverhead && (
@@ -737,7 +742,7 @@ export default function DashboardScreen() {
                     </View>
                     <View>
                       <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, textAlign: "right" }}>{formatHours(emp.totalMinutes)}</Text>
-                      {isOwner && (
+                      {canSeeDollars && (
                         <Text style={{ fontSize: 10, color: colors.muted, textAlign: "right" }}>{formatCurrency(emp.totalCost)}</Text>
                       )}
                     </View>
