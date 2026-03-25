@@ -547,3 +547,7 @@
 - [x] Check for missing imports or undefined references
 - [x] Ensure no hardcoded URLs or test data
 - [x] Verify all tRPC procedure names match between client and server
+
+## Phase 26 — Android Build Fix
+- [x] Fix minSdkVersion from 22 to 24, set compileSdkVersion 35, targetSdkVersion 34, removed buildArchs restriction
+- [x] PWA web version accessible at dev server URL; deployed domain serves API backend
