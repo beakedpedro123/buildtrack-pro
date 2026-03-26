@@ -27,9 +27,10 @@ export type MessageContent = string | TextContent | ImageContent | FileContent;
 
 export type Message = {
   role: Role;
-  content: MessageContent | MessageContent[];
+  content: MessageContent | MessageContent[] | null;
   name?: string;
   tool_call_id?: string;
+  tool_calls?: ToolCall[];
 };
 
 export type Tool = {
@@ -131,10 +132,10 @@ const normalizeContentPart = (part: MessageContent): TextContent | ImageContent 
 };
 
 const normalizeMessage = (message: Message) => {
-  const { role, name, tool_call_id } = message;
+  const { role, name, tool_call_id, tool_calls } = message;
 
   if (role === "tool" || role === "function") {
-    const content = ensureArray(message.content)
+    const content = ensureArray(message.content || "")
       .map((part) => (typeof part === "string" ? part : JSON.stringify(part)))
       .join("\n");
 
@@ -144,6 +145,23 @@ const normalizeMessage = (message: Message) => {
       tool_call_id,
       content,
     };
+  }
+
+  // Handle assistant messages with tool_calls (content may be null)
+  if (role === "assistant" && tool_calls && tool_calls.length > 0) {
+    const result: Record<string, unknown> = { role, tool_calls };
+    if (message.content) {
+      const contentParts = ensureArray(message.content).map(normalizeContentPart);
+      result.content = contentParts.length === 1 && contentParts[0].type === "text" ? contentParts[0].text : contentParts;
+    } else {
+      result.content = null;
+    }
+    return result;
+  }
+
+  // Handle null content (shouldn't happen normally but be safe)
+  if (!message.content) {
+    return { role, name, content: "" };
   }
 
   const contentParts = ensureArray(message.content).map(normalizeContentPart);

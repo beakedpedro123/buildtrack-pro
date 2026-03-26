@@ -687,3 +687,39 @@
 - [x] Verify deployment pipeline copies updated PWA to correct location
 - [x] Force service worker cache bust so users get new code
 - [x] Confirm clockInTime references are gone from production bundle
+
+## Phase 46 — PWA UI Redesign to Match APK + Pivot AI Upgrade
+
+### PWA UI Redesign (Match Android APK)
+- [x] Study APK native screens: Dashboard, Clock, Jobs, Reports, Meetings, Pivot
+- [x] Redesign PWA Dashboard to match APK card styles and layout
+- [x] Redesign PWA Clock page to match APK
+- [x] Redesign PWA Jobs page to match APK
+- [x] Redesign PWA Reports page to match APK
+- [x] Redesign PWA Meetings page to match APK
+- [x] Match APK navigation, tab bar, and header styles
+- [x] Match APK color scheme, typography, and spacing
+
+### Pivot AI — Web Search Capability
+- [x] Integrate web search API into Pivot backend
+- [x] Pivot can look up real-time info (weather, material prices, code requirements)
+- [x] Update all three versions (APK, PWA, iOS) with web search
+
+### Pivot AI — Smoother Chat Interface
+- [x] Redesign Pivot chat on PWA with polished message bubbles
+- [x] Add typing indicators and smooth animations
+- [x] Cleaner input area with attachment button
+- [x] Match APK Pivot chat layout on PWA
+
+### Pivot AI — Better File/Photo Sharing
+- [x] Easier document and photo sharing in Pivot chat
+- [x] Visual feedback from Pivot (formatted reports, tables, actionable items)
+- [x] File sharing works across all three versions
+
+### Pivot AI — Personal Growth Per Employee
+- [x] Enhance Pivot memory to track personal preferences, communication style, work patterns per employee
+- [x] Track personal interests/topics so Pivot remembers non-work conversations too
+- [x] Make Pivot adapt tone and language per employee based on learned patterns
+- [x] Each employee gets their own unique Pivot experience that evolves over time
+- [x] Pivot proactively references past conversations and personal details naturally
+- [x] Deeper relationship building — Pivot becomes each person's personal helper

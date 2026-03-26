@@ -285,6 +285,9 @@ export const pivotMemory = mysqlTable("pivotMemory", {
   conversationSummary: text("conversationSummary"), // AI-generated summary of past conversations
   preferences: text("preferences"), // JSON: topics of interest, communication style, patterns
   ownerPatterns: text("ownerPatterns"), // JSON: owner-only decision patterns Pivot has learned
+  personalProfile: text("personalProfile"), // JSON: personal interests, family, hobbies, life details Pivot has learned
+  communicationStyle: text("communicationStyle"), // JSON: how this person communicates, humor, formality, topics they care about
+  growthLog: text("growthLog"), // JSON: milestones in Pivot's relationship with this employee
   interactionCount: int("interactionCount").default(0).notNull(),
   lastInteraction: timestamp("lastInteraction").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

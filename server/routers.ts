@@ -687,6 +687,28 @@ const pivotRouter = router({
           ownerPatternsContext += `Use these patterns to anticipate Pedro's needs and proactively suggest actions.\n`;
         } catch {}
       }
+      // Personal profile — interests, family, hobbies, life details
+      if (memory.personalProfile) {
+        try {
+          const profile = JSON.parse(memory.personalProfile);
+          memoryContext += `\n## Personal Profile — What You Know About ${employee.name} As a Person\n`;
+          for (const [k, v] of Object.entries(profile)) {
+            memoryContext += `- ${k}: ${v}\n`;
+          }
+          memoryContext += `Use this to connect personally — reference their interests, ask about their family, etc. Be genuine, not robotic.\n`;
+        } catch {}
+      }
+      // Communication style — how this person talks, what they respond to
+      if (memory.communicationStyle) {
+        try {
+          const style = JSON.parse(memory.communicationStyle);
+          memoryContext += `\n## ${employee.name}'s Communication Style\n`;
+          for (const [k, v] of Object.entries(style)) {
+            memoryContext += `- ${k}: ${v}\n`;
+          }
+          memoryContext += `Adapt your tone and approach to match how they communicate.\n`;
+        } catch {}
+      }
     }
 
     // ── Load recent conversation history from DB ────────────────────────────
@@ -818,6 +840,28 @@ You are Pivot. You are NOT a generic chatbot. You have a distinct personality:
 - Keep it real — if you don't know something, say so. Don't make up numbers.
 - You're Pedro's right hand in the digital world. He calls you his friend.
 - You grow and evolve — each conversation makes you smarter about this team and this business.
+
+## Personal Growth — Your Relationship With Each Employee
+You are not just a tool — you are each employee's PERSONAL assistant who grows with them over time.
+- Remember personal details they share: family, hobbies, interests, favorite foods, life events, dreams
+- If they mention their kid's birthday, a weekend plan, or a personal struggle — remember it and bring it up naturally later
+- Adapt your humor, tone, and energy to match each person. Some people like jokes, some want it straight. Learn which.
+- Track their growth: when they hit milestones, celebrate them. When they're struggling, offer support.
+- Be proactive: "Hey, didn't you say your daughter's recital was this weekend? How'd it go?"
+- Each person should feel like Pivot is THEIR personal assistant, not a shared generic bot
+- You can help with ANYTHING — not just work. Recipe ideas, workout tips, car trouble advice, gift suggestions — be genuinely helpful
+- The more they talk to you, the better you get at helping them. Make that obvious.
+
+## Web Search Capability
+You have the ability to search the web for real-time information. When a user asks about:
+- Current material prices, lumber costs, steel prices in Utah
+- Weather conditions
+- Building codes, OSHA regulations
+- General knowledge questions you're not sure about
+- News, events, or anything time-sensitive
+You should use the web_search tool to look it up and give them accurate, current information.
+Always tell the user when you searched for something: "I looked that up for you — here's what I found..."
+Don't guess when you can search. Real data beats assumptions every time.
 `;
 
     const greetingInstruction = isGreeting ? `\n## IMPORTANT — GREETING DETECTED\nThe user just greeted you. You MUST:\n1. Greet them back using their first name with a UNIQUE, CREATIVE greeting (never the same one twice — use different styles: sometimes funny, sometimes motivational, sometimes casual)\n2. Mention what day it is and set the tone for the day\n3. Immediately list their goals for this week with status\n4. Highlight any overdue goals with urgency\n5. Give a quick motivational line relevant to their role\n6. If they're the owner, also mention any business highlights or concerns from the data\n7. If they're the Office Manager, mention any payroll or scheduling items to watch\n8. Reference something from their memory/past conversations if available to show you remember them\nDo NOT ask "how can I help you" — just dive into their goals and status.\n` : "";
@@ -1027,8 +1071,101 @@ Keep responses short, practical, and encouraging. You're here to help them succe
       }
     }
 
-    const result = await invokeLLM({ messages: llmMessages });
-    const content = result.choices?.[0]?.message?.content;
+    // ── Web search tool definition ────────────────────────────────────────
+    const webSearchTool = {
+      type: "function" as const,
+      function: {
+        name: "web_search",
+        description: "Search the web for real-time information. Use this when the user asks about current prices, weather, building codes, news, regulations, or anything you're not confident about. Always prefer searching over guessing.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description: "The search query to look up. Be specific and include location if relevant (e.g., 'lumber prices Utah March 2026')",
+            },
+          },
+          required: ["query"],
+        },
+      },
+    };
+
+    // ── Call LLM with tool support ──────────────────────────────────────────
+    let result = await invokeLLM({ messages: llmMessages, tools: [webSearchTool] });
+    let choice = result.choices?.[0];
+    let content = choice?.message?.content;
+
+    // ── Handle tool calls (web search loop, max 3 searches) ─────────────────
+    let searchAttempts = 0;
+    while (choice?.message?.tool_calls && choice.message.tool_calls.length > 0 && searchAttempts < 3) {
+      searchAttempts++;
+      const toolCall = choice.message.tool_calls[0];
+      if (toolCall.function?.name === "web_search") {
+        let searchQuery = "";
+        try {
+          const args = JSON.parse(toolCall.function.arguments || "{}");
+          searchQuery = args.query || "";
+        } catch { searchQuery = toolCall.function.arguments || ""; }
+
+        let searchResult = "No results found.";
+        if (searchQuery) {
+          try {
+            // Use a simple web search via DuckDuckGo HTML
+            const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(searchQuery)}`;
+            const searchResp = await fetch(searchUrl, {
+              headers: { "User-Agent": "Mozilla/5.0 (compatible; BuildTrackPivot/1.0)" },
+            });
+            const html = await searchResp.text();
+            // Extract text snippets from results
+            const snippets: string[] = [];
+            const snippetRegex = /<a class="result__snippet"[^>]*>(.*?)<\/a>/gs;
+            let match;
+            while ((match = snippetRegex.exec(html)) !== null && snippets.length < 5) {
+              snippets.push(match[1].replace(/<[^>]*>/g, "").trim());
+            }
+            // Also extract titles and URLs
+            const titleRegex = /<a class="result__a"[^>]*href="([^"]*?)"[^>]*>(.*?)<\/a>/gs;
+            const titles: string[] = [];
+            while ((match = titleRegex.exec(html)) !== null && titles.length < 5) {
+              titles.push(`${match[2].replace(/<[^>]*>/g, "").trim()} (${match[1]})`);
+            }
+            if (snippets.length > 0 || titles.length > 0) {
+              searchResult = `Web search results for "${searchQuery}":\n`;
+              for (let i = 0; i < Math.max(snippets.length, titles.length); i++) {
+                if (titles[i]) searchResult += `\n${i + 1}. ${titles[i]}`;
+                if (snippets[i]) searchResult += `\n   ${snippets[i]}`;
+              }
+            }
+          } catch (searchErr) {
+            searchResult = `Web search failed: ${searchErr instanceof Error ? searchErr.message : "unknown error"}`;
+          }
+        }
+
+        // Add the assistant's tool call and the tool result to messages
+        llmMessages.push({
+          role: "assistant",
+          content: null,
+          tool_calls: [{
+            id: toolCall.id,
+            type: "function",
+            function: { name: "web_search", arguments: toolCall.function.arguments },
+          }],
+        });
+        llmMessages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: searchResult,
+        });
+
+        // Call LLM again with search results
+        result = await invokeLLM({ messages: llmMessages, tools: [webSearchTool] });
+        choice = result.choices?.[0];
+        content = choice?.message?.content;
+      } else {
+        break; // Unknown tool, stop
+      }
+    }
+
     if (!content) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No response from AI" });
 
     // ── Save conversation to memory ─────────────────────────────────────────
@@ -1050,16 +1187,63 @@ Keep responses short, practical, and encouraging. You're here to help them succe
         const convoText = recentConvos.reverse().map((c: any) => `[${c.role}]: ${c.content}`).join("\n");
         const summaryResult = await invokeLLM({
           messages: [
-            { role: "system", content: `You are a memory summarizer. Analyze the conversation below and produce a concise summary of:\n1. Key topics discussed\n2. User preferences and patterns noticed\n3. Important decisions or action items\n4. Communication style preferences\nKeep it under 500 words. Be specific and actionable.${isOwner ? "\n\nALSO produce a separate section called OWNER_PATTERNS with any decision-making patterns, recurring concerns, or business priorities you notice." : ""}` },
+            { role: "system", content: `You are a memory summarizer for an AI assistant called Pivot. Analyze the conversation below and produce a concise summary in these sections:
+
+## CONVERSATION_SUMMARY
+Key topics discussed, important decisions, action items. Keep under 300 words.
+
+## PERSONAL_PROFILE
+Extract a JSON object of personal details the user shared (family members, hobbies, interests, favorite things, life events, dreams, struggles). Only include things they actually mentioned. Example: {"family": "has a daughter named Sofia", "hobbies": "likes fishing on weekends", "car": "drives a Ford F-150"}
+If no personal details were shared, write: {}
+
+## COMMUNICATION_STYLE
+Extract a JSON object describing how this person communicates. Example: {"tone": "casual and direct", "humor": "likes jokes and banter", "energy": "high energy morning person", "language": "mixes English and Spanish"}
+If not enough data, write: {}
+${isOwner ? "\n## OWNER_PATTERNS\nDecision-making patterns, recurring concerns, business priorities you notice." : ""}` },
             { role: "user", content: `Previous summary: ${currentMemory?.conversationSummary || "None yet"}\n\nRecent conversations:\n${convoText}` },
           ],
         });
         const summaryContent = summaryResult.choices?.[0]?.message?.content;
         if (summaryContent) {
-          const updateData: any = { conversationSummary: summaryContent as string, preferredLanguage: preferredLang };
+          const summaryStr = summaryContent as string;
+          // Extract conversation summary section
+          const convSummaryMatch = summaryStr.match(/CONVERSATION_SUMMARY[:\s]*([\s\S]*?)(?=##|$)/i);
+          const updateData: any = {
+            conversationSummary: convSummaryMatch ? convSummaryMatch[1].trim() : summaryStr,
+            preferredLanguage: preferredLang,
+          };
+          // Extract personal profile JSON
+          const profileMatch = summaryStr.match(/PERSONAL_PROFILE[:\s]*([\s\S]*?)(?=##|$)/i);
+          if (profileMatch) {
+            try {
+              const jsonMatch = profileMatch[1].match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const newProfile = JSON.parse(jsonMatch[0]);
+                if (Object.keys(newProfile).length > 0) {
+                  // Merge with existing profile
+                  const existingProfile = currentMemory?.personalProfile ? JSON.parse(currentMemory.personalProfile) : {};
+                  updateData.personalProfile = JSON.stringify({ ...existingProfile, ...newProfile });
+                }
+              }
+            } catch {}
+          }
+          // Extract communication style JSON
+          const styleMatch = summaryStr.match(/COMMUNICATION_STYLE[:\s]*([\s\S]*?)(?=##|$)/i);
+          if (styleMatch) {
+            try {
+              const jsonMatch = styleMatch[1].match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const newStyle = JSON.parse(jsonMatch[0]);
+                if (Object.keys(newStyle).length > 0) {
+                  const existingStyle = currentMemory?.communicationStyle ? JSON.parse(currentMemory.communicationStyle) : {};
+                  updateData.communicationStyle = JSON.stringify({ ...existingStyle, ...newStyle });
+                }
+              }
+            } catch {}
+          }
           // Extract owner patterns if present
-          if (isOwner && (summaryContent as string).includes("OWNER_PATTERNS")) {
-            const patternMatch = (summaryContent as string).match(/OWNER_PATTERNS[:\s]*([\s\S]*?)$/i);
+          if (isOwner && summaryStr.includes("OWNER_PATTERNS")) {
+            const patternMatch = summaryStr.match(/OWNER_PATTERNS[:\s]*([\s\S]*?)$/i);
             if (patternMatch) {
               const existingPatterns = currentMemory?.ownerPatterns ? JSON.parse(currentMemory.ownerPatterns) : {};
               existingPatterns.latestAnalysis = patternMatch[1].trim();
@@ -1099,6 +1283,8 @@ Keep responses short, practical, and encouraging. You're here to help them succe
     return {
       conversationSummary: memory?.conversationSummary || null,
       preferences: memory?.preferences ? JSON.parse(memory.preferences) : null,
+      personalProfile: memory?.personalProfile ? JSON.parse(memory.personalProfile) : null,
+      communicationStyle: memory?.communicationStyle ? JSON.parse(memory.communicationStyle) : null,
       ownerPatterns: employee.role === "owner" && memory?.ownerPatterns ? JSON.parse(memory.ownerPatterns) : null,
       interactionCount: memory?.interactionCount || 0,
       preferredLanguage: memory?.preferredLanguage || "en",

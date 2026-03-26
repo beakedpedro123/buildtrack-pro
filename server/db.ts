@@ -975,6 +975,9 @@ export async function upsertPivotMemory(employeeId: number, data: {
   conversationSummary?: string;
   preferences?: string;
   ownerPatterns?: string;
+  personalProfile?: string;
+  communicationStyle?: string;
+  growthLog?: string;
   preferredLanguage?: string;
 }) {
   const dbConn = await getDb();
@@ -986,6 +989,9 @@ export async function upsertPivotMemory(employeeId: number, data: {
         ...(data.conversationSummary !== undefined && { conversationSummary: data.conversationSummary }),
         ...(data.preferences !== undefined && { preferences: data.preferences }),
         ...(data.ownerPatterns !== undefined && { ownerPatterns: data.ownerPatterns }),
+        ...(data.personalProfile !== undefined && { personalProfile: data.personalProfile }),
+        ...(data.communicationStyle !== undefined && { communicationStyle: data.communicationStyle }),
+        ...(data.growthLog !== undefined && { growthLog: data.growthLog }),
         ...(data.preferredLanguage !== undefined && { preferredLanguage: data.preferredLanguage }),
         interactionCount: sql`${pivotMemory.interactionCount} + 1`,
         lastInteraction: new Date(),
@@ -997,6 +1003,9 @@ export async function upsertPivotMemory(employeeId: number, data: {
       conversationSummary: data.conversationSummary || null,
       preferences: data.preferences || null,
       ownerPatterns: data.ownerPatterns || null,
+      personalProfile: data.personalProfile || null,
+      communicationStyle: data.communicationStyle || null,
+      growthLog: data.growthLog || null,
       preferredLanguage: data.preferredLanguage || "en",
       interactionCount: 1,
     });
