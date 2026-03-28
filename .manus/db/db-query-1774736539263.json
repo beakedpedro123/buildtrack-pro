@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, name, role, \"isActive\" FROM employees WHERE name ILIKE '%lupe%' OR name ILIKE '%mejia%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute SELECT id, name, role, \"isActive\" FROM employees WHERE name ILIKE '%lupe%' OR name ILIKE '%mejia%';",
+  "rows": [
+    {
+      "id": "30003",
+      "name": "Lupe Mejia",
+      "role": "secretary",
+      "isActive": "isActive"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\trole\tisActive\n30003\tLupe Mejia\tsecretary\tisActive\n",
+  "stderr": "",
+  "execution_time_ms": 365
+}

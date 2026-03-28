@@ -1,4 +1,5 @@
-import { ScreenContainer } from "@/components/screen-container";
+import {
+   ScreenContainer } from "@/components/screen-container";
 import { OfflineBanner } from "@/components/ui/offline-banner";
 import { useAppAuth } from "@/lib/auth-context";
 import { useOfflineQueue } from "@/lib/offline-queue";
@@ -8,8 +9,7 @@ import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { useEffect, useState, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  ActivityIndicator,
+import { ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -18,8 +18,9 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View, ImageBackground } from "react-native";
+
+import { BG_CLOCK as bg_clock } from "@/constants/bg-urls";
 
 function formatDuration(ms: number) {
   const h = Math.floor(ms / 3600000);
@@ -79,12 +80,10 @@ export default function ClockScreen() {
   }, [isManager, employee, activeEmployees, selectedEmployeeId]);
 
   const clockInMutation = trpc.clock.in.useMutation({
-    onSuccess: () => { refetchActive(); utils.clock.history.invalidate(); if (isManager) refetchClockedIn(); },
-  });
+    onSuccess: () => { refetchActive(); utils.clock.history.invalidate(); if (isManager) refetchClockedIn(); } });
 
   const clockOutMutation = trpc.clock.out.useMutation({
-    onSuccess: () => { refetchActive(); utils.clock.history.invalidate(); if (isManager) refetchClockedIn(); },
-  });
+    onSuccess: () => { refetchActive(); utils.clock.history.invalidate(); if (isManager) refetchClockedIn(); } });
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 30000);
@@ -119,8 +118,7 @@ export default function ClockScreen() {
           clockIn: clockInTime,
           clockInLatitude: loc?.lat,
           clockInLongitude: loc?.lng,
-          isOfflineEntry: false,
-        });
+          isOfflineEntry: false });
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch {
         if (!isManager) {
@@ -130,8 +128,7 @@ export default function ClockScreen() {
             jobId: selectedJobId,
             clockIn: clockInTime,
             clockInLatitude: loc?.lat,
-            clockInLongitude: loc?.lng,
-          });
+            clockInLongitude: loc?.lng });
           if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           Alert.alert("Clocked In (Offline)", "Clock-in was saved locally and will sync when you have service.");
         } else {
@@ -153,8 +150,7 @@ export default function ClockScreen() {
         entryId: activeEntry.id,
         clockOut: new Date().toISOString(),
         clockOutLatitude: loc?.lat,
-        clockOutLongitude: loc?.lng,
-      });
+        clockOutLongitude: loc?.lng });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       Alert.alert("Error", "Could not clock out. Please try again.");
@@ -172,8 +168,7 @@ export default function ClockScreen() {
         entryId,
         clockOut: new Date().toISOString(),
         clockOutLatitude: loc?.lat,
-        clockOutLongitude: loc?.lng,
-      });
+        clockOutLongitude: loc?.lng });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       Alert.alert("Error", "Could not clock out. Please try again.");
@@ -195,8 +190,7 @@ export default function ClockScreen() {
       alignItems: "center",
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
-    },
+      borderColor: colors.border },
     statusDot: { width: 10, height: 10, borderRadius: 5, marginRight: 6 },
     statusRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
     statusText: { fontSize: 14, fontWeight: "600" },
@@ -206,20 +200,17 @@ export default function ClockScreen() {
       width: 140, height: 140, borderRadius: 70,
       alignItems: "center", justifyContent: "center",
       shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,
-    },
+      shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
     clockBtnText: { color: "#fff", fontSize: 20, fontWeight: "800", marginTop: 4 },
     sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.foreground, marginBottom: 10 },
     jobSelector: { marginHorizontal: 20, marginBottom: 16 },
     jobOption: {
       paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
-      borderWidth: 1.5, marginBottom: 8, flexDirection: "row", alignItems: "center",
-    },
+      borderWidth: 1.5, marginBottom: 8, flexDirection: "row", alignItems: "center" },
     jobOptionText: { fontSize: 14, fontWeight: "600", flex: 1 },
     historyItem: {
       flexDirection: "row", alignItems: "center",
-      paddingVertical: 10, paddingHorizontal: 20, borderBottomWidth: 1,
-    },
+      paddingVertical: 10, paddingHorizontal: 20, borderBottomWidth: 1 },
     historyDate: { fontSize: 13, fontWeight: "600", width: 80 },
     historyJob: { fontSize: 13, flex: 1 },
     historyDuration: { fontSize: 13, fontWeight: "700" },
@@ -227,34 +218,27 @@ export default function ClockScreen() {
     empPickerBtn: {
       marginHorizontal: 20, marginBottom: 16, padding: 14, borderRadius: 12,
       borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.primary + "10",
-      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    },
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     empPickerText: { fontSize: 15, fontWeight: "700", color: colors.primary },
     clockedInCard: {
       marginHorizontal: 20, marginBottom: 8, padding: 14, borderRadius: 12,
       backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-      flexDirection: "row", alignItems: "center",
-    },
+      flexDirection: "row", alignItems: "center" },
     clockedInAvatar: {
       width: 36, height: 36, borderRadius: 18, alignItems: "center",
-      justifyContent: "center", marginRight: 12,
-    },
+      justifyContent: "center", marginRight: 12 },
     clockOutBtn: {
       paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8,
-      backgroundColor: colors.error,
-    },
+      backgroundColor: colors.error },
     modalContainer: { flex: 1, backgroundColor: colors.background },
     modalHeader: {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
       paddingHorizontal: 20, paddingTop: Math.max(insets.top + 12, 28), paddingBottom: 16,
-      borderBottomWidth: 1, borderBottomColor: colors.border,
-    },
+      borderBottomWidth: 1, borderBottomColor: colors.border },
     modalTitle: { fontSize: 20, fontWeight: "800", color: colors.foreground },
     empListItem: {
       flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 20,
-      borderBottomWidth: 1, borderBottomColor: colors.border,
-    },
-  });
+      borderBottomWidth: 1, borderBottomColor: colors.border } });
 
   const getInitials = (name: string) => {
     const parts = name.split(" ");
@@ -274,6 +258,7 @@ export default function ClockScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
+        <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <OfflineBanner />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
@@ -431,8 +416,7 @@ export default function ClockScreen() {
                       styles.jobOption,
                       {
                         borderColor: selectedJobId === job.id ? colors.primary : colors.border,
-                        backgroundColor: selectedJobId === job.id ? colors.primary + "15" : colors.surface,
-                      },
+                        backgroundColor: selectedJobId === job.id ? colors.primary + "15" : colors.surface },
                     ]}
                     onPress={() => setSelectedJobId(job.id)}
                   >
@@ -494,6 +478,7 @@ export default function ClockScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+    </ImageBackground>
     </ScreenContainer>
   );
 }

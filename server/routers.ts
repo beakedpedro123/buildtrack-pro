@@ -309,9 +309,16 @@ const meetingsRouter = router({
 });
 
 const goalsRouter = router({
-  list: publicProcedure.input(z.object({ weekOf: z.string().optional() })).query(({ input }) =>
-    db.getWeeklyGoals(input.weekOf ? new Date(input.weekOf) : undefined)
-  ),
+  list: publicProcedure.input(z.object({ weekOf: z.string().optional(), employeeId: z.number().optional(), employeeRole: z.string().optional() })).query(async ({ input }) => {
+    const allGoals = await db.getWeeklyGoals(input.weekOf ? new Date(input.weekOf) : undefined);
+    // Owner sees all goals
+    if (input.employeeRole === "owner") return allGoals;
+    // Everyone else sees only goals they created or goals assigned to them
+    if (input.employeeId) {
+      return allGoals.filter((g: any) => g.createdBy === input.employeeId || g.assignedTo === input.employeeId);
+    }
+    return allGoals;
+  }),
   forMeeting: publicProcedure.input(z.object({ meetingId: z.number() })).query(({ input }) =>
     db.getGoalsForMeeting(input.meetingId)
   ),

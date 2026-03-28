@@ -1,12 +1,12 @@
-import { ScreenContainer } from "@/components/screen-container";
+import {
+   ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  ActivityIndicator,
+import { ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
@@ -17,8 +17,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View, ImageBackground } from "react-native";
+
+import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
 
 const CATEGORIES = [
   { key: "revenue", label: "Revenue", icon: "💰" },
@@ -74,17 +75,14 @@ export default function KPIsScreen() {
       setShowCreate(false);
       resetCreateForm();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    },
-  });
+    } });
   const updateKpiMut = trpc.kpi.update.useMutation({
-    onSuccess: () => { utils.kpi.list.invalidate(); },
-  });
+    onSuccess: () => { utils.kpi.list.invalidate(); } });
   const deleteKpi = trpc.kpi.delete.useMutation({
     onSuccess: () => {
       utils.kpi.list.invalidate();
       setSelectedKpi(null);
-    },
-  });
+    } });
   const addHistory = trpc.kpi.addHistoryEntry.useMutation({
     onSuccess: () => {
       utils.kpi.list.invalidate();
@@ -93,8 +91,7 @@ export default function KPIsScreen() {
       setUpdateValue("");
       setUpdateNotes("");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    },
-  });
+    } });
 
   const resetCreateForm = () => {
     setKpiName("");
@@ -145,8 +142,7 @@ export default function KPIsScreen() {
     modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: Math.max(insets.top + 12, 28), paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
     modalTitle: { fontSize: 20, fontWeight: "800", color: colors.foreground },
     input: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.foreground, backgroundColor: colors.background, marginBottom: 10 },
-    submitBtn: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 12 },
-  });
+    submitBtn: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 12 } });
 
   // Access guard — only owner, secretary, logistics, foreman
   if (role === "laborer") {
@@ -159,12 +155,13 @@ export default function KPIsScreen() {
             KPI tracking is available to management roles only.
           </Text>
         </View>
-      </ScreenContainer>
+    </ScreenContainer>
     );
   }
 
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
+        <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <View style={styles.header}>
         <Text style={styles.title}>KPIs</Text>
         {canEdit && (
@@ -382,8 +379,7 @@ export default function KPIsScreen() {
                         kpiId: selectedKpi.id,
                         value: updateValue,
                         notes: updateNotes || undefined,
-                        recordedBy: employee.id,
-                      });
+                        recordedBy: employee.id });
                       // Update the selected KPI's current value locally
                       setSelectedKpi({ ...selectedKpi, currentValue: updateValue });
                     }}
@@ -457,8 +453,7 @@ export default function KPIsScreen() {
                   targetValue: kpiTarget || undefined,
                   description: kpiDescription || undefined,
                   period: kpiPeriod as any,
-                  createdBy: employee.id,
-                });
+                  createdBy: employee.id });
               }}
               disabled={createKpi.isPending || !kpiName.trim()}
             >
@@ -467,6 +462,7 @@ export default function KPIsScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
+    </ImageBackground>
     </ScreenContainer>
   );
 }

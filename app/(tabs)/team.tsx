@@ -1,12 +1,12 @@
-import { ScreenContainer } from "@/components/screen-container";
+import {
+   ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  ActivityIndicator,
+import { ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
@@ -18,25 +18,24 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View, ImageBackground } from "react-native";
 import * as Linking from "expo-linking";
+
+import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#E8500A",
   secretary: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#F59E0B",
-  laborer: "#22C55E",
-};
+  laborer: "#22C55E" };
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
   secretary: "Office Manager",
   logistics: "Logistics",
   foreman: "Foreman",
-  laborer: "Laborer",
-};
+  laborer: "Laborer" };
 
 const ROLES = ["owner", "secretary", "logistics", "foreman", "laborer"] as const;
 
@@ -91,8 +90,7 @@ export default function TeamScreen() {
       setShowAddEmployee(false);
       resetForm();
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    },
-  });
+    } });
 
   const createWithInvite = trpc.employees.createWithInvite.useMutation({
     onSuccess: (data) => {
@@ -101,22 +99,19 @@ export default function TeamScreen() {
       const code = data.inviteToken.slice(0, 6).toUpperCase();
       setInviteResult({ token: data.inviteToken, code });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    },
-  });
+    } });
 
   const updateEmployee = trpc.employees.update.useMutation({
     onSuccess: () => {
       utils.employees.list.invalidate();
       setSelectedEmployee(null);
-    },
-  });
+    } });
 
   const deactivateEmployee = trpc.employees.deactivate.useMutation({
     onSuccess: () => {
       utils.employees.list.invalidate();
       setSelectedEmployee(null);
-    },
-  });
+    } });
 
   const resetForm = () => {
     setEmpName("");
@@ -140,8 +135,7 @@ export default function TeamScreen() {
         email: empEmail || undefined,
         phone: empPhone || undefined,
         hourlyRate: empRate || undefined,
-        requestingEmployeeId: employee!.id,
-      });
+        requestingEmployeeId: employee!.id });
     } else {
       if (!empName.trim() || empPin.length < 4) {
         Alert.alert("Missing Info", "Name and a 4-6 digit PIN are required.");
@@ -154,8 +148,7 @@ export default function TeamScreen() {
         phone: empPhone || undefined,
         email: empEmail || undefined,
         hourlyRate: empRate || undefined,
-        requestingEmployeeId: employee!.id,
-      });
+        requestingEmployeeId: employee!.id });
     }
   };
 
@@ -164,8 +157,7 @@ export default function TeamScreen() {
     try {
       await Share.share({
         message: `You've been invited to join Carranza Custom Construction on BuildTrack Pro!\n\nYour invite code: ${inviteResult.code}\n\nDownload the app and enter this code when you first open it to set up your account.`,
-        title: "BuildTrack Pro Invite",
-      });
+        title: "BuildTrack Pro Invite" });
     } catch (e) {
       // user cancelled
     }
@@ -180,8 +172,7 @@ export default function TeamScreen() {
         {
           text: "Deactivate",
           style: "destructive",
-          onPress: () => deactivateEmployee.mutate({ id: emp.id, requestingEmployeeId: employee!.id }),
-        },
+          onPress: () => deactivateEmployee.mutate({ id: emp.id, requestingEmployeeId: employee!.id }) },
       ]
     );
   };
@@ -214,23 +205,25 @@ export default function TeamScreen() {
     input: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.foreground, backgroundColor: colors.background, marginBottom: 10 },
     roleOption: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, marginBottom: 8, flexDirection: "row", alignItems: "center" },
     submitBtn: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 8, marginBottom: 32 },
-    detailRow: { flexDirection: "row", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
-  });
+    detailRow: { flexDirection: "row", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border } });
 
   if (!canViewTeam && !employee) {
     return (
       <ScreenContainer>
+        <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
           <Text style={{ fontSize: 40, marginBottom: 16 }}>🔒</Text>
           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>Access Restricted</Text>
           <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginTop: 8 }}>Team management is only available to management roles. Use the My Hours tab to view your own shifts.</Text>
         </View>
-      </ScreenContainer>
+          </ImageBackground>
+    </ScreenContainer>
     );
   }
 
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
+        <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Team</Text>
@@ -486,6 +479,7 @@ export default function TeamScreen() {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+    </ImageBackground>
     </ScreenContainer>
   );
 }

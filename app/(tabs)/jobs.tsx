@@ -1,4 +1,5 @@
-import { ScreenContainer } from "@/components/screen-container";
+import {
+   ScreenContainer } from "@/components/screen-container";
 import { JobCard } from "@/components/ui/job-card";
 import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
@@ -8,8 +9,7 @@ import * as Print from "expo-print";
 import { shareAsync } from "expo-sharing";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  ActivityIndicator,
+import { ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
@@ -20,15 +20,15 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View, ImageBackground } from "react-native";
+
+import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
 
 const STATUS_LABELS: Record<string, string> = {
   active: "Active",
   paused: "Paused",
   completed: "Completed",
-  cancelled: "Cancelled",
-};
+  cancelled: "Cancelled" };
 
 const DEFAULT_BUDGET_CATEGORIES = [
   "Labor",
@@ -128,14 +128,12 @@ export default function JobsScreen() {
     warning: "This job has used 80%+ of its budget. Review spending.",
     danger: "This job has used 90%+ of its budget. Immediate attention needed.",
     critical: "This job has exceeded its budget!",
-    ok: "",
-  };
+    ok: "" };
   const budgetAlertColors: Record<string, { bg: string; border: string; text: string }> = {
     warning: { bg: "#FEF3C7", border: "#F59E0B", text: "#92400E" },
     danger: { bg: "#FFF1F0", border: "#F97316", text: "#9A3412" },
     critical: { bg: "#FEE2E2", border: "#EF4444", text: "#991B1B" },
-    ok: { bg: colors.surface, border: colors.border, text: colors.foreground },
-  };
+    ok: { bg: colors.surface, border: colors.border, text: colors.foreground } };
 
   const reportCount = (jobReports || []).length;
   const photoCount = (jobPhotos || []).length;
@@ -151,8 +149,7 @@ export default function JobsScreen() {
       taxRate: jobTaxRate || undefined,
       workersCompRate: jobWorkersComp || undefined,
       liabilityInsRate: jobLiabilityIns || undefined,
-      createdBy: employee.id,
-    });
+      createdBy: employee.id });
   };
 
   // Generate PDF Budget Report
@@ -362,11 +359,11 @@ export default function JobsScreen() {
     expenseRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
     pdfCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 16, margin: 20, borderWidth: 1, borderColor: colors.border },
     pdfBtn: { backgroundColor: "#D4A843", borderRadius: 10, padding: 14, alignItems: "center", marginTop: 12 },
-    catRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
-  });
+    catRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border } });
 
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
+        <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <View style={styles.header}>
         <Text style={styles.title}>Jobs</Text>
         {canManage && (
@@ -826,8 +823,7 @@ export default function JobsScreen() {
                           description: expDesc.trim(),
                           amount: expAmount,
                           expenseDate: new Date().toISOString(),
-                          submittedBy: employee.id,
-                        });
+                          submittedBy: employee.id });
                       }}
                       disabled={addExpense.isPending}
                     >
@@ -923,6 +919,7 @@ export default function JobsScreen() {
           </KeyboardAvoidingView>
         </Modal>
       )}
+    </ImageBackground>
     </ScreenContainer>
   );
 }

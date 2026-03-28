@@ -1,4 +1,5 @@
-import { ScreenContainer } from "@/components/screen-container";
+import {
+   ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
@@ -9,8 +10,7 @@ import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useState, useEffect, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  ActivityIndicator,
+import { ActivityIndicator,
   Alert,
   AppState,
   FlatList,
@@ -23,8 +23,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View, ImageBackground } from "react-native";
+
+import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
 
 const WORK_CHECKLIST = [
   "Wall Framing",
@@ -154,8 +155,7 @@ export default function ReportsScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.7,
-        allowsMultipleSelection: true,
-      });
+        allowsMultipleSelection: true });
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const newPhotos = result.assets.map((asset) => ({ uri: asset.uri }));
         setPhotos((prev) => {
@@ -178,8 +178,7 @@ export default function ReportsScreen() {
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
-        quality: 0.7,
-      });
+        quality: 0.7 });
       if (!result.canceled && result.assets && result.assets.length > 0) {
         setPhotos((prev) => {
           const updated = [...prev, { uri: result.assets[0].uri }].slice(0, 10);
@@ -212,8 +211,7 @@ export default function ReportsScreen() {
         const fileObj = {
           uri: uri,
           type: "image/jpeg",
-          name: `photo_${Date.now()}.jpg`,
-        } as any;
+          name: `photo_${Date.now()}.jpg` } as any;
         formData.append("file", fileObj);
       }
 
@@ -258,8 +256,7 @@ export default function ReportsScreen() {
         workCompleted: JSON.stringify(workItems),
         notes,
         weatherCondition: weather,
-        crewCount: parseInt(crewCount) || 1,
-      });
+        crewCount: parseInt(crewCount) || 1 });
 
       // Step 2: Add materials
       for (const mat of materials) {
@@ -275,8 +272,7 @@ export default function ReportsScreen() {
           totalCost: mat.unitCost && mat.quantity
             ? String(parseFloat(mat.unitCost) * parseFloat(mat.quantity))
             : undefined,
-          supplier: mat.supplier || undefined,
-        });
+          supplier: mat.supplier || undefined });
       }
 
       // Step 3: Upload photos via /api/upload, then save record via tRPC
@@ -356,13 +352,13 @@ export default function ReportsScreen() {
     photoThumb: { width: 80, height: 80, borderRadius: 8, overflow: "hidden" },
     submitBtn: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", margin: 20 },
     submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
-    weatherChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, marginRight: 8 },
-  });
+    weatherChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, marginRight: 8 } });
 
   const getJobName = (jobId: number) => allJobs?.find((j) => j.id === jobId)?.name || `Job #${jobId}`;
 
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
+        <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <View style={styles.header}>
         <Text style={styles.title}>Field Reports</Text>
         {canSubmitReport && (
@@ -611,6 +607,7 @@ export default function ReportsScreen() {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+    </ImageBackground>
     </ScreenContainer>
   );
 }

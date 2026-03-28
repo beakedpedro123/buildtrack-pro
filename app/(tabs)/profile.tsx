@@ -1,11 +1,11 @@
-import { ScreenContainer } from "@/components/screen-container";
+import {
+   ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
-import {
-  ActivityIndicator,
+import { ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -14,24 +14,23 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View, ImageBackground } from "react-native";
+
+import { BG_MORE as bg_more } from "@/constants/bg-urls";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
   secretary: "Office Manager",
   logistics: "Logistics",
   foreman: "Foreman",
-  laborer: "Laborer",
-};
+  laborer: "Laborer" };
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#E8500A",
   secretary: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#F59E0B",
-  laborer: "#22C55E",
-};
+  laborer: "#22C55E" };
 
 function getInitials(name: string) {
   return name
@@ -58,8 +57,7 @@ export default function ProfileScreen() {
   const updateEmployee = trpc.employees.update.useMutation({
     onSuccess: () => {
       utils.employees.list.invalidate();
-    },
-  });
+    } });
 
   const styles = StyleSheet.create({
     section: {
@@ -69,8 +67,7 @@ export default function ProfileScreen() {
       marginBottom: 16,
       borderWidth: 1,
       borderColor: colors.border,
-      overflow: "hidden",
-    },
+      overflow: "hidden" },
     row: {
       flexDirection: "row",
       alignItems: "center",
@@ -78,15 +75,13 @@ export default function ProfileScreen() {
       paddingHorizontal: 16,
       paddingVertical: 14,
       borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
+      borderBottomColor: colors.border },
     rowLast: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       paddingHorizontal: 16,
-      paddingVertical: 14,
-    },
+      paddingVertical: 14 },
     input: {
       borderWidth: 1,
       borderColor: colors.border,
@@ -96,23 +91,19 @@ export default function ProfileScreen() {
       fontSize: 15,
       color: colors.foreground,
       backgroundColor: colors.background,
-      marginBottom: 12,
-    },
+      marginBottom: 12 },
     primaryBtn: {
       backgroundColor: colors.primary,
       borderRadius: 12,
       paddingVertical: 14,
       alignItems: "center",
-      marginBottom: 10,
-    },
+      marginBottom: 10 },
     outlineBtn: {
       borderRadius: 12,
       paddingVertical: 12,
       alignItems: "center",
       borderWidth: 1.5,
-      borderColor: colors.border,
-    },
-  });
+      borderColor: colors.border } });
 
   if (!employee) return null;
 
@@ -171,6 +162,7 @@ export default function ProfileScreen() {
 
   return (
     <ScreenContainer>
+        <ImageBackground source={bg_more} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
           {/* Header */}
@@ -318,6 +310,7 @@ export default function ProfileScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+    </ImageBackground>
     </ScreenContainer>
   );
 }

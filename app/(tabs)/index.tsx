@@ -10,32 +10,31 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  ImageBackground,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View } from "react-native";
 import * as Haptics from "expo-haptics";
 
 const companyLogo = require("@/assets/images/company-logo.png");
+import { BG_HOME as bgHome } from "@/constants/bg-urls";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#C8A951",
   secretary: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#D4A843",
-  laborer: "#22C55E",
-};
+  laborer: "#22C55E" };
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
   secretary: "Office Manager",
   logistics: "Logistics",
   foreman: "Foreman",
-  laborer: "Laborer",
-};
+  laborer: "Laborer" };
 
 type LaborPeriod = "week" | "month" | "30days";
 
@@ -85,8 +84,55 @@ function getDateRange(period: LaborPeriod): { startDate: string; endDate: string
   return { startDate: start.toISOString(), endDate: end.toISOString(), label: "Last 30 Days" };
 }
 
-// Motivational greetings for laborers
-const MOTIVATIONAL_QUOTES = [
+// Daily motivational messages by role — rotate based on day of year
+const OWNER_QUOTES = [
+  "Building greatness, one project at a time.",
+  "Your vision drives the whole team forward.",
+  "Leaders don't create followers — they create more leaders.",
+  "Every empire was built one decision at a time.",
+  "The foundation you're laying today will stand for generations.",
+  "Your team looks up to you — keep leading by example.",
+  "Success isn't built overnight, but it is built daily.",
+  "The best investment is in the people who build with you.",
+  "Stay hungry, stay humble, keep building.",
+  "Great businesses are built by great teams — yours is one of them.",
+  "Your hustle today writes tomorrow's legacy.",
+  "Keep pushing — the view from the top is worth it.",
+  "You didn't come this far to only come this far.",
+  "The grind never lies. Keep going, boss.",
+];
+
+const MANAGEMENT_QUOTES = [
+  "Organization is the backbone of every great project.",
+  "Your attention to detail keeps everything running smooth.",
+  "Behind every great crew is someone keeping it all together.",
+  "Precision today prevents problems tomorrow.",
+  "You're the glue that holds this operation together.",
+  "Every number you track builds a stronger business.",
+  "Your work behind the scenes makes the field work possible.",
+  "Stay sharp — the team depends on your accuracy.",
+  "Great operations run on great organization.",
+  "Keep the machine running — you're doing amazing.",
+  "Details matter. And you nail every one of them.",
+  "The office is the engine room — keep it humming.",
+];
+
+const FOREMAN_QUOTES = [
+  "Your crew counts on you — lead with confidence.",
+  "A great foreman builds both structures and people.",
+  "Set the pace, set the standard, set the example.",
+  "Your leadership on site makes all the difference.",
+  "Safety first, quality always — you set the tone.",
+  "The crew follows your energy. Bring it today.",
+  "Good foremen build buildings. Great foremen build teams.",
+  "Keep your crew tight and your standards high.",
+  "Every job site you run is a reflection of your leadership.",
+  "Lead from the front — they're watching and learning.",
+  "Your experience is your superpower. Use it.",
+  "Another day to show your crew what excellence looks like.",
+];
+
+const LABORER_QUOTES = [
   "Let's build something great today!",
   "Hard work pays off — keep it up!",
   "Safety first, quality always.",
@@ -97,11 +143,18 @@ const MOTIVATIONAL_QUOTES = [
   "Let's get it done right!",
   "Consistency builds excellence.",
   "Every brick counts. Keep going!",
+  "Show up, work hard, be proud of what you build.",
+  "The best workers don't cut corners — they set standards.",
+  "Your hands are building someone's dream. That matters.",
+  "Skill + effort = unstoppable. Keep at it.",
 ];
 
-function getDailyQuote(): string {
+function getDailyQuote(role?: string): string {
   const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
-  return MOTIVATIONAL_QUOTES[dayOfYear % MOTIVATIONAL_QUOTES.length];
+  if (role === "owner") return OWNER_QUOTES[dayOfYear % OWNER_QUOTES.length];
+  if (role === "secretary" || role === "logistics") return MANAGEMENT_QUOTES[dayOfYear % MANAGEMENT_QUOTES.length];
+  if (role === "foreman") return FOREMAN_QUOTES[dayOfYear % FOREMAN_QUOTES.length];
+  return LABORER_QUOTES[dayOfYear % LABORER_QUOTES.length];
 }
 
 export default function DashboardScreen() {
@@ -228,8 +281,7 @@ export default function DashboardScreen() {
     quickAction: { flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
     quickActionIcon: { fontSize: 24, marginBottom: 6 },
     quickActionLabel: { fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" },
-    weekHoursCard: { marginHorizontal: 20, marginBottom: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: colors.border },
-  });
+    weekHoursCard: { marginHorizontal: 20, marginBottom: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: colors.border } });
 
   if (!employee) {
     return (
@@ -258,6 +310,7 @@ export default function DashboardScreen() {
   if (isLaborer) {
     return (
       <ScreenContainer edges={["top", "left", "right"]}>
+        <ImageBackground source={bgHome} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.3 }}>
         <OfflineBanner />
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Company Logo */}
@@ -348,6 +401,7 @@ export default function DashboardScreen() {
             <Text style={{ color: colors.muted, fontSize: 15, fontWeight: "600" }}>Sign Out</Text>
           </TouchableOpacity>
         </ScrollView>
+      </ImageBackground>
       </ScreenContainer>
     );
   }
@@ -358,6 +412,7 @@ export default function DashboardScreen() {
   if (isForeman) {
     return (
       <ScreenContainer edges={["top", "left", "right"]}>
+        <ImageBackground source={bgHome} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.3 }}>
         <OfflineBanner />
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Company Logo */}
@@ -446,16 +501,17 @@ export default function DashboardScreen() {
           <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
             <Text style={{ color: colors.muted, fontSize: 15, fontWeight: "600" }}>Sign Out</Text>
           </TouchableOpacity>
-        </ScrollView>
+         </ScrollView>
+      </ImageBackground>
       </ScreenContainer>
     );
   }
-
   // ═══════════════════════════════════════════════════════════
   // MANAGEMENT HOME — Full dashboard (Owner, Secretary, Logistics)
   // ═══════════════════════════════════════════════════════════
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
+      <ImageBackground source={bgHome} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.3 }}>
       <OfflineBanner />
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Company Logo */}
@@ -478,11 +534,9 @@ export default function DashboardScreen() {
               {now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
             </Text>
           </View>
-          {!isOwner && (
-            <Text style={{ fontSize: 13, fontStyle: "italic", color: colors.muted, marginTop: 6 }}>
-              {getDailyQuote()}
-            </Text>
-          )}
+          <Text style={{ fontSize: 13, fontStyle: "italic", color: colors.muted, marginTop: 6 }}>
+            {getDailyQuote(role)}
+          </Text>
         </View>
 
         {/* Management KPIs */}
@@ -546,8 +600,7 @@ export default function DashboardScreen() {
                 warning: { bg: "#FEF3C7", border: "#F59E0B", text: "#92400E", dot: "#F59E0B" },
                 danger: { bg: "#FFF1F0", border: "#F97316", text: "#9A3412", dot: "#F97316" },
                 critical: { bg: "#FEE2E2", border: "#EF4444", text: "#991B1B", dot: "#EF4444" },
-                ok: { bg: colors.surface, border: colors.border, text: colors.foreground, dot: colors.success },
-              };
+                ok: { bg: colors.surface, border: colors.border, text: colors.foreground, dot: colors.success } };
               const ac = alertColors[alert.alertLevel];
               return (
                 <View key={alert.jobId} style={[styles.alertBanner, { backgroundColor: ac.bg, borderColor: ac.border }]}>
@@ -591,8 +644,7 @@ export default function DashboardScreen() {
                     styles.periodBtn,
                     {
                       borderColor: active ? colors.primary : colors.border,
-                      backgroundColor: active ? colors.primary + "15" : colors.surface,
-                    },
+                      backgroundColor: active ? colors.primary + "15" : colors.surface },
                   ]}
                   onPress={() => {
                     setLaborPeriod(p);
@@ -783,6 +835,7 @@ export default function DashboardScreen() {
           <Text style={{ color: colors.muted, fontSize: 15, fontWeight: "600" }}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
+    </ImageBackground>
     </ScreenContainer>
   );
 }

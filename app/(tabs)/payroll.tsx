@@ -1,10 +1,10 @@
-import { ScreenContainer } from "@/components/screen-container";
+import {
+   ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
-import {
-  ActivityIndicator,
+import { ActivityIndicator,
   Alert,
   FlatList,
   Platform,
@@ -12,9 +12,10 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View, ImageBackground } from "react-native";
 import * as Haptics from "expo-haptics";
+
+import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
 
 type Period = "week" | "biweek" | "month" | "custom";
 
@@ -95,6 +96,7 @@ export default function PayrollScreen() {
   if (!canAccessPayroll) {
     return (
       <ScreenContainer>
+        <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
           <Text style={{ fontSize: 48, marginBottom: 16 }}>🔒</Text>
           <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>
@@ -104,14 +106,14 @@ export default function PayrollScreen() {
             Payroll reports are only available to management.
           </Text>
         </View>
-      </ScreenContainer>
+          </ImageBackground>
+    </ScreenContainer>
     );
   }
 
   const { data, isLoading, refetch } = trpc.payroll.getReport.useQuery({
     startDate: range.startDate,
-    endDate: range.endDate,
-  });
+    endDate: range.endDate });
 
   const styles = StyleSheet.create({
     periodBtn: {
@@ -120,12 +122,10 @@ export default function PayrollScreen() {
       borderRadius: 20,
       borderWidth: 1,
       borderColor: colors.border,
-      marginRight: 8,
-    },
+      marginRight: 8 },
     periodBtnActive: {
       backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
+      borderColor: colors.primary },
     periodBtnText: { fontSize: 13, fontWeight: "600", color: colors.muted },
     periodBtnTextActive: { color: "#fff" },
     card: {
@@ -135,17 +135,14 @@ export default function PayrollScreen() {
       marginHorizontal: 16,
       marginBottom: 10,
       borderWidth: 1,
-      borderColor: colors.border,
-    },
+      borderColor: colors.border },
     exportBtn: {
       backgroundColor: colors.primary,
       borderRadius: 12,
       paddingVertical: 14,
       marginHorizontal: 16,
       marginBottom: 12,
-      alignItems: "center",
-    },
-  });
+      alignItems: "center" } });
 
   const sortedRows = [...(data?.rows || [])].sort(
     (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)
@@ -277,8 +274,7 @@ export default function PayrollScreen() {
                             backgroundColor: colors.primary + "22",
                             borderRadius: 8,
                             paddingHorizontal: 8,
-                            paddingVertical: 2,
-                          }}
+                            paddingVertical: 2 }}
                         >
                           <Text style={{ fontSize: 11, color: colors.primary, fontWeight: "600", textTransform: "capitalize" }}>
                             {row.role}
@@ -309,8 +305,7 @@ export default function PayrollScreen() {
                       borderTopWidth: 1,
                       borderTopColor: colors.border,
                       flexDirection: "row",
-                      justifyContent: "space-between",
-                    }}
+                      justifyContent: "space-between" }}
                   >
                     <Text style={{ fontSize: 12, color: colors.muted }}>
                       {row.entries.length} shifts

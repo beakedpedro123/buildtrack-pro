@@ -82,7 +82,22 @@ define(['./workbox-c5fd805d'], (function (workbox) { 'use strict';
     "revision": "beed6bffa22d0d1bd85da2fde8b3851d"
   }, {
     "url": "index.html",
-    "revision": "990685a5c61dd97629c18acba45e6914"
+    "revision": "6f35d9ac68c40171feaadce671fef7de"
+  }, {
+    "url": "bg_reports.png",
+    "revision": "f7aa4d489e58c0ed04a1b0670ba26140"
+  }, {
+    "url": "bg_more.png",
+    "revision": "873eda9c6da373f23ff53b656cbbba38"
+  }, {
+    "url": "bg_jobs.png",
+    "revision": "b4fe6a2d8de25da017666a9d9769ee9b"
+  }, {
+    "url": "bg_home.png",
+    "revision": "a07c4c9b573df1a1c000dbdda2ec41b3"
+  }, {
+    "url": "bg_clock.png",
+    "revision": "48498289e4d66410895687cd0adb7940"
   }, {
     "url": "icons/icon-512.png",
     "revision": "9fb6e13023654f7bf6d55fcfc9a40b1c"
@@ -93,10 +108,10 @@ define(['./workbox-c5fd805d'], (function (workbox) { 'use strict';
     "url": "icons/company-logo.png",
     "revision": "7d79dd5a93c1ff34e1711ae4a1e24338"
   }, {
-    "url": "assets/index-Dv_6sPBY.js",
+    "url": "assets/index-DIfHsUzu.css",
     "revision": null
   }, {
-    "url": "assets/index-DIfHsUzu.css",
+    "url": "assets/index-BjKgWWcZ.js",
     "revision": null
   }, {
     "url": "icons/company-logo.png",

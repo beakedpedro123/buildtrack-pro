@@ -1,4 +1,5 @@
-import { ScreenContainer } from "@/components/screen-container";
+import {
+   ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
@@ -7,8 +8,7 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { useState, useMemo } from "react";
-import {
-  ActivityIndicator,
+import { ActivityIndicator,
   Alert,
   FlatList,
   Image,
@@ -19,8 +19,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View, ImageBackground } from "react-native";
+
+import { BG_CLOCK as bg_clock } from "@/constants/bg-urls";
 
 type Screen = "list" | "new" | "topics";
 type MeetingType = "safety_toolbox" | "daily_goals";
@@ -88,8 +89,7 @@ export default function SafetyScreen() {
   const weekEnd = getWeekEnd(now);
   const { data: weekMeetings } = trpc.safetyMeetings.forWeek.useQuery({
     startDate: weekStart.toISOString(),
-    endDate: weekEnd.toISOString(),
-  });
+    endDate: weekEnd.toISOString() });
 
   const weeklyStats = useMemo(() => {
     if (!weekMeetings) return { safetyCount: 0, goalsCount: 0, safetyTarget: 3, goalsTarget: 5 };
@@ -164,8 +164,7 @@ export default function SafetyScreen() {
         attendeeCount: parseInt(attendeeCount) || 1,
         photoUrl,
         conductedBy: employee.id,
-        conductedAt: new Date().toISOString(),
-      });
+        conductedAt: new Date().toISOString() });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       utils.safetyMeetings.list.invalidate();
       utils.safetyMeetings.forWeek.invalidate();
@@ -196,8 +195,7 @@ export default function SafetyScreen() {
         title: newTopicTitle.trim(),
         content: newTopicContent.trim() || undefined,
         category: newTopicCategory,
-        requestingEmployeeId: employee.id,
-      });
+        requestingEmployeeId: employee.id });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       utils.safetyTopics.list.invalidate();
       setNewTopicTitle("");
@@ -269,13 +267,13 @@ export default function SafetyScreen() {
     typeRow: { flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 16 },
     typeBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5, alignItems: "center" },
     typeBtnText: { fontWeight: "700", fontSize: 13 },
-    emptyText: { textAlign: "center", color: colors.muted, fontSize: 14, paddingVertical: 40 },
-  });
+    emptyText: { textAlign: "center", color: colors.muted, fontSize: 14, paddingVertical: 40 } });
 
   // ─── NEW MEETING FORM ───
   if (screen === "new") {
     return (
       <ScreenContainer>
+        <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
           <TouchableOpacity onPress={() => { resetForm(); setScreen("list"); }}>
             <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
@@ -435,7 +433,8 @@ export default function SafetyScreen() {
             )}
           </TouchableOpacity>
         </ScrollView>
-      </ScreenContainer>
+    </ImageBackground>
+    </ScreenContainer>
     );
   }
 
@@ -524,6 +523,7 @@ export default function SafetyScreen() {
   // ─── MAIN LIST VIEW ───
   return (
     <ScreenContainer>
+    <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <View style={styles.header}>
         <Text style={styles.title}>Safety</Text>
         <View style={styles.actionRow}>
@@ -552,8 +552,7 @@ export default function SafetyScreen() {
       <View style={styles.complianceRow}>
         <View style={[styles.complianceCard, {
           borderColor: weeklyStats.safetyCount >= weeklyStats.safetyTarget ? colors.success : colors.warning,
-          backgroundColor: (weeklyStats.safetyCount >= weeklyStats.safetyTarget ? colors.success : colors.warning) + "10",
-        }]}>
+          backgroundColor: (weeklyStats.safetyCount >= weeklyStats.safetyTarget ? colors.success : colors.warning) + "10" }]}>
           <Text style={[styles.complianceCount, { color: weeklyStats.safetyCount >= weeklyStats.safetyTarget ? colors.success : colors.warning }]}>
             {weeklyStats.safetyCount}/{weeklyStats.safetyTarget}
           </Text>
@@ -562,8 +561,7 @@ export default function SafetyScreen() {
         </View>
         <View style={[styles.complianceCard, {
           borderColor: weeklyStats.goalsCount >= weeklyStats.goalsTarget ? colors.success : colors.warning,
-          backgroundColor: (weeklyStats.goalsCount >= weeklyStats.goalsTarget ? colors.success : colors.warning) + "10",
-        }]}>
+          backgroundColor: (weeklyStats.goalsCount >= weeklyStats.goalsTarget ? colors.success : colors.warning) + "10" }]}>
           <Text style={[styles.complianceCount, { color: weeklyStats.goalsCount >= weeklyStats.goalsTarget ? colors.success : colors.warning }]}>
             {weeklyStats.goalsCount}/{weeklyStats.goalsTarget}
           </Text>
@@ -628,6 +626,7 @@ export default function SafetyScreen() {
           );
         }}
       />
+    </ImageBackground>
     </ScreenContainer>
   );
 }

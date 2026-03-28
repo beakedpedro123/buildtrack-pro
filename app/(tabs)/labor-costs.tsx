@@ -1,19 +1,20 @@
-import { ScreenContainer } from "@/components/screen-container";
+import {
+   ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import { useMemo, useState } from "react";
-import {
-  ActivityIndicator,
+import { ActivityIndicator,
   FlatList,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View, ImageBackground } from "react-native";
+
+import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
 
 type Period = "week" | "month" | "30days";
 
@@ -123,8 +124,7 @@ export default function LaborCostsScreen() {
     empName: { fontSize: 14, fontWeight: "600", color: colors.foreground },
     empRole: { fontSize: 11, color: colors.muted, marginTop: 1 },
     empHours: { fontSize: 14, fontWeight: "700", textAlign: "right" },
-    empCost: { fontSize: 11, color: colors.muted, textAlign: "right", marginTop: 1 },
-  });
+    empCost: { fontSize: 11, color: colors.muted, textAlign: "right", marginTop: 1 } });
 
   // Access guard
   if (!canAccess) {
@@ -137,7 +137,7 @@ export default function LaborCostsScreen() {
             Labor cost tracking is available to management roles only.
           </Text>
         </View>
-      </ScreenContainer>
+    </ScreenContainer>
     );
   }
 
@@ -160,6 +160,7 @@ export default function LaborCostsScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
+        <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <View style={styles.header}>
         <Text style={styles.title}>Labor Costs</Text>
         <Text style={styles.subtitle}>Track labor spend across jobs and employees</Text>
@@ -177,8 +178,7 @@ export default function LaborCostsScreen() {
                 styles.periodBtn,
                 {
                   borderColor: active ? colors.primary : colors.border,
-                  backgroundColor: active ? colors.primary + "15" : colors.surface,
-                },
+                  backgroundColor: active ? colors.primary + "15" : colors.surface },
               ]}
               onPress={() => {
                 setPeriod(p);
@@ -236,8 +236,7 @@ export default function LaborCostsScreen() {
                           styles.weekBar,
                           {
                             height,
-                            backgroundColor: isCurrentWeek ? colors.primary : colors.primary + "60",
-                          },
+                            backgroundColor: isCurrentWeek ? colors.primary : colors.primary + "60" },
                         ]}
                       />
                     </View>
@@ -274,8 +273,7 @@ export default function LaborCostsScreen() {
                           styles.barFill,
                           {
                             width: `${Math.max(pct, 2)}%`,
-                            backgroundColor: colors.primary,
-                          },
+                            backgroundColor: colors.primary },
                         ]}
                       />
                     </View>
@@ -328,6 +326,7 @@ export default function LaborCostsScreen() {
           )}
         </ScrollView>
       )}
+    </ImageBackground>
     </ScreenContainer>
   );
 }

@@ -762,3 +762,97 @@
 - [x] Concrete mix ratios and curing times
 - [x] Safety rigging weight calculations
 - [x] Common construction math formulas
+
+## Phase 48 — Goals Privacy, Sleek UI, Background Image, Pivot Images, Fixes
+
+### Pivot Hardware Images
+- [ ] Pivot can find and return images of hardware from the web when asked
+- [ ] Image search integrated into Pivot tool calling
+
+### Goal System with Privacy
+- [ ] Anyone can set goals for anyone
+- [ ] Users can only see goals they created or goals set for them
+- [ ] Foremen cannot see goals other foremen set for their employees
+- [ ] Owner account can see ALL goals across all employees
+- [ ] Goal creation includes who set it and who it's for
+
+### Goals Tab Revamp
+- [ ] Sleek flashcard-style UI with no borders
+- [ ] High-end look, smooth and modern
+- [ ] Remove old bordered card style
+
+### Pablo Carranza Fix
+- [ ] Fix Pablo Carranza role to Office Manager (not owner)
+- [ ] Ensure only Pedro is the owner account
+
+### Home Screen Positive Message
+- [ ] Add motivational/positive message on the home screen for Pedro
+
+### Background Accent
+- [ ] Create sleek gold streak/accent background mockups
+- [ ] Show examples to user before applying
+- [ ] Apply chosen gold accent design to main screen (no photo)
+
+## Phase 48b — Gold Backgrounds, Tab Revamp, Full Audit
+
+### Gold Backgrounds
+- [ ] Generate blended gold wave + geometric backgrounds for each tab
+- [ ] Home screen: curvy gold waves (B style)
+- [ ] Other tabs: blend to subtle geometric gold lines (D style)
+- [ ] Apply backgrounds to native app screens
+- [x] Apply backgrounds to PWA screens
+
+### Tab UI Revamp
+- [ ] Revamp all tabs to high-end premium look
+- [ ] Make tabs sleeker and more polished
+- [ ] Consistent premium feel across all screens
+
+### Full Audit
+- [ ] Test all features on APK version for bugs
+- [ ] Test all features on web version for bugs
+- [ ] Fix any issues found during audit
+- [ ] Optimize app performance
+
+### Daily Positive Messages
+- [ ] Add rotating daily positive messages for ALL roles (owner, secretary, foreman, laborer)
+- [ ] Messages change daily, not just per session
+- [ ] Owner gets unique motivational messages too
+
+### iOS Update
+- [ ] After this update, prepare iOS version update (Apple approved v23)
+
+### Secretary → Office Manager Rename
+- [x] Replace all user-facing "Secretary" labels with "Office Manager" across entire app
+- [x] Check native app, PWA, and Pivot system prompts
+- [x] Ensure Lupe Mejia and Pablo Carranza both show as Office Manager
+- [x] Keep database enum as 'secretary' internally but display as "Office Manager"
+
+## Phase 23 — Goals Privacy & Flashcard UI Redesign
+
+### Goals Privacy System
+- [x] Server-side privacy filtering: pass employeeId and employeeRole to goals.list API
+- [x] Foremen only see goals they created or were assigned to them
+- [x] Laborers only see their own assigned goals
+- [x] Owner/management sees all goals with assignee filter
+- [x] Privacy enforced both server-side and client-side
+
+### Goals Flashcard UI (Native App)
+- [x] Redesign goals cards to sleek borderless flashcard style
+- [x] Left-edge priority accent strip (green/amber/red)
+- [x] Translucent metadata pills (priority, status, assignee, deadline)
+- [x] Premium shadow effects on cards
+- [x] Borderless form inputs with surface backgrounds
+- [x] Pill-style selectors for priority and status
+
+### Goals Flashcard UI (PWA)
+- [x] Redesign PWA goals page with matching flashcard style
+- [x] Borderless cards with priority accent strips
+- [x] Translucent metadata pills
+- [x] Borderless form inputs and pill selectors
+- [x] Privacy filtering with employeeId/employeeRole passed to API
+
+### ImageBackground Fixes
+- [x] Fix meetings.tsx missing opening ImageBackground tag
+- [x] Fix safety.tsx missing opening ImageBackground tag in new meeting form
+- [x] Fix safety.tsx missing opening ImageBackground tag in main list view
+- [x] All ImageBackground tags balanced across all screens

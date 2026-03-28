@@ -1,18 +1,19 @@
-import { ScreenContainer } from "@/components/screen-container";
+import {
+   ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
-import {
-  ActivityIndicator,
+import { ActivityIndicator,
   FlatList,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View, ImageBackground } from "react-native";
+
+import { BG_CLOCK as bg_clock } from "@/constants/bg-urls";
 
 type Period = "week" | "biweek" | "month";
 
@@ -73,8 +74,7 @@ export default function HoursScreen() {
     {
       employeeId: employee?.id || 0,
       startDate: range.startDate,
-      endDate: range.endDate,
-    },
+      endDate: range.endDate },
     { enabled: !!employee }
   );
 
@@ -85,20 +85,16 @@ export default function HoursScreen() {
       borderRadius: 20,
       borderWidth: 1,
       borderColor: colors.border,
-      marginRight: 8,
-    },
+      marginRight: 8 },
     periodBtnActive: {
       backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
+      borderColor: colors.primary },
     periodBtnText: {
       fontSize: 13,
       fontWeight: "600",
-      color: colors.muted,
-    },
+      color: colors.muted },
     periodBtnTextActive: {
-      color: "#fff",
-    },
+      color: "#fff" },
     summaryCard: {
       backgroundColor: colors.surface,
       borderRadius: 16,
@@ -106,8 +102,7 @@ export default function HoursScreen() {
       marginHorizontal: 16,
       marginBottom: 16,
       borderWidth: 1,
-      borderColor: colors.border,
-    },
+      borderColor: colors.border },
     entryRow: {
       backgroundColor: colors.surface,
       borderRadius: 12,
@@ -115,9 +110,7 @@ export default function HoursScreen() {
       marginHorizontal: 16,
       marginBottom: 8,
       borderWidth: 1,
-      borderColor: colors.border,
-    },
-  });
+      borderColor: colors.border } });
 
   const PERIODS: { key: Period; label: string }[] = [
     { key: "week", label: "This Week" },
@@ -127,6 +120,7 @@ export default function HoursScreen() {
 
   return (
     <ScreenContainer>
+        <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       {/* Header */}
       <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
         <Text style={{ fontSize: 26, fontWeight: "700", color: colors.foreground }}>My Hours</Text>
@@ -238,6 +232,7 @@ export default function HoursScreen() {
           refreshing={isLoading}
         />
       )}
+    </ImageBackground>
     </ScreenContainer>
   );
 }

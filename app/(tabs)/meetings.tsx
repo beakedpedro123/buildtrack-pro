@@ -1,4 +1,5 @@
-import { ScreenContainer } from "@/components/screen-container";
+import {
+   ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
@@ -6,21 +7,18 @@ import { trpc } from "@/lib/trpc";
 import { getApiBaseUrl } from "@/constants/oauth";
 import {
   isMeetingReminderEnabled,
-  toggleMeetingReminder,
-} from "@/lib/notifications";
+  toggleMeetingReminder } from "@/lib/notifications";
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
-  useAudioRecorderState,
-} from "expo-audio";
+  useAudioRecorderState } from "expo-audio";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  ActivityIndicator,
+import { ActivityIndicator,
   Alert,
   FlatList,
   Image,
@@ -32,8 +30,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View, ImageBackground } from "react-native";
+
+import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 type MainTab = "management" | "safety";
@@ -84,15 +83,13 @@ const STATUS_COLORS: Record<string, string> = {
   recording: "#EF4444",
   processing: "#F59E0B",
   completed: "#22C55E",
-  cancelled: "#9CA3AF",
-};
+  cancelled: "#9CA3AF" };
 const STATUS_LABELS: Record<string, string> = {
   scheduled: "Scheduled",
   recording: "Recording",
   processing: "Processing…",
   completed: "Completed",
-  cancelled: "Cancelled",
-};
+  cancelled: "Cancelled" };
 const TOPIC_CATEGORIES = ["general", "fall_protection", "electrical", "excavation", "scaffolding", "ppe", "fire", "chemical", "equipment", "heat_stress"];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -180,26 +177,20 @@ export default function MeetingsScreen() {
       setUseAutoTitle(true);
       setSelectedMeetingId(data.id);
       setMgmtScreen("detail");
-    },
-  });
+    } });
   const startRecording = trpc.meetings.startRecording.useMutation({
-    onSuccess: () => utils.meetings.list.invalidate(),
-  });
+    onSuccess: () => utils.meetings.list.invalidate() });
   const finishRecording = trpc.meetings.finishRecording.useMutation({
-    onSuccess: () => utils.meetings.list.invalidate(),
-  });
+    onSuccess: () => utils.meetings.list.invalidate() });
   const transcribeAndSummarize = trpc.meetings.transcribeAndSummarize.useMutation({
     onSuccess: (data) => {
       utils.meetings.list.invalidate();
       setSuggestedGoals((data.suggestedGoals || []) as any);
-    },
-  });
+    } });
   const cancelMeeting = trpc.meetings.cancel.useMutation({
-    onSuccess: () => utils.meetings.list.invalidate(),
-  });
+    onSuccess: () => utils.meetings.list.invalidate() });
   const createGoal = trpc.goals.create.useMutation({
-    onSuccess: () => utils.goals.list.invalidate(),
-  });
+    onSuccess: () => utils.goals.list.invalidate() });
 
   // ─── Safety meeting queries ──────────────────────────────────────────────
   const { data: jobs } = trpc.jobs.listActive.useQuery();
@@ -211,8 +202,7 @@ export default function MeetingsScreen() {
   const weekEnd = getWeekEnd(now);
   const { data: weekMeetings } = trpc.safetyMeetings.forWeek.useQuery({
     startDate: weekStart.toISOString(),
-    endDate: weekEnd.toISOString(),
-  });
+    endDate: weekEnd.toISOString() });
 
   const weeklyStats = useMemo(() => {
     if (!weekMeetings) return { safetyCount: 0, goalsCount: 0, safetyTarget: 3, goalsTarget: 5 };
@@ -321,8 +311,7 @@ export default function MeetingsScreen() {
           weekOf: ws.toISOString(),
           priority: "medium",
           createdBy: employee.id,
-          assignedTo: goal.assigneeId || undefined,
-        });
+          assignedTo: goal.assigneeId || undefined });
       }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Goals Created", `${suggestedGoals.length} goals have been added to this week's goals.`);
@@ -407,8 +396,7 @@ export default function MeetingsScreen() {
         attendeeCount: parseInt(attendeeCount) || 1,
         photoUrl,
         conductedBy: employee.id,
-        conductedAt: new Date().toISOString(),
-      });
+        conductedAt: new Date().toISOString() });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       utils.safetyMeetings.list.invalidate();
       utils.safetyMeetings.forWeek.invalidate();
@@ -439,8 +427,7 @@ export default function MeetingsScreen() {
         title: newTopicTitle.trim(),
         content: newTopicContent.trim() || undefined,
         category: newTopicCategory,
-        requestingEmployeeId: employee.id,
-      });
+        requestingEmployeeId: employee.id });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       utils.safetyTopics.list.invalidate();
       setNewTopicTitle("");
@@ -505,8 +492,7 @@ export default function MeetingsScreen() {
     submitBtn: { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center", marginHorizontal: 20, marginVertical: 20 },
     photoRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, marginTop: 8 },
     photoBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },
-    actionBtn: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 4 },
-  });
+    actionBtn: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 4 } });
 
   // ═══════════════════════════════════════════════════════════════════════════
   // MANAGEMENT: Recording Room
@@ -515,6 +501,7 @@ export default function MeetingsScreen() {
     const activeMeeting = meetings?.find((m) => m.id === activeMeetingId);
     return (
       <ScreenContainer>
+        <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
           <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: colors.error + "22", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
             <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: colors.error, alignItems: "center", justifyContent: "center" }}>
@@ -541,7 +528,8 @@ export default function MeetingsScreen() {
             </Text>
           </View>
         </View>
-      </ScreenContainer>
+    </ImageBackground>
+    </ScreenContainer>
     );
   }
 
@@ -923,6 +911,7 @@ export default function MeetingsScreen() {
   // ═══════════════════════════════════════════════════════════════════════════
   return (
     <ScreenContainer>
+    <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       {/* Header */}
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
         <Text style={{ fontSize: 26, fontWeight: "700", color: colors.foreground }}>Meetings</Text>
@@ -1108,8 +1097,7 @@ export default function MeetingsScreen() {
           <View style={styles.complianceRow}>
             <View style={[styles.complianceCard, {
               borderColor: weeklyStats.safetyCount >= weeklyStats.safetyTarget ? colors.success : colors.warning,
-              backgroundColor: (weeklyStats.safetyCount >= weeklyStats.safetyTarget ? colors.success : colors.warning) + "10",
-            }]}>
+              backgroundColor: (weeklyStats.safetyCount >= weeklyStats.safetyTarget ? colors.success : colors.warning) + "10" }]}>
               <Text style={[styles.complianceCount, { color: weeklyStats.safetyCount >= weeklyStats.safetyTarget ? colors.success : colors.warning }]}>
                 {weeklyStats.safetyCount}/{weeklyStats.safetyTarget}
               </Text>
@@ -1118,8 +1106,7 @@ export default function MeetingsScreen() {
             </View>
             <View style={[styles.complianceCard, {
               borderColor: weeklyStats.goalsCount >= weeklyStats.goalsTarget ? colors.success : colors.warning,
-              backgroundColor: (weeklyStats.goalsCount >= weeklyStats.goalsTarget ? colors.success : colors.warning) + "10",
-            }]}>
+              backgroundColor: (weeklyStats.goalsCount >= weeklyStats.goalsTarget ? colors.success : colors.warning) + "10" }]}>
               <Text style={[styles.complianceCount, { color: weeklyStats.goalsCount >= weeklyStats.goalsTarget ? colors.success : colors.warning }]}>
                 {weeklyStats.goalsCount}/{weeklyStats.goalsTarget}
               </Text>
@@ -1186,6 +1173,7 @@ export default function MeetingsScreen() {
           />
         </>
       )}
+    </ImageBackground>
     </ScreenContainer>
   );
 }
