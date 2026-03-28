@@ -1,0 +1,251 @@
+{
+  "source": "Utah State Construction Code, IRC/IBC as adopted, local jurisdiction amendments",
+  "last_updated": "2024-2025",
+  "state_code": {
+    "base_code": "2021 International Residential Code (IRC) with Utah amendments, transitioning to 2024 IBC/IRC per HB65",
+    "energy_code": "2021 IECC with Utah amendments",
+    "fire_code": "2021 International Fire Code (IFC) with Utah amendments",
+    "plumbing_code": "2021 Uniform Plumbing Code (UPC)",
+    "electrical_code": "2020 National Electrical Code (NEC)",
+    "mechanical_code": "2021 International Mechanical Code (IMC) with Utah amendments",
+    "key_utah_amendments": [
+      "R301.2.3 Snow loads: Where ground snow loads exceed 75 psf, eaves must sustain 2x psf on overhangs",
+      "R301.6 Utah Snow Loads: Ground snow loads per local jurisdiction or ASCE 7 Figure 7.2-1",
+      "R313.1 Sprinkler systems: Not required for one- and two-family dwellings unless local jurisdiction requires",
+      "R602.10.1 Braced wall panels: Continuous structural panel sheathing method allowed as alternative",
+      "R802.10.4 Truss design: Trusses must be designed by registered engineer, sealed drawings required",
+      "Energy code: Prescriptive R-values for Climate Zone 5 (most of Utah) and Zone 6 (mountain areas)"
+    ]
+  },
+  "climate_zones": {
+    "zone_5": {
+      "areas": ["Salt Lake City", "Layton", "Ogden", "Provo", "most of Wasatch Front"],
+      "wall_insulation": "R-20 or R-13+5ci",
+      "ceiling_insulation": "R-49",
+      "floor_insulation": "R-30",
+      "basement_wall": "R-15/19",
+      "slab_perimeter": "R-10 for 2ft",
+      "fenestration_u_factor": 0.30,
+      "fenestration_shgc": 0.40
+    },
+    "zone_6": {
+      "areas": ["Park City", "Summit County", "Powder Mountain", "Morgan (higher elevations)", "Coalville", "Heber City"],
+      "wall_insulation": "R-20+5ci or R-13+10ci",
+      "ceiling_insulation": "R-49",
+      "floor_insulation": "R-30",
+      "basement_wall": "R-15/19",
+      "slab_perimeter": "R-10 for 4ft",
+      "fenestration_u_factor": 0.30,
+      "fenestration_shgc": 0.40
+    }
+  },
+  "jurisdictions": {
+    "summit_county": {
+      "name": "Summit County",
+      "building_department": "Summit County Community Development",
+      "phone": "435-336-3124",
+      "address": "60 N Main St, Coalville, UT 84017",
+      "website": "summitcountyutah.gov",
+      "ground_snow_load_psf": 115,
+      "wind_speed_mph": 115,
+      "seismic_design_category": "D or D1",
+      "frost_depth_inches": 36,
+      "climate_zone": 6,
+      "exposure_category": "C",
+      "weathering": "Severe",
+      "termite": "Slight",
+      "winter_design_temp_f": -7,
+      "ice_barrier_required": true,
+      "special_requirements": [
+        "Wildland-Urban Interface (WUI) requirements may apply in mountain areas",
+        "Steep slope building may require geotechnical report",
+        "Snow country design: roof snow loads often exceed 100 psf, drift loads must be calculated",
+        "Engineered foundation required for most custom homes",
+        "Radon mitigation system required in new construction",
+        "Fire sprinklers may be required based on access and fire district",
+        "Defensible space requirements in WUI zones"
+      ],
+      "permit_requirements": [
+        "Building permit application with 2 sets of plans",
+        "Engineered plans required for custom homes",
+        "Soils/geotechnical report for hillside construction",
+        "SWPPP (Stormwater Pollution Prevention Plan) for sites > 1 acre",
+        "Septic permit if not on sewer",
+        "Access permit from county road department"
+      ]
+    },
+    "park_city": {
+      "name": "Park City",
+      "building_department": "Park City Building Department",
+      "phone": "435-615-5100",
+      "ground_snow_load_psf": 100,
+      "wind_speed_mph": 115,
+      "seismic_design_category": "D",
+      "frost_depth_inches": 36,
+      "climate_zone": 6,
+      "special_requirements": [
+        "Historic district overlay may apply — check before design",
+        "Height restrictions vary by zone (28-35 ft typical)",
+        "Snow storage requirements on site",
+        "Heated driveway/walkway requirements in some zones",
+        "Green building incentives available"
+      ]
+    },
+    "powder_mountain": {
+      "name": "Powder Mountain / Eden / Ogden Valley",
+      "building_department": "Weber County Planning",
+      "phone": "801-399-8791",
+      "ground_snow_load_psf": 150,
+      "wind_speed_mph": 115,
+      "seismic_design_category": "D",
+      "frost_depth_inches": 42,
+      "climate_zone": 6,
+      "special_requirements": [
+        "Extreme snow loads — 150+ psf ground snow load at higher elevations",
+        "Roof design must account for unbalanced snow loads and drift",
+        "Metal roofing with snow guards common/recommended",
+        "Structural engineer required for all custom homes",
+        "Access road grades limited — may need heated driveways",
+        "Fire district requirements for sprinklers based on response time",
+        "Avalanche hazard zones — check before building",
+        "Well and septic common — percolation test required"
+      ]
+    },
+    "morgan_county": {
+      "name": "Morgan County / Morgan City",
+      "building_department": "Morgan County Building Department",
+      "phone": "801-845-4015",
+      "website": "morgancountyutah.gov",
+      "ground_snow_load_psf": 60,
+      "wind_speed_mph": 115,
+      "seismic_design_category": "D",
+      "frost_depth_inches": 30,
+      "climate_zone": 5,
+      "special_requirements": [
+        "IRC adopted with state amendments",
+        "One- and two-family dwellings per IRC Chapter 11 (energy)",
+        "Automatic fire sprinklers per IRC R313 as amended by state",
+        "Soils report may be required for expansive soils",
+        "Flood zone check required — FEMA maps",
+        "Agricultural exemptions may apply for outbuildings"
+      ]
+    },
+    "layton": {
+      "name": "Layton City",
+      "building_department": "Layton City Community & Economic Development",
+      "phone": "801-336-3770",
+      "website": "laytoncity.org",
+      "ground_snow_load_psf": 40,
+      "wind_speed_mph": 115,
+      "seismic_design_category": "D",
+      "frost_depth_inches": 24,
+      "climate_zone": 5,
+      "special_requirements": [
+        "Standard IRC/IBC with state amendments",
+        "Residential plan review typically 2-3 weeks",
+        "Impact fees apply for new construction",
+        "Landscaping requirements for new homes",
+        "Driveway approach permit from public works"
+      ]
+    },
+    "salt_lake_city": {
+      "name": "Salt Lake City",
+      "building_department": "Salt Lake City Building Services",
+      "phone": "801-535-7752",
+      "website": "slc.gov/buildingservices",
+      "ground_snow_load_psf": 30,
+      "wind_speed_mph": 115,
+      "seismic_design_category": "D",
+      "frost_depth_inches": 24,
+      "climate_zone": 5,
+      "special_requirements": [
+        "Historic preservation overlay in many neighborhoods",
+        "ADU (Accessory Dwelling Unit) regulations — check zoning",
+        "Solar-ready requirements for new construction",
+        "EV charging infrastructure requirements",
+        "Stormwater management requirements",
+        "Tree protection ordinance during construction"
+      ]
+    },
+    "coalville": {
+      "name": "Coalville City",
+      "building_department": "Coalville City / Summit County",
+      "phone": "435-336-5981",
+      "ground_snow_load_psf": 75,
+      "wind_speed_mph": 115,
+      "seismic_design_category": "D",
+      "frost_depth_inches": 30,
+      "climate_zone": 6,
+      "special_requirements": [
+        "Small city — uses Summit County building department for inspections",
+        "Zoning check required before permit application",
+        "Water and sewer connection fees",
+        "Moderate snow loads — engineered trusses recommended"
+      ]
+    }
+  },
+  "common_framing_requirements": {
+    "wall_framing": {
+      "studs": "2x4 or 2x6 at 16 in OC (24 in OC allowed for some conditions)",
+      "top_plates": "Double top plate required, single allowed with approved connectors",
+      "bottom_plate": "Pressure-treated on concrete, standard on wood subfloor",
+      "headers": {
+        "4ft_opening": "2-2x6 minimum",
+        "6ft_opening": "2-2x8 minimum",
+        "8ft_opening": "2-2x10 minimum",
+        "10ft_opening": "2-2x12 minimum or engineered",
+        "over_10ft": "Engineered header required"
+      },
+      "bracing": "Per IRC R602.10 — continuous sheathing or let-in bracing",
+      "fire_blocking": "Required at 10ft vertical intervals, at floor/ceiling levels, at soffits, and at connections between horizontal and vertical spaces"
+    },
+    "floor_framing": {
+      "joists": "Per IRC span tables — species, grade, spacing, and load determine size",
+      "bridging": "Required at 8ft intervals for joists deeper than 2x12",
+      "subfloor": "3/4 in T&G plywood or OSB, glued and nailed",
+      "cantilever": "Maximum 1/4 of backspan for floor joists"
+    },
+    "roof_framing": {
+      "rafters": "Per IRC span tables or engineered",
+      "collar_ties": "Required in upper 1/3 of attic space, 4ft OC maximum",
+      "ridge_board": "Minimum 1x, depth equal to cut end of rafter",
+      "ridge_beam": "Required for cathedral ceilings without collar ties — must be engineered",
+      "sheathing": "7/16 in OSB or 1/2 in plywood minimum, H-clips at unsupported edges"
+    },
+    "fastener_schedule": {
+      "sheathing_to_framing_walls": "8d common at 6 in OC edges, 12 in OC field",
+      "sheathing_to_framing_roof": "8d common at 6 in OC edges, 12 in OC field",
+      "subfloor_to_joist": "8d common at 6 in OC edges, 12 in OC field (plus construction adhesive)",
+      "top_plate_to_stud": "2-16d end nailed or 4-8d toe nailed",
+      "stud_to_bottom_plate": "4-8d toe nailed or 2-16d end nailed",
+      "double_top_plate_splice": "8-16d minimum, stagger joints 4ft minimum",
+      "header_to_trimmer": "3-16d each side",
+      "joist_to_sill": "3-8d toe nailed or approved connector"
+    }
+  },
+  "inspection_sequence": [
+    "1. Footing inspection — before concrete pour, verify rebar, depth, width",
+    "2. Foundation inspection — forms, rebar, anchor bolts before pour",
+    "3. Underslab plumbing/mechanical — before slab pour",
+    "4. Slab inspection — vapor barrier, rebar, thickness",
+    "5. Framing inspection — ALL framing complete, sheathing, nailing, connectors, fire blocking",
+    "6. Rough plumbing — supply and DWV before cover",
+    "7. Rough electrical — wiring, boxes, panels before cover",
+    "8. Rough mechanical — ductwork, equipment before cover",
+    "9. Insulation inspection — R-values, vapor barrier, air sealing",
+    "10. Drywall nailing inspection (some jurisdictions)",
+    "11. Final inspections — plumbing, electrical, mechanical, building"
+  ],
+  "common_code_violations_framing": [
+    "Missing or incorrect hurricane ties/straps at roof-to-wall connection",
+    "Inadequate header sizes for openings",
+    "Missing fire blocking at floor levels and soffits",
+    "Incorrect nailing schedule — too few nails or wrong size",
+    "Missing holdowns at shear wall ends",
+    "Studs not aligned with joists/trusses above (stacking)",
+    "Missing cripple studs below window sills",
+    "Notching or boring joists/studs beyond code limits",
+    "Missing bridging/blocking in floor systems",
+    "Incorrect Simpson connector installation — missing nails, wrong nail type"
+  ]
+}

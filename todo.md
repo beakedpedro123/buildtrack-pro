@@ -723,3 +723,42 @@
 - [x] Each employee gets their own unique Pivot experience that evolves over time
 - [x] Pivot proactively references past conversations and personal details naturally
 - [x] Deeper relationship building — Pivot becomes each person's personal helper
+
+## Phase 47 — Supercharge Pivot: Construction Reference Library
+
+### AISC Steel Profiles Database
+- [x] Compile W-shape steel profiles (W4-W44) with weight/ft, dimensions, area, moment of inertia
+- [x] Include S, HP, C, MC, L, WT, MT, ST, 2L, HSS, PIPE shapes
+- [x] Pivot can calculate total beam weight (e.g. W8x44 at 40ft = 1,760 lbs)
+- [x] Pivot knows flange sizes, web thickness, depth for safety/rigging
+
+### Simpson Strong-Tie Hardware Catalog
+- [x] A35 clips, LUS26 hangers, HHUS410 hangers, and full catalog
+- [x] Pivot can describe hardware, load ratings, installation requirements
+- [x] Pivot can search and provide images of hardware from the web
+
+### Utah Building Codes & Local Jurisdictions
+- [x] Utah IRC/IBC residential and commercial codes
+- [x] Summit County specific codes and requirements
+- [x] Powder Mountain area codes
+- [x] Morgan city/county codes
+- [x] Layton city codes
+- [x] Salt Lake City codes
+- [x] Coalville city codes
+- [x] Snow load, wind load, seismic requirements for each area
+
+### Image Search & Visual Responses
+- [x] Pivot can search for and return images of hardware, connectors, beam profiles
+- [x] Provide visual references when employees ask about specific products
+
+### Larger File/Video Uploads
+- [x] Increase upload size limit for videos (200MB)
+- [x] Pivot can accept and analyze video files from employees
+- [x] Pivot can provide context videos in responses
+
+### Additional Construction Knowledge
+- [x] Lumber dimensions and grades reference
+- [x] Common framing spans and load tables
+- [x] Concrete mix ratios and curing times
+- [x] Safety rigging weight calculations
+- [x] Common construction math formulas

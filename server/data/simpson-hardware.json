@@ -1,0 +1,82 @@
+{
+  "source": "Simpson Strong-Tie Wood Construction Connectors Catalog 2021-2023",
+  "note": "Allowable loads in lbs. DF/SP = Douglas Fir-Larch / Southern Pine. SPF = Spruce-Pine-Fir. All loads based on normal duration. Nails: 10d = 0.148x3in, 16d = 0.162x3.5in, SD = Strong-Drive screws.",
+  "framing_angles": [
+    {"model":"A21","description":"Framing angle 2x1-7/16 in","gauge":18,"material":"G90 galvanized steel","allowable_uplift_DF":255,"allowable_lateral_DF":310,"fasteners":"4-10d nails per side","uses":"Light-duty angle connections, blocking, nailers"},
+    {"model":"A23","description":"Framing angle 2-3/16x1-7/16 in","gauge":18,"material":"G90 galvanized steel","allowable_uplift_DF":340,"allowable_lateral_DF":405,"fasteners":"6-10d nails","uses":"General framing connections"},
+    {"model":"A34","description":"Framing angle 2-1/2x1-7/16 in","gauge":18,"material":"G90 galvanized steel","allowable_uplift_DF":490,"allowable_lateral_DF":510,"fasteners":"4-10d nails per side","uses":"Rafter/truss to top plate, joist to beam connections"},
+    {"model":"A35","description":"Framing angle 4-7/16x1-7/16 in","gauge":18,"material":"G90 galvanized steel","allowable_uplift_DF":730,"allowable_lateral_DF":855,"fasteners":"6-10d nails per side","uses":"Rafter/truss to top plate, stud to plate, joist to beam. Most common framing angle.","installation_notes":"Install with 10d common nails (0.148x3in). Nail each hole. Can be bent 90 degrees in field."},
+    {"model":"A66","description":"Framing angle 6x6 in","gauge":12,"material":"G90 galvanized steel","allowable_uplift_DF":1850,"allowable_lateral_DF":1850,"fasteners":"12-10d nails","uses":"Heavy-duty framing connections"},
+    {"model":"L50","description":"Reinforcing angle 5x5 in","gauge":12,"material":"G90 galvanized steel","allowable_uplift_DF":1585,"allowable_lateral_DF":1585,"fasteners":"10-10d nails","uses":"Heavy-duty reinforcing angle, beam-to-post connections"},
+    {"model":"L70","description":"Reinforcing angle 7x7 in","gauge":12,"material":"G90 galvanized steel","allowable_uplift_DF":2250,"allowable_lateral_DF":2250,"fasteners":"14-10d nails","uses":"Very heavy-duty reinforcing angle"},
+    {"model":"L90","description":"Reinforcing angle 9x9 in","gauge":12,"material":"G90 galvanized steel","allowable_uplift_DF":2900,"allowable_lateral_DF":2900,"fasteners":"18-10d nails","uses":"Maximum-duty reinforcing angle"}
+  ],
+  "joist_hangers_face_mount": [
+    {"model":"LUS26","description":"Light U-shaped hanger for 2x6","gauge":18,"material":"G90 galvanized steel","joist_size":"2x6","allowable_download_DF":675,"allowable_download_SPF":530,"allowable_uplift_DF":255,"fasteners":"6-10d joist nails, 4-10d header nails","uses":"Standard joist-to-beam face mount connection for 2x6 lumber","installation_notes":"Seat joist fully in hanger. Nail all holes. Do not use roofing nails."},
+    {"model":"LUS28","description":"Light U-shaped hanger for 2x8","gauge":18,"material":"G90 galvanized steel","joist_size":"2x8","allowable_download_DF":780,"allowable_download_SPF":615,"allowable_uplift_DF":255,"fasteners":"8-10d joist nails, 4-10d header nails","uses":"Standard joist-to-beam face mount connection for 2x8 lumber"},
+    {"model":"LUS210","description":"Light U-shaped hanger for 2x10","gauge":18,"material":"G90 galvanized steel","joist_size":"2x10","allowable_download_DF":925,"allowable_download_SPF":730,"allowable_uplift_DF":255,"fasteners":"10-10d joist nails, 4-10d header nails","uses":"Standard joist-to-beam face mount connection for 2x10 lumber"},
+    {"model":"LUS212","description":"Light U-shaped hanger for 2x12","gauge":18,"material":"G90 galvanized steel","joist_size":"2x12","allowable_download_DF":1070,"allowable_download_SPF":845,"allowable_uplift_DF":255,"fasteners":"12-10d joist nails, 4-10d header nails","uses":"Standard joist-to-beam face mount connection for 2x12 lumber"},
+    {"model":"LUS26-2","description":"Double U-shaped hanger for (2) 2x6","gauge":18,"material":"G90 galvanized steel","joist_size":"(2) 2x6","allowable_download_DF":1350,"allowable_download_SPF":1060,"allowable_uplift_DF":510,"fasteners":"12-10d joist nails, 4-10d header nails","uses":"Double joist hanger for doubled 2x6"},
+    {"model":"LUS28-2","description":"Double U-shaped hanger for (2) 2x8","gauge":18,"material":"G90 galvanized steel","joist_size":"(2) 2x8","allowable_download_DF":1560,"allowable_download_SPF":1230,"allowable_uplift_DF":510,"fasteners":"16-10d joist nails, 4-10d header nails","uses":"Double joist hanger for doubled 2x8"},
+    {"model":"LUS210-2","description":"Double U-shaped hanger for (2) 2x10","gauge":18,"material":"G90 galvanized steel","joist_size":"(2) 2x10","allowable_download_DF":1850,"allowable_download_SPF":1460,"allowable_uplift_DF":510,"fasteners":"20-10d joist nails, 4-10d header nails","uses":"Double joist hanger for doubled 2x10"},
+    {"model":"HUS26","description":"Heavy U-shaped hanger for 2x6","gauge":14,"material":"G90 galvanized steel","joist_size":"2x6","allowable_download_DF":1170,"allowable_download_SPF":920,"allowable_uplift_DF":500,"fasteners":"6-16d joist nails, 6-16d header nails","uses":"Heavy-duty face mount hanger for 2x6 when higher loads needed"},
+    {"model":"HUS28","description":"Heavy U-shaped hanger for 2x8","gauge":14,"material":"G90 galvanized steel","joist_size":"2x8","allowable_download_DF":1400,"allowable_download_SPF":1100,"allowable_uplift_DF":500,"fasteners":"8-16d joist nails, 6-16d header nails","uses":"Heavy-duty face mount hanger for 2x8"},
+    {"model":"HUS210","description":"Heavy U-shaped hanger for 2x10","gauge":14,"material":"G90 galvanized steel","joist_size":"2x10","allowable_download_DF":1660,"allowable_download_SPF":1310,"allowable_uplift_DF":500,"fasteners":"10-16d joist nails, 6-16d header nails","uses":"Heavy-duty face mount hanger for 2x10"},
+    {"model":"HHUS410","description":"Extra-heavy U-shaped hanger for 4x10","gauge":14,"material":"G90 galvanized steel","joist_size":"4x10","allowable_download_DF":4185,"allowable_download_SPF":3300,"allowable_uplift_DF":1200,"fasteners":"Double-shear nailing, 16d nails","uses":"Extra-heavy-duty face mount hanger for 4x10 beams and girders. Double-shear nailing distributes load through two points on each joist nail.","installation_notes":"Use 16d common nails (0.162x3.5in). Install all nails. Joist must be fully seated. Header must be minimum 3-1/2 in thick."},
+    {"model":"HHUS412","description":"Extra-heavy U-shaped hanger for 4x12","gauge":14,"material":"G90 galvanized steel","joist_size":"4x12","allowable_download_DF":4850,"allowable_download_SPF":3825,"allowable_uplift_DF":1200,"fasteners":"Double-shear nailing, 16d nails","uses":"Extra-heavy-duty face mount hanger for 4x12"},
+    {"model":"HHUS414","description":"Extra-heavy U-shaped hanger for 4x14","gauge":14,"material":"G90 galvanized steel","joist_size":"4x14","allowable_download_DF":5500,"allowable_download_SPF":4340,"allowable_uplift_DF":1200,"fasteners":"Double-shear nailing, 16d nails","uses":"Extra-heavy-duty face mount hanger for 4x14"}
+  ],
+  "joist_hangers_top_flange": [
+    {"model":"LBV2.56/10","description":"Top-flange hanger for 2-5/16 to 2-9/16 x 10","gauge":18,"material":"G90 galvanized steel","joist_size":"2x10 to 2-9/16x10","allowable_download_DF":910,"uses":"Top-flange mount to I-joist or steel beam"},
+    {"model":"DERA2.5/10","description":"Adjustable top-flange hanger","gauge":18,"material":"G90 galvanized steel","joist_size":"2x10","allowable_download_DF":750,"uses":"Adjustable top-flange hanger for skewed or sloped connections"}
+  ],
+  "post_bases": [
+    {"model":"ABU44","description":"Adjustable post base for 4x4","gauge":12,"material":"G90 galvanized steel","post_size":"4x4","allowable_download_DF":3055,"allowable_uplift_DF":1780,"uses":"Elevated post base, 1-inch standoff from concrete"},
+    {"model":"ABU46","description":"Adjustable post base for 4x6","gauge":12,"material":"G90 galvanized steel","post_size":"4x6","allowable_download_DF":4535,"allowable_uplift_DF":2670,"uses":"Elevated post base for 4x6 posts"},
+    {"model":"ABU66","description":"Adjustable post base for 6x6","gauge":12,"material":"G90 galvanized steel","post_size":"6x6","allowable_download_DF":5890,"allowable_uplift_DF":3460,"uses":"Elevated post base for 6x6 posts"},
+    {"model":"CB44","description":"Column base for 4x4","gauge":12,"material":"G90 galvanized steel","post_size":"4x4","allowable_download_DF":2750,"uses":"Standard column base, bolt to concrete"},
+    {"model":"CB46","description":"Column base for 4x6","gauge":12,"material":"G90 galvanized steel","post_size":"4x6","allowable_download_DF":4100,"uses":"Standard column base for 4x6"},
+    {"model":"CB66","description":"Column base for 6x6","gauge":12,"material":"G90 galvanized steel","post_size":"6x6","allowable_download_DF":5500,"uses":"Standard column base for 6x6"}
+  ],
+  "post_caps": [
+    {"model":"BC4","description":"Post cap for 4x4 to 4x beam","gauge":18,"material":"G90 galvanized steel","post_size":"4x4","beam_size":"4x","allowable_download_DF":1500,"uses":"Connect beam to top of post"},
+    {"model":"BC46","description":"Post cap for 4x4 post to 4x6 beam","gauge":18,"material":"G90 galvanized steel","post_size":"4x4","beam_size":"4x6","allowable_download_DF":1500,"uses":"Connect 4x6 beam to 4x4 post"},
+    {"model":"BC6","description":"Post cap for 6x6 to 6x beam","gauge":14,"material":"G90 galvanized steel","post_size":"6x6","beam_size":"6x","allowable_download_DF":2900,"uses":"Connect beam to top of 6x6 post"},
+    {"model":"CC44","description":"Column cap for 4x4","gauge":14,"material":"G90 galvanized steel","post_size":"4x4","allowable_download_DF":4480,"uses":"Heavy-duty column cap"},
+    {"model":"CC46","description":"Column cap for 4x6","gauge":14,"material":"G90 galvanized steel","post_size":"4x6","allowable_download_DF":5460,"uses":"Heavy-duty column cap for 4x6"},
+    {"model":"CC66","description":"Column cap for 6x6","gauge":14,"material":"G90 galvanized steel","post_size":"6x6","allowable_download_DF":7500,"uses":"Heavy-duty column cap for 6x6"}
+  ],
+  "hurricane_ties_and_straps": [
+    {"model":"H1","description":"Hurricane tie","gauge":18,"material":"G90 galvanized steel","allowable_uplift_DF":540,"allowable_lateral_DF":175,"fasteners":"6-8d nails","uses":"Rafter/truss to wall plate hurricane connection"},
+    {"model":"H2.5A","description":"Hurricane tie","gauge":18,"material":"G90 galvanized steel","allowable_uplift_DF":620,"allowable_lateral_DF":310,"fasteners":"8-8d nails","uses":"Higher-capacity hurricane tie for rafter/truss to plate"},
+    {"model":"H10A","description":"Hurricane tie for trusses","gauge":18,"material":"G90 galvanized steel","allowable_uplift_DF":980,"allowable_lateral_DF":540,"fasteners":"10-10d nails","uses":"Heavy-duty hurricane tie for trusses"},
+    {"model":"H10S","description":"Hurricane tie skewable","gauge":18,"material":"G90 galvanized steel","allowable_uplift_DF":980,"allowable_lateral_DF":540,"fasteners":"10-10d nails","uses":"Skewable hurricane tie"},
+    {"model":"LSTA12","description":"Strap tie 1-1/4x12 in","gauge":20,"material":"G90 galvanized steel","allowable_tension_DF":835,"fasteners":"10d nails each end","uses":"General-purpose strap tie for wood-to-wood connections"},
+    {"model":"LSTA18","description":"Strap tie 1-1/4x18 in","gauge":20,"material":"G90 galvanized steel","allowable_tension_DF":835,"fasteners":"10d nails each end","uses":"Longer strap tie"},
+    {"model":"LSTA24","description":"Strap tie 1-1/4x24 in","gauge":20,"material":"G90 galvanized steel","allowable_tension_DF":835,"fasteners":"10d nails each end","uses":"Long strap tie for splicing"},
+    {"model":"MSTA36","description":"Medium strap tie 1-3/8x36 in","gauge":16,"material":"G90 galvanized steel","allowable_tension_DF":1620,"fasteners":"10d nails each end","uses":"Medium-duty strap for continuous load path"},
+    {"model":"MSTI28","description":"Medium strap tie 2-1/16x28 in","gauge":16,"material":"G90 galvanized steel","allowable_tension_DF":2360,"fasteners":"10d nails each end","uses":"Wide medium-duty strap"},
+    {"model":"ST6215","description":"Strap tie 6-1/4x15 in","gauge":14,"material":"G90 galvanized steel","allowable_tension_DF":3600,"fasteners":"16d nails","uses":"Heavy-duty strap tie for major connections"},
+    {"model":"CS16","description":"Coiled strap 1-1/4 in x 16 ft","gauge":16,"material":"G90 galvanized steel","allowable_tension_DF":1170,"uses":"Continuous coiled strap for field-cut applications"}
+  ],
+  "holdowns": [
+    {"model":"HDU2","description":"Holdown for shear wall","gauge":14,"material":"G90 galvanized steel","allowable_tension_DF":3075,"anchor_bolt":"1/2 in","fasteners":"14-SD10x1.5 screws","uses":"Shear wall holdown for wind/seismic uplift resistance"},
+    {"model":"HDU4","description":"Holdown for shear wall","gauge":14,"material":"G90 galvanized steel","allowable_tension_DF":4565,"anchor_bolt":"5/8 in","fasteners":"22-SD10x1.5 screws","uses":"Medium-duty shear wall holdown"},
+    {"model":"HDU5","description":"Holdown for shear wall","gauge":14,"material":"G90 galvanized steel","allowable_tension_DF":5645,"anchor_bolt":"5/8 in","fasteners":"26-SD10x1.5 screws","uses":"Heavy-duty shear wall holdown"},
+    {"model":"HDU8","description":"Holdown for shear wall","gauge":10,"material":"G90 galvanized steel","allowable_tension_DF":8305,"anchor_bolt":"3/4 in","fasteners":"32-SD10x1.5 screws","uses":"Extra-heavy-duty shear wall holdown"},
+    {"model":"HDU11","description":"Holdown for shear wall","gauge":10,"material":"G90 galvanized steel","allowable_tension_DF":11270,"anchor_bolt":"7/8 in","fasteners":"42-SD10x1.5 screws","uses":"Maximum-duty shear wall holdown"},
+    {"model":"PAHD42","description":"Purlin anchor holdown","gauge":14,"material":"G90 galvanized steel","allowable_tension_DF":4200,"uses":"Purlin anchor and holdown combination"}
+  ],
+  "beam_hangers_heavy": [
+    {"model":"GLB","description":"Glulam beam hanger","gauge":"7ga","material":"G90 galvanized steel","uses":"Heavy glulam beam connections to columns or walls","note":"Available in various sizes for 3-1/8 to 6-3/4 wide glulam"},
+    {"model":"LSSJ","description":"Light slopeable/skewable joist hanger","gauge":18,"material":"G90 galvanized steel","uses":"Field-adjustable hanger for sloped or skewed joists","note":"Can accommodate slopes up to 45 degrees and skews up to 45 degrees"},
+    {"model":"HGQ","description":"Heavy girder hanger with quad nailing","gauge":"7ga","material":"G90 galvanized steel","uses":"Extra-heavy girder connections","note":"For girder-to-girder connections with very high loads"}
+  ],
+  "miscellaneous_connectors": [
+    {"model":"RTC2Z","description":"Rigid tie connector","gauge":18,"material":"ZMAX galvanized","allowable_tension_DF":500,"uses":"Connects wood to concrete or masonry, replaces traditional toe-nailing"},
+    {"model":"MSTC28","description":"Embedded strap for concrete to wood","gauge":16,"material":"G90 galvanized steel","allowable_tension_DF":1965,"uses":"Cast into concrete, straps up to wood framing above"},
+    {"model":"DTT2Z","description":"Deck tension tie","gauge":14,"material":"ZMAX galvanized","allowable_tension_DF":1500,"uses":"Connects deck ledger to house framing through rim joist"},
+    {"model":"FB24","description":"Fence bracket for 2x4","gauge":18,"material":"G90 galvanized steel","uses":"Connects fence rails to posts"},
+    {"model":"FB26","description":"Fence bracket for 2x6","gauge":18,"material":"G90 galvanized steel","uses":"Connects fence rails to posts"}
+  ]
+}

@@ -16,7 +16,7 @@ import { createContext } from "./context";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -62,8 +62,8 @@ async function startServer() {
     next();
   });
 
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.json({ limit: "200mb" }));
+  app.use(express.urlencoded({ limit: "200mb", extended: true }));
 
   registerOAuthRoutes(app);
 

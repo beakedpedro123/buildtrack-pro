@@ -1,0 +1,195 @@
+{
+  "source": "Industry standard references — NDS, ACI, OSHA, crane manufacturer data",
+  "lumber_properties": {
+    "note": "Fb = bending stress psi, Ft = tension psi, Fc = compression parallel psi, Fv = shear psi, E = modulus of elasticity psi. Values for No.2 grade.",
+    "species_grades": [
+      {"species":"Douglas Fir-Larch","grade":"No.2","Fb":900,"Ft":575,"Fc":1350,"Fv":180,"E":1600000,"specific_gravity":0.50},
+      {"species":"Douglas Fir-Larch","grade":"Select Structural","Fb":1500,"Ft":1000,"Fc":1700,"Fv":180,"E":1900000,"specific_gravity":0.50},
+      {"species":"Hem-Fir","grade":"No.2","Fb":850,"Ft":525,"Fc":1300,"Fv":150,"E":1300000,"specific_gravity":0.43},
+      {"species":"Southern Pine","grade":"No.2","Fb":1000,"Ft":575,"Fc":1450,"Fv":175,"E":1600000,"specific_gravity":0.55},
+      {"species":"Spruce-Pine-Fir","grade":"No.2","Fb":875,"Ft":450,"Fc":1150,"Fv":135,"E":1400000,"specific_gravity":0.42},
+      {"species":"SPF (South)","grade":"No.2","Fb":875,"Ft":450,"Fc":1150,"Fv":135,"E":1200000,"specific_gravity":0.36}
+    ],
+    "dimensional_lumber_weights": {
+      "note": "Approximate weight in lbs per lineal foot at 12% moisture content",
+      "2x4": 1.28, "2x6": 2.00, "2x8": 2.64, "2x10": 3.37, "2x12": 4.10,
+      "4x4": 3.00, "4x6": 4.50, "4x8": 6.00, "4x10": 7.50, "4x12": 9.00,
+      "6x6": 7.00, "6x8": 9.33, "6x10": 11.67, "6x12": 14.00,
+      "8x8": 12.44, "8x10": 15.56, "8x12": 18.67
+    },
+    "plywood_osb_weights": {
+      "note": "Weight in psf (lbs per square foot)",
+      "3/8_plywood": 1.1, "1/2_plywood": 1.5, "5/8_plywood": 1.8, "3/4_plywood": 2.2,
+      "7/16_OSB": 1.4, "1/2_OSB": 1.7, "5/8_OSB": 2.0, "3/4_OSB": 2.4
+    },
+    "span_tables_floor_joists": {
+      "note": "Maximum spans in feet for floor joists at 40 psf live load, 10 psf dead load, L/360 deflection limit. Douglas Fir-Larch No.2.",
+      "16_OC": {
+        "2x6": {"span_ft": 9.5}, "2x8": {"span_ft": 12.5}, "2x10": {"span_ft": 16.0}, "2x12": {"span_ft": 19.5}
+      },
+      "12_OC": {
+        "2x6": {"span_ft": 10.5}, "2x8": {"span_ft": 14.0}, "2x10": {"span_ft": 17.5}, "2x12": {"span_ft": 21.5}
+      },
+      "24_OC": {
+        "2x6": {"span_ft": 8.0}, "2x8": {"span_ft": 10.5}, "2x10": {"span_ft": 13.5}, "2x12": {"span_ft": 16.5}
+      }
+    }
+  },
+  "concrete_reference": {
+    "mix_strengths": {
+      "2500_psi": "Light-duty: sidewalks, patios, non-structural slabs",
+      "3000_psi": "Standard residential: footings, foundation walls, slabs-on-grade",
+      "3500_psi": "Driveways, garage floors, structural elements",
+      "4000_psi": "Commercial, high-load areas, exposed aggregate",
+      "4500_psi": "Pre-stressed, high-performance applications",
+      "5000_psi": "Heavy commercial, bridge decks, water structures"
+    },
+    "coverage": {
+      "note": "One cubic yard covers:",
+      "4_inch_slab": "81 sq ft",
+      "6_inch_slab": "54 sq ft",
+      "8_inch_slab": "40.5 sq ft",
+      "12_inch_wall": "27 sq ft"
+    },
+    "weight": "Concrete weighs approximately 150 lbs per cubic foot (4050 lbs per cubic yard)",
+    "rebar_sizes": [
+      {"size":"#3","diameter_in":0.375,"weight_lb_ft":0.376,"area_sq_in":0.11},
+      {"size":"#4","diameter_in":0.500,"weight_lb_ft":0.668,"area_sq_in":0.20},
+      {"size":"#5","diameter_in":0.625,"weight_lb_ft":1.043,"area_sq_in":0.31},
+      {"size":"#6","diameter_in":0.750,"weight_lb_ft":1.502,"area_sq_in":0.44},
+      {"size":"#7","diameter_in":0.875,"weight_lb_ft":2.044,"area_sq_in":0.60},
+      {"size":"#8","diameter_in":1.000,"weight_lb_ft":2.670,"area_sq_in":0.79},
+      {"size":"#9","diameter_in":1.128,"weight_lb_ft":3.400,"area_sq_in":1.00},
+      {"size":"#10","diameter_in":1.270,"weight_lb_ft":4.303,"area_sq_in":1.27},
+      {"size":"#11","diameter_in":1.410,"weight_lb_ft":5.313,"area_sq_in":1.56}
+    ],
+    "footing_requirements_utah": {
+      "minimum_depth_below_grade": "Frost depth per jurisdiction (24-42 inches in Utah)",
+      "minimum_width_1_story": "12 inches",
+      "minimum_width_2_story": "15 inches",
+      "minimum_width_3_story": "18 inches",
+      "minimum_thickness": "6 inches or equal to wall projection",
+      "rebar": "#4 at 12 in OC both ways minimum for residential"
+    }
+  },
+  "crane_and_rigging_safety": {
+    "note": "Always verify with manufacturer load charts. These are general guidelines only.",
+    "common_mobile_cranes": [
+      {"type":"Rough Terrain 30-ton","max_capacity_lbs":60000,"typical_boom_ft":"80-110","common_uses":"Steel erection, precast, heavy framing"},
+      {"type":"Rough Terrain 40-ton","max_capacity_lbs":80000,"typical_boom_ft":"95-127","common_uses":"Steel erection, heavy lifts"},
+      {"type":"Rough Terrain 50-ton","max_capacity_lbs":100000,"typical_boom_ft":"100-140","common_uses":"Heavy steel, precast panels"},
+      {"type":"All Terrain 60-ton","max_capacity_lbs":120000,"typical_boom_ft":"120-160","common_uses":"Medium commercial steel"},
+      {"type":"Crawler 80-ton","max_capacity_lbs":160000,"typical_boom_ft":"140-200","common_uses":"Heavy commercial, bridge work"},
+      {"type":"Hydraulic Truck 100-ton","max_capacity_lbs":200000,"typical_boom_ft":"150-200","common_uses":"Heavy industrial, tall structures"}
+    ],
+    "rigging_basics": {
+      "sling_angles": "Never use slings at angles less than 30 degrees from horizontal. 60-90 degrees is ideal.",
+      "sling_capacity_reduction": {
+        "90_degrees": "100% of rated capacity",
+        "60_degrees": "86.6% of rated capacity",
+        "45_degrees": "70.7% of rated capacity",
+        "30_degrees": "50% of rated capacity"
+      },
+      "safety_factor": "Minimum 5:1 safety factor for wire rope slings",
+      "tag_lines": "Always use tag lines to control loads — never guide loads by hand"
+    },
+    "osha_crane_requirements": [
+      "Certified crane operator required (NCCCO or equivalent)",
+      "Annual crane inspection required",
+      "Pre-operation inspection before each shift",
+      "Load charts must be in cab and legible",
+      "Outriggers must be fully extended on firm ground",
+      "Minimum 20 ft clearance from power lines (or de-energize)",
+      "Signal person required when operator cannot see load landing area",
+      "Never lift over people",
+      "Wind speed limits per manufacturer (typically 20-30 mph max)"
+    ]
+  },
+  "steel_erection_reference": {
+    "bolt_torque_values": {
+      "note": "Minimum bolt pretension per AISC Table J3.1 (kips). A325 bolts.",
+      "1/2_inch": 12, "5/8_inch": 19, "3/4_inch": 28, "7/8_inch": 39,
+      "1_inch": 51, "1_1/8_inch": 56, "1_1/4_inch": 71, "1_3/8_inch": 85, "1_1/2_inch": 103
+    },
+    "common_steel_weights": {
+      "note": "Steel weighs 490 lbs per cubic foot. Plate weight = thickness(in) x 40.8 lbs/sq ft.",
+      "1/4_plate_psf": 10.2,
+      "3/8_plate_psf": 15.3,
+      "1/2_plate_psf": 20.4,
+      "3/4_plate_psf": 30.6,
+      "1_inch_plate_psf": 40.8,
+      "steel_deck_18ga": 2.4,
+      "steel_deck_20ga": 1.9,
+      "steel_deck_22ga": 1.5
+    },
+    "osha_steel_erection_requirements": [
+      "Fall protection required at 15 ft for connectors, 6 ft for all others",
+      "Minimum 2 anchor bolts per column",
+      "Column splices must have minimum 4 bolts before releasing crane",
+      "Perimeter safety cables at 42 inches within 2 days of decking",
+      "Controlled Decking Zone (CDZ) limited to 90 ft x 90 ft",
+      "Shear connectors (Nelson studs) must not be used as fall protection anchors",
+      "All connections must be secured before releasing crane load",
+      "Beams must be double-connected (minimum 2 bolts) before releasing"
+    ],
+    "welding_basics": {
+      "common_processes": {
+        "SMAW": "Shielded Metal Arc Welding (stick) — most common field welding",
+        "FCAW": "Flux-Cored Arc Welding — high deposition rate, good for field",
+        "GMAW": "Gas Metal Arc Welding (MIG) — shop welding primarily"
+      },
+      "filler_metal_matching": {
+        "A36_steel": "E70XX electrodes",
+        "A572_Gr50": "E70XX electrodes",
+        "A992": "E70XX electrodes"
+      },
+      "minimum_fillet_weld_sizes": {
+        "material_up_to_1/4": "1/8 inch fillet",
+        "material_1/4_to_1/2": "3/16 inch fillet",
+        "material_1/2_to_3/4": "1/4 inch fillet",
+        "material_over_3/4": "5/16 inch fillet"
+      }
+    }
+  },
+  "safety_reference": {
+    "fall_protection": {
+      "trigger_height": "6 ft for general industry, 15 ft for steel erection connectors",
+      "guardrail_height": "42 inches +/- 3 inches",
+      "midrail": "21 inches",
+      "toeboard": "3.5 inches minimum when tools/materials could fall",
+      "personal_fall_arrest": "Anchor must support 5000 lbs per person or 2x expected force with safety factor",
+      "self_retracting_lifeline": "Must limit free fall to 2 ft and arrest within 3.5 ft"
+    },
+    "scaffold_requirements": [
+      "Base plates and mud sills required",
+      "Guardrails at 10 ft and above",
+      "Planking must extend 6-12 inches past support",
+      "Maximum height-to-base ratio 4:1 (unless tied off)",
+      "Competent person must inspect before each shift"
+    ],
+    "excavation_safety": [
+      "Call 811 before digging — utility locate required",
+      "Trenches 5 ft or deeper require protective system (sloping, shoring, or shield)",
+      "Competent person must inspect daily and after rain",
+      "Spoil pile minimum 2 ft from edge",
+      "Ladder access within 25 ft of travel in trenches 4 ft or deeper"
+    ]
+  },
+  "weight_calculation_helpers": {
+    "beam_weight_formula": "Total weight = weight per foot × length in feet",
+    "example": "W8x44 at 40 ft = 44 lbs/ft × 40 ft = 1,760 lbs total",
+    "common_material_weights_psf": {
+      "concrete_4_inch": 50,
+      "concrete_6_inch": 75,
+      "wood_framing_typical": 5,
+      "drywall_1/2": 2.2,
+      "drywall_5/8": 2.75,
+      "asphalt_shingles": 2.5,
+      "metal_roofing_standing_seam": 1.5,
+      "clay_tile_roofing": 10,
+      "stucco_7/8": 10,
+      "brick_veneer_4_inch": 40,
+      "stone_veneer": 15
+    }
+  }
+}

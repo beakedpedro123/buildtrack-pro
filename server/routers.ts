@@ -629,6 +629,8 @@ const safetyMeetingsRouter = router({
   }),
 });
 
+import { lookupSteelProfile, calculateSteelWeight, lookupSimpsonHardware, lookupUtahCode, lookupConstructionReference, getKnowledgeSummary } from "./construction-knowledge.js";
+
 // ── Pivot AI Chat Router ──────────────────────────────────────────────────
 const pivotRouter = router({
   chat: publicProcedure.input(z.object({
@@ -862,6 +864,12 @@ You have the ability to search the web for real-time information. When a user as
 You should use the web_search tool to look it up and give them accurate, current information.
 Always tell the user when you searched for something: "I looked that up for you — here's what I found..."
 Don't guess when you can search. Real data beats assumptions every time.
+
+## Image Search Capability
+You can search for images of construction hardware, tools, techniques, and materials using the image_search tool.
+When a user asks "what does an A35 look like?" or "show me an HHUS410" — use image_search to find a picture.
+Always provide the image URL so they can see it.
+${getKnowledgeSummary()}
 `;
 
     const greetingInstruction = isGreeting ? `\n## IMPORTANT — GREETING DETECTED\nThe user just greeted you. You MUST:\n1. Greet them back using their first name with a UNIQUE, CREATIVE greeting (never the same one twice — use different styles: sometimes funny, sometimes motivational, sometimes casual)\n2. Mention what day it is and set the tone for the day\n3. Immediately list their goals for this week with status\n4. Highlight any overdue goals with urgency\n5. Give a quick motivational line relevant to their role\n6. If they're the owner, also mention any business highlights or concerns from the data\n7. If they're the Office Manager, mention any payroll or scheduling items to watch\n8. Reference something from their memory/past conversations if available to show you remember them\nDo NOT ask "how can I help you" — just dive into their goals and status.\n` : "";
@@ -1071,99 +1079,171 @@ Keep responses short, practical, and encouraging. You're here to help them succe
       }
     }
 
-    // ── Web search tool definition ────────────────────────────────────────
-    const webSearchTool = {
-      type: "function" as const,
-      function: {
-        name: "web_search",
-        description: "Search the web for real-time information. Use this when the user asks about current prices, weather, building codes, news, regulations, or anything you're not confident about. Always prefer searching over guessing.",
-        parameters: {
-          type: "object",
-          properties: {
-            query: {
-              type: "string",
-              description: "The search query to look up. Be specific and include location if relevant (e.g., 'lumber prices Utah March 2026')",
+    // ── Tool definitions ───────────────────────────────────────────────────
+    const pivotTools = [
+      {
+        type: "function" as const,
+        function: {
+          name: "web_search",
+          description: "Search the web for real-time information. Use for current prices, weather, news, regulations, or anything you're not confident about.",
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Search query. Be specific, include location if relevant." },
             },
+            required: ["query"],
           },
-          required: ["query"],
         },
       },
-    };
+      {
+        type: "function" as const,
+        function: {
+          name: "construction_lookup",
+          description: "Look up construction reference data from the built-in knowledge base. Use for: AISC steel profiles (e.g. W8x44), Simpson Strong-Tie hardware (e.g. A35, LUS26, HHUS410), Utah building codes by jurisdiction, lumber properties, concrete data, crane/rigging info, safety requirements, framing codes. ALWAYS use this tool for construction data instead of guessing.",
+          parameters: {
+            type: "object",
+            properties: {
+              lookup_type: {
+                type: "string",
+                enum: ["steel_profile", "steel_weight", "simpson_hardware", "utah_code", "construction_reference"],
+                description: "Type of lookup.",
+              },
+              query: { type: "string", description: "The item to look up. For steel: 'W8x44'. For Simpson: 'LUS26'. For Utah code: 'Summit County'. For reference: 'lumber span tables'." },
+              length_ft: { type: "number", description: "(Only for steel_weight) Length in feet to calculate total weight." },
+            },
+            required: ["lookup_type", "query"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "image_search",
+          description: "Search for images of construction hardware, tools, materials, or techniques. Use when the user asks to see what something looks like.",
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Image search query. Be specific (e.g. 'Simpson Strong-Tie A35 framing angle')." },
+            },
+            required: ["query"],
+          },
+        },
+      },
+    ];
 
     // ── Call LLM with tool support ──────────────────────────────────────────
-    let result = await invokeLLM({ messages: llmMessages, tools: [webSearchTool] });
+    let result = await invokeLLM({ messages: llmMessages, tools: pivotTools });
     let choice = result.choices?.[0];
     let content = choice?.message?.content;
 
     // ── Handle tool calls (web search loop, max 3 searches) ─────────────────
-    let searchAttempts = 0;
-    while (choice?.message?.tool_calls && choice.message.tool_calls.length > 0 && searchAttempts < 3) {
-      searchAttempts++;
+    let toolAttempts = 0;
+    while (choice?.message?.tool_calls && choice.message.tool_calls.length > 0 && toolAttempts < 5) {
+      toolAttempts++;
       const toolCall = choice.message.tool_calls[0];
-      if (toolCall.function?.name === "web_search") {
-        let searchQuery = "";
-        try {
-          const args = JSON.parse(toolCall.function.arguments || "{}");
-          searchQuery = args.query || "";
-        } catch { searchQuery = toolCall.function.arguments || ""; }
+      const toolName = toolCall.function?.name || "";
+      let toolResult = "Tool not found.";
 
-        let searchResult = "No results found.";
+      try {
+        const args = JSON.parse(toolCall.function?.arguments || "{}");
+
+        if (toolName === "web_search") {
+        const searchQuery = args.query || "";
         if (searchQuery) {
           try {
-            // Use a simple web search via DuckDuckGo HTML
             const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(searchQuery)}`;
             const searchResp = await fetch(searchUrl, {
               headers: { "User-Agent": "Mozilla/5.0 (compatible; BuildTrackPivot/1.0)" },
             });
             const html = await searchResp.text();
-            // Extract text snippets from results
             const snippets: string[] = [];
             const snippetRegex = /<a class="result__snippet"[^>]*>(.*?)<\/a>/gs;
             let match;
             while ((match = snippetRegex.exec(html)) !== null && snippets.length < 5) {
               snippets.push(match[1].replace(/<[^>]*>/g, "").trim());
             }
-            // Also extract titles and URLs
             const titleRegex = /<a class="result__a"[^>]*href="([^"]*?)"[^>]*>(.*?)<\/a>/gs;
             const titles: string[] = [];
             while ((match = titleRegex.exec(html)) !== null && titles.length < 5) {
               titles.push(`${match[2].replace(/<[^>]*>/g, "").trim()} (${match[1]})`);
             }
             if (snippets.length > 0 || titles.length > 0) {
-              searchResult = `Web search results for "${searchQuery}":\n`;
+              toolResult = `Web search results for "${searchQuery}":\n`;
               for (let i = 0; i < Math.max(snippets.length, titles.length); i++) {
-                if (titles[i]) searchResult += `\n${i + 1}. ${titles[i]}`;
-                if (snippets[i]) searchResult += `\n   ${snippets[i]}`;
+                if (titles[i]) toolResult += `\n${i + 1}. ${titles[i]}`;
+                if (snippets[i]) toolResult += `\n   ${snippets[i]}`;
               }
             }
           } catch (searchErr) {
-            searchResult = `Web search failed: ${searchErr instanceof Error ? searchErr.message : "unknown error"}`;
+            toolResult = `Web search failed: ${searchErr instanceof Error ? searchErr.message : "unknown error"}`;
+          }
+          }
+        } else if (toolName === "construction_lookup") {
+          const lookupType = args.lookup_type || "";
+          const query = args.query || "";
+          const lengthFt = args.length_ft || 0;
+          if (lookupType === "steel_profile") {
+            toolResult = lookupSteelProfile(query);
+          } else if (lookupType === "steel_weight" && lengthFt > 0) {
+            toolResult = calculateSteelWeight(query, lengthFt);
+          } else if (lookupType === "simpson_hardware") {
+            toolResult = lookupSimpsonHardware(query);
+          } else if (lookupType === "utah_code") {
+            toolResult = lookupUtahCode(query);
+          } else if (lookupType === "construction_reference") {
+            toolResult = lookupConstructionReference(query);
+          } else {
+            toolResult = `Unknown lookup type: ${lookupType}. Use: steel_profile, steel_weight, simpson_hardware, utah_code, or construction_reference.`;
+          }
+        } else if (toolName === "image_search") {
+        const query = args.query || "";
+        if (query) {
+          try {
+            const imgSearchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query + " site:strongtie.com OR site:aisc.org")}`;
+            const imgResp = await fetch(imgSearchUrl, {
+              headers: { "User-Agent": "Mozilla/5.0 (compatible; BuildTrackPivot/1.0)" },
+            });
+            const imgHtml = await imgResp.text();
+            const imgTitleRegex = /<a class="result__a"[^>]*href="([^"]*?)"[^>]*>(.*?)<\/a>/gs;
+            const imgResults: string[] = [];
+            let imgMatch;
+            while ((imgMatch = imgTitleRegex.exec(imgHtml)) !== null && imgResults.length < 3) {
+              imgResults.push(`${imgMatch[2].replace(/<[^>]*>/g, "").trim()}: ${imgMatch[1]}`);
+            }
+            if (imgResults.length > 0) {
+              toolResult = `Image search results for "${query}":\n${imgResults.join("\n")}\nShare these links with the user so they can see the images.`;
+            } else {
+              toolResult = `No image results found. Suggest visiting strongtie.com or aisc.org directly.`;
+            }
+          } catch {
+            toolResult = `Image search failed. Suggest visiting strongtie.com or aisc.org directly.`;
+          }
           }
         }
-
-        // Add the assistant's tool call and the tool result to messages
-        llmMessages.push({
-          role: "assistant",
-          content: null,
-          tool_calls: [{
-            id: toolCall.id,
-            type: "function",
-            function: { name: "web_search", arguments: toolCall.function.arguments },
-          }],
-        });
-        llmMessages.push({
-          role: "tool",
-          tool_call_id: toolCall.id,
-          content: searchResult,
-        });
-
-        // Call LLM again with search results
-        result = await invokeLLM({ messages: llmMessages, tools: [webSearchTool] });
-        choice = result.choices?.[0];
-        content = choice?.message?.content;
-      } else {
-        break; // Unknown tool, stop
+      } catch (parseErr) {
+        toolResult = `Error parsing tool arguments: ${parseErr instanceof Error ? parseErr.message : "unknown"}`;
       }
+
+      // Add the assistant's tool call and the tool result to messages
+      llmMessages.push({
+        role: "assistant",
+        content: null,
+        tool_calls: [{
+          id: toolCall.id,
+          type: "function",
+          function: { name: toolName, arguments: toolCall.function?.arguments || "{}" },
+        }],
+      });
+      llmMessages.push({
+        role: "tool",
+        tool_call_id: toolCall.id,
+        content: toolResult,
+      });
+
+      // Call LLM again with tool results
+      result = await invokeLLM({ messages: llmMessages, tools: pivotTools });
+      choice = result.choices?.[0];
+      content = choice?.message?.content;
     }
 
     if (!content) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No response from AI" });
