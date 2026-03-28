@@ -865,4 +865,10 @@
 - [x] Patched hermes-engine/build.gradle.kts to hardcode minSdk = 24
 - [x] Updated force-min-sdk-24.js to patch CMake args and Kotlin build files
 - [x] Updated withMinSdk24.js config plugin with CMake ANDROID_PLATFORM override
-- [ ] Save checkpoint for rebuild
+- [x] Save checkpoint for rebuild
+
+## Phase 25 — iOS TestFlight Submit Fix
+
+### Missing Submit Profile
+- [x] Add submit profile to eas.json for iOS TestFlight auto-submission
+- [x] Save checkpoint
