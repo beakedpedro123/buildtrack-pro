@@ -36,6 +36,9 @@ ext {
 // [/withMinSdk24]
 apply plugin: "expo-root-project"
 
+// FORCE minSdkVersion override after expo-root-project
+ext.minSdkVersion = 24
+
 // [NUCLEAR] Override after expo-root-project
 ext.minSdkVersion = 24
 ext.compileSdkVersion = 35

@@ -89,6 +89,11 @@ android {
 
     namespace 'space.manus.construction.manager.t20260317205444'
     defaultConfig {
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_PLATFORM=android-24", "-DANDROID_NATIVE_API_LEVEL=24"
+            }
+        }
         applicationId 'space.manus.construction.manager.t20260317205444'
         minSdkVersion 24
         targetSdkVersion rootProject.ext.targetSdkVersion

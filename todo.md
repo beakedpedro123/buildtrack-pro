@@ -856,3 +856,13 @@
 - [x] Fix safety.tsx missing opening ImageBackground tag in new meeting form
 - [x] Fix safety.tsx missing opening ImageBackground tag in main list view
 - [x] All ImageBackground tags balanced across all screens
+
+## Phase 24 — Android Build Fix
+
+### minSdkVersion Mismatch
+- [x] Bump Android minSdkVersion from 22 to 24 (Hermes requires API 24+)
+- [x] Patched ReactAndroid/build.gradle.kts with -DANDROID_PLATFORM=android-24 CMake arg
+- [x] Patched hermes-engine/build.gradle.kts to hardcode minSdk = 24
+- [x] Updated force-min-sdk-24.js to patch CMake args and Kotlin build files
+- [x] Updated withMinSdk24.js config plugin with CMake ANDROID_PLATFORM override
+- [ ] Save checkpoint for rebuild

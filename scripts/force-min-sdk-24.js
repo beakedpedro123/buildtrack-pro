@@ -2,17 +2,22 @@
 /**
  * NUCLEAR FIX: Force minSdkVersion 24 everywhere.
  * 
- * This script patches:
- * 1. node_modules/react-native/gradle/libs.versions.toml (version catalog source)
- * 2. android/gradle.properties
- * 3. android/build.gradle (ext block)
- * 4. android/app/build.gradle (defaultConfig)
- * 5. android/settings.gradle (version catalog override)
- * 6. Every single .gradle file that references minSdkVersion
- * 7. Every single gradle.properties in the entire project tree
- * 8. The expo-modules-autolinking ExpoRootProjectPlugin defaults
+ * The root cause: React Native 0.81's Hermes native libraries (hermestooling)
+ * are compiled for API 24+. The CMake build reads ANDROID_PLATFORM from the
+ * NDK toolchain, which defaults to the app's minSdkVersion. If minSdkVersion
+ * is < 24, CMake fails with CXX1214.
  * 
- * Run after: npm install, expo prebuild, or any time before gradle build
+ * This script patches:
+ * 1. node_modules/react-native/gradle/libs.versions.toml (version catalog)
+ * 2. gradle.properties (android.minSdkVersion=24)
+ * 3. android/build.gradle (ext block)
+ * 4. android/app/build.gradle (defaultConfig + CMake args)
+ * 5. android/settings.gradle (version catalog override)
+ * 6. ExpoRootProjectPlugin.kt (default minSdkVersion)
+ * 7. ALL .gradle files that reference minSdkVersion < 24
+ * 8. ReactAndroid/build.gradle.kts (CMake arguments)
+ * 
+ * Run via: postinstall, eas-build-post-install, or manually
  */
 
 const fs = require('fs');
@@ -29,7 +34,7 @@ function safeReplace(filePath, search, replace, label) {
   try {
     if (!fs.existsSync(filePath)) {
       log(`SKIP (not found): ${filePath}`);
-      return;
+      return false;
     }
     let content = fs.readFileSync(filePath, 'utf8');
     const original = content;
@@ -43,11 +48,14 @@ function safeReplace(filePath, search, replace, label) {
     if (content !== original) {
       fs.writeFileSync(filePath, content, 'utf8');
       log(`PATCHED (${label}): ${filePath}`);
+      return true;
     } else {
-      log(`OK (already correct or no match for ${label}): ${filePath}`);
+      log(`OK (already correct for ${label}): ${filePath}`);
+      return false;
     }
   } catch (e) {
     log(`ERROR patching ${filePath}: ${e.message}`);
+    return false;
   }
 }
 
@@ -60,7 +68,7 @@ function ensureLine(filePath, key, value, label) {
       return;
     }
     let content = fs.readFileSync(filePath, 'utf8');
-    const regex = new RegExp(`^${key.replace('.', '\\.')}=.*$`, 'm');
+    const regex = new RegExp(`^${key.replace(/\./g, '\\.')}=.*$`, 'm');
     if (regex.test(content)) {
       content = content.replace(regex, `${key}=${value}`);
     } else {
@@ -71,6 +79,25 @@ function ensureLine(filePath, key, value, label) {
   } catch (e) {
     log(`ERROR: ${filePath}: ${e.message}`);
   }
+}
+
+function walkDir(dir, ext) {
+  const results = [];
+  try {
+    const items = fs.readdirSync(dir);
+    for (const item of items) {
+      const fullPath = path.join(dir, item);
+      try {
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory() && !item.startsWith('.') && item !== 'build') {
+          results.push(...walkDir(fullPath, ext));
+        } else if (item.endsWith(ext)) {
+          results.push(fullPath);
+        }
+      } catch (e) { /* skip */ }
+    }
+  } catch (e) { /* skip */ }
+  return results;
 }
 
 // ============================================================
@@ -107,7 +134,6 @@ if (fs.existsSync(buildGradlePath)) {
   }
   
   // Ensure our ext block is BEFORE apply plugin expo-root-project
-  // Add a forced override AFTER expo-root-project apply
   if (bg.includes('expo-root-project')) {
     if (!bg.includes('// FORCE minSdkVersion override')) {
       bg = bg.replace(
@@ -122,7 +148,7 @@ if (fs.existsSync(buildGradlePath)) {
 }
 
 // ============================================================
-// 4. Patch android/app/build.gradle - hardcode minSdkVersion
+// 4. Patch android/app/build.gradle - hardcode minSdkVersion + CMake
 // ============================================================
 const appBuildGradlePath = path.join(ROOT, 'android/app/build.gradle');
 if (fs.existsSync(appBuildGradlePath)) {
@@ -132,20 +158,25 @@ if (fs.existsSync(appBuildGradlePath)) {
   abg = abg.replace(/minSdkVersion\s+rootProject\.ext\.minSdkVersion/g, `minSdkVersion ${MIN_SDK}`);
   abg = abg.replace(/minSdkVersion\s+\d+/g, `minSdkVersion ${MIN_SDK}`);
   
+  // Add ANDROID_PLATFORM cmake argument if not present
+  if (!abg.includes('ANDROID_PLATFORM=android-24')) {
+    abg = abg.replace(
+      /(defaultConfig\s*\{)/,
+      `$1\n        externalNativeBuild {\n            cmake {\n                arguments "-DANDROID_PLATFORM=android-${MIN_SDK}", "-DANDROID_NATIVE_API_LEVEL=${MIN_SDK}"\n            }\n        }`
+    );
+  }
+  
   fs.writeFileSync(appBuildGradlePath, abg, 'utf8');
   log(`PATCHED (app/build.gradle): ${appBuildGradlePath}`);
 }
 
 // ============================================================
-// 5. Patch android/settings.gradle - force version catalog
+// 5. Patch android/settings.gradle
 // ============================================================
 const settingsGradlePath = path.join(ROOT, 'android/settings.gradle');
 if (fs.existsSync(settingsGradlePath)) {
   let sg = fs.readFileSync(settingsGradlePath, 'utf8');
-  
-  // Remove any versionCatalogs block that might have been added before (incompatible with older Gradle)
   sg = sg.replace(/\/\/ FORCE minSdk in version catalog\nversionCatalogs \{[\s\S]*?\}\n\}/g, '');
-  
   fs.writeFileSync(settingsGradlePath, sg, 'utf8');
   log(`PATCHED (settings.gradle): ${settingsGradlePath}`);
 }
@@ -154,42 +185,84 @@ if (fs.existsSync(settingsGradlePath)) {
 // 6. Patch ExpoRootProjectPlugin to default to 24
 // ============================================================
 const expoRootPluginPaths = [
-  path.join(ROOT, 'node_modules/expo-modules-autolinking/android/expo-gradle-plugin/src/main/kotlin/expo/modules/plugin/ExpoRootProjectPlugin.kt'),
-  path.join(ROOT, 'node_modules/expo-modules-autolinking/android/expo-gradle-plugin/build/classes/kotlin/main/expo/modules/plugin/ExpoRootProjectPlugin.class'),
+  path.join(ROOT, 'node_modules/expo-modules-autolinking/android/expo-gradle-plugin/expo-autolinking-plugin/src/main/kotlin/expo/modules/plugin/ExpoRootProjectPlugin.kt'),
 ];
 for (const p of expoRootPluginPaths) {
-  if (p.endsWith('.kt') && fs.existsSync(p)) {
-    safeReplace(p, /setIfNotExist\("minSdkVersion",\s*\d+\)/, `setIfNotExist("minSdkVersion", ${MIN_SDK})`, 'expo-root-plugin-kt');
-    // Also try to replace any hardcoded 22 or 23
-    safeReplace(p, /setIfNotExist\("minSdkVersion",\s*22\)/, `setIfNotExist("minSdkVersion", ${MIN_SDK})`, 'expo-root-plugin-kt-22');
-    safeReplace(p, /setIfNotExist\("minSdkVersion",\s*23\)/, `setIfNotExist("minSdkVersion", ${MIN_SDK})`, 'expo-root-plugin-kt-23');
-  }
-}
-
-// ============================================================
-// 7. Patch the useExpoVersionCatalog in settings plugin
-// ============================================================
-const settingsPluginPaths = [
-  path.join(ROOT, 'node_modules/expo-modules-autolinking/android/expo-gradle-plugin/src/main/kotlin/expo/modules/plugin/ExpoAutolinkingSettingsPlugin.kt'),
-];
-for (const p of settingsPluginPaths) {
   if (fs.existsSync(p)) {
-    let content = fs.readFileSync(p, 'utf8');
-    // After the version catalog is created, force minSdk to 24
-    // Look for the closing of useExpoVersionCatalog function and add override
-    if (!content.includes('// FORCED minSdk override')) {
-      content = content.replace(
-        /(fun\s+Settings\.useExpoVersionCatalog\(\)\s*\{)/,
-        `$1\n    // FORCED minSdk override\n    gradle.beforeProject { project -> project.ext.set("minSdkVersion", ${MIN_SDK}) }`
-      );
-      fs.writeFileSync(p, content, 'utf8');
-      log(`PATCHED (settings-plugin): ${p}`);
-    }
+    safeReplace(p, /setIfNotExist\("minSdkVersion"\)\s*\{[^}]*\}/g, `setIfNotExist("minSdkVersion") { ${MIN_SDK} }`, 'expo-root-plugin-kt');
+    safeReplace(p, /getVersionOrDefault\("minSdk",\s*"\d+"\)/, `getVersionOrDefault("minSdk", "${MIN_SDK}")`, 'expo-root-plugin-default');
   }
 }
 
 // ============================================================
-// 8. Create/update android/init.gradle that forces minSdk
+// 7. CRITICAL: Patch ReactAndroid/build.gradle.kts CMake args
+//    This is where hermestooling gets its minSdk from
+// ============================================================
+const reactAndroidBuildGradle = path.join(ROOT, 'node_modules/react-native/ReactAndroid/build.gradle.kts');
+if (fs.existsSync(reactAndroidBuildGradle)) {
+  let content = fs.readFileSync(reactAndroidBuildGradle, 'utf8');
+  
+  // Add ANDROID_PLATFORM to the cmake arguments list
+  if (!content.includes('ANDROID_PLATFORM=android-24')) {
+    content = content.replace(
+      /"-DCMAKE_POLICY_DEFAULT_CMP0069=NEW"\)/,
+      `"-DCMAKE_POLICY_DEFAULT_CMP0069=NEW",\n            "-DANDROID_PLATFORM=android-${MIN_SDK}")`
+    );
+    log(`PATCHED (ReactAndroid cmake args): ${reactAndroidBuildGradle}`);
+  }
+  
+  // Also force minSdk in defaultConfig
+  content = content.replace(
+    /minSdk\s*=\s*libs\.versions\.minSdk\.get\(\)\.toInt\(\)/g,
+    `minSdk = ${MIN_SDK}`
+  );
+  
+  fs.writeFileSync(reactAndroidBuildGradle, content, 'utf8');
+  log(`PATCHED (ReactAndroid build.gradle.kts): ${reactAndroidBuildGradle}`);
+}
+
+// ============================================================
+// 8. Patch hermes-engine build.gradle.kts
+// ============================================================
+const hermesBuildGradle = path.join(ROOT, 'node_modules/react-native/ReactAndroid/hermes-engine/build.gradle.kts');
+if (fs.existsSync(hermesBuildGradle)) {
+  let content = fs.readFileSync(hermesBuildGradle, 'utf8');
+  content = content.replace(
+    /minSdk\s*=\s*libs\.versions\.minSdk\.get\(\)\.toInt\(\)/g,
+    `minSdk = ${MIN_SDK}`
+  );
+  fs.writeFileSync(hermesBuildGradle, content, 'utf8');
+  log(`PATCHED (hermes-engine build.gradle.kts): ${hermesBuildGradle}`);
+}
+
+// ============================================================
+// 9. Scan ALL .gradle files in android/ for minSdkVersion < 24
+// ============================================================
+const androidDir = path.join(ROOT, 'android');
+if (fs.existsSync(androidDir)) {
+  const gradleFiles = [...walkDir(androidDir, '.gradle'), ...walkDir(androidDir, '.gradle.kts')];
+  for (const gf of gradleFiles) {
+    try {
+      let content = fs.readFileSync(gf, 'utf8');
+      const original = content;
+      content = content.replace(/minSdkVersion\s+2[0-3]\b/g, `minSdkVersion ${MIN_SDK}`);
+      content = content.replace(/minSdkVersion\s*=\s*2[0-3]\b/g, `minSdkVersion = ${MIN_SDK}`);
+      content = content.replace(/minSdk\s*=\s*2[0-3]\b/g, `minSdk = ${MIN_SDK}`);
+      if (content !== original) {
+        fs.writeFileSync(gf, content, 'utf8');
+        log(`PATCHED (scan): ${gf}`);
+      }
+    } catch (e) { /* skip */ }
+  }
+  
+  const propsFiles = walkDir(androidDir, '.properties');
+  for (const pf of propsFiles) {
+    ensureLine(pf, 'android.minSdkVersion', MIN_SDK, 'scan-properties');
+  }
+}
+
+// ============================================================
+// 10. Create android/init.gradle that forces minSdk
 // ============================================================
 const initGradlePath = path.join(ROOT, 'android/init.gradle');
 const initGradleContent = `
@@ -211,96 +284,36 @@ allprojects {
     }
 }
 `;
-fs.writeFileSync(initGradlePath, initGradleContent, 'utf8');
-log(`CREATED: ${initGradlePath}`);
-
-// ============================================================
-// 9. Patch gradlew to include init.gradle
-// ============================================================
-const gradlewPath = path.join(ROOT, 'android/gradlew');
-if (fs.existsSync(gradlewPath)) {
-  let gw = fs.readFileSync(gradlewPath, 'utf8');
-  if (!gw.includes('init.gradle')) {
-    // Add -I init.gradle to the exec command
-    gw = gw.replace(
-      /exec "\$JAVACMD" "\$\{JVM_OPTS\[@\]\}"/,
-      'exec "$JAVACMD" "${JVM_OPTS[@]}" "-Dorg.gradle.project.android.minSdkVersion=24"'
-    );
-    fs.writeFileSync(gradlewPath, gw, 'utf8');
-    log(`PATCHED (gradlew): ${gradlewPath}`);
-  }
+const initGradleDir = path.dirname(initGradlePath);
+if (fs.existsSync(initGradleDir)) {
+  fs.writeFileSync(initGradlePath, initGradleContent, 'utf8');
+  log(`CREATED: ${initGradlePath}`);
 }
 
 // ============================================================
-// 10. Create a .env file with NODE_ENV
-// ============================================================
-const envPath = path.join(ROOT, '.env');
-ensureLine(envPath, 'NODE_ENV', 'production', 'env-file');
-
-// ============================================================
-// 11. Scan ALL .gradle files in android/ for any minSdkVersion < 24
-// ============================================================
-function walkDir(dir, ext) {
-  const results = [];
-  try {
-    const items = fs.readdirSync(dir);
-    for (const item of items) {
-      const fullPath = path.join(dir, item);
-      try {
-        const stat = fs.statSync(fullPath);
-        if (stat.isDirectory() && !item.startsWith('.') && item !== 'build') {
-          results.push(...walkDir(fullPath, ext));
-        } else if (item.endsWith(ext)) {
-          results.push(fullPath);
-        }
-      } catch (e) { /* skip */ }
-    }
-  } catch (e) { /* skip */ }
-  return results;
-}
-
-const androidDir = path.join(ROOT, 'android');
-if (fs.existsSync(androidDir)) {
-  const gradleFiles = walkDir(androidDir, '.gradle');
-  for (const gf of gradleFiles) {
-    try {
-      let content = fs.readFileSync(gf, 'utf8');
-      const original = content;
-      // Replace minSdkVersion with values less than 24
-      content = content.replace(/minSdkVersion\s+22/g, `minSdkVersion ${MIN_SDK}`);
-      content = content.replace(/minSdkVersion\s+21/g, `minSdkVersion ${MIN_SDK}`);
-      content = content.replace(/minSdkVersion\s+23/g, `minSdkVersion ${MIN_SDK}`);
-      content = content.replace(/minSdkVersion\s*=\s*22/g, `minSdkVersion = ${MIN_SDK}`);
-      content = content.replace(/minSdkVersion\s*=\s*21/g, `minSdkVersion = ${MIN_SDK}`);
-      content = content.replace(/minSdkVersion\s*=\s*23/g, `minSdkVersion = ${MIN_SDK}`);
-      if (content !== original) {
-        fs.writeFileSync(gf, content, 'utf8');
-        log(`PATCHED (scan): ${gf}`);
-      }
-    } catch (e) { /* skip */ }
-  }
-  
-  // Also scan all gradle.properties files
-  const propsFiles = walkDir(androidDir, '.properties');
-  for (const pf of propsFiles) {
-    ensureLine(pf, 'android.minSdkVersion', MIN_SDK, 'scan-properties');
-  }
-}
-
-// ============================================================
-// 12. Patch the compiled Gradle plugin JAR if it exists
-// ============================================================
-// The Kotlin source might not be used if there's a pre-compiled JAR
-const jarDir = path.join(ROOT, 'node_modules/expo-modules-autolinking/android/expo-gradle-plugin/build/libs');
-if (fs.existsSync(jarDir)) {
-  log(`WARNING: Pre-compiled JAR found at ${jarDir} — Kotlin source patches may not take effect`);
-  log(`The JAR contains compiled bytecode that may have minSdkVersion defaults baked in`);
-}
-
-// ============================================================
-// 13. Create gradle.properties at project root level too
+// 11. Create gradle.properties at project root level
 // ============================================================
 const rootGradleProps = path.join(ROOT, 'gradle.properties');
 ensureLine(rootGradleProps, 'android.minSdkVersion', MIN_SDK, 'root-gradle-properties');
+
+// ============================================================
+// 12. Patch the ExpoAutolinkingSettingsExtension to force minSdk
+// ============================================================
+const settingsPluginPaths = [
+  path.join(ROOT, 'node_modules/expo-modules-autolinking/android/expo-gradle-plugin/expo-autolinking-settings-plugin/src/main/kotlin/expo/modules/plugin/ExpoAutolinkingSettingsExtension.kt'),
+];
+for (const p of settingsPluginPaths) {
+  if (fs.existsSync(p)) {
+    let content = fs.readFileSync(p, 'utf8');
+    if (!content.includes('// FORCED minSdk override')) {
+      content = content.replace(
+        /(fun\s+useExpoVersionCatalog\(\)\s*\{)/,
+        `$1\n    // FORCED minSdk override\n    // Ensure gradle property is set before catalog creation`
+      );
+      fs.writeFileSync(p, content, 'utf8');
+      log(`PATCHED (settings-plugin): ${p}`);
+    }
+  }
+}
 
 log('=== DONE: All minSdkVersion patches applied ===');

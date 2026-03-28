@@ -8,6 +8,7 @@
  * 4. gradle.properties: android.minSdkVersion=24
  * 5. Version catalog TOML: Direct file patch
  * 6. allprojects afterEvaluate: Force minSdkVersion on ALL subprojects
+ * 7. CMake: Force ANDROID_PLATFORM=android-24 on ALL native builds
  */
 const {
   withProjectBuildGradle,
@@ -116,6 +117,14 @@ allprojects {
                         }
                     }
                 }
+                // Force CMake ANDROID_PLATFORM on all native builds
+                if (it.hasProperty("externalNativeBuild")) {
+                    it.externalNativeBuild {
+                        cmake {
+                            arguments "-DANDROID_PLATFORM=android-${MIN_SDK}", "-DANDROID_NATIVE_API_LEVEL=${MIN_SDK}"
+                        }
+                    }
+                }
             }
         }
     }
@@ -146,19 +155,37 @@ allprojects {
         `minSdkVersion ${MIN_SDK}`
       );
 
-      // Add externalNativeBuild CMake arguments to force ANDROID_NATIVE_API_LEVEL
-      if (!contents.includes('ANDROID_NATIVE_API_LEVEL')) {
+      // Add externalNativeBuild CMake arguments to force ANDROID_NATIVE_API_LEVEL and ANDROID_PLATFORM
+      if (!contents.includes('ANDROID_PLATFORM=android-24')) {
+        // Remove old ANDROID_NATIVE_API_LEVEL block if present
         contents = contents.replace(
-          /(defaultConfig\s*\{[^}]*)(})/,
+          /\s*\/\/ \[NUCLEAR\] Force CMake to use API level 24\s*\n\s*externalNativeBuild \{\s*\n\s*cmake \{\s*\n\s*arguments "-DANDROID_NATIVE_API_LEVEL=\d+"\s*\n\s*\}\s*\n\s*\}/g,
+          ''
+        );
+
+        // Add comprehensive CMake arguments in defaultConfig
+        contents = contents.replace(
+          /(defaultConfig\s*\{)/,
           `$1
-        // [NUCLEAR] Force CMake to use API level 24
+        // [NUCLEAR] Force CMake to use API level 24 for Hermes compatibility
         externalNativeBuild {
             cmake {
-                arguments "-DANDROID_NATIVE_API_LEVEL=${MIN_SDK}"
+                arguments "-DANDROID_PLATFORM=android-${MIN_SDK}", "-DANDROID_NATIVE_API_LEVEL=${MIN_SDK}", "-DANDROID_STL=c++_shared"
             }
-        }
-$2`
+        }`
         );
+      }
+
+      // Also add android.defaultConfig.minSdkVersion override via afterEvaluate
+      if (!contents.includes('// [NUCLEAR-APP] afterEvaluate')) {
+        contents += `
+// [NUCLEAR-APP] afterEvaluate to force minSdkVersion on this module
+android {
+    afterEvaluate {
+        android.defaultConfig.minSdkVersion ${MIN_SDK}
+    }
+}
+`;
       }
 
       config.modResults.contents = contents;
@@ -190,12 +217,15 @@ $2`
     return config;
   });
 
-  // 4. Patch the react-native version catalog TOML directly
+  // 4. Patch the react-native version catalog TOML + CMakeLists.txt directly
   config = withDangerousMod(config, [
     "android",
     async (config) => {
+      const projectRoot = config.modRequest.projectRoot;
+
+      // 4a. Patch version catalog TOML
       const versionCatalogPath = path.join(
-        config.modRequest.projectRoot,
+        projectRoot,
         "node_modules",
         "react-native",
         "gradle",
@@ -218,9 +248,58 @@ $2`
         fs.writeFileSync(versionCatalogPath, content, "utf8");
       }
 
-      // Also run the nuclear fix script
+      // 4b. Patch React Native's CMakeLists.txt to force ANDROID_PLATFORM
+      const cmakeListsPaths = [
+        path.join(projectRoot, "node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/CMakeLists.txt"),
+        path.join(projectRoot, "node_modules/react-native/ReactAndroid/CMakeLists.txt"),
+      ];
+      for (const cmakePath of cmakeListsPaths) {
+        if (fs.existsSync(cmakePath)) {
+          let content = fs.readFileSync(cmakePath, "utf8");
+          // Add ANDROID_PLATFORM override at the top of the file if not present
+          if (!content.includes("# [NUCLEAR] Force min API level 24")) {
+            content = `# [NUCLEAR] Force min API level 24 for Hermes compatibility
+if(ANDROID_PLATFORM)
+  string(REGEX REPLACE "android-([0-9]+)" "\\\\1" _CURRENT_API "\${ANDROID_PLATFORM}")
+  if(_CURRENT_API LESS 24)
+    set(ANDROID_PLATFORM "android-24")
+    set(ANDROID_NATIVE_API_LEVEL 24)
+  endif()
+else()
+  set(ANDROID_PLATFORM "android-24")
+  set(ANDROID_NATIVE_API_LEVEL 24)
+endif()
+
+` + content;
+            fs.writeFileSync(cmakePath, content, "utf8");
+            console.log(`[withMinSdk24] Patched CMakeLists.txt: ${cmakePath}`);
+          }
+        }
+      }
+
+      // 4c. Patch hermestooling CMakeLists.txt if it exists
+      const hermesToolingPaths = [
+        path.join(projectRoot, "node_modules/react-native/ReactAndroid/hermestooling/CMakeLists.txt"),
+        path.join(projectRoot, "node_modules/react-native/sdks/hermesc/CMakeLists.txt"),
+      ];
+      for (const hp of hermesToolingPaths) {
+        if (fs.existsSync(hp)) {
+          let content = fs.readFileSync(hp, "utf8");
+          if (!content.includes("# [NUCLEAR] Force min API 24")) {
+            content = `# [NUCLEAR] Force min API 24
+set(ANDROID_PLATFORM "android-24")
+set(ANDROID_NATIVE_API_LEVEL 24)
+
+` + content;
+            fs.writeFileSync(hp, content, "utf8");
+            console.log(`[withMinSdk24] Patched Hermes CMake: ${hp}`);
+          }
+        }
+      }
+
+      // 4d. Run the nuclear fix script
       try {
-        const fixScript = path.join(config.modRequest.projectRoot, "scripts", "force-min-sdk-24.js");
+        const fixScript = path.join(projectRoot, "scripts", "force-min-sdk-24.js");
         if (fs.existsSync(fixScript)) {
           require(fixScript);
         }
