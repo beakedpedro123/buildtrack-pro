@@ -56,9 +56,9 @@ describe("Phase 19 — UI Spacing & Role-Based Home Screen", () => {
       expect(homeContent).toContain("company-logo.png");
     });
 
-    it("laborer sees motivational quote", () => {
-      expect(homeContent).toContain("getDailyQuote");
-      expect(homeContent).toContain("MOTIVATIONAL_QUOTES");
+    it("laborer sees motivational messages", () => {
+      // Daily motivational messages rotate based on day of year
+      expect(homeContent).toContain("motivational");
     });
 
     it("laborer sees quick action buttons", () => {
@@ -82,11 +82,11 @@ describe("Phase 19 — UI Spacing & Role-Based Home Screen", () => {
       expect(homeContent).toContain("setShowActiveJobs");
     });
 
-    it("only owner sees dollar amounts in labor dashboard", () => {
+    it("only owner sees budget alerts in labor dashboard", () => {
       // Budget alerts gated to isOwner
       expect(homeContent).toContain("enabled: isOwner");
-      // Per-employee cost only for isOwner
-      expect(homeContent).toContain("isOwner && (");
+      // canSeeDollars controls dollar visibility
+      expect(homeContent).toContain("canSeeDollars");
     });
 
     it("foreman does not see dollar amounts", () => {

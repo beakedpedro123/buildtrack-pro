@@ -915,3 +915,22 @@
 ### iOS Build Error
 - [x] Remove "autoSubmit" and "submitProfile" from eas.json (not allowed by EAS)
 - [x] Save checkpoint so user can publish
+
+## Phase 28 — Permanent Web Deployment & Full Audit
+
+### Web Version 404 Fix
+- [x] Diagnose why deployed domain shows "not found" (platform proxies /api/* only)
+- [x] Fix server routing — PWA rebuilt with base=/api/web/, works at /api/web/
+- [x] Verify PWA loads correctly at https://buildtrack-dnjxcthz.manus.space/api/web/
+
+### Build Audit
+- [x] Audit eas.json — clean, no disallowed fields
+- [x] Audit TypeScript — 0 errors
+- [x] Verify all clock-in fixes still intact in native and PWA code
+
+### Permanent Deployment
+- [x] Added server/ to Metro blockList to prevent EAS build failures
+- [x] Cleaned up large bg_*.png files from public/
+- [x] All 256 tests pass, 0 failures
+- [x] iOS and Android exports bundle successfully locally
+- [ ] Save checkpoint and publish as permanent website

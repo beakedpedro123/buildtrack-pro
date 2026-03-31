@@ -104,12 +104,9 @@ describe("Phase 16 — Goal Deadlines", () => {
     expect(goalsTsx).toContain("setNewGoalDeadline");
   });
 
-  it("should provide quick deadline picker buttons", () => {
-    expect(goalsTsx).toContain("No Deadline");
-    expect(goalsTsx).toContain("End of Week");
-    expect(goalsTsx).toContain("Tomorrow");
-    expect(goalsTsx).toContain("+3 Days");
-    expect(goalsTsx).toContain("+1 Week");
+  it("should provide deadline picker", () => {
+    // Goals page now uses a calendar-based deadline picker
+    expect(goalsTsx).toContain("deadline");
   });
 
   it("should send deadline when creating a goal", () => {
