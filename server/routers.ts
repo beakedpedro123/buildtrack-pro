@@ -151,9 +151,11 @@ const clockRouter = router({
     entryId: z.number(),
     clockIn: z.string().optional(),
     clockOut: z.string().optional(),
+    jobId: z.number().optional(),
   })).mutation(({ input }) => db.updateClockEntry(input.entryId, {
     clockIn: input.clockIn ? new Date(input.clockIn) : undefined,
     clockOut: input.clockOut ? new Date(input.clockOut) : undefined,
+    jobId: input.jobId,
   })),
 });
 

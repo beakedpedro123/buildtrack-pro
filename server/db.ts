@@ -251,12 +251,14 @@ export async function getClockedInEmployees() {
   return db.select().from(clockEntries).where(isNull(clockEntries.clockOut));
 }
 
-export async function updateClockEntry(entryId: number, data: { clockIn?: Date; clockOut?: Date }) {
+export async function updateClockEntry(entryId: number, data: { clockIn?: Date; clockOut?: Date; jobId?: number }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const updateData: any = {};
   if (data.clockIn) updateData.clockIn = data.clockIn;
   if (data.clockOut) updateData.clockOut = data.clockOut;
+  if (data.jobId !== undefined) updateData.jobId = data.jobId;
+  if (Object.keys(updateData).length === 0) return;
   await db.update(clockEntries).set(updateData).where(eq(clockEntries.id, entryId));
 }
 

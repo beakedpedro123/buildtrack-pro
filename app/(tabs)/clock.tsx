@@ -95,10 +95,13 @@ export default function ClockScreen() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [showEmployeePicker, setShowEmployeePicker] = useState(false);
 
-  // Time editing state
+  // ClockShark-style editing state (clock-in, clock-out, job)
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
-  const [editTimeStr, setEditTimeStr] = useState("");
+  const [editClockInStr, setEditClockInStr] = useState("");
+  const [editClockOutStr, setEditClockOutStr] = useState("");
+  const [editJobId, setEditJobId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [showEditJobPicker, setShowEditJobPicker] = useState(false);
 
   const role = employee?.role ?? "laborer";
   const isManager = role === "owner" || role === "secretary" || role === "logistics";
@@ -284,54 +287,80 @@ export default function ClockScreen() {
     }
   }, [clockOutMutation, refreshAll]);
 
-  /* ─── Management: Edit clock-in time ─── */
-  const startEditTime = (entryId: number, currentClockIn: string) => {
-    const d = new Date(currentClockIn);
-    const hours = d.getHours().toString().padStart(2, "0");
-    const mins = d.getMinutes().toString().padStart(2, "0");
-    setEditTimeStr(`${hours}:${mins}`);
-    setEditingEntryId(entryId);
-  };
-
-  const saveEditTime = async () => {
-    if (!editingEntryId || !editTimeStr) return;
-    // Parse HH:MM format
-    const parts = editTimeStr.split(":");
-    if (parts.length !== 2) {
-      Alert.alert("Invalid Time", "Please enter time as HH:MM (e.g., 07:30)");
-      return;
-    }
+  /* ─── ClockShark-style: Edit clock-in, clock-out, and job ─── */
+  const parseTimeStr = (timeStr: string): { hours: number; mins: number } | null => {
+    const parts = timeStr.trim().split(":");
+    if (parts.length !== 2) return null;
     const hours = parseInt(parts[0], 10);
     const mins = parseInt(parts[1], 10);
-    if (isNaN(hours) || isNaN(mins) || hours < 0 || hours > 23 || mins < 0 || mins > 59) {
-      Alert.alert("Invalid Time", "Please enter a valid time (00:00 - 23:59)");
-      return;
-    }
+    if (isNaN(hours) || isNaN(mins) || hours < 0 || hours > 23 || mins < 0 || mins > 59) return null;
+    return { hours, mins };
+  };
 
-    // Find the entry to get its original date
+  const startEditEntry = (entry: any) => {
+    const clockInDate = new Date(entry.clockIn);
+    setEditClockInStr(`${clockInDate.getHours().toString().padStart(2, "0")}:${clockInDate.getMinutes().toString().padStart(2, "0")}`);
+    if (entry.clockOut) {
+      const clockOutDate = new Date(entry.clockOut);
+      setEditClockOutStr(`${clockOutDate.getHours().toString().padStart(2, "0")}:${clockOutDate.getMinutes().toString().padStart(2, "0")}`);
+    } else {
+      setEditClockOutStr("");
+    }
+    setEditJobId(entry.jobId);
+    setEditingEntryId(entry.id);
+    setShowEditJobPicker(false);
+  };
+
+  const saveEditEntry = async () => {
+    if (!editingEntryId) return;
     const allEntries = [...(allClockedIn || []), ...(history || [])];
     const entry = allEntries.find((e: any) => e.id === editingEntryId);
-    const originalDate = entry ? new Date(entry.clockIn) : new Date();
-    const newDate = new Date(originalDate);
-    newDate.setHours(hours, mins, 0, 0);
+    if (!entry) return;
+
+    // Parse clock-in
+    const parsedIn = parseTimeStr(editClockInStr);
+    if (!parsedIn) {
+      Alert.alert("Invalid Clock-In", "Enter time as HH:MM (e.g., 07:30)");
+      return;
+    }
+    const newClockIn = new Date(entry.clockIn);
+    newClockIn.setHours(parsedIn.hours, parsedIn.mins, 0, 0);
+
+    // Parse clock-out (optional — only if provided)
+    let newClockOut: Date | undefined;
+    if (editClockOutStr.trim()) {
+      const parsedOut = parseTimeStr(editClockOutStr);
+      if (!parsedOut) {
+        Alert.alert("Invalid Clock-Out", "Enter time as HH:MM (e.g., 16:30)");
+        return;
+      }
+      const outBase = entry.clockOut ? new Date(entry.clockOut) : new Date(entry.clockIn);
+      newClockOut = new Date(outBase);
+      newClockOut.setHours(parsedOut.hours, parsedOut.mins, 0, 0);
+      // If clock-out is before clock-in, assume next day
+      if (newClockOut <= newClockIn) {
+        newClockOut.setDate(newClockOut.getDate() + 1);
+      }
+    }
 
     setEditSaving(true);
     try {
-      await withTimeout(
-        updateEntryMutation.mutateAsync({
-          entryId: editingEntryId,
-          clockIn: newDate.toISOString(),
-        }),
-        15000
-      );
+      const updatePayload: any = {
+        entryId: editingEntryId,
+        clockIn: newClockIn.toISOString(),
+      };
+      if (newClockOut) updatePayload.clockOut = newClockOut.toISOString();
+      if (editJobId && editJobId !== entry.jobId) updatePayload.jobId = editJobId;
+
+      await withTimeout(updateEntryMutation.mutateAsync(updatePayload), 15000);
       if (mountedRef.current) {
-        setSuccessMsg("Time updated!");
+        setSuccessMsg("Entry updated!");
         setEditingEntryId(null);
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        await refreshAll();
+        refreshAll().catch(() => {});
       }
     } catch (err: any) {
-      Alert.alert("Error", err?.message || "Failed to update time.");
+      Alert.alert("Error", err?.message || "Failed to update entry.");
     } finally {
       if (mountedRef.current) setEditSaving(false);
     }
@@ -533,7 +562,7 @@ export default function ClockScreen() {
                     </View>
                     <TouchableOpacity
                       style={styles.editTimeBtn}
-                      onPress={() => startEditTime(entry.id, entry.clockIn)}
+                      onPress={() => startEditEntry(entry)}
                     >
                       <Text style={{ color: colors.primary, fontSize: 11, fontWeight: "700" }}>✏️ Edit</Text>
                     </TouchableOpacity>
@@ -553,39 +582,74 @@ export default function ClockScreen() {
                       <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>Clock Out</Text>
                     </TouchableOpacity>
                   </View>
-                  {/* Inline Time Editor */}
+                  {/* ClockShark-style Entry Editor */}
                   {isEditing && (
-                    <View style={styles.editTimeRow}>
-                      <TextInput
-                        style={styles.editTimeInput}
-                        value={editTimeStr}
-                        onChangeText={setEditTimeStr}
-                        placeholder="HH:MM (e.g., 07:30)"
-                        placeholderTextColor={colors.muted}
-                        keyboardType="numbers-and-punctuation"
-                        returnKeyType="done"
-                        onSubmitEditing={saveEditTime}
-                      />
+                    <View style={{ marginHorizontal: 20, marginTop: 4, marginBottom: 8, padding: 14, borderRadius: 12, backgroundColor: colors.primary + "08", borderWidth: 1, borderColor: colors.primary + "30" }}>
+                      <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>CLOCK IN</Text>
+                          <TextInput
+                            style={styles.editTimeInput}
+                            value={editClockInStr}
+                            onChangeText={setEditClockInStr}
+                            placeholder="07:30"
+                            placeholderTextColor={colors.muted}
+                            keyboardType="numbers-and-punctuation"
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>CLOCK OUT</Text>
+                          <TextInput
+                            style={styles.editTimeInput}
+                            value={editClockOutStr}
+                            onChangeText={setEditClockOutStr}
+                            placeholder={entry.clockOut ? "16:30" : "Still active"}
+                            placeholderTextColor={colors.muted}
+                            keyboardType="numbers-and-punctuation"
+                          />
+                        </View>
+                      </View>
+                      {/* Job Picker */}
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>JOB</Text>
                       <TouchableOpacity
-                        onPress={saveEditTime}
-                        disabled={editSaving}
-                        style={{
-                          marginLeft: 8, paddingHorizontal: 16, paddingVertical: 8,
-                          borderRadius: 8, backgroundColor: colors.primary,
-                        }}
+                        onPress={() => setShowEditJobPicker(!showEditJobPicker)}
+                        style={{ backgroundColor: colors.surface, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: colors.border, marginBottom: showEditJobPicker ? 4 : 10 }}
                       >
-                        {editSaving ? (
-                          <ActivityIndicator color="#fff" size="small" />
-                        ) : (
-                          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Save</Text>
-                        )}
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>
+                          {jobs?.find(j => j.id === editJobId)?.name || "Select Job"} ▼
+                        </Text>
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => setEditingEntryId(null)}
-                        style={{ marginLeft: 6, paddingHorizontal: 10, paddingVertical: 8 }}
-                      >
-                        <Text style={{ color: colors.muted, fontSize: 13 }}>Cancel</Text>
-                      </TouchableOpacity>
+                      {showEditJobPicker && (
+                        <View style={{ marginBottom: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, overflow: "hidden" }}>
+                          {(jobs || []).map(j => (
+                            <TouchableOpacity
+                              key={j.id}
+                              onPress={() => { setEditJobId(j.id); setShowEditJobPicker(false); }}
+                              style={{ paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: editJobId === j.id ? colors.primary + "15" : "transparent" }}
+                            >
+                              <Text style={{ fontSize: 13, fontWeight: editJobId === j.id ? "700" : "500", color: editJobId === j.id ? colors.primary : colors.foreground }}>
+                                {editJobId === j.id ? "✓ " : ""}{j.name}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                      {/* Save / Cancel */}
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <TouchableOpacity
+                          onPress={saveEditEntry}
+                          disabled={editSaving}
+                          style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.primary, alignItems: "center" }}
+                        >
+                          {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>Save Changes</Text>}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => setEditingEntryId(null)}
+                          style={{ paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
+                        >
+                          <Text style={{ color: colors.muted, fontWeight: "600", fontSize: 14 }}>Cancel</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   )}
                 </View>
@@ -696,7 +760,7 @@ export default function ClockScreen() {
                     </Text>
                     {isManager && (
                       <TouchableOpacity
-                        onPress={() => startEditTime(entry.id, entry.clockIn)}
+                        onPress={() => startEditEntry(entry)}
                         style={{ marginLeft: 8, padding: 4 }}
                       >
                         <Text style={{ fontSize: 14 }}>✏️</Text>
@@ -704,37 +768,70 @@ export default function ClockScreen() {
                     )}
                   </View>
                   {isEditing && (
-                    <View style={styles.editTimeRow}>
-                      <TextInput
-                        style={styles.editTimeInput}
-                        value={editTimeStr}
-                        onChangeText={setEditTimeStr}
-                        placeholder="HH:MM (e.g., 07:30)"
-                        placeholderTextColor={colors.muted}
-                        keyboardType="numbers-and-punctuation"
-                        returnKeyType="done"
-                        onSubmitEditing={saveEditTime}
-                      />
+                    <View style={{ marginHorizontal: 20, marginTop: 4, marginBottom: 8, padding: 14, borderRadius: 12, backgroundColor: colors.primary + "08", borderWidth: 1, borderColor: colors.primary + "30" }}>
+                      <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>CLOCK IN</Text>
+                          <TextInput
+                            style={styles.editTimeInput}
+                            value={editClockInStr}
+                            onChangeText={setEditClockInStr}
+                            placeholder="07:30"
+                            placeholderTextColor={colors.muted}
+                            keyboardType="numbers-and-punctuation"
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>CLOCK OUT</Text>
+                          <TextInput
+                            style={styles.editTimeInput}
+                            value={editClockOutStr}
+                            onChangeText={setEditClockOutStr}
+                            placeholder={entry.clockOut ? "16:30" : "Still active"}
+                            placeholderTextColor={colors.muted}
+                            keyboardType="numbers-and-punctuation"
+                          />
+                        </View>
+                      </View>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>JOB</Text>
                       <TouchableOpacity
-                        onPress={saveEditTime}
-                        disabled={editSaving}
-                        style={{
-                          marginLeft: 8, paddingHorizontal: 16, paddingVertical: 8,
-                          borderRadius: 8, backgroundColor: colors.primary,
-                        }}
+                        onPress={() => setShowEditJobPicker(!showEditJobPicker)}
+                        style={{ backgroundColor: colors.surface, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: colors.border, marginBottom: showEditJobPicker ? 4 : 10 }}
                       >
-                        {editSaving ? (
-                          <ActivityIndicator color="#fff" size="small" />
-                        ) : (
-                          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Save</Text>
-                        )}
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>
+                          {jobs?.find(j => j.id === editJobId)?.name || "Select Job"} ▼
+                        </Text>
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => setEditingEntryId(null)}
-                        style={{ marginLeft: 6, paddingHorizontal: 10, paddingVertical: 8 }}
-                      >
-                        <Text style={{ color: colors.muted, fontSize: 13 }}>Cancel</Text>
-                      </TouchableOpacity>
+                      {showEditJobPicker && (
+                        <View style={{ marginBottom: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, overflow: "hidden" }}>
+                          {(jobs || []).map(j => (
+                            <TouchableOpacity
+                              key={j.id}
+                              onPress={() => { setEditJobId(j.id); setShowEditJobPicker(false); }}
+                              style={{ paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: editJobId === j.id ? colors.primary + "15" : "transparent" }}
+                            >
+                              <Text style={{ fontSize: 13, fontWeight: editJobId === j.id ? "700" : "500", color: editJobId === j.id ? colors.primary : colors.foreground }}>
+                                {editJobId === j.id ? "✓ " : ""}{j.name}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <TouchableOpacity
+                          onPress={saveEditEntry}
+                          disabled={editSaving}
+                          style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.primary, alignItems: "center" }}
+                        >
+                          {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>Save Changes</Text>}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => setEditingEntryId(null)}
+                          style={{ paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
+                        >
+                          <Text style={{ color: colors.muted, fontWeight: "600", fontSize: 14 }}>Cancel</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   )}
                 </View>

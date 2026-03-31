@@ -933,4 +933,31 @@
 - [x] Cleaned up large bg_*.png files from public/
 - [x] All 256 tests pass, 0 failures
 - [x] iOS and Android exports bundle successfully locally
-- [ ] Save checkpoint and publish as permanent website
+- [x] Save checkpoint and publish as permanent website
+
+## Phase 29 — ClockShark-Style Time Editing + Web Fixes
+
+### ClockShark-Style Time Editing (ALL versions)
+- [x] Management can edit clock-IN time for any employee
+- [x] Management can edit clock-OUT time for any employee
+- [x] Management can change the JOB assignment on any clock entry
+- [x] Editing available from Onsite Now section on home screen
+- [x] Editing available from Clock tab
+- [x] Editing available from any tab showing employee time
+- [x] Server endpoint supports updating clockIn, clockOut, AND jobId
+
+### PWA Clock Page — Delete and Rebuild from Scratch
+- [x] Delete current broken PWA ClockPage
+- [x] Rebuild with simple, non-blocking clock-in/out flow
+- [x] No freezing, no stuck states, no lag on clock-out
+- [x] ClockShark-style editing on web version too
+
+### Web Safety Page Fix
+- [x] Show full safety topic text for foreman to read (expandable view)
+- [x] Allow adding new safety topics from web version
+- [x] Log safety meeting feature shows complete topic content
+
+### Build & Publish
+- [x] Verify iOS export bundles clean (1709 modules, 0 errors)
+- [x] Verify Android export bundles clean (0 errors)
+- [x] Save checkpoint and publish
