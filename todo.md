@@ -961,3 +961,17 @@
 - [x] Verify iOS export bundles clean (1709 modules, 0 errors)
 - [x] Verify Android export bundles clean (0 errors)
 - [x] Save checkpoint and publish
+
+## Phase 30 — iOS Build Fix (metro.config.js)
+
+- [x] Fix metro.config.js — anchored blockList to __dirname so /dist/ pattern doesn't block node_modules
+- [x] Did NOT touch web or APK code
+- [x] Verify iOS export bundles locally (1709 modules, 0 errors)
+- [x] Save checkpoint for publishing
+
+## Phase 30b — Fix Dependency Version Mismatches for iOS Build
+
+- [x] Fix expo-location: upgraded via npx expo install --fix
+- [x] Run npx expo install --fix — all mismatches resolved
+- [x] Verify iOS export bundles cleanly (5.22 MB, 0 errors)
+- [x] Save checkpoint
