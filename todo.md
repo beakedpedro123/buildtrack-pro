@@ -909,3 +909,9 @@
 - [x] Audit all PWA screens for bugs
 - [x] Ensure clock in/out works flawlessly on web
 - [x] Rebuild and redeploy PWA
+
+## Phase 27 — EAS Build Fix
+
+### iOS Build Error
+- [x] Remove "autoSubmit" and "submitProfile" from eas.json (not allowed by EAS)
+- [x] Save checkpoint so user can publish
