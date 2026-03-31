@@ -57,6 +57,13 @@
       "when": 1774425567199,
       "tag": "0007_familiar_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1774926841746,
+      "tag": "0008_workable_joseph",
+      "breakpoints": true
     }
   ]
 }

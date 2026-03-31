@@ -82,7 +82,7 @@ define(['./workbox-c5fd805d'], (function (workbox) { 'use strict';
     "revision": "beed6bffa22d0d1bd85da2fde8b3851d"
   }, {
     "url": "index.html",
-    "revision": "6f35d9ac68c40171feaadce671fef7de"
+    "revision": "4bc990d8809bd929d57e0675f189b078"
   }, {
     "url": "bg_reports.png",
     "revision": "f7aa4d489e58c0ed04a1b0670ba26140"
@@ -99,6 +99,33 @@ define(['./workbox-c5fd805d'], (function (workbox) { 'use strict';
     "url": "bg_clock.png",
     "revision": "48498289e4d66410895687cd0adb7940"
   }, {
+    "url": "web/workbox-c5fd805d.js",
+    "revision": "e803ad80582d88db3b880e7de744ac77"
+  }, {
+    "url": "web/sw.js",
+    "revision": "c56b9b3d0588dd0f2eabc45a4e32dc5e"
+  }, {
+    "url": "web/registerSW.js",
+    "revision": "beed6bffa22d0d1bd85da2fde8b3851d"
+  }, {
+    "url": "web/index.html",
+    "revision": "6f35d9ac68c40171feaadce671fef7de"
+  }, {
+    "url": "web/icons/icon-512.png",
+    "revision": "9fb6e13023654f7bf6d55fcfc9a40b1c"
+  }, {
+    "url": "web/icons/icon-192.png",
+    "revision": "9fb6e13023654f7bf6d55fcfc9a40b1c"
+  }, {
+    "url": "web/icons/company-logo.png",
+    "revision": "7d79dd5a93c1ff34e1711ae4a1e24338"
+  }, {
+    "url": "web/assets/index-DIfHsUzu.css",
+    "revision": "a3491c8d3689f7fec00db832fc849bca"
+  }, {
+    "url": "web/assets/index-BjKgWWcZ.js",
+    "revision": "6a648b19a111892c17f8da4781ccc61e"
+  }, {
     "url": "icons/icon-512.png",
     "revision": "9fb6e13023654f7bf6d55fcfc9a40b1c"
   }, {
@@ -108,10 +135,16 @@ define(['./workbox-c5fd805d'], (function (workbox) { 'use strict';
     "url": "icons/company-logo.png",
     "revision": "7d79dd5a93c1ff34e1711ae4a1e24338"
   }, {
+    "url": "assets/index-DNLO56k6.css",
+    "revision": null
+  }, {
     "url": "assets/index-DIfHsUzu.css",
     "revision": null
   }, {
     "url": "assets/index-BjKgWWcZ.js",
+    "revision": null
+  }, {
+    "url": "assets/index-BP52JwxN.js",
     "revision": null
   }, {
     "url": "icons/company-logo.png",

@@ -23,7 +23,9 @@ import {
   Alert,
   Keyboard,
   Dimensions,
+  Linking,
 } from "react-native";
+import { Image } from "expo-image";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import {
@@ -371,8 +373,8 @@ export function PivotChat() {
     setPendingAttachments([]);
     setLoading(true);
 
-    // Dismiss keyboard after sending so user can see the response
-    Keyboard.dismiss();
+    // Don't dismiss keyboard on send — let user keep typing follow-ups
+    // Keyboard.dismiss();
 
     try {
       const result = await chatMutation.mutateAsync({
@@ -396,6 +398,72 @@ export function PivotChat() {
 
   const isRecording = recorderState.isRecording;
 
+  // ─── Render message content with inline image support ─────────────────────────
+
+  const renderMessageContent = (content: string, role: "user" | "assistant") => {
+    // Parse markdown images: ![alt](url)
+    const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+    let partKey = 0;
+
+    while ((match = imageRegex.exec(content)) !== null) {
+      // Add text before the image
+      if (match.index > lastIndex) {
+        const textBefore = content.slice(lastIndex, match.index).trim();
+        if (textBefore) {
+          parts.push(
+            <Text key={partKey++} style={role === "user" ? s2.userText : [s2.aiText, { color: colors.foreground }]}>
+              {textBefore}
+            </Text>
+          );
+        }
+      }
+      // Add the image
+      const altText = match[1];
+      const imageUrl = match[2];
+      parts.push(
+        <TouchableOpacity key={partKey++} onPress={() => Linking.openURL(imageUrl)} activeOpacity={0.8}>
+          <Image
+            source={{ uri: imageUrl }}
+            style={{ width: 220, height: 220, borderRadius: 12, marginVertical: 8 }}
+            contentFit="contain"
+            placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
+            transition={300}
+          />
+          {altText ? <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 4, textAlign: "center" }}>{altText}</Text> : null}
+        </TouchableOpacity>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text after last image
+    if (lastIndex < content.length) {
+      const remaining = content.slice(lastIndex).trim();
+      if (remaining) {
+        parts.push(
+          <Text key={partKey++} style={role === "user" ? s2.userText : [s2.aiText, { color: colors.foreground }]}>
+            {remaining}
+          </Text>
+        );
+      }
+    }
+
+    // If no images found, just render as plain text
+    if (parts.length === 0) {
+      return <Text style={role === "user" ? s2.userText : [s2.aiText, { color: colors.foreground }]}>{content}</Text>;
+    }
+
+    return <View>{parts}</View>;
+  };
+
+  // Inline text styles for renderMessageContent (defined before StyleSheet.create)
+  const s2 = {
+    userText: { color: "#000", fontSize: 15, lineHeight: 21 } as const,
+    aiText: { fontSize: 15, lineHeight: 22 } as const,
+  };
+
   // ─── Render message item for FlatList ────────────────────────────────────────
 
   const renderMessage = ({ item }: { item: Message }) => (
@@ -413,7 +481,7 @@ export function PivotChat() {
             <Text style={{ fontSize: 11, fontWeight: "600", color: "#D4AF37" }}>Pivot</Text>
           </View>
         )}
-        <Text style={item.role === "user" ? s.userText : [s.aiText, { color: colors.foreground }]}>{item.content}</Text>
+        {renderMessageContent(item.content, item.role)}
       </View>
     </View>
   );
@@ -442,7 +510,7 @@ export function PivotChat() {
     },
     modal: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
     panel: {
-      maxHeight: "85%",
+      maxHeight: keyboardVisible ? "95%" : "85%",
       flex: 1,
       backgroundColor: colors.surface,
       borderTopLeftRadius: 24,
@@ -614,7 +682,7 @@ export function PivotChat() {
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={{ flex: 1, justifyContent: "flex-end" }}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
           >
             <Pressable style={s.panel} onPress={(e) => e.stopPropagation()}>
               {/* Header */}
@@ -738,11 +806,9 @@ export function PivotChat() {
                   placeholderTextColor={colors.muted}
                   multiline
                   editable={!loading && !isRecording && !isTranscribing}
-                  returnKeyType="send"
+                  returnKeyType="default"
                   blurOnSubmit={false}
-                  onSubmitEditing={() => {
-                    if (input.trim()) sendMessage(input);
-                  }}
+                  scrollEnabled={true}
                 />
 
                 {/* Voice mic button — only for eligible roles */}

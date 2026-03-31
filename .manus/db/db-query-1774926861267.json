@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `pivotMemory` ADD COLUMN IF NOT EXISTS `personalProfile` text; ALTER TABLE `pivotMemory` ADD COLUMN IF NOT EXISTS `communicationStyle` text; ALTER TABLE `pivotMemory` ADD COLUMN IF NOT EXISTS `growthLog` text; ALTER TABLE `weeklyGoals` ADD COLUMN IF NOT EXISTS `assignedToList` varchar(255);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 378BqZUfvZWHcSK.root --database dNJxctHZxj6wCg3jq4j4kh --execute ALTER TABLE `pivotMemory` ADD COLUMN IF NOT EXISTS `personalProfile` text; ALTER TABLE `pivotMemory` ADD COLUMN IF NOT EXISTS `communicationStyle` text; ALTER TABLE `pivotMemory` ADD COLUMN IF NOT EXISTS `growthLog` text; ALTER TABLE `weeklyGoals` ADD COLUMN IF NOT EXISTS `assignedToList` varchar(255);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1376
+}

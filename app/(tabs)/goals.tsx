@@ -216,7 +216,7 @@ export default function GoalsScreen() {
   const [newGoalTitle, setNewGoalTitle] = useState("");
   const [newGoalDescription, setNewGoalDescription] = useState("");
   const [newGoalPriority, setNewGoalPriority] = useState<Priority>("medium");
-  const [newGoalAssignee, setNewGoalAssignee] = useState<number | null>(null);
+  const [newGoalAssignees, setNewGoalAssignees] = useState<number[]>([]);
   const [newGoalDeadline, setNewGoalDeadline] = useState<string>("");
   const [filterAssignee, setFilterAssignee] = useState<number | "all">("all");
 
@@ -261,7 +261,7 @@ export default function GoalsScreen() {
     setNewGoalTitle("");
     setNewGoalDescription("");
     setNewGoalPriority("medium");
-    setNewGoalAssignee(null);
+    setNewGoalAssignees([]);
     setNewGoalDeadline("");
   };
 
@@ -280,21 +280,30 @@ export default function GoalsScreen() {
     if (!goals) return [];
     let filtered = [...goals];
 
+    const isGoalForMe = (g: any) => {
+      if (g.assignedToList) {
+        const ids = String(g.assignedToList).split(",").map(Number);
+        return ids.includes(employee?.id || 0);
+      }
+      if (g.assignedTo) return g.assignedTo === employee?.id;
+      return true; // no assignment = everyone
+    };
+
     if (isOwner) {
       if (filterAssignee !== "all") {
-        filtered = filtered.filter((g: any) => g.assignedTo === filterAssignee);
+        filtered = filtered.filter((g: any) => {
+          if (g.assignedToList) {
+            return String(g.assignedToList).split(",").map(Number).includes(filterAssignee as number);
+          }
+          return g.assignedTo === filterAssignee;
+        });
       }
     } else if (isLaborer) {
-      // Laborers only see goals assigned to them
-      filtered = filtered.filter((g: any) => g.assignedTo === employee?.id);
+      filtered = filtered.filter(isGoalForMe);
     } else if (isForeman) {
-      // Foreman sees goals assigned to them AND goals they created for laborers
-      filtered = filtered.filter((g: any) =>
-        g.assignedTo === employee?.id || g.createdBy === employee?.id
-      );
+      filtered = filtered.filter((g: any) => isGoalForMe(g) || g.createdBy === employee?.id);
     } else {
-      // Secretary, logistics — see goals assigned to them
-      filtered = filtered.filter((g: any) => g.assignedTo === employee?.id);
+      filtered = filtered.filter(isGoalForMe);
     }
 
     return filtered;
@@ -336,7 +345,14 @@ export default function GoalsScreen() {
     setNewGoalTitle(goal.title || "");
     setNewGoalDescription(goal.description || "");
     setNewGoalPriority(goal.priority || "medium");
-    setNewGoalAssignee(goal.assignedTo || null);
+    // Restore multi-assign from assignedToList or fallback to single assignedTo
+    if (goal.assignedToList) {
+      setNewGoalAssignees(String(goal.assignedToList).split(",").map(Number));
+    } else if (goal.assignedTo) {
+      setNewGoalAssignees([goal.assignedTo]);
+    } else {
+      setNewGoalAssignees([]);
+    }
     setNewGoalDeadline(goal.deadline || "");
     setShowEditGoal(true);
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -349,7 +365,8 @@ export default function GoalsScreen() {
       title: newGoalTitle.trim() || undefined,
       description: newGoalDescription.trim() || undefined,
       priority: newGoalPriority,
-      assignedTo: newGoalAssignee || undefined,
+      assignedTo: newGoalAssignees.length === 1 ? newGoalAssignees[0] : undefined,
+      assignedToList: newGoalAssignees.length > 0 ? newGoalAssignees.join(",") : undefined,
       deadline: newGoalDeadline || null });
     resetForm();
   };
@@ -365,15 +382,20 @@ export default function GoalsScreen() {
       priority: newGoalPriority,
       weekOf: weekStart.toISOString(),
       createdBy: employee?.id || 0,
-      assignedTo: newGoalAssignee || undefined,
+      assignedTo: newGoalAssignees.length === 1 ? newGoalAssignees[0] : undefined,
+      assignedToList: newGoalAssignees.length > 0 ? newGoalAssignees.join(",") : undefined,
       deadline: newGoalDeadline || undefined });
   };
 
   const PRIORITIES: Priority[] = ["low", "medium", "high"];
 
-  const getAssigneeName = (id: number | null | undefined): string => {
-    if (!id) return "Unassigned";
-    return employeeMap[id] || "Unknown";
+  const getAssigneeNames = (goal: any): string => {
+    if (goal.assignedToList) {
+      const ids = String(goal.assignedToList).split(",").map(Number);
+      return ids.map(id => employeeMap[id] || "Unknown").join(", ");
+    }
+    if (goal.assignedTo) return employeeMap[goal.assignedTo] || "Unknown";
+    return "Everyone";
   };
 
   const currentAssignees = isForeman ? foremanAssignees : assignableEmployees;
@@ -421,7 +443,10 @@ export default function GoalsScreen() {
         returnKeyType="done"
       />
 
-      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10, fontWeight: "500" }}>Assign To</Text>
+      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6, fontWeight: "500" }}>Assign To (up to 5 people)</Text>
+      <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 10 }}>
+        {newGoalAssignees.length === 0 ? "Everyone" : `${newGoalAssignees.length}/5 selected`}
+      </Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 16 }}>
         <TouchableOpacity
           style={{
@@ -430,28 +455,42 @@ export default function GoalsScreen() {
             borderRadius: 20,
             marginRight: 8,
             marginBottom: 8,
-            backgroundColor: !newGoalAssignee ? colors.primary + "22" : colors.surface,
+            backgroundColor: newGoalAssignees.length === 0 ? colors.primary + "22" : colors.surface,
           }}
-          onPress={() => setNewGoalAssignee(null)}
+          onPress={() => setNewGoalAssignees([])}
         >
-          <Text style={{ fontSize: 13, fontWeight: "600", color: !newGoalAssignee ? colors.primary : colors.muted }}>Everyone</Text>
+          <Text style={{ fontSize: 13, fontWeight: "600", color: newGoalAssignees.length === 0 ? colors.primary : colors.muted }}>Everyone</Text>
         </TouchableOpacity>
-        {currentAssignees.map((emp: any) => (
-          <TouchableOpacity
-            key={emp.id}
-            style={{
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 20,
-              marginRight: 8,
-              marginBottom: 8,
-              backgroundColor: newGoalAssignee === emp.id ? colors.primary + "22" : colors.surface,
-            }}
-            onPress={() => setNewGoalAssignee(newGoalAssignee === emp.id ? null : emp.id)}
-          >
-            <Text style={{ fontSize: 13, fontWeight: "600", color: newGoalAssignee === emp.id ? colors.primary : colors.muted }}>{emp.name}</Text>
-          </TouchableOpacity>
-        ))}
+        {currentAssignees.map((emp: any) => {
+          const isSelected = newGoalAssignees.includes(emp.id);
+          return (
+            <TouchableOpacity
+              key={emp.id}
+              style={{
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 20,
+                marginRight: 8,
+                marginBottom: 8,
+                backgroundColor: isSelected ? colors.primary + "22" : colors.surface,
+                opacity: !isSelected && newGoalAssignees.length >= 5 ? 0.4 : 1,
+              }}
+              onPress={() => {
+                if (isSelected) {
+                  setNewGoalAssignees(newGoalAssignees.filter(id => id !== emp.id));
+                } else if (newGoalAssignees.length < 5) {
+                  setNewGoalAssignees([...newGoalAssignees, emp.id]);
+                } else {
+                  Alert.alert("Max 5", "You can assign a goal to up to 5 people. Remove someone first.");
+                }
+              }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "600", color: isSelected ? colors.primary : colors.muted }}>
+                {isSelected ? "✓ " : ""}{emp.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10, fontWeight: "500" }}>Priority</Text>
@@ -528,9 +567,11 @@ export default function GoalsScreen() {
   const renderGoalCard = ({ item }: { item: any }) => {
     const status = item.status as GoalStatus;
     const priority = item.priority as Priority;
-    const assigneeName = getAssigneeName(item.assignedTo);
-    const canUpdateStatus = isOwnerOrManager || isForeman || item.assignedTo === employee?.id;
-    const canEdit = isOwnerOrManager || (isForeman && item.createdBy === employee?.id) || item.assignedTo === employee?.id;
+    const assigneeName = getAssigneeNames(item);
+    const assigneeIds = item.assignedToList ? String(item.assignedToList).split(",").map(Number) : (item.assignedTo ? [item.assignedTo] : []);
+    const isAssignedToMe = assigneeIds.includes(employee?.id || 0) || (!item.assignedTo && !item.assignedToList);
+    const canUpdateStatus = isOwnerOrManager || isForeman || isAssignedToMe;
+    const canEdit = isOwnerOrManager || (isForeman && item.createdBy === employee?.id) || isAssignedToMe;
     const isCompleted = status === "completed";
     const isCancelled = status === "cancelled";
 
@@ -652,14 +693,15 @@ export default function GoalsScreen() {
                 </Text>
               </View>
 
-              {/* Assignee pill */}
+              {/* Assignee pill(s) */}
               <View style={{
-                backgroundColor: item.assignedTo ? colors.primary + "14" : colors.muted + "14",
+                backgroundColor: (item.assignedTo || item.assignedToList) ? colors.primary + "14" : colors.muted + "14",
                 borderRadius: 8,
                 paddingHorizontal: 8,
                 paddingVertical: 3,
+                maxWidth: "60%",
               }}>
-                <Text style={{ fontSize: 10, fontWeight: "600", color: item.assignedTo ? colors.primary : colors.muted }}>
+                <Text style={{ fontSize: 10, fontWeight: "600", color: (item.assignedTo || item.assignedToList) ? colors.primary : colors.muted }} numberOfLines={1}>
                   {assigneeName}
                 </Text>
               </View>

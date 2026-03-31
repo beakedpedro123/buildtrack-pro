@@ -7,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
   Alert,
@@ -17,6 +17,7 @@ import { ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View, ImageBackground } from "react-native";
 
@@ -33,6 +34,52 @@ function formatTime(date: Date | string) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatDateTime(date: Date | string) {
+  const d = new Date(date);
+  return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/* ─── Timeout wrapper to prevent hanging ─── */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Request timed out. Please try again.")), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
+/* ─── Location with timeout (web-optimized) ─── */
+async function getLocationSafe(): Promise<{ lat: number; lng: number } | null> {
+  // On web, use the browser's native geolocation API for reliability
+  if (Platform.OS === "web") {
+    try {
+      if (!navigator?.geolocation) return null;
+      return await new Promise<{ lat: number; lng: number } | null>((resolve) => {
+        const timer = setTimeout(() => resolve(null), 3000); // 3s max on web
+        navigator.geolocation.getCurrentPosition(
+          (pos) => { clearTimeout(timer); resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
+          () => { clearTimeout(timer); resolve(null); },
+          { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+        );
+      });
+    } catch { return null; }
+  }
+  // Native: use expo-location
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") return null;
+    const loc = await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Location timeout")), 5000)),
+    ]);
+    return { lat: loc.coords.latitude, lng: loc.coords.longitude };
+  } catch {
+    return null;
+  }
+}
+
 export default function ClockScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -41,34 +88,61 @@ export default function ClockScreen() {
   const [now, setNow] = useState(new Date());
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   // Management mode state
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [showEmployeePicker, setShowEmployeePicker] = useState(false);
 
+  // Time editing state
+  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
+  const [editTimeStr, setEditTimeStr] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
   const role = employee?.role ?? "laborer";
   const isManager = role === "owner" || role === "secretary" || role === "logistics";
-
-  // The employee being clocked: self for field roles, selected employee for managers
   const clockTargetId = isManager ? selectedEmployeeId : employee?.id;
 
   const utils = trpc.useUtils();
 
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // Update clock every 10 seconds for responsive elapsed time
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (mountedRef.current) setNow(new Date());
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-clear success message
+  useEffect(() => {
+    if (successMsg) {
+      const t = setTimeout(() => { if (mountedRef.current) setSuccessMsg(null); }, 3000);
+      return () => clearTimeout(t);
+    }
+  }, [successMsg]);
+
   const { data: activeEntry, refetch: refetchActive } = trpc.clock.activeEntry.useQuery(
     { employeeId: clockTargetId || 0 },
-    { enabled: !!clockTargetId }
+    { enabled: !!clockTargetId, refetchInterval: 10000, staleTime: 5000 }
   );
 
   const { data: jobs } = trpc.jobs.listActive.useQuery();
 
-  const { data: history } = trpc.clock.history.useQuery(
+  const { data: history, refetch: refetchHistory } = trpc.clock.history.useQuery(
     { employeeId: clockTargetId || 0, since: new Date(Date.now() - 7 * 86400000).toISOString() },
     { enabled: !!clockTargetId }
   );
 
-  // For managers: get all employees and all currently clocked-in
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManager });
-  const { data: allClockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManager });
+  const { data: allClockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(
+    undefined, { enabled: isManager, refetchInterval: 10000, staleTime: 5000 }
+  );
 
   const activeEmployees = useMemo(() => {
     return (allEmployees || []).filter((e: any) => e.isActive);
@@ -79,99 +153,187 @@ export default function ClockScreen() {
     return activeEmployees.find((e: any) => e.id === selectedEmployeeId) || null;
   }, [isManager, employee, activeEmployees, selectedEmployeeId]);
 
-  const clockInMutation = trpc.clock.in.useMutation({
-    onSuccess: () => { refetchActive(); utils.clock.history.invalidate(); if (isManager) refetchClockedIn(); } });
+  const clockInMutation = trpc.clock.in.useMutation();
+  const clockOutMutation = trpc.clock.out.useMutation();
+  const updateEntryMutation = trpc.clock.updateEntry.useMutation();
 
-  const clockOutMutation = trpc.clock.out.useMutation({
-    onSuccess: () => { refetchActive(); utils.clock.history.invalidate(); if (isManager) refetchClockedIn(); } });
-
-  useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const getLocation = async () => {
+  const refreshAll = useCallback(async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return null;
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      return { lat: loc.coords.latitude, lng: loc.coords.longitude };
-    } catch {
-      return null;
-    }
-  };
+      await Promise.all([
+        refetchActive(),
+        refetchHistory(),
+        ...(isManager ? [refetchClockedIn()] : []),
+      ]);
+      utils.clock.history.invalidate();
+    } catch { /* ignore refresh errors */ }
+  }, [refetchActive, refetchHistory, isManager, refetchClockedIn, utils]);
 
-  const handleClockIn = async () => {
+  const handleClockIn = useCallback(async () => {
     if (!clockTargetId || !selectedJobId) {
       Alert.alert("Select a Job", "Please select a jobsite before clocking in.");
       return;
     }
+    if (loading) return; // Prevent double-tap
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     try {
-      const loc = await getLocation();
+      // Get location in parallel with a short timeout — don't let it block clock-in
       const clockInTime = new Date().toISOString();
+      let loc: { lat: number; lng: number } | null = null;
       try {
-        await clockInMutation.mutateAsync({
-          employeeId: clockTargetId,
-          jobId: selectedJobId,
-          clockIn: clockInTime,
-          clockInLatitude: loc?.lat,
-          clockInLongitude: loc?.lng,
-          isOfflineEntry: false });
+        loc = await getLocationSafe();
+      } catch { /* location is optional, proceed without it */ }
+
+      try {
+        await withTimeout(
+          clockInMutation.mutateAsync({
+            employeeId: clockTargetId,
+            jobId: selectedJobId,
+            clockIn: clockInTime,
+            clockInLatitude: loc?.lat,
+            clockInLongitude: loc?.lng,
+            isOfflineEntry: false,
+          }),
+          Platform.OS === "web" ? 20000 : 15000 // Give web a bit more time
+        );
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (mountedRef.current) {
+          setSuccessMsg("Clocked in!");
+          // Refresh in background — don't block the UI
+          refreshAll().catch(() => {});
+        }
       } catch {
         if (!isManager) {
-          // Offline: queue it (only for self-clock)
           await addClockEntry({
             employeeId: clockTargetId,
             jobId: selectedJobId,
             clockIn: clockInTime,
             clockInLatitude: loc?.lat,
-            clockInLongitude: loc?.lng });
+            clockInLongitude: loc?.lng,
+          });
           if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           Alert.alert("Clocked In (Offline)", "Clock-in was saved locally and will sync when you have service.");
         } else {
-          Alert.alert("Error", "Could not clock in. Please check your connection.");
+          Alert.alert("Error", "Could not clock in. Please check your connection and try again.");
         }
       }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
-  };
+  }, [clockTargetId, selectedJobId, loading, isManager, clockInMutation, addClockEntry, refreshAll]);
 
-  const handleClockOut = async () => {
+  const handleClockOut = useCallback(async () => {
     if (!activeEntry) return;
+    if (loading) return; // Prevent double-tap
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     try {
-      const loc = await getLocation();
-      await clockOutMutation.mutateAsync({
-        entryId: activeEntry.id,
-        clockOut: new Date().toISOString(),
-        clockOutLatitude: loc?.lat,
-        clockOutLongitude: loc?.lng });
+      const clockOutTime = new Date().toISOString();
+      let loc: { lat: number; lng: number } | null = null;
+      try {
+        loc = await getLocationSafe();
+      } catch { /* location is optional */ }
+
+      await withTimeout(
+        clockOutMutation.mutateAsync({
+          entryId: activeEntry.id,
+          clockOut: clockOutTime,
+          clockOutLatitude: loc?.lat,
+          clockOutLongitude: loc?.lng,
+        }),
+        Platform.OS === "web" ? 20000 : 15000
+      );
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (mountedRef.current) {
+        setSuccessMsg("Clocked out!");
+        // Refresh in background — don't block the UI
+        refreshAll().catch(() => {});
+      }
     } catch (e) {
       Alert.alert("Error", "Could not clock out. Please try again.");
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
-  };
+  }, [activeEntry, loading, clockOutMutation, refreshAll]);
 
-  // Quick clock out for managers viewing the clocked-in list
-  const handleQuickClockOut = async (entryId: number) => {
+  const handleQuickClockOut = useCallback(async (entryId: number) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const loc = await getLocation();
-      await clockOutMutation.mutateAsync({
-        entryId,
-        clockOut: new Date().toISOString(),
-        clockOutLatitude: loc?.lat,
-        clockOutLongitude: loc?.lng });
+      const clockOutTime = new Date().toISOString();
+      let loc: { lat: number; lng: number } | null = null;
+      try {
+        loc = await getLocationSafe();
+      } catch { /* optional */ }
+
+      await withTimeout(
+        clockOutMutation.mutateAsync({
+          entryId,
+          clockOut: clockOutTime,
+          clockOutLatitude: loc?.lat,
+          clockOutLongitude: loc?.lng,
+        }),
+        Platform.OS === "web" ? 20000 : 15000
+      );
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (mountedRef.current) {
+        setSuccessMsg("Employee clocked out!");
+        refreshAll().catch(() => {});
+      }
     } catch {
       Alert.alert("Error", "Could not clock out. Please try again.");
+    }
+  }, [clockOutMutation, refreshAll]);
+
+  /* ─── Management: Edit clock-in time ─── */
+  const startEditTime = (entryId: number, currentClockIn: string) => {
+    const d = new Date(currentClockIn);
+    const hours = d.getHours().toString().padStart(2, "0");
+    const mins = d.getMinutes().toString().padStart(2, "0");
+    setEditTimeStr(`${hours}:${mins}`);
+    setEditingEntryId(entryId);
+  };
+
+  const saveEditTime = async () => {
+    if (!editingEntryId || !editTimeStr) return;
+    // Parse HH:MM format
+    const parts = editTimeStr.split(":");
+    if (parts.length !== 2) {
+      Alert.alert("Invalid Time", "Please enter time as HH:MM (e.g., 07:30)");
+      return;
+    }
+    const hours = parseInt(parts[0], 10);
+    const mins = parseInt(parts[1], 10);
+    if (isNaN(hours) || isNaN(mins) || hours < 0 || hours > 23 || mins < 0 || mins > 59) {
+      Alert.alert("Invalid Time", "Please enter a valid time (00:00 - 23:59)");
+      return;
+    }
+
+    // Find the entry to get its original date
+    const allEntries = [...(allClockedIn || []), ...(history || [])];
+    const entry = allEntries.find((e: any) => e.id === editingEntryId);
+    const originalDate = entry ? new Date(entry.clockIn) : new Date();
+    const newDate = new Date(originalDate);
+    newDate.setHours(hours, mins, 0, 0);
+
+    setEditSaving(true);
+    try {
+      await withTimeout(
+        updateEntryMutation.mutateAsync({
+          entryId: editingEntryId,
+          clockIn: newDate.toISOString(),
+        }),
+        15000
+      );
+      if (mountedRef.current) {
+        setSuccessMsg("Time updated!");
+        setEditingEntryId(null);
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await refreshAll();
+      }
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to update time.");
+    } finally {
+      if (mountedRef.current) setEditSaving(false);
     }
   };
 
@@ -183,6 +345,10 @@ export default function ClockScreen() {
     header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
     title: { fontSize: 24, fontWeight: "800", color: colors.foreground },
     subtitle: { fontSize: 14, color: colors.muted, marginTop: 2 },
+    successBanner: {
+      marginHorizontal: 20, marginBottom: 8, paddingVertical: 8, paddingHorizontal: 14,
+      borderRadius: 10, backgroundColor: colors.success + "20",
+      flexDirection: "row", alignItems: "center" },
     clockCard: {
       margin: 20,
       borderRadius: 20,
@@ -201,7 +367,7 @@ export default function ClockScreen() {
       alignItems: "center", justifyContent: "center",
       shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
-    clockBtnText: { color: "#fff", fontSize: 20, fontWeight: "800", marginTop: 4 },
+    clockBtnText: { color: "#fff", fontSize: 20, fontWeight: "800", marginTop: 4, textAlign: "center" },
     sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.foreground, marginBottom: 10 },
     jobSelector: { marginHorizontal: 20, marginBottom: 16 },
     jobOption: {
@@ -214,7 +380,6 @@ export default function ClockScreen() {
     historyDate: { fontSize: 13, fontWeight: "600", width: 80 },
     historyJob: { fontSize: 13, flex: 1 },
     historyDuration: { fontSize: 13, fontWeight: "700" },
-    // Manager styles
     empPickerBtn: {
       marginHorizontal: 20, marginBottom: 16, padding: 14, borderRadius: 12,
       borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.primary + "10",
@@ -230,6 +395,17 @@ export default function ClockScreen() {
     clockOutBtn: {
       paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8,
       backgroundColor: colors.error },
+    editTimeBtn: {
+      paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+      backgroundColor: colors.primary + "20", marginRight: 6 },
+    editTimeRow: {
+      marginHorizontal: 20, marginTop: 4, marginBottom: 8, padding: 12, borderRadius: 10,
+      backgroundColor: colors.primary + "10", borderWidth: 1, borderColor: colors.primary,
+      flexDirection: "row", alignItems: "center" },
+    editTimeInput: {
+      flex: 1, backgroundColor: colors.surface, borderRadius: 8,
+      paddingHorizontal: 12, paddingVertical: 8, fontSize: 16,
+      fontWeight: "700", color: colors.foreground, borderWidth: 1, borderColor: colors.border },
     modalContainer: { flex: 1, backgroundColor: colors.background },
     modalHeader: {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -238,7 +414,8 @@ export default function ClockScreen() {
     modalTitle: { fontSize: 20, fontWeight: "800", color: colors.foreground },
     empListItem: {
       flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 20,
-      borderBottomWidth: 1, borderBottomColor: colors.border } });
+      borderBottomWidth: 1, borderBottomColor: colors.border },
+  });
 
   const getInitials = (name: string) => {
     const parts = name.split(" ");
@@ -267,6 +444,13 @@ export default function ClockScreen() {
             {isManager ? "Manage team clock in/out" : `${employee?.name} · ${now.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}`}
           </Text>
         </View>
+
+        {/* Success Banner */}
+        {successMsg && (
+          <View style={styles.successBanner}>
+            <Text style={{ color: colors.success, fontSize: 14, fontWeight: "700" }}>✓ {successMsg}</Text>
+          </View>
+        )}
 
         {/* Manager: Employee Picker */}
         {isManager && (
@@ -320,7 +504,7 @@ export default function ClockScreen() {
           </>
         )}
 
-        {/* Currently Clocked In (Manager view) */}
+        {/* Currently Clocked In (Manager view) with Edit Time */}
         {isManager && allClockedIn && allClockedIn.length > 0 && (
           <View style={{ marginBottom: 16 }}>
             <Text style={[styles.sectionTitle, { paddingHorizontal: 20 }]}>
@@ -330,43 +514,87 @@ export default function ClockScreen() {
               const emp = activeEmployees.find((e: any) => e.id === entry.employeeId);
               const job = jobs?.find((j) => j.id === entry.jobId);
               const dur = now.getTime() - new Date(entry.clockIn).getTime();
+              const isEditing = editingEntryId === entry.id;
               return (
-                <View key={entry.id} style={styles.clockedInCard}>
-                  <View style={[styles.clockedInAvatar, { backgroundColor: getRoleColor(emp?.role || "laborer") }]}>
-                    <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>
-                      {emp ? getInitials(emp.name) : "??"}
-                    </Text>
+                <View key={entry.id}>
+                  <View style={styles.clockedInCard}>
+                    <View style={[styles.clockedInAvatar, { backgroundColor: getRoleColor(emp?.role || "laborer") }]}>
+                      <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>
+                        {emp ? getInitials(emp.name) : "??"}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>
+                        {emp?.name || `#${entry.employeeId}`}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: colors.muted }}>
+                        {job?.name || `Job #${entry.jobId}`} · {formatDuration(dur)}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.editTimeBtn}
+                      onPress={() => startEditTime(entry.id, entry.clockIn)}
+                    >
+                      <Text style={{ color: colors.primary, fontSize: 11, fontWeight: "700" }}>✏️ Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.clockOutBtn}
+                      onPress={() => {
+                        Alert.alert(
+                          "Clock Out",
+                          `Clock out ${emp?.name || "this employee"}?`,
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            { text: "Clock Out", style: "destructive", onPress: () => handleQuickClockOut(entry.id) },
+                          ]
+                        );
+                      }}
+                    >
+                      <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>Clock Out</Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>
-                      {emp?.name || `#${entry.employeeId}`}
-                    </Text>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>
-                      {job?.name || `Job #${entry.jobId}`} · {formatDuration(dur)}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.clockOutBtn}
-                    onPress={() => {
-                      Alert.alert(
-                        "Clock Out",
-                        `Clock out ${emp?.name || "this employee"}?`,
-                        [
-                          { text: "Cancel", style: "cancel" },
-                          { text: "Clock Out", style: "destructive", onPress: () => handleQuickClockOut(entry.id) },
-                        ]
-                      );
-                    }}
-                  >
-                    <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>Clock Out</Text>
-                  </TouchableOpacity>
+                  {/* Inline Time Editor */}
+                  {isEditing && (
+                    <View style={styles.editTimeRow}>
+                      <TextInput
+                        style={styles.editTimeInput}
+                        value={editTimeStr}
+                        onChangeText={setEditTimeStr}
+                        placeholder="HH:MM (e.g., 07:30)"
+                        placeholderTextColor={colors.muted}
+                        keyboardType="numbers-and-punctuation"
+                        returnKeyType="done"
+                        onSubmitEditing={saveEditTime}
+                      />
+                      <TouchableOpacity
+                        onPress={saveEditTime}
+                        disabled={editSaving}
+                        style={{
+                          marginLeft: 8, paddingHorizontal: 16, paddingVertical: 8,
+                          borderRadius: 8, backgroundColor: colors.primary,
+                        }}
+                      >
+                        {editSaving ? (
+                          <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Save</Text>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setEditingEntryId(null)}
+                        style={{ marginLeft: 6, paddingHorizontal: 10, paddingVertical: 8 }}
+                      >
+                        <Text style={{ color: colors.muted, fontSize: 13 }}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               );
             })}
           </View>
         )}
 
-        {/* Clock Button Card — show when employee is selected (or for field roles) */}
+        {/* Clock Button Card */}
         {clockTargetId ? (
           <>
             <View style={styles.clockCard}>
@@ -393,12 +621,21 @@ export default function ClockScreen() {
               )}
 
               <TouchableOpacity
-                style={[styles.clockBtn, { backgroundColor: isClockedIn ? colors.error : colors.success }]}
+                style={[styles.clockBtn, {
+                  backgroundColor: isClockedIn ? colors.error : colors.success,
+                  opacity: loading ? 0.7 : 1,
+                }]}
                 onPress={isClockedIn ? handleClockOut : handleClockIn}
                 disabled={loading}
+                activeOpacity={0.8}
               >
                 {loading ? (
-                  <ActivityIndicator color="#fff" size="large" />
+                  <View style={{ alignItems: "center" }}>
+                    <ActivityIndicator color="#fff" size="large" />
+                    <Text style={{ color: "#fff", fontSize: 11, marginTop: 6, fontWeight: "600" }}>
+                      {isClockedIn ? "Clocking Out..." : "Clocking In..."}
+                    </Text>
+                  </View>
                 ) : (
                   <Text style={styles.clockBtnText}>{isClockedIn ? "CLOCK\nOUT" : "CLOCK\nIN"}</Text>
                 )}
@@ -433,28 +670,73 @@ export default function ClockScreen() {
               </View>
             )}
 
-            {/* Recent History */}
+            {/* Recent History with Edit capability for managers */}
             <View style={{ marginHorizontal: 20, marginTop: 8 }}>
               <Text style={styles.sectionTitle}>
                 Recent Time Entries{isManager && selectedEmployee ? ` — ${selectedEmployee.name}` : ""}
               </Text>
             </View>
-            {(history || []).slice(0, 10).map((entry) => {
+            {(history || []).slice(0, 10).map((entry: any) => {
               const job = jobs?.find((j) => j.id === entry.jobId);
               const dur = entry.clockOut
                 ? new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()
                 : null;
+              const isEditing = editingEntryId === entry.id;
               return (
-                <View key={entry.id} style={[styles.historyItem, { borderBottomColor: colors.border }]}>
-                  <Text style={[styles.historyDate, { color: colors.muted }]}>
-                    {new Date(entry.clockIn).toLocaleDateString([], { month: "short", day: "numeric" })}
-                  </Text>
-                  <Text style={[styles.historyJob, { color: colors.foreground }]} numberOfLines={1}>
-                    {job?.name || "Job #" + entry.jobId}
-                  </Text>
-                  <Text style={[styles.historyDuration, { color: dur ? colors.foreground : colors.success }]}>
-                    {dur ? formatDuration(dur) : "Active"}
-                  </Text>
+                <View key={entry.id}>
+                  <View style={[styles.historyItem, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.historyDate, { color: colors.muted }]}>
+                      {new Date(entry.clockIn).toLocaleDateString([], { month: "short", day: "numeric" })}
+                    </Text>
+                    <Text style={[styles.historyJob, { color: colors.foreground }]} numberOfLines={1}>
+                      {job?.name || "Job #" + entry.jobId}
+                    </Text>
+                    <Text style={[styles.historyDuration, { color: dur ? colors.foreground : colors.success }]}>
+                      {dur ? formatDuration(dur) : "Active"}
+                    </Text>
+                    {isManager && (
+                      <TouchableOpacity
+                        onPress={() => startEditTime(entry.id, entry.clockIn)}
+                        style={{ marginLeft: 8, padding: 4 }}
+                      >
+                        <Text style={{ fontSize: 14 }}>✏️</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {isEditing && (
+                    <View style={styles.editTimeRow}>
+                      <TextInput
+                        style={styles.editTimeInput}
+                        value={editTimeStr}
+                        onChangeText={setEditTimeStr}
+                        placeholder="HH:MM (e.g., 07:30)"
+                        placeholderTextColor={colors.muted}
+                        keyboardType="numbers-and-punctuation"
+                        returnKeyType="done"
+                        onSubmitEditing={saveEditTime}
+                      />
+                      <TouchableOpacity
+                        onPress={saveEditTime}
+                        disabled={editSaving}
+                        style={{
+                          marginLeft: 8, paddingHorizontal: 16, paddingVertical: 8,
+                          borderRadius: 8, backgroundColor: colors.primary,
+                        }}
+                      >
+                        {editSaving ? (
+                          <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Save</Text>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setEditingEntryId(null)}
+                        style={{ marginLeft: 6, paddingHorizontal: 10, paddingVertical: 8 }}
+                      >
+                        <Text style={{ color: colors.muted, fontSize: 13 }}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               );
             })}

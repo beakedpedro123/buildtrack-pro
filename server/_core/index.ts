@@ -150,17 +150,27 @@ async function startServer() {
     }
   });
 
-  // Redirect root and /api/ to /api/web/ for the PWA
+  // Serve PWA at root path
   app.get("/", (_req: Request, res: Response) => {
-    res.redirect(301, "/api/web/");
+    const indexPath = path.join(publicDir, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('PWA not found');
+    }
   });
   app.get("/api", (_req: Request, res: Response) => {
     res.redirect(301, "/api/web/");
   });
 
-  // Catch-all: redirect any unmatched route to /api/web/ (SPA support)
+  // Catch-all: serve PWA for all unmatched routes (SPA support)
   app.get("*", (_req: Request, res: Response) => {
-    res.redirect(302, "/api/web/");
+    const indexPath = path.join(publicDir, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('PWA not found');
+    }
   });
 
   const preferredPort = parseInt(process.env.PORT || "3000");

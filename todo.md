@@ -872,3 +872,40 @@
 ### Missing Submit Profile
 - [x] Add submit profile to eas.json for iOS TestFlight auto-submission
 - [x] Save checkpoint
+
+## Phase 26 — Nuclear Update (All Platforms)
+
+### iOS TestFlight Submit Fix
+- [x] Fix "Missing submit profile in eas.json: production" error properly
+- [x] Ensure autoSubmit works for TestFlight uploads
+
+### Clock In/Out — Bulletproof Rewrite
+- [x] Fix clock in/out freezing on web/PWA version
+- [x] Fix clock in/out freezing on iOS version
+- [x] Ensure Android clock in/out continues working
+- [x] Full audit of clock logic across all platforms
+
+### Management Clock-In Time Editing
+- [x] Add real-time clock-in time editing for management (owner/office manager)
+- [x] Accessible from "Onsite Now" button on main page
+- [x] Accessible from Clock In tab
+- [x] Allow editing start time to actual arrival time
+- [x] Server endpoint updateEntry added to clock router
+
+### Goals Multi-Assign (Up to 5 People)
+- [x] Expand goal assignment from single person to up to 5 people
+- [x] Allow assigning 1 person or "everyone"
+- [x] Update native app goals UI
+- [x] Update PWA goals UI
+- [x] Update server/database for multi-assign (creates individual goals per assignee)
+
+### Pivot Interface Improvements
+- [x] Fix keyboard issues (erasing text, not shrinking)
+- [x] Make Pivot interface smoother
+- [x] Add image generation for hardware questions (generate_hardware_image tool)
+- [x] Ensure keyboard doesn't cover text box
+
+### Full Web App Audit
+- [x] Audit all PWA screens for bugs
+- [x] Ensure clock in/out works flawlessly on web
+- [x] Rebuild and redeploy PWA

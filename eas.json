@@ -29,11 +29,22 @@
         "NODE_ENV": "production"
       },
       "ios": {
-        "image": "latest"
+        "image": "latest",
+        "autoSubmit": true,
+        "submitProfile": "production"
       },
       "android": {
         "image": "latest",
         "buildType": "apk"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "pedrocarranza@yahoo.com",
+        "ascAppId": "6760992281",
+        "appleTeamId": "S6XJBXT6HM"
       }
     }
   }

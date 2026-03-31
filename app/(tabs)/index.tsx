@@ -5,9 +5,10 @@ import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   ImageBackground,
@@ -15,6 +16,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View } from "react-native";
 import * as Haptics from "expo-haptics";
@@ -181,6 +183,43 @@ export default function DashboardScreen() {
   const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { enabled: isManagement });
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManagement });
   const { data: clockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement });
+
+  // Edit time state for Onsite Now
+  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
+  const [editTimeStr, setEditTimeStr] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const updateEntryMutation = trpc.clock.updateEntry.useMutation();
+
+  const startEditTime = (entryId: number, currentClockIn: string) => {
+    const d = new Date(currentClockIn);
+    const hours = d.getHours().toString().padStart(2, "0");
+    const mins = d.getMinutes().toString().padStart(2, "0");
+    setEditTimeStr(`${hours}:${mins}`);
+    setEditingEntryId(entryId);
+  };
+
+  const saveEditTime = useCallback(async () => {
+    if (!editingEntryId || !editTimeStr) return;
+    const parts = editTimeStr.split(":");
+    if (parts.length !== 2) { Alert.alert("Invalid Time", "Use HH:MM format"); return; }
+    const hours = parseInt(parts[0], 10);
+    const mins = parseInt(parts[1], 10);
+    if (isNaN(hours) || isNaN(mins) || hours < 0 || hours > 23 || mins < 0 || mins > 59) {
+      Alert.alert("Invalid Time", "Enter a valid time (00:00 - 23:59)"); return;
+    }
+    const entry = (clockedIn || []).find((e: any) => e.id === editingEntryId);
+    const originalDate = entry ? new Date(entry.clockIn) : new Date();
+    const newDate = new Date(originalDate);
+    newDate.setHours(hours, mins, 0, 0);
+    setEditSaving(true);
+    try {
+      await updateEntryMutation.mutateAsync({ entryId: editingEntryId, clockIn: newDate.toISOString() });
+      setEditingEntryId(null);
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch { Alert.alert("Error", "Failed to update time."); }
+    finally { setEditSaving(false); }
+  }, [editingEntryId, editTimeStr, clockedIn, updateEntryMutation]);
+
   const { data: activeEntry } = trpc.clock.activeEntry.useQuery(
     { employeeId: employee?.id || 0 },
     { enabled: !!employee }
@@ -565,10 +604,13 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
             {(clockedIn || []).slice(0, 5).map((entry: any) => {
-              const emp = (allEmployees || []).find((e) => e.id === entry.employeeId);
-              const job = (activeJobs || []).find((j) => j.id === entry.jobId);
+              const emp = (allEmployees || []).find((e: any) => e.id === entry.employeeId);
+              const job = (activeJobs || []).find((j: any) => j.id === entry.jobId);
               const dur = now.getTime() - new Date(entry.clockIn).getTime();
               if (!emp) return null;
+              const isEditing = editingEntryId === entry.id;
+              const clockInTime = new Date(entry.clockIn);
+              const timeStr = clockInTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
               return (
                 <View key={entry.id} style={styles.empRow}>
                   <View style={[styles.avatar, { backgroundColor: ROLE_COLORS[emp.role] || colors.primary }]}>
@@ -576,9 +618,35 @@ export default function DashboardScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{emp.name}</Text>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>{job?.name || "Unknown Job"}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>{job?.name || "Unknown Job"} • In: {timeStr}</Text>
                   </View>
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.success }}>{formatDuration(dur)}</Text>
+                  {isEditing ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <TextInput
+                        value={editTimeStr}
+                        onChangeText={setEditTimeStr}
+                        style={{ borderWidth: 1, borderColor: colors.primary, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 13, color: colors.foreground, width: 60, textAlign: "center", backgroundColor: colors.surface }}
+                        placeholder="HH:MM"
+                        keyboardType="numbers-and-punctuation"
+                        maxLength={5}
+                      />
+                      <TouchableOpacity onPress={saveEditTime} style={{ backgroundColor: colors.success, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+                        {editSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>✓</Text>}
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setEditingEntryId(null)} style={{ paddingHorizontal: 4 }}>
+                        <Text style={{ color: colors.muted, fontSize: 14 }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.success }}>{formatDuration(dur)}</Text>
+                      {isManagement && (
+                        <TouchableOpacity onPress={() => startEditTime(entry.id, entry.clockIn)} style={{ padding: 4 }}>
+                          <Text style={{ fontSize: 14 }}>✏️</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
                 </View>
               );
             })}

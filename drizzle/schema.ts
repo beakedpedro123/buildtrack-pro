@@ -194,6 +194,7 @@ export const weeklyGoals = mysqlTable("weeklyGoals", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   assignedTo: int("assignedTo"),
+  assignedToList: varchar("assignedToList", { length: 255 }),
   weekOf: timestamp("weekOf").notNull(),
   status: mysqlEnum("status", ["pending", "in_progress", "completed", "cancelled"]).default("pending").notNull(),
   priority: mysqlEnum("priority", ["low", "medium", "high"]).default("medium").notNull(),

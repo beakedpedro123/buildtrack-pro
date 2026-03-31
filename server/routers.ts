@@ -8,6 +8,7 @@ import * as db from "./db";
 import { storagePut } from "./storage";
 import { invokeLLM } from "./_core/llm";
 import { transcribeAudio } from "./_core/voiceTranscription";
+import { generateImage } from "./_core/imageGeneration";
 
 // Helper: assert that the requesting employee has one of the allowed roles
 async function assertRole(requestingId: number, allowedRoles: string[], action: string) {
@@ -146,6 +147,14 @@ const clockRouter = router({
   forJob: publicProcedure.input(z.object({ jobId: z.number(), date: z.string().optional() })).query(({ input }) => db.getClockEntriesForJob(input.jobId, input.date ? new Date(input.date) : undefined)),
   allClockedIn: publicProcedure.query(() => db.getClockedInEmployees()),
   laborCostForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getLaborCostForJob(input.jobId)),
+  updateEntry: publicProcedure.input(z.object({
+    entryId: z.number(),
+    clockIn: z.string().optional(),
+    clockOut: z.string().optional(),
+  })).mutation(({ input }) => db.updateClockEntry(input.entryId, {
+    clockIn: input.clockIn ? new Date(input.clockIn) : undefined,
+    clockOut: input.clockOut ? new Date(input.clockOut) : undefined,
+  })),
 });
 
 const reportsRouter = router({
@@ -315,7 +324,18 @@ const goalsRouter = router({
     if (input.employeeRole === "owner") return allGoals;
     // Everyone else sees only goals they created or goals assigned to them
     if (input.employeeId) {
-      return allGoals.filter((g: any) => g.createdBy === input.employeeId || g.assignedTo === input.employeeId);
+      return allGoals.filter((g: any) => {
+        if (g.createdBy === input.employeeId) return true;
+        if (g.assignedTo === input.employeeId) return true;
+        // Check multi-assign list
+        if (g.assignedToList) {
+          const ids = String(g.assignedToList).split(",").map(Number);
+          if (ids.includes(input.employeeId!)) return true;
+        }
+        // null assignedTo + no list = everyone
+        if (!g.assignedTo && !g.assignedToList) return true;
+        return false;
+      });
     }
     return allGoals;
   }),
@@ -327,6 +347,7 @@ const goalsRouter = router({
     title: z.string().min(1).max(255),
     description: z.string().optional(),
     assignedTo: z.number().optional(),
+    assignedToList: z.string().optional(),
     weekOf: z.string(),
     priority: z.enum(["low", "medium", "high"]).default("medium"),
     deadline: z.string().optional(),
@@ -346,6 +367,7 @@ const goalsRouter = router({
     status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
     priority: z.enum(["low", "medium", "high"]).optional(),
     assignedTo: z.number().optional(),
+    assignedToList: z.string().optional(),
     deadline: z.string().nullable().optional(),
     completedAt: z.string().optional(),
   })).mutation(async ({ input }) => {
@@ -771,10 +793,10 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
         goalsContext = `\n## Your Goals This Week (${myGoals.length} total — ${completedGoals.length} completed, ${pendingGoals.length} active)\n`;
         for (const g of myGoals) {
           const status = g.status === "completed" ? "✅" : g.status === "in_progress" ? "🔄" : g.status === "cancelled" ? "❌" : "⬜";
-          const assignee = g.assignedTo ? empMap.get(g.assignedTo) || "Unknown" : "Everyone";
+          const assigneeNames = g.assignedToList ? String(g.assignedToList).split(",").map(Number).map(id => empMap.get(id) || "Unknown").join(", ") : (g.assignedTo ? empMap.get(g.assignedTo) || "Unknown" : "Everyone");
           const dl = g.deadline ? new Date(g.deadline) : null;
           const isOverdue = dl && dl < now && g.status !== "completed" && g.status !== "cancelled";
-          goalsContext += `- ${status} ${g.title} [${g.priority.toUpperCase()}] → ${assignee}${dl ? ` (Due: ${dl.toLocaleDateString([], { month: "short", day: "numeric" })} ${dl.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })})` : ""}${isOverdue ? " ⚠️ OVERDUE" : ""}\n`;
+          goalsContext += `- ${status} ${g.title} [${g.priority.toUpperCase()}] → ${assigneeNames}${dl ? ` (Due: ${dl.toLocaleDateString([], { month: "short", day: "numeric" })} ${dl.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })})` : ""}${isOverdue ? " ⚠️ OVERDUE" : ""}\n`;
         }
         if (overdueGoals.length > 0) {
           goalsContext += `\n⚠️ ${overdueGoals.length} OVERDUE GOAL(S) — mention these proactively when the user greets you or asks about their day.\n`;
@@ -799,8 +821,8 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
           allGoalsContext = `\n## All Team Goals This Week (${allGoals.length} total)\n`;
           for (const g of allGoals) {
             const status = g.status === "completed" ? "✅" : g.status === "in_progress" ? "🔄" : "⬜";
-            const assignee = g.assignedTo ? empMap.get(g.assignedTo) || "Unknown" : "Everyone";
-            allGoalsContext += `- ${status} ${g.title} [${g.priority.toUpperCase()}] → ${assignee}\n`;
+            const assigneeNames = g.assignedToList ? String(g.assignedToList).split(",").map(Number).map(id => empMap.get(id) || "Unknown").join(", ") : (g.assignedTo ? empMap.get(g.assignedTo) || "Unknown" : "Everyone");
+            allGoalsContext += `- ${status} ${g.title} [${g.priority.toUpperCase()}] → ${assigneeNames}\n`;
           }
           if (overdueAll.length > 0) {
             allGoalsContext += `\n⚠️ ${overdueAll.length} overdue goal(s) across the team.\n`;
@@ -872,10 +894,15 @@ You should use the web_search tool to look it up and give them accurate, current
 Always tell the user when you searched for something: "I looked that up for you — here's what I found..."
 Don't guess when you can search. Real data beats assumptions every time.
 
-## Image Search Capability
-You can search for images of construction hardware, tools, techniques, and materials using the image_search tool.
-When a user asks "what does an A35 look like?" or "show me an HHUS410" — use image_search to find a picture.
-Always provide the image URL so they can see it.
+## Image Generation & Search Capability
+You can GENERATE images of construction hardware, tools, connectors, and materials using the generate_hardware_image tool.
+When a user asks "what does an A35 look like?" or "show me an HHUS410" or asks about ANY hardware:
+1. FIRST use generate_hardware_image to create a clear visual of the item
+2. Include the generated image in your response using markdown: ![Item Name](url)
+3. Also describe the hardware verbally — dimensions, material, mounting details
+4. If image generation fails, fall back to image_search for web links
+You can also use image_search to find reference links from strongtie.com or aisc.org.
+ALWAYS prefer generating an image over just providing links — users want to SEE the hardware.
 ${getKnowledgeSummary()}
 `;
 
@@ -1136,6 +1163,21 @@ Keep responses short, practical, and encouraging. You're here to help them succe
           },
         },
       },
+      {
+        type: "function" as const,
+        function: {
+          name: "generate_hardware_image",
+          description: "Generate a detailed reference image of construction hardware, tools, connectors, or materials. Use when the user asks to SEE what a specific piece of hardware looks like and you want to show them a clear visual. Great for Simpson Strong-Tie connectors, steel profiles, framing hardware, bolts, brackets, etc.",
+          parameters: {
+            type: "object",
+            properties: {
+              item_name: { type: "string", description: "The exact name of the hardware item (e.g. 'Simpson Strong-Tie A35 framing angle', 'W8x44 steel beam', 'HHUS410 heavy hanger')." },
+              description: { type: "string", description: "A detailed description of the item for image generation — include material, shape, mounting holes, dimensions if known, typical use case." },
+            },
+            required: ["item_name", "description"],
+          },
+        },
+      },
     ];
 
     // ── Call LLM with tool support ──────────────────────────────────────────
@@ -1225,6 +1267,24 @@ Keep responses short, practical, and encouraging. You're here to help them succe
           } catch {
             toolResult = `Image search failed. Suggest visiting strongtie.com or aisc.org directly.`;
           }
+          }
+        } else if (toolName === "generate_hardware_image") {
+          const itemName = args.item_name || "";
+          const description = args.description || "";
+          if (itemName) {
+            try {
+              const imagePrompt = `Professional product photograph of ${itemName}. ${description}. Studio lighting on white background, high detail, showing all mounting holes and features clearly. Construction hardware catalog style photo, no text overlays.`;
+              const genResult = await generateImage({ prompt: imagePrompt });
+              if (genResult.url) {
+                toolResult = `Successfully generated an image of ${itemName}. Image URL: ${genResult.url}\n\nIMPORTANT: Include this image in your response using markdown format: ![${itemName}](${genResult.url})\nAlso describe the hardware verbally so the user understands what they're looking at.`;
+              } else {
+                toolResult = `Image generation completed but no URL was returned. Describe the hardware verbally instead.`;
+              }
+            } catch (imgErr) {
+              toolResult = `Image generation failed: ${imgErr instanceof Error ? imgErr.message : "unknown error"}. Describe the hardware verbally instead and suggest visiting strongtie.com or aisc.org for reference images.`;
+            }
+          } else {
+            toolResult = `No item name provided. Please specify what hardware to generate an image of.`;
           }
         }
       } catch (parseErr) {
