@@ -1080,3 +1080,7 @@
 - [x] Verify iOS export bundles correctly (5.27 MB, 1711 modules)
 - [x] Verify Android export bundles correctly (5.34 MB, 1711 modules)
 - [x] TypeScript check: 0 errors
+
+### Slug Mismatch Fix (iOS Publish Blocker)
+- [x] Fix package.json name from "app-template" to "construction-manager" to match app.json slug and EAS projectId
+- [x] Verified iOS export still works after change
