@@ -178,14 +178,9 @@ async function startServer() {
     }
   });
 
-  // Serve PWA at root path
+  // Redirect root to PWA
   app.get("/", (_req: Request, res: Response) => {
-    const indexPath = path.join(publicDir, "index.html");
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      res.status(404).send('PWA not found');
-    }
+    res.redirect(301, "/api/web/");
   });
   app.get("/api", (_req: Request, res: Response) => {
     res.redirect(301, "/api/web/");

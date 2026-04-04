@@ -1120,3 +1120,6 @@
 - [x] Added patch-min-sdk.js: patches CMakeLists.txt, version catalog, build.gradle in all native modules
 - [x] Added gradleCommand with -PminSdkVersion=24 in eas.json production android config
 - [x] Chained patch-min-sdk.js into postinstall, eas-build-post-install, expo-prebuild, preandroid hooks
+
+### Web App Not Found Fix
+- [x] Fix web app: root URL can't redirect (platform only proxies /api/*), correct URL is /api/web/
