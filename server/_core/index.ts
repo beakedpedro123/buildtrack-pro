@@ -114,6 +114,34 @@ async function startServer() {
     res.json({ ok: true, timestamp: Date.now() });
   });
 
+  // Detailed payroll PDF download endpoint
+  app.get("/api/payroll-pdf", async (req: Request, res: Response) => {
+    try {
+      const { startDate, endDate, reportType } = req.query;
+      if (!startDate || !endDate) {
+        res.status(400).json({ error: "startDate and endDate query params required" });
+        return;
+      }
+      const { generateDetailedPayrollPDF } = await import("../payroll-pdf");
+      const validTypes = ["full", "payroll", "jobcost", "employee"];
+      const rType = validTypes.includes(reportType as string) ? (reportType as any) : "full";
+      const pdfBuffer = await generateDetailedPayrollPDF(
+        new Date(startDate as string),
+        new Date(endDate as string),
+        rType
+      );
+      const typeLabel = rType === "full" ? "payroll" : rType;
+      const filename = `${typeLabel}_${(startDate as string).slice(0, 10)}_to_${(endDate as string).slice(0, 10)}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", pdfBuffer.length);
+      res.send(pdfBuffer);
+    } catch (err: any) {
+      console.error("Payroll PDF error:", err);
+      res.status(500).json({ error: "Failed to generate PDF", details: err?.message });
+    }
+  });
+
   app.use(
     "/api/trpc",
     createExpressMiddleware({

@@ -230,8 +230,13 @@ export default function ClockScreen() {
     if (loading) return; // Prevent double-tap
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
+    const entryId = activeEntry.id;
+    const clockOutTime = new Date().toISOString();
     try {
-      const clockOutTime = new Date().toISOString();
+      // Optimistic: show success immediately on web to avoid perceived lag
+      if (Platform.OS === "web" && mountedRef.current) {
+        setSuccessMsg("Clocked out!");
+      }
       let loc: { lat: number; lng: number } | null = null;
       try {
         loc = await getLocationSafe();
@@ -239,7 +244,7 @@ export default function ClockScreen() {
 
       await withTimeout(
         clockOutMutation.mutateAsync({
-          entryId: activeEntry.id,
+          entryId,
           clockOut: clockOutTime,
           clockOutLatitude: loc?.lat,
           clockOutLongitude: loc?.lng,
@@ -248,12 +253,15 @@ export default function ClockScreen() {
       );
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (mountedRef.current) {
-        setSuccessMsg("Clocked out!");
+        if (Platform.OS !== "web") setSuccessMsg("Clocked out!");
         // Refresh in background — don't block the UI
         refreshAll().catch(() => {});
       }
     } catch (e) {
+      if (mountedRef.current) setSuccessMsg("");
       Alert.alert("Error", "Could not clock out. Please try again.");
+      // Refresh to restore correct state
+      refreshAll().catch(() => {});
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -261,6 +269,10 @@ export default function ClockScreen() {
 
   const handleQuickClockOut = useCallback(async (entryId: number) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Optimistic: show success immediately on web
+    if (Platform.OS === "web" && mountedRef.current) {
+      setSuccessMsg("Employee clocked out!");
+    }
     try {
       const clockOutTime = new Date().toISOString();
       let loc: { lat: number; lng: number } | null = null;
@@ -279,11 +291,13 @@ export default function ClockScreen() {
       );
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (mountedRef.current) {
-        setSuccessMsg("Employee clocked out!");
+        if (Platform.OS !== "web") setSuccessMsg("Employee clocked out!");
         refreshAll().catch(() => {});
       }
     } catch {
+      if (mountedRef.current) setSuccessMsg("");
       Alert.alert("Error", "Could not clock out. Please try again.");
+      refreshAll().catch(() => {});
     }
   }, [clockOutMutation, refreshAll]);
 

@@ -3,15 +3,19 @@ import {
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
+import { getApiBaseUrl } from "@/constants/oauth";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator,
   Alert,
   FlatList,
+  Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View, ImageBackground } from "react-native";
 import * as Haptics from "expo-haptics";
@@ -20,7 +24,16 @@ import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
 
 type Period = "week" | "biweek" | "month" | "custom";
 
-function getDateRange(period: Period): { startDate: string; endDate: string; label: string } {
+function getDateRange(period: Period, customStart?: string, customEnd?: string): { startDate: string; endDate: string; label: string } {
+  if (period === "custom" && customStart && customEnd) {
+    const start = new Date(customStart + "T00:00:00");
+    const end = new Date(customEnd + "T23:59:59.999");
+    return {
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+      label: `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+    };
+  }
   const now = new Date();
   const end = new Date(now);
   end.setHours(23, 59, 59, 999);
@@ -83,16 +96,111 @@ function buildCSV(rows: any[], startDate: string, endDate: string): string {
 
 const ROLE_ORDER = ["owner", "secretary", "logistics", "foreman", "laborer"];
 
+// Simple date input component
+function DateInput({ label, value, onChange, colors }: { label: string; value: string; onChange: (v: string) => void; colors: any }) {
+  // value is YYYY-MM-DD format
+  const [month, setMonth] = useState(value ? value.slice(5, 7) : "");
+  const [day, setDay] = useState(value ? value.slice(8, 10) : "");
+  const [year, setYear] = useState(value ? value.slice(0, 4) : "");
+
+  const update = (m: string, d: string, y: string) => {
+    if (m.length === 2 && d.length === 2 && y.length === 4) {
+      const mm = parseInt(m); const dd = parseInt(d); const yy = parseInt(y);
+      if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 && yy >= 2020 && yy <= 2030) {
+        onChange(`${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+      }
+    }
+  };
+
+  return (
+    <View style={{ marginBottom: 12 }}>
+      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6, fontWeight: "600" }}>{label}</Text>
+      <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+        <TextInput
+          style={{
+            backgroundColor: colors.surface,
+            borderRadius: 10,
+            padding: 12,
+            fontSize: 16,
+            color: colors.foreground,
+            borderWidth: 1,
+            borderColor: colors.border,
+            width: 56,
+            textAlign: "center",
+          }}
+          placeholder="MM"
+          placeholderTextColor={colors.muted}
+          value={month}
+          onChangeText={(v) => { const clean = v.replace(/\D/g, "").slice(0, 2); setMonth(clean); update(clean, day, year); }}
+          keyboardType="number-pad"
+          maxLength={2}
+        />
+        <Text style={{ fontSize: 18, color: colors.muted }}>/</Text>
+        <TextInput
+          style={{
+            backgroundColor: colors.surface,
+            borderRadius: 10,
+            padding: 12,
+            fontSize: 16,
+            color: colors.foreground,
+            borderWidth: 1,
+            borderColor: colors.border,
+            width: 56,
+            textAlign: "center",
+          }}
+          placeholder="DD"
+          placeholderTextColor={colors.muted}
+          value={day}
+          onChangeText={(v) => { const clean = v.replace(/\D/g, "").slice(0, 2); setDay(clean); update(month, clean, year); }}
+          keyboardType="number-pad"
+          maxLength={2}
+        />
+        <Text style={{ fontSize: 18, color: colors.muted }}>/</Text>
+        <TextInput
+          style={{
+            backgroundColor: colors.surface,
+            borderRadius: 10,
+            padding: 12,
+            fontSize: 16,
+            color: colors.foreground,
+            borderWidth: 1,
+            borderColor: colors.border,
+            width: 72,
+            textAlign: "center",
+          }}
+          placeholder="YYYY"
+          placeholderTextColor={colors.muted}
+          value={year}
+          onChangeText={(v) => { const clean = v.replace(/\D/g, "").slice(0, 4); setYear(clean); update(month, day, clean); }}
+          keyboardType="number-pad"
+          maxLength={4}
+        />
+      </View>
+    </View>
+  );
+}
+
 export default function PayrollScreen() {
   const colors = useColors();
   const router = useRouter();
   const { employee } = useAppAuth();
   const [period, setPeriod] = useState<Period>("biweek");
-  const range = getDateRange(period);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const [reportType, setReportType] = useState<"full" | "payroll" | "jobcost" | "employee">("full");
+  const [showReportPicker, setShowReportPicker] = useState(false);
+
+  // Custom date range state
+  const today = new Date();
+  const twoWeeksAgo = new Date(today);
+  twoWeeksAgo.setDate(today.getDate() - 13);
+  const [customStart, setCustomStart] = useState(twoWeeksAgo.toISOString().slice(0, 10));
+  const [customEnd, setCustomEnd] = useState(today.toISOString().slice(0, 10));
+
+  const range = getDateRange(period, customStart, customEnd);
 
   // RBAC: payroll screen is for owner/secretary/logistics only
   const canAccessPayroll = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
-  // Owner and secretary (Office Manager) can see individual hourly rates and total payroll cost
   const canSeeRates = employee?.role === "owner" || employee?.role === "secretary";
 
   if (!canAccessPayroll) {
@@ -143,8 +251,18 @@ export default function PayrollScreen() {
       borderRadius: 12,
       paddingVertical: 14,
       marginHorizontal: 16,
+      marginBottom: 8,
+      alignItems: "center" },
+    pdfBtn: {
+      backgroundColor: "#D4AF37",
+      borderRadius: 12,
+      paddingVertical: 14,
+      marginHorizontal: 16,
       marginBottom: 12,
-      alignItems: "center" } });
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: 8 } });
 
   const sortedRows = [...(data?.rows || [])].sort(
     (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)
@@ -174,11 +292,47 @@ export default function PayrollScreen() {
     }
   };
 
+  const REPORT_TYPES: { key: typeof reportType; label: string; desc: string }[] = [
+    { key: "full", label: "Full Report", desc: "Payroll + Job Costs + Employee Detail" },
+    { key: "payroll", label: "Payroll Summary", desc: "Employee hours & pay totals" },
+    { key: "jobcost", label: "Job Cost Report", desc: "Per-job hours & labor costs" },
+    { key: "employee", label: "Employee Detail", desc: "Daily timecards per employee" },
+  ];
+
+  const handleDownloadPDF = async () => {
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setDownloadingPDF(true);
+    try {
+      const apiBase = getApiBaseUrl();
+      const url = `${apiBase}/api/payroll-pdf?startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}&reportType=${reportType}`;
+      if (Platform.OS === "web") {
+        // Web: open in new tab to trigger download
+        window.open(url, "_blank");
+      } else {
+        // Native: open URL in browser to download
+        await Linking.openURL(url);
+      }
+    } catch (err: any) {
+      Alert.alert("Error", `Failed to download PDF: ${err?.message || "Unknown error"}`);
+    } finally {
+      setDownloadingPDF(false);
+    }
+  };
+
   const PERIODS: { key: Period; label: string }[] = [
     { key: "week", label: "This Week" },
     { key: "biweek", label: "2 Weeks" },
     { key: "month", label: "This Month" },
+    { key: "custom", label: "Custom" },
   ];
+
+  const handlePeriodPress = (key: Period) => {
+    if (key === "custom") {
+      setShowDatePicker(true);
+    } else {
+      setPeriod(key);
+    }
+  };
 
   return (
     <ScreenContainer>
@@ -195,12 +349,12 @@ export default function PayrollScreen() {
         </View>
 
         {/* Period Selector */}
-        <View style={{ flexDirection: "row", paddingHorizontal: 16, paddingBottom: 16 }}>
+        <View style={{ flexDirection: "row", paddingHorizontal: 16, paddingBottom: 16, flexWrap: "wrap", gap: 4 }}>
           {PERIODS.map((p) => (
             <TouchableOpacity
               key={p.key}
               style={[styles.periodBtn, period === p.key && styles.periodBtnActive]}
-              onPress={() => setPeriod(p.key)}
+              onPress={() => handlePeriodPress(p.key)}
             >
               <Text style={[styles.periodBtnText, period === p.key && styles.periodBtnTextActive]}>
                 {p.label}
@@ -208,6 +362,33 @@ export default function PayrollScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Custom date range display */}
+        {period === "custom" && (
+          <TouchableOpacity
+            style={{
+              marginHorizontal: 16,
+              marginBottom: 12,
+              backgroundColor: colors.primary + "15",
+              borderRadius: 12,
+              padding: 12,
+              borderWidth: 1,
+              borderColor: colors.primary + "40",
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <View>
+              <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>Custom Date Range</Text>
+              <Text style={{ fontSize: 15, color: colors.foreground, fontWeight: "700", marginTop: 2 }}>
+                {new Date(customStart + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – {new Date(customEnd + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 14, color: colors.primary }}>✏️ Edit</Text>
+          </TouchableOpacity>
+        )}
 
         {isLoading ? (
           <View style={{ alignItems: "center", padding: 40 }}>
@@ -244,12 +425,53 @@ export default function PayrollScreen() {
               </View>
             </View>
 
-            {/* Export Button */}
+            {/* Export Buttons */}
             <TouchableOpacity style={styles.exportBtn} onPress={handleExportCSV}>
               <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
-                ⬇ Export CSV to Computer
+                ⬇ Export CSV
               </Text>
             </TouchableOpacity>
+
+            {canSeeRates && (
+              <View style={{ marginHorizontal: 16, marginBottom: 12 }}>
+                {/* Report Type Selector */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: colors.surface,
+                    borderRadius: 12,
+                    padding: 14,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 8,
+                  }}
+                  onPress={() => setShowReportPicker(true)}
+                >
+                  <View>
+                    <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "600" }}>Report Type</Text>
+                    <Text style={{ fontSize: 15, color: colors.foreground, fontWeight: "700", marginTop: 2 }}>
+                      {REPORT_TYPES.find(r => r.key === reportType)?.label || "Full Report"}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }}>
+                      {REPORT_TYPES.find(r => r.key === reportType)?.desc}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 14, color: colors.primary }}>▼</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.pdfBtn} onPress={handleDownloadPDF} disabled={downloadingPDF}>
+                  {downloadingPDF ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <Text style={{ color: "#000", fontWeight: "700", fontSize: 15 }}>
+                      📄 Download {REPORT_TYPES.find(r => r.key === reportType)?.label || "Report"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Employee Rows */}
             {sortedRows.length === 0 ? (
@@ -322,6 +544,120 @@ export default function PayrollScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Custom Date Range Picker Modal */}
+      <Modal visible={showDatePicker} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 }}>
+            <View style={{ alignItems: "center", marginBottom: 16 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, marginBottom: 20 }}>
+              Select Date Range
+            </Text>
+
+            <DateInput label="Start Date" value={customStart} onChange={setCustomStart} colors={colors} />
+            <DateInput label="End Date" value={customEnd} onChange={setCustomEnd} colors={colors} />
+
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: colors.surface,
+                  borderRadius: 12,
+                  paddingVertical: 14,
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={{ color: colors.foreground, fontWeight: "600" }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 2,
+                  backgroundColor: colors.primary,
+                  borderRadius: 12,
+                  paddingVertical: 14,
+                  alignItems: "center",
+                }}
+                onPress={() => {
+                  setPeriod("custom");
+                  setShowDatePicker(false);
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "700" }}>Apply Range</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Report Type Picker Modal */}
+      <Modal visible={showReportPicker} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 }}>
+            <View style={{ alignItems: "center", marginBottom: 16 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, marginBottom: 6 }}>
+              Choose Report Type
+            </Text>
+            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 20 }}>
+              Select which sections to include in the PDF
+            </Text>
+
+            {REPORT_TYPES.map((rt) => (
+              <TouchableOpacity
+                key={rt.key}
+                style={{
+                  backgroundColor: reportType === rt.key ? colors.primary + "15" : colors.surface,
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 8,
+                  borderWidth: 1,
+                  borderColor: reportType === rt.key ? colors.primary : colors.border,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+                onPress={() => {
+                  setReportType(rt.key);
+                  setShowReportPicker(false);
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>
+                    {rt.label}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                    {rt.desc}
+                  </Text>
+                </View>
+                {reportType === rt.key && (
+                  <Text style={{ fontSize: 20, color: colors.primary, marginLeft: 12 }}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: colors.surface,
+                borderRadius: 12,
+                paddingVertical: 14,
+                alignItems: "center",
+                marginTop: 8,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+              onPress={() => setShowReportPicker(false)}
+            >
+              <Text style={{ color: colors.foreground, fontWeight: "600" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }

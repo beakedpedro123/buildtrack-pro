@@ -1013,3 +1013,34 @@
 - [x] Management adjustment with required reason
 - [x] Show adjustment history on PWA
 - [x] Fix web clock-out lag with optimistic UI updates
+
+## Phase 32 — Detailed Payroll PDF, Photo Upload Fix, Feature Parity
+
+### Detailed Payroll PDF Report
+- [ ] Build server endpoint to generate detailed payroll PDF
+- [ ] Include employee name, role, hourly rate, daily breakdown
+- [ ] Include exact clock-in/out times per day, job site per entry
+- [ ] Include daily totals, weekly totals, period totals
+- [ ] Include job cost breakdown per employee
+- [ ] Secretary can download from payroll screen
+- [ ] Custom date range picker (choose exact start/end dates) on payroll screen
+- [ ] Date picker on native app payroll tab
+- [ ] Date picker on PWA payroll page
+
+### Fix Field Report Photo Upload (PWA + iOS)
+- [ ] Audit PWA photo upload flow vs APK
+- [ ] Fix PWA field report photo upload
+- [ ] Ensure iOS photo upload works (check ph:// URI handling)
+
+### Feature Parity: PWA + iOS match APK
+- [ ] Audit all APK screens vs PWA screens for gaps
+- [ ] Fix any missing or broken features on PWA
+- [ ] Ensure iOS version matches APK behavior
+- [ ] Rebuild and deploy PWA
+
+## Phase 33 — PDF Report Type Selector
+- [x] Server: Add reportType query param to /api/payroll-pdf (full, payroll, jobcost, employee)
+- [x] Server: Generate only selected sections based on reportType
+- [x] Native: Add report type picker on payroll screen before download
+- [x] PWA: Add report type picker on payroll page before download
+- [x] PWA: Rebuild and deploy
