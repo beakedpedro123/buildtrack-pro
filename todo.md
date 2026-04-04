@@ -1111,3 +1111,7 @@
 - [x] Removed app.config.ts entirely — EAS build server couldn't parse TypeScript import syntax, causing "config is not defined" error
 - [x] app.json already contains all config (bundleIdentifier, slug, eas projectId, plugins, etc.) — no dynamic config needed
 - [x] Verified: expo config reads correctly from app.json only, dynamicConfigPath is empty, iOS export clean
+
+### Android APK Build Fix — minSdkVersion
+- [x] Restored app.config.ts in exact Manus template format with all settings (bundleIdentifier, minSdkVersion 24, all plugins, eas projectId)
+- [x] Config verified: bundleIdentifier, android.package, minSdkVersion 24, compileSdkVersion 35 all present
