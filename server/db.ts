@@ -38,6 +38,8 @@ import {
   InsertSafetyMeeting,
   pivotMemory,
   pivotConversations,
+  timeAdjustments,
+  InsertTimeAdjustment,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1047,4 +1049,180 @@ export async function updatePivotLanguage(employeeId: number, language: string) 
   const dbConn = await getDb();
   if (!dbConn) return;
   await upsertPivotMemory(employeeId, { preferredLanguage: language });
+}
+
+// ─── Time Adjustments ────────────────────────────────────────────────────────
+
+export async function createTimeAdjustment(data: InsertTimeAdjustment) {
+  const dbConn = await getDb();
+  if (!dbConn) throw new Error("Database not available");
+  await dbConn.insert(timeAdjustments).values(data);
+}
+
+export async function getAdjustmentsForEntry(clockEntryId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  return dbConn.select().from(timeAdjustments)
+    .where(eq(timeAdjustments.clockEntryId, clockEntryId))
+    .orderBy(desc(timeAdjustments.createdAt));
+}
+
+export async function getAdjustmentsForEmployee(employeeId: number, startDate: Date, endDate: Date) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  // Get all clock entries for this employee in the range, then get adjustments
+  const entries = await dbConn.select().from(clockEntries)
+    .where(and(
+      eq(clockEntries.employeeId, employeeId),
+      gte(clockEntries.clockIn, startDate),
+      lte(clockEntries.clockIn, endDate)
+    ));
+  if (entries.length === 0) return [];
+  const entryIds = entries.map(e => e.id);
+  return dbConn.select().from(timeAdjustments)
+    .where(or(...entryIds.map(id => eq(timeAdjustments.clockEntryId, id))))
+    .orderBy(desc(timeAdjustments.createdAt));
+}
+
+/**
+ * Update a clock entry with adjustment tracking.
+ * Logs each changed field as a separate adjustment record.
+ */
+export async function updateClockEntryWithAdjustment(
+  entryId: number,
+  data: { clockIn?: Date; clockOut?: Date; jobId?: number },
+  adjustedBy: number,
+  reason: string
+) {
+  const dbConn = await getDb();
+  if (!dbConn) throw new Error("Database not available");
+
+  // Get the current entry to compare
+  const [current] = await dbConn.select().from(clockEntries).where(eq(clockEntries.id, entryId)).limit(1);
+  if (!current) throw new Error("Clock entry not found");
+
+  const adjustments: InsertTimeAdjustment[] = [];
+
+  if (data.clockIn && data.clockIn.getTime() !== new Date(current.clockIn).getTime()) {
+    adjustments.push({
+      clockEntryId: entryId,
+      adjustedBy,
+      fieldChanged: "clockIn",
+      oldValue: current.clockIn.toISOString(),
+      newValue: data.clockIn.toISOString(),
+      reason,
+    });
+  }
+
+  if (data.clockOut !== undefined) {
+    const oldOut = current.clockOut ? current.clockOut.toISOString() : null;
+    const newOut = data.clockOut ? data.clockOut.toISOString() : null;
+    if (oldOut !== newOut) {
+      adjustments.push({
+        clockEntryId: entryId,
+        adjustedBy,
+        fieldChanged: "clockOut",
+        oldValue: oldOut,
+        newValue: newOut,
+        reason,
+      });
+    }
+  }
+
+  if (data.jobId !== undefined && data.jobId !== current.jobId) {
+    adjustments.push({
+      clockEntryId: entryId,
+      adjustedBy,
+      fieldChanged: "jobId",
+      oldValue: String(current.jobId),
+      newValue: String(data.jobId),
+      reason,
+    });
+  }
+
+  // Apply the update
+  const updateData: any = {};
+  if (data.clockIn) updateData.clockIn = data.clockIn;
+  if (data.clockOut) updateData.clockOut = data.clockOut;
+  if (data.jobId !== undefined) updateData.jobId = data.jobId;
+  if (Object.keys(updateData).length > 0) {
+    await dbConn.update(clockEntries).set(updateData).where(eq(clockEntries.id, entryId));
+  }
+
+  // Log all adjustments
+  for (const adj of adjustments) {
+    await dbConn.insert(timeAdjustments).values(adj);
+  }
+
+  return { updated: true, adjustmentsLogged: adjustments.length };
+}
+
+/**
+ * Get detailed timecard for an employee: daily breakdown with entries, job names, adjustments.
+ */
+export async function getDetailedTimecard(employeeId: number, startDate: Date, endDate: Date) {
+  const dbConn = await getDb();
+  if (!dbConn) return { days: [], totalMinutes: 0, employee: null };
+
+  const emp = await getEmployeeById(employeeId);
+  const entries = await dbConn.select().from(clockEntries)
+    .where(and(
+      eq(clockEntries.employeeId, employeeId),
+      gte(clockEntries.clockIn, startDate),
+      lte(clockEntries.clockIn, endDate)
+    ))
+    .orderBy(clockEntries.clockIn);
+
+  const allJobs = await dbConn.select().from(jobs);
+  const jobMap = new Map(allJobs.map(j => [j.id, j]));
+
+  // Get all adjustments for these entries
+  const entryIds = entries.map(e => e.id);
+  let adjustmentMap = new Map<number, any[]>();
+  if (entryIds.length > 0) {
+    const allAdj = await dbConn.select().from(timeAdjustments)
+      .where(or(...entryIds.map(id => eq(timeAdjustments.clockEntryId, id))))
+      .orderBy(desc(timeAdjustments.createdAt));
+    // Get adjuster names
+    const adjusterIds = [...new Set(allAdj.map(a => a.adjustedBy))];
+    const allEmps = await dbConn.select().from(employees);
+    const empMap = new Map(allEmps.map(e => [e.id, e]));
+    for (const adj of allAdj) {
+      const list = adjustmentMap.get(adj.clockEntryId) || [];
+      list.push({
+        ...adj,
+        adjustedByName: empMap.get(adj.adjustedBy)?.name || "Unknown",
+      });
+      adjustmentMap.set(adj.clockEntryId, list);
+    }
+  }
+
+  // Group by day
+  const dayMap = new Map<string, any[]>();
+  let totalMinutes = 0;
+  for (const entry of entries) {
+    const dayKey = new Date(entry.clockIn).toISOString().slice(0, 10);
+    const list = dayMap.get(dayKey) || [];
+    const durationMs = entry.clockOut
+      ? new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()
+      : 0;
+    const minutes = Math.floor(durationMs / 60000);
+    totalMinutes += minutes;
+    const job = jobMap.get(entry.jobId);
+    list.push({
+      ...entry,
+      jobName: job?.name || "Unknown Job",
+      durationMinutes: minutes,
+      adjustments: adjustmentMap.get(entry.id) || [],
+    });
+    dayMap.set(dayKey, list);
+  }
+
+  const days = Array.from(dayMap.entries()).map(([date, dayEntries]) => ({
+    date,
+    entries: dayEntries,
+    totalMinutes: dayEntries.reduce((sum: number, e: any) => sum + e.durationMinutes, 0),
+  })).sort((a, b) => b.date.localeCompare(a.date));
+
+  return { days, totalMinutes, employee: emp };
 }

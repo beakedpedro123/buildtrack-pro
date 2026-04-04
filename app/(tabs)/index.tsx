@@ -616,10 +616,10 @@ export default function DashboardScreen() {
                   <View style={[styles.avatar, { backgroundColor: ROLE_COLORS[emp.role] || colors.primary }]}>
                     <Text style={styles.avatarText}>{getInitials(emp.name)}</Text>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{emp.name}</Text>
+                  <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push(`/timecard/${emp.id}` as any)} activeOpacity={0.6}>
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>{emp.name}</Text>
                     <Text style={{ fontSize: 12, color: colors.muted }}>{job?.name || "Unknown Job"} • In: {timeStr}</Text>
-                  </View>
+                  </TouchableOpacity>
                   {isEditing ? (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                       <TextInput
@@ -852,7 +852,7 @@ export default function DashboardScreen() {
               </Text>
               <View style={{ marginBottom: 16 }}>
                 {byEmployee.slice(0, 8).map((emp) => (
-                  <View key={emp.employeeId} style={styles.laborEmpRow}>
+                  <TouchableOpacity key={emp.employeeId} style={styles.laborEmpRow} onPress={() => router.push(`/timecard/${emp.employeeId}` as any)} activeOpacity={0.6}>
                     <View style={[styles.laborEmpAvatar, { backgroundColor: getRoleColor(emp.role) }]}>
                       <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{getInitials(emp.employeeName)}</Text>
                     </View>
@@ -860,13 +860,16 @@ export default function DashboardScreen() {
                       <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{emp.employeeName}</Text>
                       <Text style={{ fontSize: 10, color: colors.muted }}>{emp.role.charAt(0).toUpperCase() + emp.role.slice(1)}</Text>
                     </View>
-                    <View>
-                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, textAlign: "right" }}>{formatHours(emp.totalMinutes)}</Text>
-                      {canSeeDollars && (
-                        <Text style={{ fontSize: 10, color: colors.muted, textAlign: "right" }}>{formatCurrency(emp.totalCost)}</Text>
-                      )}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <View>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, textAlign: "right" }}>{formatHours(emp.totalMinutes)}</Text>
+                        {canSeeDollars && (
+                          <Text style={{ fontSize: 10, color: colors.muted, textAlign: "right" }}>{formatCurrency(emp.totalCost)}</Text>
+                        )}
+                      </View>
+                      <Text style={{ fontSize: 14, color: colors.primary }}>›</Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             </>

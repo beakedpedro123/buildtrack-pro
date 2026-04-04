@@ -14,6 +14,7 @@ import { ActivityIndicator,
   View, ImageBackground } from "react-native";
 
 import { BG_CLOCK as bg_clock } from "@/constants/bg-urls";
+import { useRouter } from "expo-router";
 
 type Period = "week" | "biweek" | "month";
 
@@ -63,6 +64,7 @@ function calcEstimatedPay(totalMinutes: number, hourlyRate: string | null): stri
 
 export default function HoursScreen() {
   const colors = useColors();
+  const router = useRouter();
   const { employee } = useAppAuth();
   const [period, setPeriod] = useState<Period>("week");
   const range = getDateRange(period);
@@ -177,10 +179,13 @@ export default function HoursScreen() {
                   </View>
                 )}
               </View>
-              <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <Text style={{ fontSize: 13, color: colors.muted }}>
                   {data?.entries.length || 0} shifts recorded
                 </Text>
+                <TouchableOpacity onPress={() => router.push(`/timecard/${employee?.id}` as any)}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>View Full Timecard ›</Text>
+                </TouchableOpacity>
               </View>
             </View>
           }

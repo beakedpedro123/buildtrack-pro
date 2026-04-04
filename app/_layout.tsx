@@ -114,6 +114,7 @@ export default function RootLayout() {
               <OfflineQueueProvider>
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="timecard/[id]" options={{ presentation: "card" }} />
                   <Stack.Screen name="login" options={{ presentation: "fullScreenModal" }} />
                   <Stack.Screen name="oauth/callback" />
                 </Stack>

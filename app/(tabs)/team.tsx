@@ -20,6 +20,7 @@ import { ActivityIndicator,
   TouchableOpacity,
   View, ImageBackground } from "react-native";
 import * as Linking from "expo-linking";
+import { useRouter } from "expo-router";
 
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
 
@@ -50,6 +51,7 @@ function formatDuration(ms: number) {
 }
 
 export default function TeamScreen() {
+  const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
@@ -354,6 +356,14 @@ export default function TeamScreen() {
                     </View>
                   );
                 })()}
+
+                {/* View Timecard Button */}
+                <TouchableOpacity
+                  style={{ backgroundColor: colors.primary + "15", borderRadius: 12, padding: 14, alignItems: "center", marginTop: 16, borderWidth: 1, borderColor: colors.primary + "40" }}
+                  onPress={() => { setSelectedEmployee(null); router.push(`/timecard/${selectedEmployee.id}` as any); }}
+                >
+                  <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 15 }}>View Full Timecard</Text>
+                </TouchableOpacity>
 
                 {/* Management Actions */}
                 {canManage && selectedEmployee.id !== employee?.id && (

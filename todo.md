@@ -975,3 +975,41 @@
 - [x] Run npx expo install --fix — all mismatches resolved
 - [x] Verify iOS export bundles cleanly (5.22 MB, 0 errors)
 - [x] Save checkpoint
+
+## Phase 31 — Comprehensive Timecard System & Clock Upgrade
+
+### Server: Timecard API & Adjustment Tracking
+- [x] Add timeAdjustments table to drizzle schema (entryId, fieldChanged, oldValue, newValue, adjustedBy, reason, createdAt)
+- [x] Create getDetailedTimecard endpoint (daily breakdown for date range)
+- [x] Create adjustEntry endpoint with mandatory reason and adjustedBy
+- [x] Create getAdjustments endpoint (adjustment history per entry)
+- [x] Return adjustment history with each entry in timecard
+
+### Native App: Employee Timecard Screen
+- [x] Build timecard detail screen at app/timecard/[id].tsx
+- [x] Clickable employee names on payroll/dashboard/hours/team → opens their timecard
+- [x] Daily breakdown: clock-in time, clock-out time, jobsite, total hours per day
+- [x] Weekly/pay period totals with per-job breakdown
+- [x] Date range selector (week, 2 weeks, month)
+- [x] All employees can view their own timecard details
+- [x] Management can view any employee's timecard
+
+### Native App: Management Time Adjustment
+- [x] Edit clock-in time on any entry (management only)
+- [x] Edit clock-out time on any entry (management only)
+- [x] Change jobsite assignment on any entry (management only)
+- [x] Required reason field when adjusting any time entry
+- [x] Show adjustment history (who changed what, when, and why)
+- [x] Visual indicator on adjusted entries (edited badge)
+
+### Native App: Smoother Clock-In/Out
+- [x] Non-blocking UI during clock operations (already in place)
+- [x] Better error handling and feedback
+- [x] Android APK clock code untouched
+
+### PWA: Matching Timecard System
+- [x] Build PWA TimecardPage with same capabilities as native
+- [x] Clickable employee names → timecard view (Dashboard, Payroll, Clock pages)
+- [x] Management adjustment with required reason
+- [x] Show adjustment history on PWA
+- [x] Fix web clock-out lag with optimistic UI updates

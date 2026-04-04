@@ -3,6 +3,7 @@ import {
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator,
   Alert,
@@ -84,6 +85,7 @@ const ROLE_ORDER = ["owner", "secretary", "logistics", "foreman", "laborer"];
 
 export default function PayrollScreen() {
   const colors = useColors();
+  const router = useRouter();
   const { employee } = useAppAuth();
   const [period, setPeriod] = useState<Period>("biweek");
   const range = getDateRange(period);
@@ -262,10 +264,10 @@ export default function PayrollScreen() {
               </View>
             ) : (
               sortedRows.map((row) => (
-                <View key={row.employeeId} style={styles.card}>
+                <TouchableOpacity key={row.employeeId} style={styles.card} onPress={() => { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/timecard/${row.employeeId}` as any); }} activeOpacity={0.6}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>
+                      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.primary }}>
                         {row.name}
                       </Text>
                       <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
@@ -314,7 +316,7 @@ export default function PayrollScreen() {
                       {(row.totalMinutes / 60).toFixed(1)} hrs total
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))
             )}
           </>

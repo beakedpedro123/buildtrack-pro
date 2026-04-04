@@ -157,6 +157,38 @@ const clockRouter = router({
     clockOut: input.clockOut ? new Date(input.clockOut) : undefined,
     jobId: input.jobId,
   })),
+  adjustEntry: publicProcedure.input(z.object({
+    entryId: z.number(),
+    clockIn: z.string().optional(),
+    clockOut: z.string().optional(),
+    jobId: z.number().optional(),
+    adjustedBy: z.number(),
+    reason: z.string().min(1),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.adjustedBy, ["owner", "secretary", "logistics"], "adjust time entries");
+    return db.updateClockEntryWithAdjustment(
+      input.entryId,
+      {
+        clockIn: input.clockIn ? new Date(input.clockIn) : undefined,
+        clockOut: input.clockOut ? new Date(input.clockOut) : undefined,
+        jobId: input.jobId,
+      },
+      input.adjustedBy,
+      input.reason
+    );
+  }),
+  getDetailedTimecard: publicProcedure.input(z.object({
+    employeeId: z.number(),
+    startDate: z.string(),
+    endDate: z.string(),
+  })).query(({ input }) => db.getDetailedTimecard(
+    input.employeeId,
+    new Date(input.startDate),
+    new Date(input.endDate)
+  )),
+  getAdjustments: publicProcedure.input(z.object({
+    clockEntryId: z.number(),
+  })).query(({ input }) => db.getAdjustmentsForEntry(input.clockEntryId)),
 });
 
 const reportsRouter = router({

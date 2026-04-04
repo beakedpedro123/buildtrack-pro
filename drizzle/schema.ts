@@ -304,6 +304,19 @@ export const pivotConversations = mysqlTable("pivotConversations", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+
+// Time Adjustments (audit log for clock entry edits)
+export const timeAdjustments = mysqlTable("timeAdjustments", {
+  id: int("id").autoincrement().primaryKey(),
+  clockEntryId: int("clockEntryId").notNull(),
+  adjustedBy: int("adjustedBy").notNull(),
+  fieldChanged: varchar("fieldChanged", { length: 32 }).notNull(),
+  oldValue: text("oldValue"),
+  newValue: text("newValue"),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 // ─── Types ───────────────────────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -365,3 +378,6 @@ export type InsertPivotMemory = typeof pivotMemory.$inferInsert;
 
 export type PivotConversation = typeof pivotConversations.$inferSelect;
 export type InsertPivotConversation = typeof pivotConversations.$inferInsert;
+
+export type TimeAdjustment = typeof timeAdjustments.$inferSelect;
+export type InsertTimeAdjustment = typeof timeAdjustments.$inferInsert;

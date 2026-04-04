@@ -82,7 +82,7 @@ define(['./workbox-c5fd805d'], (function (workbox) { 'use strict';
     "revision": "beed6bffa22d0d1bd85da2fde8b3851d"
   }, {
     "url": "index.html",
-    "revision": "6f35d9ac68c40171feaadce671fef7de"
+    "revision": "1f720ec4a3aae2756ac48648c18bf297"
   }, {
     "url": "bg_reports.png",
     "revision": "f7aa4d489e58c0ed04a1b0670ba26140"
@@ -108,10 +108,10 @@ define(['./workbox-c5fd805d'], (function (workbox) { 'use strict';
     "url": "icons/company-logo.png",
     "revision": "7d79dd5a93c1ff34e1711ae4a1e24338"
   }, {
-    "url": "assets/index-DIfHsUzu.css",
+    "url": "assets/index-DNLO56k6.css",
     "revision": null
   }, {
-    "url": "assets/index-BjKgWWcZ.js",
+    "url": "assets/index-BNcqAYBu.js",
     "revision": null
   }, {
     "url": "icons/company-logo.png",
