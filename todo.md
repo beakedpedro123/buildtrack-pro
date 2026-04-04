@@ -1084,3 +1084,25 @@
 ### Slug Mismatch Fix (iOS Publish Blocker)
 - [x] Fix package.json name from "app-template" to "construction-manager" to match app.json slug and EAS projectId
 - [x] Verified iOS export still works after change
+
+## Phase 36 — Critical Fixes
+
+### iOS Build Fix
+- [x] Fix bundleIdentifier not being read in EAS production builds (created app.config.ts with hardcoded bundleIdentifier)
+
+### Military Time → 12-Hour Format
+- [x] Convert all time displays from 24hr military to 12hr AM/PM across native app
+- [ ] Convert all time displays in PWA to 12hr AM/PM
+- [ ] Ensure time pickers use 12hr format
+
+### Time Adjustment Sync Bug
+- [x] Fix: edited hours not updating/syncing correctly after time adjustment (added full cache invalidation)
+- [ ] Ensure all screens (dashboard, payroll, hours, timecard) reflect adjusted times immediately
+
+### Pivot Steel Tables Update
+- [x] Update Pivot with comprehensive 2026 steel tables (947 shapes across 12 categories + plate/rebar/bolt/weld reference)
+- [x] Updated construction-knowledge.ts to support all new categories (C, MC, L, HSS rect/sq/round, WT, M, pipe, plate, rebar, bolts, welds)
+
+### Keyboard Overlap Fix (All Screens)
+- [x] Audit all screens with text inputs for keyboard overlap issues
+- [x] Fix keyboard overlap: added KeyboardAvoidingView to safety.tsx, clock.tsx, payroll.tsx, timecard/[id].tsx

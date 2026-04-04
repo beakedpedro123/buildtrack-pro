@@ -14,6 +14,7 @@ import { ActivityIndicator,
   View, ImageBackground } from "react-native";
 
 import { BG_CLOCK as bg_clock } from "@/constants/bg-urls";
+import { formatTime12 } from "@/lib/utils";
 import { useRouter } from "expo-router";
 
 type Period = "week" | "biweek" | "month";
@@ -49,10 +50,7 @@ function formatDate(dateStr: string | Date) {
   return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
 
-function formatTime(dateStr: string | Date) {
-  const d = new Date(dateStr);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
+// Using formatTime12 from @/lib/utils for 12-hour format
 
 function calcEstimatedPay(totalMinutes: number, hourlyRate: string | null): string {
   if (!hourlyRate) return "—";
@@ -201,11 +199,11 @@ export default function HoursScreen() {
               </View>
               <View style={{ flexDirection: "row", marginTop: 4, gap: 16 }}>
                 <Text style={{ fontSize: 12, color: colors.muted }}>
-                  In: {formatTime(item.clockIn)}
+                  In: {formatTime12(item.clockIn)}
                 </Text>
                 {item.clockOut && (
                   <Text style={{ fontSize: 12, color: colors.muted }}>
-                    Out: {formatTime(item.clockOut)}
+                    Out: {formatTime12(item.clockOut)}
                   </Text>
                 )}
                 {!item.clockOut && (

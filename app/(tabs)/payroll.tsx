@@ -9,6 +9,7 @@ import { useState } from "react";
 import { ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
@@ -336,7 +337,8 @@ export default function PayrollScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         {/* Header */}
         <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.foreground }}>
@@ -544,6 +546,7 @@ export default function PayrollScreen() {
           </>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Custom Date Range Picker Modal */}
       <Modal visible={showDatePicker} transparent animationType="slide">

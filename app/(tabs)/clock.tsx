@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
@@ -22,6 +23,7 @@ import { ActivityIndicator,
   View, ImageBackground } from "react-native";
 
 import { BG_CLOCK as bg_clock } from "@/constants/bg-urls";
+import { formatTime12, formatDateTime12, formatTimeForEdit, parse12HrTime } from "@/lib/utils";
 
 function formatDuration(ms: number) {
   const h = Math.floor(ms / 3600000);
@@ -29,15 +31,7 @@ function formatDuration(ms: number) {
   return `${h}h ${m}m`;
 }
 
-function formatTime(date: Date | string) {
-  const d = new Date(date);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function formatDateTime(date: Date | string) {
-  const d = new Date(date);
-  return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
+// Use formatTime12 and formatDateTime12 from @/lib/utils for 12-hour format
 
 /* ─── Timeout wrapper to prevent hanging ─── */
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -98,7 +92,9 @@ export default function ClockScreen() {
   // ClockShark-style editing state (clock-in, clock-out, job)
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editClockInStr, setEditClockInStr] = useState("");
+  const [editClockInAmpm, setEditClockInAmpm] = useState("AM");
   const [editClockOutStr, setEditClockOutStr] = useState("");
+  const [editClockOutAmpm, setEditClockOutAmpm] = useState("PM");
   const [editJobId, setEditJobId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [showEditJobPicker, setShowEditJobPicker] = useState(false);
@@ -302,23 +298,18 @@ export default function ClockScreen() {
   }, [clockOutMutation, refreshAll]);
 
   /* ─── ClockShark-style: Edit clock-in, clock-out, and job ─── */
-  const parseTimeStr = (timeStr: string): { hours: number; mins: number } | null => {
-    const parts = timeStr.trim().split(":");
-    if (parts.length !== 2) return null;
-    const hours = parseInt(parts[0], 10);
-    const mins = parseInt(parts[1], 10);
-    if (isNaN(hours) || isNaN(mins) || hours < 0 || hours > 23 || mins < 0 || mins > 59) return null;
-    return { hours, mins };
-  };
 
   const startEditEntry = (entry: any) => {
-    const clockInDate = new Date(entry.clockIn);
-    setEditClockInStr(`${clockInDate.getHours().toString().padStart(2, "0")}:${clockInDate.getMinutes().toString().padStart(2, "0")}`);
+    const inEdit = formatTimeForEdit(entry.clockIn);
+    setEditClockInStr(inEdit.time);
+    setEditClockInAmpm(inEdit.ampm);
     if (entry.clockOut) {
-      const clockOutDate = new Date(entry.clockOut);
-      setEditClockOutStr(`${clockOutDate.getHours().toString().padStart(2, "0")}:${clockOutDate.getMinutes().toString().padStart(2, "0")}`);
+      const outEdit = formatTimeForEdit(entry.clockOut);
+      setEditClockOutStr(outEdit.time);
+      setEditClockOutAmpm(outEdit.ampm);
     } else {
       setEditClockOutStr("");
+      setEditClockOutAmpm("PM");
     }
     setEditJobId(entry.jobId);
     setEditingEntryId(entry.id);
@@ -331,26 +322,26 @@ export default function ClockScreen() {
     const entry = allEntries.find((e: any) => e.id === editingEntryId);
     if (!entry) return;
 
-    // Parse clock-in
-    const parsedIn = parseTimeStr(editClockInStr);
+    // Parse clock-in (12-hour format)
+    const parsedIn = parse12HrTime(editClockInStr, editClockInAmpm);
     if (!parsedIn) {
-      Alert.alert("Invalid Clock-In", "Enter time as HH:MM (e.g., 07:30)");
+      Alert.alert("Invalid Clock-In", "Enter time as H:MM (e.g., 7:30)");
       return;
     }
     const newClockIn = new Date(entry.clockIn);
-    newClockIn.setHours(parsedIn.hours, parsedIn.mins, 0, 0);
+    newClockIn.setHours(parsedIn.hours, parsedIn.minutes, 0, 0);
 
     // Parse clock-out (optional — only if provided)
     let newClockOut: Date | undefined;
     if (editClockOutStr.trim()) {
-      const parsedOut = parseTimeStr(editClockOutStr);
+      const parsedOut = parse12HrTime(editClockOutStr, editClockOutAmpm);
       if (!parsedOut) {
-        Alert.alert("Invalid Clock-Out", "Enter time as HH:MM (e.g., 16:30)");
+        Alert.alert("Invalid Clock-Out", "Enter time as H:MM (e.g., 4:30)");
         return;
       }
       const outBase = entry.clockOut ? new Date(entry.clockOut) : new Date(entry.clockIn);
       newClockOut = new Date(outBase);
-      newClockOut.setHours(parsedOut.hours, parsedOut.mins, 0, 0);
+      newClockOut.setHours(parsedOut.hours, parsedOut.minutes, 0, 0);
       // If clock-out is before clock-in, assume next day
       if (newClockOut <= newClockIn) {
         newClockOut.setDate(newClockOut.getDate() + 1);
@@ -371,7 +362,11 @@ export default function ClockScreen() {
         setSuccessMsg("Entry updated!");
         setEditingEntryId(null);
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Invalidate all related caches so hours sync everywhere
         refreshAll().catch(() => {});
+        utils.payroll.getMyHours.invalidate();
+        utils.payroll.getReport.invalidate();
+        utils.clock.getDetailedTimecard.invalidate();
       }
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Failed to update entry.");
@@ -478,9 +473,10 @@ export default function ClockScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <OfflineBanner />
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Text style={styles.title}>Time Clock</Text>
           <Text style={styles.subtitle}>
@@ -602,25 +598,41 @@ export default function ClockScreen() {
                       <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>CLOCK IN</Text>
-                          <TextInput
-                            style={styles.editTimeInput}
-                            value={editClockInStr}
-                            onChangeText={setEditClockInStr}
-                            placeholder="07:30"
-                            placeholderTextColor={colors.muted}
-                            keyboardType="numbers-and-punctuation"
-                          />
+                          <View style={{ flexDirection: "row", gap: 4 }}>
+                            <TextInput
+                              style={[styles.editTimeInput, { flex: 1 }]}
+                              value={editClockInStr}
+                              onChangeText={setEditClockInStr}
+                              placeholder="7:30"
+                              placeholderTextColor={colors.muted}
+                              keyboardType="numbers-and-punctuation"
+                            />
+                            <TouchableOpacity
+                              onPress={() => setEditClockInAmpm(editClockInAmpm === "AM" ? "PM" : "AM")}
+                              style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 8, justifyContent: "center" }}
+                            >
+                              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}>{editClockInAmpm}</Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>CLOCK OUT</Text>
-                          <TextInput
-                            style={styles.editTimeInput}
-                            value={editClockOutStr}
-                            onChangeText={setEditClockOutStr}
-                            placeholder={entry.clockOut ? "16:30" : "Still active"}
-                            placeholderTextColor={colors.muted}
-                            keyboardType="numbers-and-punctuation"
-                          />
+                          <View style={{ flexDirection: "row", gap: 4 }}>
+                            <TextInput
+                              style={[styles.editTimeInput, { flex: 1 }]}
+                              value={editClockOutStr}
+                              onChangeText={setEditClockOutStr}
+                              placeholder={entry.clockOut ? "4:30" : "Still active"}
+                              placeholderTextColor={colors.muted}
+                              keyboardType="numbers-and-punctuation"
+                            />
+                            <TouchableOpacity
+                              onPress={() => setEditClockOutAmpm(editClockOutAmpm === "AM" ? "PM" : "AM")}
+                              style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 8, justifyContent: "center" }}
+                            >
+                              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}>{editClockOutAmpm}</Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
                       </View>
                       {/* Job Picker */}
@@ -693,7 +705,7 @@ export default function ClockScreen() {
                     {activeJob?.name || "Unknown Job"}
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 20 }}>
-                    Since {formatTime(activeEntry!.clockIn)}
+                    Since {formatTime12(activeEntry!.clockIn)}
                   </Text>
                 </>
               )}
@@ -786,25 +798,41 @@ export default function ClockScreen() {
                       <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>CLOCK IN</Text>
-                          <TextInput
-                            style={styles.editTimeInput}
-                            value={editClockInStr}
-                            onChangeText={setEditClockInStr}
-                            placeholder="07:30"
-                            placeholderTextColor={colors.muted}
-                            keyboardType="numbers-and-punctuation"
-                          />
+                          <View style={{ flexDirection: "row", gap: 4 }}>
+                            <TextInput
+                              style={[styles.editTimeInput, { flex: 1 }]}
+                              value={editClockInStr}
+                              onChangeText={setEditClockInStr}
+                              placeholder="7:30"
+                              placeholderTextColor={colors.muted}
+                              keyboardType="numbers-and-punctuation"
+                            />
+                            <TouchableOpacity
+                              onPress={() => setEditClockInAmpm(editClockInAmpm === "AM" ? "PM" : "AM")}
+                              style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 8, justifyContent: "center" }}
+                            >
+                              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}>{editClockInAmpm}</Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>CLOCK OUT</Text>
-                          <TextInput
-                            style={styles.editTimeInput}
-                            value={editClockOutStr}
-                            onChangeText={setEditClockOutStr}
-                            placeholder={entry.clockOut ? "16:30" : "Still active"}
-                            placeholderTextColor={colors.muted}
-                            keyboardType="numbers-and-punctuation"
-                          />
+                          <View style={{ flexDirection: "row", gap: 4 }}>
+                            <TextInput
+                              style={[styles.editTimeInput, { flex: 1 }]}
+                              value={editClockOutStr}
+                              onChangeText={setEditClockOutStr}
+                              placeholder={entry.clockOut ? "4:30" : "Still active"}
+                              placeholderTextColor={colors.muted}
+                              keyboardType="numbers-and-punctuation"
+                            />
+                            <TouchableOpacity
+                              onPress={() => setEditClockOutAmpm(editClockOutAmpm === "AM" ? "PM" : "AM")}
+                              style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 8, justifyContent: "center" }}
+                            >
+                              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}>{editClockOutAmpm}</Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
                       </View>
                       <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>JOB</Text>
@@ -872,6 +900,7 @@ export default function ClockScreen() {
         <View style={{ height: 32 }} />
       </ScrollView>
     </ImageBackground>
+    </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }

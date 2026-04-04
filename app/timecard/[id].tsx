@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
@@ -18,6 +19,7 @@ import {
   View,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import { formatTime12, formatDateTime12, formatTimeForEdit, parse12HrTime } from "@/lib/utils";
 
 type Period = "week" | "biweek" | "month";
 
@@ -44,9 +46,7 @@ function formatDuration(minutes: number) {
   return `${h}h ${m}m`;
 }
 
-function formatTime(dateStr: string | Date) {
-  return new Date(dateStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
+// Using formatTime12 from @/lib/utils for 12-hour format
 
 function formatDay(dateStr: string) {
   const d = new Date(dateStr + "T12:00:00");
@@ -73,6 +73,7 @@ export default function TimecardScreen() {
   const isSelf = currentUser?.id === employeeId;
   const canSeeRates = currentUser?.role === "owner" || currentUser?.role === "secretary";
 
+  const utils = trpc.useUtils();
   const { data, isLoading, refetch } = trpc.clock.getDetailedTimecard.useQuery(
     { employeeId, startDate: range.startDate, endDate: range.endDate },
     { enabled: employeeId > 0 }
@@ -81,7 +82,14 @@ export default function TimecardScreen() {
   const jobsQuery = trpc.jobs.list.useQuery();
   const adjustMutation = trpc.clock.adjustEntry.useMutation({
     onSuccess: () => {
+      // Invalidate ALL related caches so hours update everywhere
       refetch();
+      utils.clock.history.invalidate();
+      utils.clock.activeEntry.invalidate();
+      utils.clock.allClockedIn.invalidate();
+      utils.payroll.getMyHours.invalidate();
+      // Also invalidate payroll report cache
+      utils.payroll.getReport.invalidate();
       setEditModal(null);
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
@@ -99,7 +107,9 @@ export default function TimecardScreen() {
     jobName: string;
   } | null>(null);
   const [editClockIn, setEditClockIn] = useState("");
+  const [editClockInAmpm, setEditClockInAmpm] = useState("AM");
   const [editClockOut, setEditClockOut] = useState("");
+  const [editClockOutAmpm, setEditClockOutAmpm] = useState("PM");
   const [editJobId, setEditJobId] = useState(0);
   const [editReason, setEditReason] = useState("");
   const [showJobPicker, setShowJobPicker] = useState(false);
@@ -113,27 +123,28 @@ export default function TimecardScreen() {
       jobId: entry.jobId,
       jobName: entry.jobName,
     });
-    setEditClockIn(formatTimeForInput(new Date(entry.clockIn)));
-    setEditClockOut(entry.clockOut ? formatTimeForInput(new Date(entry.clockOut)) : "");
+    const inEdit = formatTimeForEdit(entry.clockIn);
+    setEditClockIn(inEdit.time);
+    setEditClockInAmpm(inEdit.ampm);
+    if (entry.clockOut) {
+      const outEdit = formatTimeForEdit(entry.clockOut);
+      setEditClockOut(outEdit.time);
+      setEditClockOutAmpm(outEdit.ampm);
+    } else {
+      setEditClockOut("");
+      setEditClockOutAmpm("PM");
+    }
     setEditJobId(entry.jobId);
     setEditReason("");
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  function formatTimeForInput(d: Date) {
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mm = String(d.getMinutes()).padStart(2, "0");
-    return `${hh}:${mm}`;
-  }
-
-  function parseTimeInput(timeStr: string, refDate: Date): Date | null {
-    const match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
-    if (!match) return null;
-    const h = parseInt(match[1], 10);
-    const m = parseInt(match[2], 10);
-    if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  // Using formatTimeForEdit and parse12HrTime from @/lib/utils
+  function parseTimeInput12(timeStr: string, ampm: string, refDate: Date): Date | null {
+    const parsed = parse12HrTime(timeStr, ampm);
+    if (!parsed) return null;
     const d = new Date(refDate);
-    d.setHours(h, m, 0, 0);
+    d.setHours(parsed.hours, parsed.minutes, 0, 0);
     return d;
   }
 
@@ -146,12 +157,12 @@ export default function TimecardScreen() {
     const updates: any = { entryId: editModal.entryId, adjustedBy: currentUser!.id, reason: editReason.trim() };
 
     if (editClockIn) {
-      const newIn = parseTimeInput(editClockIn, refDate);
+      const newIn = parseTimeInput12(editClockIn, editClockInAmpm, refDate);
       if (newIn) updates.clockIn = newIn.toISOString();
     }
     if (editClockOut) {
       const refOut = editModal.clockOut ? new Date(editModal.clockOut) : refDate;
-      const newOut = parseTimeInput(editClockOut, refOut);
+      const newOut = parseTimeInput12(editClockOut, editClockOutAmpm, refOut);
       if (newOut) updates.clockOut = newOut.toISOString();
     }
     if (editJobId !== editModal.jobId) {
@@ -296,11 +307,11 @@ export default function TimecardScreen() {
                       </Text>
                       <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
                         <Text style={{ fontSize: 12, color: colors.muted }}>
-                          In: {formatTime(entry.clockIn)}
+                          In: {formatTime12(entry.clockIn)}
                         </Text>
                         {entry.clockOut ? (
                           <Text style={{ fontSize: 12, color: colors.muted }}>
-                            Out: {formatTime(entry.clockOut)}
+                            Out: {formatTime12(entry.clockOut)}
                           </Text>
                         ) : (
                           <View style={{ backgroundColor: colors.success + "22", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
@@ -336,7 +347,7 @@ export default function TimecardScreen() {
                             Reason: {adj.reason}
                           </Text>
                           <Text style={{ fontSize: 9, color: colors.muted, marginTop: 1 }}>
-                            {new Date(adj.createdAt).toLocaleString()}
+                            {formatDateTime12(adj.createdAt)}
                           </Text>
                         </View>
                       ))}
@@ -369,34 +380,51 @@ export default function TimecardScreen() {
 
       {/* Edit Modal */}
       <Modal visible={!!editModal} transparent animationType="fade" onRequestClose={() => setEditModal(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <ScrollView>
+            <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 16 }}>
                 Adjust Time Entry
               </Text>
 
               {/* Clock In */}
-              <Text style={styles.modalLabel}>Clock In Time (HH:MM)</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={editClockIn}
-                onChangeText={setEditClockIn}
-                placeholder="e.g. 07:30"
-                placeholderTextColor={colors.muted}
-                keyboardType="numbers-and-punctuation"
-              />
+              <Text style={styles.modalLabel}>Clock In Time</Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+                <TextInput
+                  style={[styles.modalInput, { flex: 1, marginBottom: 0 }]}
+                  value={editClockIn}
+                  onChangeText={setEditClockIn}
+                  placeholder="e.g. 7:30"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="numbers-and-punctuation"
+                />
+                <TouchableOpacity
+                  onPress={() => setEditClockInAmpm(editClockInAmpm === "AM" ? "PM" : "AM")}
+                  style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 14, justifyContent: "center" }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{editClockInAmpm}</Text>
+                </TouchableOpacity>
+              </View>
 
               {/* Clock Out */}
-              <Text style={styles.modalLabel}>Clock Out Time (HH:MM)</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={editClockOut}
-                onChangeText={setEditClockOut}
-                placeholder="e.g. 16:00"
-                placeholderTextColor={colors.muted}
-                keyboardType="numbers-and-punctuation"
-              />
+              <Text style={styles.modalLabel}>Clock Out Time</Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+                <TextInput
+                  style={[styles.modalInput, { flex: 1, marginBottom: 0 }]}
+                  value={editClockOut}
+                  onChangeText={setEditClockOut}
+                  placeholder="e.g. 4:00"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="numbers-and-punctuation"
+                />
+                <TouchableOpacity
+                  onPress={() => setEditClockOutAmpm(editClockOutAmpm === "AM" ? "PM" : "AM")}
+                  style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 14, justifyContent: "center" }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{editClockOutAmpm}</Text>
+                </TouchableOpacity>
+              </View>
 
               {/* Job Site */}
               <Text style={styles.modalLabel}>Job Site</Text>
@@ -436,6 +464,7 @@ export default function TimecardScreen() {
             </ScrollView>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Job Picker Modal */}

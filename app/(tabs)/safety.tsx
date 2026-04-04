@@ -12,6 +12,7 @@ import { ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
@@ -22,6 +23,7 @@ import { ActivityIndicator,
   View, ImageBackground } from "react-native";
 
 import { BG_CLOCK as bg_clock } from "@/constants/bg-urls";
+import { formatTime12 } from "@/lib/utils";
 
 type Screen = "list" | "new" | "topics";
 type MeetingType = "safety_toolbox" | "daily_goals";
@@ -30,9 +32,7 @@ function formatDate(d: string | Date) {
   return new Date(d).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
 
-function formatTime(d: string | Date) {
-  return new Date(d).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
+// Using formatTime12 from @/lib/utils for 12-hour format
 
 function getWeekStart(date: Date): Date {
   const d = new Date(date);
@@ -273,6 +273,7 @@ export default function SafetyScreen() {
   if (screen === "new") {
     return (
       <ScreenContainer>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
           <TouchableOpacity onPress={() => { resetForm(); setScreen("list"); }}>
@@ -282,7 +283,7 @@ export default function SafetyScreen() {
           <View style={{ width: 24 }} />
         </View>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
           {/* Meeting Type */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Meeting Type</Text>
@@ -434,6 +435,7 @@ export default function SafetyScreen() {
           </TouchableOpacity>
         </ScrollView>
     </ImageBackground>
+    </KeyboardAvoidingView>
     </ScreenContainer>
     );
   }
@@ -442,6 +444,7 @@ export default function SafetyScreen() {
   if (screen === "topics" && canManageTopics) {
     return (
       <ScreenContainer>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
           <TouchableOpacity onPress={() => setScreen("list")}>
             <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
@@ -450,7 +453,7 @@ export default function SafetyScreen() {
           <View style={{ width: 24 }} />
         </View>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
           {/* Add new topic */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Post New Topic</Text>
@@ -516,6 +519,7 @@ export default function SafetyScreen() {
             <Text style={styles.emptyText}>No safety topics yet. Post one above for your foremen.</Text>
           )}
         </ScrollView>
+        </KeyboardAvoidingView>
       </ScreenContainer>
     );
   }
@@ -613,7 +617,7 @@ export default function SafetyScreen() {
                 <Text style={styles.meetingTitle} numberOfLines={1}>{item.title}</Text>
               </View>
               <Text style={styles.meetingMeta}>
-                {formatDate(item.conductedAt)} at {formatTime(item.conductedAt)} · {item.attendeeCount || 0} attendees
+                {formatDate(item.conductedAt)} at {formatTime12(item.conductedAt)} · {item.attendeeCount || 0} attendees
               </Text>
               {item.attendees && (
                 <Text style={[styles.meetingMeta, { marginTop: 2 }]}>Attendees: {item.attendees}</Text>

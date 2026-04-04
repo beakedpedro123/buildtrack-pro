@@ -48,9 +48,8 @@ function formatDate(dateStr: string | Date) {
 function formatShortDate(d: string | Date) {
   return new Date(d).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
-function formatTime(d: string | Date) {
-  return new Date(d).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
+// Using formatTime12 from @/lib/utils for 12-hour format
+import { formatTime12 } from "@/lib/utils";
 function formatDuration(startedAt: string | Date | null, endedAt: string | Date | null): string {
   if (!startedAt || !endedAt) return "";
   const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime();
@@ -1158,7 +1157,7 @@ export default function MeetingsScreen() {
                     <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, flex: 1 }} numberOfLines={1}>{item.title}</Text>
                   </View>
                   <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
-                    {formatShortDate(item.conductedAt)} at {formatTime(item.conductedAt)} · {item.attendeeCount || 0} attendees
+                    {formatShortDate(item.conductedAt)} at {formatTime12(item.conductedAt)} · {item.attendeeCount || 0} attendees
                   </Text>
                   {item.attendees && (
                     <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Attendees: {item.attendees}</Text>

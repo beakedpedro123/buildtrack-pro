@@ -14,8 +14,19 @@ try { simpsonHardware = JSON.parse(readFileSync(join(dataDir, "simpson-hardware.
 try { utahCodes = JSON.parse(readFileSync(join(dataDir, "utah-building-codes.json"), "utf-8")); } catch (e) { console.warn("[Knowledge] Failed to load Utah codes:", e); }
 try { constructionRef = JSON.parse(readFileSync(join(dataDir, "construction-reference.json"), "utf-8")); } catch (e) { console.warn("[Knowledge] Failed to load construction reference:", e); }
 
+// Count total steel shapes
+const steelCategories = [
+  "w_shapes", "hp_shapes", "s_shapes", "c_channels", "mc_channels",
+  "l_angles", "hss_rectangular", "hss_square", "hss_round",
+  "pipe_shapes", "wt_shapes", "m_shapes"
+];
+let totalSteel = 0;
+for (const cat of steelCategories) {
+  if (Array.isArray(steelProfiles[cat])) totalSteel += steelProfiles[cat].length;
+}
+
 console.log("[Knowledge] Loaded construction knowledge base:",
-  `Steel: ${steelProfiles.w_shapes?.length || 0} W-shapes,`,
+  `Steel: ${totalSteel} total shapes (${steelCategories.filter(c => Array.isArray(steelProfiles[c]) && steelProfiles[c].length > 0).join(", ")}),`,
   `Simpson: ${Object.keys(simpsonHardware).length} categories,`,
   `Utah: ${Object.keys(utahCodes.jurisdictions || {}).length} jurisdictions,`,
   `Reference: ${Object.keys(constructionRef).length} sections`
@@ -25,7 +36,7 @@ console.log("[Knowledge] Loaded construction knowledge base:",
 export function lookupSteelProfile(designation: string): string {
   const d = designation.toUpperCase().replace(/\s+/g, "").replace("X", "x");
   
-  // Try W-shapes first
+  // Try W-shapes first (they have the most detailed properties)
   if (steelProfiles.w_shapes) {
     for (const shape of steelProfiles.w_shapes) {
       const shapeDesig = shape.designation.toUpperCase().replace(/\s+/g, "").replace("X", "x");
@@ -44,43 +55,115 @@ export function lookupSteelProfile(designation: string): string {
           `- Radius of Gyration rx: ${shape.rx_in} in\n` +
           `- Radius of Gyration ry: ${shape.ry_in} in\n` +
           `- Plastic Modulus Zx: ${shape.Zx_in3} in³\n` +
-          `Source: AISC Steel Construction Manual, 15th Edition`;
+          `Source: AISC Steel Construction Manual, 16th Edition`;
       }
     }
   }
   
-  // Try other shapes
-  for (const category of ["s_shapes", "hp_shapes", "c_shapes", "mc_shapes", "l_shapes", "wt_shapes", "hss_shapes", "pipe_shapes"]) {
-    if (steelProfiles[category]) {
+  // Category display name mapping
+  const categoryNames: Record<string, string> = {
+    "s_shapes": "S-Shape (American Standard Beam)",
+    "hp_shapes": "HP-Shape (Bearing Pile)",
+    "c_channels": "C-Channel (American Standard Channel)",
+    "mc_channels": "MC-Channel (Miscellaneous Channel)",
+    "l_angles": "L-Angle (Structural Angle)",
+    "hss_rectangular": "HSS Rectangular (Hollow Structural Section)",
+    "hss_square": "HSS Square (Hollow Structural Section)",
+    "hss_round": "HSS Round (Hollow Structural Section)",
+    "pipe_shapes": "Pipe (Standard/Extra Strong/Double Extra Strong)",
+    "wt_shapes": "WT-Shape (Structural Tee cut from W-beam)",
+    "m_shapes": "M-Shape (Miscellaneous Beam)",
+  };
+  
+  // Try all other shape categories
+  for (const category of steelCategories.filter(c => c !== "w_shapes")) {
+    if (steelProfiles[category] && Array.isArray(steelProfiles[category])) {
       for (const shape of steelProfiles[category]) {
         const shapeDesig = shape.designation.toUpperCase().replace(/\s+/g, "");
-        if (shapeDesig === d.toUpperCase() || shapeDesig.includes(d.toUpperCase())) {
-          let result = `**${shape.designation}** (${category.replace("_shapes", "").toUpperCase()} Shape)\n`;
+        if (shapeDesig === d.toUpperCase() || shapeDesig.includes(d.toUpperCase()) || d.toUpperCase().includes(shapeDesig)) {
+          const catName = categoryNames[category] || category.replace(/_/g, " ").toUpperCase();
+          let result = `**${shape.designation}** (${catName})\n`;
           for (const [key, val] of Object.entries(shape)) {
             if (key !== "designation") {
-              result += `- ${key}: ${val}\n`;
+              const label = key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              result += `- ${label}: ${val}\n`;
             }
           }
-          result += `Source: AISC Steel Construction Manual, 15th Edition`;
+          result += `Source: AISC Steel Construction Manual, 16th Edition`;
           return result;
         }
       }
     }
   }
   
-  return `Steel profile "${designation}" not found in the AISC database. Try a format like W8x44, W12x26, S8x23, HP12x53, C10x30, HSS6x6x1/4, etc.`;
+  // Check reference data (plate, rebar, bolts, welds)
+  if (d.includes("PLATE") || d.includes("PL")) {
+    const plates = steelProfiles.plate_weights;
+    if (plates && plates.thicknesses) {
+      let result = "**Steel Plate Weight Reference:**\n";
+      result += `${plates.note}\n\n`;
+      for (const p of plates.thicknesses) {
+        result += `- ${p.gauge} (${p.thickness_in}"): ${p.weight_psf} lb/ft²\n`;
+      }
+      result += `\nSource: AISC Steel Construction Manual`;
+      return result;
+    }
+  }
+  
+  if (d.includes("REBAR") || d.includes("#")) {
+    const rebar = steelProfiles.rebar;
+    if (rebar) {
+      // Try to find specific bar size
+      for (const bar of rebar) {
+        if (d.includes(bar.bar_size.toUpperCase())) {
+          return `**${bar.bar_size} Rebar:**\n` +
+            `- Diameter: ${bar.diameter_in} in\n` +
+            `- Cross-sectional Area: ${bar.area_in2} in²\n` +
+            `- Weight: ${bar.weight_plf} lbs/ft\n` +
+            `Source: ASTM A615/A706`;
+        }
+      }
+      // Show all rebar
+      let result = "**Rebar Reference:**\n";
+      for (const bar of rebar) {
+        result += `- ${bar.bar_size}: ${bar.diameter_in}" dia, ${bar.area_in2} in², ${bar.weight_plf} lbs/ft\n`;
+      }
+      result += `Source: ASTM A615/A706`;
+      return result;
+    }
+  }
+  
+  // List available categories
+  const availableCats = steelCategories
+    .filter(c => Array.isArray(steelProfiles[c]) && steelProfiles[c].length > 0)
+    .map(c => `${c.replace(/_/g, " ")} (${steelProfiles[c].length})`)
+    .join(", ");
+  
+  return `Steel profile "${designation}" not found in the AISC database.\n\n` +
+    `**Available categories (${totalSteel} total shapes):** ${availableCats}\n\n` +
+    `Try formats like: W8x44, S8x23, HP12x53, C10x30, MC10x28.5, L4x4x1/4, HSS6x6x1/4, HSS8.625x0.500, PIPE 6 STD, WT9x25, M10x9\n` +
+    `Also available: plate weights, rebar (#3-#18), bolt data (A325/A490), weld data (E70XX)`;
 }
 
 // ── Steel Weight Calculator ───────────────────────────────────────────────
 export function calculateSteelWeight(designation: string, lengthFt: number): string {
   const d = designation.toUpperCase().replace(/\s+/g, "").replace("X", "x");
   
-  for (const category of ["w_shapes", "s_shapes", "hp_shapes", "c_shapes", "mc_shapes", "hss_shapes", "pipe_shapes"]) {
-    if (steelProfiles[category]) {
+  // Search all categories that have weight data
+  const weightCategories = [
+    "w_shapes", "s_shapes", "hp_shapes", "c_channels", "mc_channels",
+    "l_angles", "hss_rectangular", "hss_square", "hss_round",
+    "pipe_shapes", "wt_shapes", "m_shapes"
+  ];
+  
+  for (const category of weightCategories) {
+    if (steelProfiles[category] && Array.isArray(steelProfiles[category])) {
       for (const shape of steelProfiles[category]) {
         const shapeDesig = shape.designation.toUpperCase().replace(/\s+/g, "").replace("X", "x");
-        if (shapeDesig === d || shapeDesig.replace(/^[A-Z]+/, "") === d.replace(/^[A-Z]+/, "")) {
-          const weightPerFt = shape.weight_lb_ft;
+        if (shapeDesig === d || shapeDesig.replace(/^[A-Z]+/, "") === d.replace(/^[A-Z]+/, "") || d.includes(shapeDesig) || shapeDesig.includes(d)) {
+          // Get weight - different field names in different categories
+          const weightPerFt = shape.weight_lb_ft || shape.weight;
+          if (!weightPerFt) continue;
           const totalWeight = weightPerFt * lengthFt;
           return `**${shape.designation} at ${lengthFt} ft:**\n` +
             `- Weight per foot: ${weightPerFt} lbs/ft\n` +
@@ -92,7 +175,7 @@ export function calculateSteelWeight(designation: string, lengthFt: number): str
     }
   }
   
-  return `Could not find "${designation}" to calculate weight. Try W8x44, W12x26, etc.`;
+  return `Could not find "${designation}" to calculate weight. Try W8x44, C10x30, HSS6x6x1/4, L4x4x1/4, etc.`;
 }
 
 // ── Simpson Hardware Lookup ───────────────────────────────────────────────
@@ -238,9 +321,17 @@ export function lookupConstructionReference(topic: string): string {
     
     let result = "**Concrete Reference:**\n\n";
     if (t.includes("rebar")) {
-      result += "**Rebar Sizes:**\n";
-      for (const r of concrete.rebar_sizes || []) {
-        result += `- ${r.size}: ${r.diameter_in}" dia, ${r.weight_lb_ft} lbs/ft, ${r.area_sq_in} in² area\n`;
+      // Use the expanded rebar data from steel profiles if available
+      if (steelProfiles.rebar) {
+        result += "**Rebar Sizes (ASTM A615/A706):**\n";
+        for (const r of steelProfiles.rebar) {
+          result += `- ${r.bar_size}: ${r.diameter_in}" dia, ${r.area_in2} in², ${r.weight_plf} lbs/ft\n`;
+        }
+      } else {
+        result += "**Rebar Sizes:**\n";
+        for (const r of concrete.rebar_sizes || []) {
+          result += `- ${r.size}: ${r.diameter_in}" dia, ${r.weight_lb_ft} lbs/ft, ${r.area_sq_in} in² area\n`;
+        }
       }
     } else if (t.includes("footing")) {
       result += "**Footing Requirements (Utah):**\n";
@@ -290,37 +381,91 @@ export function lookupConstructionReference(topic: string): string {
     return result;
   }
   
-  // Steel erection
+  // Steel erection / bolts / welds
   if (t.includes("bolt") || t.includes("weld") || t.includes("steel erection") || t.includes("torque")) {
-    const steel = constructionRef.steel_erection_reference;
-    if (!steel) return "Steel erection data not available.";
+    let result = "";
     
-    let result = "**Steel Erection Reference:**\n\n";
     if (t.includes("bolt") || t.includes("torque")) {
-      result += "**Bolt Pretension Values (A325, kips):**\n";
-      for (const [size, val] of Object.entries(steel.bolt_torque_values || {})) {
-        if (size !== "note") result += `- ${size.replace(/_/g, " ")}: ${val} kips\n`;
+      // Use expanded bolt data from steel profiles if available
+      const boltData = steelProfiles.bolt_data;
+      if (boltData) {
+        result += "**Structural Bolt Reference (AISC/RCSC):**\n\n";
+        result += `Grades: ${boltData.grades.join(", ")}\n`;
+        result += `Common Diameters: ${boltData.common_diameters_in.map((d: number) => d + '"').join(", ")}\n\n`;
+        result += "**A325 Single Shear Capacity (threads NOT excluded):**\n";
+        for (const [size, cap] of Object.entries(boltData.a325_shear_capacity_kips || {})) {
+          if (size !== "note") result += `- ${size}" dia: ${cap} kips\n`;
+        }
+        result += "\n**A490 Single Shear Capacity (threads NOT excluded):**\n";
+        for (const [size, cap] of Object.entries(boltData.a490_shear_capacity_kips || {})) {
+          if (size !== "note") result += `- ${size}" dia: ${cap} kips\n`;
+        }
+        result += `\nSource: AISC Steel Construction Manual`;
+      } else {
+        const steel = constructionRef.steel_erection_reference;
+        if (steel) {
+          result += "**Bolt Pretension Values (A325, kips):**\n";
+          for (const [size, val] of Object.entries(steel.bolt_torque_values || {})) {
+            if (size !== "note") result += `- ${size.replace(/_/g, " ")}: ${val} kips\n`;
+          }
+        }
       }
     } else if (t.includes("weld")) {
-      result += "**Welding Reference:**\n";
-      const welding = steel.welding_basics;
-      if (welding) {
-        result += "\nCommon Processes:\n";
-        for (const [k, v] of Object.entries(welding.common_processes || {})) {
-          result += `- ${k}: ${v}\n`;
+      // Use expanded weld data from steel profiles if available
+      const weldData = steelProfiles.weld_data;
+      if (weldData) {
+        result += "**Fillet Weld Reference (AISC 360):**\n\n";
+        result += `Electrode: ${weldData.electrode}\n\n`;
+        result += "**Fillet Weld Capacity (kips per inch of weld length):**\n";
+        for (const [size, cap] of Object.entries(weldData.fillet_weld_capacity_kips_per_in || {})) {
+          if (size !== "note") result += `- ${size}" leg: ${cap} kips/in\n`;
         }
-        result += "\nMinimum Fillet Weld Sizes:\n";
-        for (const [k, v] of Object.entries(welding.minimum_fillet_weld_sizes || {})) {
-          result += `- ${k.replace(/_/g, " ")}: ${v}\n`;
+        result += "\n**Minimum Fillet Weld Size (AISC Table J2.4):**\n";
+        for (const [thickness, minSize] of Object.entries(weldData.minimum_fillet_weld_size || {})) {
+          if (thickness !== "note") result += `- Material ${thickness.replace(/_/g, " ")}: ${minSize}" min weld\n`;
+        }
+        result += `\nSource: AISC 360-22`;
+      } else {
+        const steel = constructionRef.steel_erection_reference;
+        if (steel) {
+          result += "**Welding Reference:**\n";
+          const welding = steel.welding_basics;
+          if (welding) {
+            result += "\nCommon Processes:\n";
+            for (const [k, v] of Object.entries(welding.common_processes || {})) {
+              result += `- ${k}: ${v}\n`;
+            }
+            result += "\nMinimum Fillet Weld Sizes:\n";
+            for (const [k, v] of Object.entries(welding.minimum_fillet_weld_sizes || {})) {
+              result += `- ${k.replace(/_/g, " ")}: ${v}\n`;
+            }
+          }
         }
       }
     } else {
-      result += "**OSHA Steel Erection Requirements:**\n";
-      for (const req of steel.osha_steel_erection_requirements || []) {
-        result += `- ${req}\n`;
+      const steel = constructionRef.steel_erection_reference;
+      if (steel) {
+        result += "**OSHA Steel Erection Requirements:**\n";
+        for (const req of steel.osha_steel_erection_requirements || []) {
+          result += `- ${req}\n`;
+        }
       }
     }
-    return result;
+    return result || "Steel erection data not available.";
+  }
+  
+  // Plate weights
+  if (t.includes("plate")) {
+    const plates = steelProfiles.plate_weights;
+    if (plates && plates.thicknesses) {
+      let result = "**Steel Plate Weight Reference:**\n";
+      result += `${plates.note}\n\n`;
+      for (const p of plates.thicknesses) {
+        result += `- ${p.gauge} (${p.thickness_in}"): ${p.weight_psf} lb/ft²\n`;
+      }
+      result += `\nSource: AISC Steel Construction Manual`;
+      return result;
+    }
   }
   
   // Safety
@@ -414,46 +559,45 @@ export function lookupConstructionReference(topic: string): string {
     return result;
   }
   
-  return `Topic "${topic}" not found in the construction reference. Try: steel profiles, Simpson hardware, lumber, concrete, crane/rigging, safety, framing, welding, bolts, inspections, or a specific Utah jurisdiction.`;
+  return `Topic "${topic}" not found in the construction reference. Try: steel profiles, Simpson hardware, lumber, concrete, crane/rigging, safety, framing, welding, bolts, plate weights, rebar, inspections, or a specific Utah jurisdiction.`;
 }
 
 // ── Get condensed knowledge summary for system prompt ─────────────────────
 export function getKnowledgeSummary(): string {
   return `
-## Construction Knowledge Base — BUILT-IN REFERENCE DATA
+## Construction Knowledge Base — BUILT-IN REFERENCE DATA (${totalSteel} steel shapes + reference data)
 You have a comprehensive construction knowledge base loaded. You can look up ANY of the following instantly using the construction_lookup tool:
 
-**AISC Steel Profiles (FULL DATABASE):**
-All W-shapes (W4x13 through W44x335), S-shapes, HP-shapes, C-channels, MC-channels, L-angles, WT-shapes, HSS (hollow structural sections), and PIPE sections.
-For each: weight/ft, depth, flange width, flange thickness, web thickness, area, Ix, Iy, Sx, Sy, rx, ry, Zx.
-You can calculate total weight for any beam at any length.
+**AISC Steel Profiles (COMPLETE DATABASE — ${totalSteel} shapes):**
+- W-shapes: ${steelProfiles.w_shapes?.length || 0} shapes (W4x13 through W44x335) — full section properties
+- S-shapes: ${steelProfiles.s_shapes?.length || 0} shapes (American Standard Beams)
+- HP-shapes: ${steelProfiles.hp_shapes?.length || 0} shapes (Bearing Piles)
+- C-channels: ${steelProfiles.c_channels?.length || 0} shapes (American Standard Channels C3x4.1 through C15x50)
+- MC-channels: ${steelProfiles.mc_channels?.length || 0} shapes (Miscellaneous Channels MC3x7.1 through MC18x58)
+- L-angles: ${steelProfiles.l_angles?.length || 0} shapes (Equal & Unequal Leg Angles L2x2x1/8 through L8x8x1-1/8)
+- HSS rectangular: ${steelProfiles.hss_rectangular?.length || 0} shapes (Hollow Structural Sections)
+- HSS square: ${steelProfiles.hss_square?.length || 0} shapes (HSS2x2 through HSS16x16)
+- HSS round: ${steelProfiles.hss_round?.length || 0} shapes (HSS1.900 through HSS20.000)
+- Pipe: ${steelProfiles.pipe_shapes?.length || 0} shapes (STD, XH, XXH — PIPE 1 through PIPE 12)
+- WT-shapes: ${steelProfiles.wt_shapes?.length || 0} shapes (Structural Tees WT2x6.5 through WT22x167.5)
+- M-shapes: ${steelProfiles.m_shapes?.length || 0} shapes (Miscellaneous Beams)
+
+**Also includes:** Steel plate weights (1/8" through 4"), rebar (#3-#18), bolt capacities (A325/A490), fillet weld capacities (E70XX).
+
+For each shape: weight/ft, dimensions, area, and section properties where available.
+You can calculate total weight for any member at any length.
 
 **Simpson Strong-Tie Hardware (FULL CATALOG):**
-Framing angles (A21, A23, A34, A35, A66, L50, L70, L90)
-Face-mount joist hangers (LUS26, LUS28, LUS210, LUS212, LUS26-2, LUS28-2, LUS210-2, HUS26, HUS28, HUS210, HHUS410, HHUS412, HHUS414)
-Top-flange hangers (LBV, DERA)
-Post bases (ABU44, ABU46, ABU66, CB44, CB46, CB66)
-Post caps (BC4, BC46, BC6, CC44, CC46, CC66)
-Hurricane ties & straps (H1, H2.5A, H10A, LSTA12-24, MSTA36, MSTI28, ST6215, CS16)
-Holdowns (HDU2, HDU4, HDU5, HDU8, HDU11, PAHD42)
-Heavy beam hangers (GLB, LSSJ, HGQ)
-Misc connectors (RTC2Z, MSTC28, DTT2Z, FB24, FB26)
+Framing angles, face-mount joist hangers, top-flange hangers, post bases, post caps, hurricane ties & straps, holdowns, heavy beam hangers, misc connectors.
 For each: allowable loads, fastener requirements, installation notes, common uses.
 
 **Utah Building Codes (ALL JURISDICTIONS):**
-Summit County (115 psf snow, 36" frost), Park City (100 psf snow), Powder Mountain (150 psf snow, 42" frost!), Morgan County (60 psf), Layton (40 psf), Salt Lake City (30 psf), Coalville (75 psf).
-For each: snow loads, wind speed, seismic category, frost depth, climate zone, special requirements, permit requirements, building department contact info.
-Plus: state code base (2021 IRC/IBC), energy code requirements by climate zone, common framing requirements, fastener schedules, header sizes, inspection sequences, common code violations.
+Summit County, Park City, Powder Mountain, Morgan County, Layton, Salt Lake City, Coalville.
+For each: snow loads, wind speed, seismic category, frost depth, climate zone, special requirements, permit requirements.
 
 **Construction Reference:**
-Lumber properties (species/grades, design values, weights, span tables for floor joists)
-Concrete (mix strengths, coverage, rebar sizes, footing requirements)
-Crane & rigging safety (crane types/capacities, sling angle reductions, OSHA requirements)
-Steel erection (bolt pretension values, welding basics, OSHA steel erection rules)
-Safety (fall protection, scaffolding, excavation)
-Material weights (common building materials in psf)
-Fastener schedules (nailing patterns per IRC)
+Lumber properties, concrete, crane & rigging safety, steel erection, safety, material weights, fastener schedules.
 
-**IMPORTANT:** When a user asks about ANY of these topics, use the construction_lookup tool to get the exact data. Don't guess from memory — use the tool for precise numbers. For hardware pictures, use the image_search tool.
+**IMPORTANT:** When a user asks about ANY of these topics, use the construction_lookup tool to get the exact data. Don't guess from memory — use the tool for precise numbers.
 `;
 }

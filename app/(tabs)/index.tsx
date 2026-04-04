@@ -4,6 +4,7 @@ import { JobCard } from "@/components/ui/job-card";
 import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
+import { formatTime12, formatTimeForEdit, parse12HrTime } from "@/lib/utils";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import {
@@ -191,10 +192,8 @@ export default function DashboardScreen() {
   const updateEntryMutation = trpc.clock.updateEntry.useMutation();
 
   const startEditTime = (entryId: number, currentClockIn: string) => {
-    const d = new Date(currentClockIn);
-    const hours = d.getHours().toString().padStart(2, "0");
-    const mins = d.getMinutes().toString().padStart(2, "0");
-    setEditTimeStr(`${hours}:${mins}`);
+    const edit = formatTimeForEdit(currentClockIn);
+    setEditTimeStr(edit.time);
     setEditingEntryId(entryId);
   };
 
@@ -382,7 +381,7 @@ export default function DashboardScreen() {
               <>
                 <Text style={styles.fieldTimeText}>{formatDuration(elapsed)}</Text>
                 <Text style={styles.fieldJobText}>
-                  {activeJobForEntry?.name || "Unknown Job"} · Since {new Date(activeEntry.clockIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {activeJobForEntry?.name || "Unknown Job"} · Since {formatTime12(activeEntry.clockIn)}
                 </Text>
                 <TouchableOpacity
                   style={[styles.fieldClockBtn, { backgroundColor: colors.error }]}
@@ -483,7 +482,7 @@ export default function DashboardScreen() {
               <>
                 <Text style={styles.fieldTimeText}>{formatDuration(elapsed)}</Text>
                 <Text style={styles.fieldJobText}>
-                  {activeJobForEntry?.name || "Unknown Job"} · Since {new Date(activeEntry.clockIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {activeJobForEntry?.name || "Unknown Job"} · Since {formatTime12(activeEntry.clockIn)}
                 </Text>
                 <TouchableOpacity
                   style={[styles.fieldClockBtn, { backgroundColor: colors.error }]}
@@ -610,7 +609,7 @@ export default function DashboardScreen() {
               if (!emp) return null;
               const isEditing = editingEntryId === entry.id;
               const clockInTime = new Date(entry.clockIn);
-              const timeStr = clockInTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+              const timeStr = formatTime12(entry.clockIn);
               return (
                 <View key={entry.id} style={styles.empRow}>
                   <View style={[styles.avatar, { backgroundColor: ROLE_COLORS[emp.role] || colors.primary }]}>
