@@ -510,11 +510,8 @@ export function PivotChat() {
     },
     modal: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
     panel: {
-      maxHeight: keyboardVisible ? "95%" : "85%",
       flex: 1,
       backgroundColor: colors.surface,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
       overflow: "hidden",
     },
     header: {
@@ -610,7 +607,7 @@ export function PivotChat() {
       flexDirection: "row",
       alignItems: "flex-end",
       padding: 10,
-      paddingBottom: Platform.OS === "ios" ? 10 : 12,
+      paddingBottom: Platform.OS === "ios" ? 28 : 12,
       gap: 8,
       borderTopWidth: 0.5,
       borderTopColor: colors.border,
@@ -674,17 +671,17 @@ export function PivotChat() {
       {/* Chat Modal */}
       <Modal
         visible={open}
-        transparent
+        transparent={false}
         animationType="slide"
         onRequestClose={() => setOpen(false)}
+        statusBarTranslucent
       >
-        <Pressable style={s.modal} onPress={() => { Keyboard.dismiss(); setOpen(false); }}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={{ flex: 1, justifyContent: "flex-end" }}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-          >
-            <Pressable style={s.panel} onPress={(e) => e.stopPropagation()}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ flex: 1, backgroundColor: colors.surface }}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        >
+          <View style={[s.panel, { flex: 1, maxHeight: "100%" }]}>
               {/* Header */}
               <View style={s.header}>
                 <PivotAvatar size={42} />
@@ -831,9 +828,8 @@ export function PivotChat() {
                   <Text style={{ fontSize: 18, color: (input.trim() || pendingAttachments.length) && !loading ? "#000" : colors.muted }}>↑</Text>
                 </TouchableOpacity>
               </View>
-            </Pressable>
-          </KeyboardAvoidingView>
-        </Pressable>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );

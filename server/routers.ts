@@ -419,6 +419,69 @@ const goalsRouter = router({
   }),
 });
 
+// ── Punch List Router ──────────────────────────────────────────────────────
+const punchListRouter = router({
+  listForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input }) => {
+    return db.getPunchListItems(input.jobId);
+  }),
+  listAll: publicProcedure.query(async () => {
+    return db.getAllPunchListItems();
+  }),
+  create: publicProcedure.input(z.object({
+    jobId: z.number(),
+    area: z.string().optional(),
+    title: z.string().min(1).max(500),
+    description: z.string().optional(),
+    priority: z.enum(["low", "medium", "high"]).default("medium"),
+    assignedTo: z.number().optional(),
+    createdBy: z.number(),
+    sortOrder: z.number().optional(),
+  })).mutation(async ({ input }) => {
+    const id = await db.createPunchListItem(input);
+    return { id };
+  }),
+  createBulk: publicProcedure.input(z.object({
+    items: z.array(z.object({
+      jobId: z.number(),
+      area: z.string().optional(),
+      title: z.string().min(1).max(500),
+      description: z.string().optional(),
+      priority: z.enum(["low", "medium", "high"]).default("medium"),
+      assignedTo: z.number().optional(),
+      createdBy: z.number(),
+      sortOrder: z.number().optional(),
+    })),
+  })).mutation(async ({ input }) => {
+    const count = await db.createPunchListItemsBulk(input.items);
+    return { count };
+  }),
+  update: publicProcedure.input(z.object({
+    id: z.number(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    area: z.string().optional(),
+    status: z.enum(["pending", "completed"]).optional(),
+    priority: z.enum(["low", "medium", "high"]).optional(),
+    assignedTo: z.number().nullable().optional(),
+    sortOrder: z.number().optional(),
+  })).mutation(async ({ input }) => {
+    const { id, ...data } = input;
+    await db.updatePunchListItem(id, data as any);
+    return { success: true };
+  }),
+  toggle: publicProcedure.input(z.object({
+    id: z.number(),
+    completedBy: z.number(),
+  })).mutation(async ({ input }) => {
+    await db.togglePunchListItem(input.id, input.completedBy);
+    return { success: true };
+  }),
+  delete: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    await db.deletePunchListItem(input.id);
+    return { success: true };
+  }),
+});
+
 const payrollRouter = router({
   getReport: publicProcedure.input(z.object({
     startDate: z.string(),
@@ -1212,6 +1275,69 @@ Keep responses short, practical, and encouraging. You're here to help them succe
           },
         },
       },
+      {
+        type: "function" as const,
+        function: {
+          name: "create_goal",
+          description: "Create a new weekly goal in BuildTrack Pro. Use when the user asks you to create, add, set, or push a goal for someone. You MUST use this tool instead of just showing formatted text — actually create the goal in the database.",
+          parameters: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "The goal title. Be specific and actionable (e.g. 'Finish framing back of garage by Friday')." },
+              description: { type: "string", description: "Optional longer description with details." },
+              assignedToName: { type: "string", description: "The name of the employee to assign this goal to. Use their first name or full name as known." },
+              priority: { type: "string", enum: ["low", "medium", "high"], description: "Priority level. Default to medium if not specified." },
+              deadline: { type: "string", description: "ISO date string for the deadline (e.g. '2026-04-11T17:00:00'). Calculate from context like 'by Friday' or 'end of week'." },
+            },
+            required: ["title"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "create_punch_item",
+          description: "Create a punch list item for a specific job. Use when the user asks to add items to a punch list, task list, or checklist for a job site. Creates checkable items that foremen and crew can tap to mark complete.",
+          parameters: {
+            type: "object",
+            properties: {
+              jobName: { type: "string", description: "The name of the job/project to add the punch item to (e.g. 'England Remodel', 'Alder & Tweed')." },
+              area: { type: "string", description: "Optional area/section within the job (e.g. 'Garage', 'Basement', 'Back Patio')." },
+              title: { type: "string", description: "The specific task/item (e.g. 'Frame back gable on truss section')." },
+              priority: { type: "string", enum: ["low", "medium", "high"], description: "Priority level. Default to medium." },
+              assignedToName: { type: "string", description: "Optional: name of employee to assign this item to." },
+            },
+            required: ["jobName", "title"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "create_punch_items_bulk",
+          description: "Create multiple punch list items at once for a job. Use when the user pastes or dictates a list of items. Each item becomes a checkable task.",
+          parameters: {
+            type: "object",
+            properties: {
+              jobName: { type: "string", description: "The name of the job/project." },
+              area: { type: "string", description: "Optional area/section for all items." },
+              items: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    title: { type: "string", description: "The task description." },
+                    priority: { type: "string", enum: ["low", "medium", "high"] },
+                  },
+                  required: ["title"],
+                },
+                description: "Array of items to create.",
+              },
+            },
+            required: ["jobName", "items"],
+          },
+        },
+      },
     ];
 
     // ── Call LLM with tool support ──────────────────────────────────────────
@@ -1319,6 +1445,122 @@ Keep responses short, practical, and encouraging. You're here to help them succe
             }
           } else {
             toolResult = `No item name provided. Please specify what hardware to generate an image of.`;
+          }
+        } else if (toolName === "create_goal") {
+          try {
+            const title = args.title || "";
+            const description = args.description || "";
+            const assignedToName = args.assignedToName || "";
+            const priority = args.priority || "medium";
+            const deadline = args.deadline || "";
+
+            // Find assigned employee by name
+            let assignedTo: number | undefined;
+            let assignedName = "everyone";
+            if (assignedToName) {
+              const allEmps = await db.getAllEmployees();
+              const match = allEmps.find((e: any) => 
+                e.name.toLowerCase().includes(assignedToName.toLowerCase()) ||
+                assignedToName.toLowerCase().includes(e.name.split(' ')[0].toLowerCase())
+              );
+              if (match) {
+                assignedTo = match.id;
+                assignedName = match.name;
+              }
+            }
+
+            // Calculate weekOf (Monday of current week)
+            const now = new Date();
+            const weekStart = new Date(now);
+            const day = weekStart.getDay();
+            const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+            weekStart.setDate(diff);
+            weekStart.setHours(0, 0, 0, 0);
+
+            const goalId = await db.createWeeklyGoal({
+              title,
+              description: description || undefined,
+              assignedTo,
+              weekOf: weekStart,
+              priority: priority as "low" | "medium" | "high",
+              deadline: deadline ? new Date(deadline) : undefined,
+              createdBy: input.employeeId,
+            });
+
+            toolResult = `Goal created successfully! ID: ${goalId}\nTitle: ${title}\nAssigned to: ${assignedName}\nPriority: ${priority}\n${deadline ? `Deadline: ${new Date(deadline).toLocaleDateString()}` : "No deadline set"}\n\nTell the user the goal was created and they can see it in the Goals tab.`;
+          } catch (goalErr) {
+            toolResult = `Failed to create goal: ${goalErr instanceof Error ? goalErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "create_punch_item") {
+          try {
+            const jobName = args.jobName || "";
+            const area = args.area || "";
+            const title = args.title || "";
+            const priority = args.priority || "medium";
+            const assignedToName = args.assignedToName || "";
+
+            // Find job by name
+            const allJobs = await db.getAllJobs();
+            const jobMatch = allJobs.find((j: any) =>
+              j.name.toLowerCase().includes(jobName.toLowerCase()) ||
+              jobName.toLowerCase().includes(j.name.toLowerCase())
+            );
+            if (!jobMatch) {
+              toolResult = `Could not find a job matching "${jobName}". Available jobs: ${allJobs.map((j: any) => j.name).join(", ")}. Ask the user to clarify which job.`;
+            } else {
+              // Find assigned employee
+              let assignedTo: number | undefined;
+              if (assignedToName) {
+                const allEmps = await db.getAllEmployees();
+                const empMatch = allEmps.find((e: any) =>
+                  e.name.toLowerCase().includes(assignedToName.toLowerCase()) ||
+                  assignedToName.toLowerCase().includes(e.name.split(' ')[0].toLowerCase())
+                );
+                if (empMatch) assignedTo = empMatch.id;
+              }
+
+              const itemId = await db.createPunchListItem({
+                jobId: jobMatch.id,
+                area: area || undefined,
+                title,
+                priority: priority as "low" | "medium" | "high",
+                assignedTo,
+                createdBy: input.employeeId,
+              });
+
+              toolResult = `Punch list item created! ID: ${itemId}\nJob: ${jobMatch.name}\n${area ? `Area: ${area}\n` : ""}Item: ${title}\nPriority: ${priority}\n\nTell the user the item was added to the punch list and they can find it in the job's Punch List tab.`;
+            }
+          } catch (punchErr) {
+            toolResult = `Failed to create punch list item: ${punchErr instanceof Error ? punchErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "create_punch_items_bulk") {
+          try {
+            const jobName = args.jobName || "";
+            const area = args.area || "";
+            const items = args.items || [];
+
+            const allJobs = await db.getAllJobs();
+            const jobMatch = allJobs.find((j: any) =>
+              j.name.toLowerCase().includes(jobName.toLowerCase()) ||
+              jobName.toLowerCase().includes(j.name.toLowerCase())
+            );
+            if (!jobMatch) {
+              toolResult = `Could not find a job matching "${jobName}". Available jobs: ${allJobs.map((j: any) => j.name).join(", ")}. Ask the user to clarify.`;
+            } else {
+              const bulkItems = items.map((item: any, idx: number) => ({
+                jobId: jobMatch.id,
+                area: area || undefined,
+                title: item.title,
+                priority: (item.priority || "medium") as "low" | "medium" | "high",
+                createdBy: input.employeeId,
+                sortOrder: idx,
+              }));
+
+              const count = await db.createPunchListItemsBulk(bulkItems);
+              toolResult = `Successfully created ${count} punch list items for ${jobMatch.name}${area ? ` (${area})` : ""}!\n\nItems added:\n${items.map((item: any, i: number) => `${i + 1}. ${item.title}`).join("\n")}\n\nTell the user all items were added and they can check them off in the Punch List tab.`;
+            }
+          } catch (bulkErr) {
+            toolResult = `Failed to create punch list items: ${bulkErr instanceof Error ? bulkErr.message : "unknown error"}`;
           }
         }
       } catch (parseErr) {
@@ -1510,6 +1752,7 @@ export const appRouter = router({
   safetyTopics: safetyTopicsRouter,
   safetyMeetings: safetyMeetingsRouter,
   pivot: pivotRouter,
+  punchList: punchListRouter,
 });
 
 export type AppRouter = typeof appRouter;

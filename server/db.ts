@@ -40,6 +40,8 @@ import {
   pivotConversations,
   timeAdjustments,
   InsertTimeAdjustment,
+  punchListItems,
+  InsertPunchListItem,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1225,4 +1227,116 @@ export async function getDetailedTimecard(employeeId: number, startDate: Date, e
   })).sort((a, b) => b.date.localeCompare(a.date));
 
   return { days, totalMinutes, employee: emp };
+}
+
+
+// ─── Punch List Items ────────────────────────────────────────────────────────
+
+export async function getPunchListItems(jobId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  return dbConn.select().from(punchListItems)
+    .where(eq(punchListItems.jobId, jobId))
+    .orderBy(punchListItems.area, punchListItems.sortOrder, punchListItems.createdAt);
+}
+
+export async function getAllPunchListItems() {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  return dbConn.select().from(punchListItems)
+    .orderBy(desc(punchListItems.createdAt));
+}
+
+export async function createPunchListItem(data: {
+  jobId: number;
+  area?: string;
+  title: string;
+  description?: string;
+  priority?: "low" | "medium" | "high";
+  assignedTo?: number;
+  createdBy: number;
+  sortOrder?: number;
+}) {
+  const dbConn = await getDb();
+  if (!dbConn) throw new Error("Database not available");
+  const [result] = await dbConn.insert(punchListItems).values({
+    jobId: data.jobId,
+    area: data.area || null,
+    title: data.title,
+    description: data.description || null,
+    priority: data.priority || "medium",
+    assignedTo: data.assignedTo || null,
+    createdBy: data.createdBy,
+    sortOrder: data.sortOrder || 0,
+  });
+  return (result as any).insertId as number;
+}
+
+export async function createPunchListItemsBulk(items: Array<{
+  jobId: number;
+  area?: string;
+  title: string;
+  description?: string;
+  priority?: "low" | "medium" | "high";
+  assignedTo?: number;
+  createdBy: number;
+  sortOrder?: number;
+}>) {
+  const dbConn = await getDb();
+  if (!dbConn) throw new Error("Database not available");
+  if (items.length === 0) return [];
+  const values = items.map((item, idx) => ({
+    jobId: item.jobId,
+    area: item.area || null,
+    title: item.title,
+    description: item.description || null,
+    priority: item.priority || "medium",
+    assignedTo: item.assignedTo || null,
+    createdBy: item.createdBy,
+    sortOrder: item.sortOrder ?? idx,
+  }));
+  await dbConn.insert(punchListItems).values(values);
+  return values.length;
+}
+
+export async function updatePunchListItem(id: number, data: {
+  title?: string;
+  description?: string;
+  area?: string;
+  status?: "pending" | "completed";
+  priority?: "low" | "medium" | "high";
+  assignedTo?: number | null;
+  completedBy?: number | null;
+  completedAt?: Date | null;
+  sortOrder?: number;
+}) {
+  const dbConn = await getDb();
+  if (!dbConn) return;
+  await dbConn.update(punchListItems).set(data as any).where(eq(punchListItems.id, id));
+}
+
+export async function togglePunchListItem(id: number, completedBy: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return;
+  const [item] = await dbConn.select().from(punchListItems).where(eq(punchListItems.id, id)).limit(1);
+  if (!item) return;
+  if (item.status === "completed") {
+    await dbConn.update(punchListItems).set({
+      status: "pending",
+      completedBy: null,
+      completedAt: null,
+    }).where(eq(punchListItems.id, id));
+  } else {
+    await dbConn.update(punchListItems).set({
+      status: "completed",
+      completedBy,
+      completedAt: new Date(),
+    }).where(eq(punchListItems.id, id));
+  }
+}
+
+export async function deletePunchListItem(id: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return;
+  await dbConn.delete(punchListItems).where(eq(punchListItems.id, id));
 }

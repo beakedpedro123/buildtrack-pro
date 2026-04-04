@@ -317,6 +317,24 @@ export const timeAdjustments = mysqlTable("timeAdjustments", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+// ─── Punch List Items ──────────────────────────────────────────────────────────
+export const punchListItems = mysqlTable("punch_list_items", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
+  area: varchar("area", { length: 128 }),
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  status: mysqlEnum("status", ["pending", "completed"]).default("pending").notNull(),
+  priority: mysqlEnum("priority", ["low", "medium", "high"]).default("medium").notNull(),
+  assignedTo: int("assignedTo"),
+  completedBy: int("completedBy"),
+  completedAt: timestamp("completedAt"),
+  createdBy: int("createdBy").notNull(),
+  sortOrder: int("sortOrder").default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 // ─── Types ───────────────────────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -381,3 +399,6 @@ export type InsertPivotConversation = typeof pivotConversations.$inferInsert;
 
 export type TimeAdjustment = typeof timeAdjustments.$inferSelect;
 export type InsertTimeAdjustment = typeof timeAdjustments.$inferInsert;
+
+export type PunchListItem = typeof punchListItems.$inferSelect;
+export type InsertPunchListItem = typeof punchListItems.$inferInsert;

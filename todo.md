@@ -1044,3 +1044,29 @@
 - [x] Native: Add report type picker on payroll screen before download
 - [x] PWA: Add report type picker on payroll page before download
 - [x] PWA: Rebuild and deploy
+
+## Phase 34 — Pivot Goal Creation, Punch Lists, Keyboard Fix
+
+### Pivot AI Goal/Punch List Creation
+- [x] Pivot can create goals by command (e.g. "create goal for Lupe to finish framing by Friday")
+- [x] Pivot can create punch list items by command
+- [x] Pivot pushes goals/tasks directly to the goals system
+
+### Punch List / Task List Per Job
+- [x] Add punchListItems table to schema (jobId, area, description, completed, completedBy, createdAt)
+- [x] Server endpoints: create/list/toggle/delete punch list items per job
+- [x] Native: Punch list as secondary sub-tab under Goals tab with checkable items (like Apple Notes)
+- [x] Copy/paste support for bulk adding items
+- [x] Foreman can tap items to cross them off
+- [x] Items organized by area within each job
+- [x] Native: Add punch list items inline or via text area (multi-line paste)
+
+### Fix Pivot Keyboard Overlap
+- [x] Fix Pivot chat screen: keyboard pushes input off screen on mobile
+- [x] Pivot interface and keyboard should adjust together to stay visible
+- [x] Test on Android and iOS
+
+### PWA Parity
+- [x] PWA: Add punch list sub-tab under Goals page
+- [x] PWA: Pivot goal creation support (server-side tools)
+- [x] PWA: Rebuild and deploy
