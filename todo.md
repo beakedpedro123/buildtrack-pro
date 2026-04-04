@@ -1070,3 +1070,13 @@
 - [x] PWA: Add punch list sub-tab under Goals page
 - [x] PWA: Pivot goal creation support (server-side tools)
 - [x] PWA: Rebuild and deploy
+
+## Phase 35 — iOS Build Fix
+
+### Metro Config Fix
+- [x] Remove invalid `forceWriteFileSystem` option from metro.config.js (not a valid NativeWind 4.x option)
+- [x] Convert scripts/load-env.js from ESM to CommonJS for EAS build compatibility
+- [x] Verify metro.config.js loads successfully with Node.js
+- [x] Verify iOS export bundles correctly (5.27 MB, 1711 modules)
+- [x] Verify Android export bundles correctly (5.34 MB, 1711 modules)
+- [x] TypeScript check: 0 errors
