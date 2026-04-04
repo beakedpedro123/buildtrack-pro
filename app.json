@@ -106,7 +106,8 @@
           }
         }
       ],
-      "./plugins/withMinSdk24"
+      "./plugins/withMinSdk24",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
