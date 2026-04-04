@@ -1106,3 +1106,8 @@
 ### Keyboard Overlap Fix (All Screens)
 - [x] Audit all screens with text inputs for keyboard overlap issues
 - [x] Fix keyboard overlap: added KeyboardAvoidingView to safety.tsx, clock.tsx, payroll.tsx, timecard/[id].tsx
+
+### iOS Build Fix — app.config.ts removal
+- [x] Removed app.config.ts entirely — EAS build server couldn't parse TypeScript import syntax, causing "config is not defined" error
+- [x] app.json already contains all config (bundleIdentifier, slug, eas projectId, plugins, etc.) — no dynamic config needed
+- [x] Verified: expo config reads correctly from app.json only, dynamicConfigPath is empty, iOS export clean
