@@ -1115,3 +1115,8 @@
 ### Android APK Build Fix — minSdkVersion
 - [x] Restored app.config.ts in exact Manus template format with all settings (bundleIdentifier, minSdkVersion 24, all plugins, eas projectId)
 - [x] Config verified: bundleIdentifier, android.package, minSdkVersion 24, compileSdkVersion 35 all present
+
+### Android Build Fix — Nuclear minSdkVersion 24 override
+- [x] Added patch-min-sdk.js: patches CMakeLists.txt, version catalog, build.gradle in all native modules
+- [x] Added gradleCommand with -PminSdkVersion=24 in eas.json production android config
+- [x] Chained patch-min-sdk.js into postinstall, eas-build-post-install, expo-prebuild, preandroid hooks

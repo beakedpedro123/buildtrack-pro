@@ -8,7 +8,8 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "NODE_ENV": "development"
+        "NODE_ENV": "development",
+        "ANDROID_MIN_SDK_VERSION": "24"
       },
       "ios": {
         "simulator": true
@@ -17,7 +18,8 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "ANDROID_MIN_SDK_VERSION": "24"
       },
       "ios": {
         "simulator": false
@@ -26,14 +28,16 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "ANDROID_MIN_SDK_VERSION": "24"
       },
       "ios": {
         "image": "latest"
       },
       "android": {
         "image": "latest",
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease -PminSdkVersion=24"
       }
     }
   },
