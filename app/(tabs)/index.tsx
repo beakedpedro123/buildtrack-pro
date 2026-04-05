@@ -14,6 +14,7 @@ import {
   Image,
   ImageBackground,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -180,6 +181,13 @@ function getDailyQuote(role?: string): string {
 }
 
 export default function DashboardScreen() {
+  const utils = trpc.useUtils();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await utils.invalidate(); } catch {}
+    setRefreshing(false);
+  }, [utils]);
   const colors = useColors();
   const { employee, logout } = useAppAuth();
   const [now, setNow] = useState(new Date());
@@ -372,7 +380,7 @@ export default function DashboardScreen() {
       <ScreenContainer edges={["top", "left", "right"]}>
         <ImageBackground source={bgHome} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.3 }}>
         <OfflineBanner />
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
           {/* Company Logo */}
           <View style={{ alignItems: "center", paddingTop: 12 }}>
             <Image source={companyLogo} style={{ width: 80, height: 80, resizeMode: "contain" }} />
@@ -475,7 +483,7 @@ export default function DashboardScreen() {
       <ScreenContainer edges={["top", "left", "right"]}>
         <ImageBackground source={bgHome} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.3 }}>
         <OfflineBanner />
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
           {/* Company Logo */}
           <View style={{ alignItems: "center", paddingTop: 12 }}>
             <Image source={companyLogo} style={{ width: 80, height: 80, resizeMode: "contain" }} />
@@ -575,7 +583,7 @@ export default function DashboardScreen() {
     <ScreenContainer edges={["top", "left", "right"]}>
       <ImageBackground source={bgHome} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.3 }}>
       <OfflineBanner />
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
         {/* Company Logo */}
         <View style={{ alignItems: "center", paddingTop: 8, paddingBottom: 2 }}>
           <Image source={companyLogo} style={{ width: 100, height: 100, resizeMode: "contain" }} />

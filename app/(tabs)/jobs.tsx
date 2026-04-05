@@ -7,7 +7,7 @@ import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import * as Print from "expo-print";
 import { shareAsync } from "expo-sharing";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
   Alert,
@@ -15,6 +15,7 @@ import { ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -44,6 +45,12 @@ export default function JobsScreen() {
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
   const utils = trpc.useUtils();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await utils.invalidate(); } catch {}
+    setRefreshing(false);
+  }, [utils]);
 
   const [filter, setFilter] = useState<"all" | "active" | "completed">("active");
   const [selectedJob, setSelectedJob] = useState<any>(null);
@@ -399,6 +406,7 @@ export default function JobsScreen() {
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
           renderItem={({ item }) => (
             <JobCard job={item} onPress={() => { setSelectedJob(item); setActiveTab("overview"); }} hideBudget={!canSeeBudget} />
           )}

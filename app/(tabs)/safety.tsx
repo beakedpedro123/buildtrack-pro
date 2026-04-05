@@ -7,7 +7,7 @@ import { useColors } from "@/hooks/use-colors";
 import { getApiBaseUrl } from "@/constants/oauth";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { useState, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { ActivityIndicator,
   Alert,
   FlatList,
@@ -15,6 +15,7 @@ import { ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -55,6 +56,12 @@ export default function SafetyScreen() {
   const colors = useColors();
   const { employee } = useAppAuth();
   const utils = trpc.useUtils();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await utils.invalidate(); } catch {}
+    setRefreshing(false);
+  }, [utils]);
 
   const [screen, setScreen] = useState<Screen>("list");
   const [meetingType, setMeetingType] = useState<MeetingType>("safety_toolbox");
@@ -602,6 +609,7 @@ export default function SafetyScreen() {
       </View>
 
       <FlatList
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
         data={allMeetings || []}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={{ paddingBottom: 100 }}

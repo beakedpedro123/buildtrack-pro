@@ -33,18 +33,18 @@ export default function TabLayout() {
   const isLaborer = role === "laborer";
 
   // ─── Role Access Matrix ───────────────────────────────────────────────
-  // Owner: ALL tabs
-  // Office Manager: Same as Owner (payroll, clock mgmt, meetings, reports, team, goals, etc.)
-  // Logistics: No dollar amounts, no payroll, but can see team, jobs, reports, goals, meetings, clock
-  // Foreman: Daily reports, goals, clock, hours, punch list, safety — NO meetings tab, NO payroll
-  // Laborer: Goals, daily reports, clock, hours, profile
+  // Owner/Office Manager: Dashboard, Jobs, Goals, Reports, Manage (Team+Meetings+Payroll+Hours), Profile
+  // Logistics: Dashboard, Jobs, Goals, Reports, Manage (Team+Meetings+Hours), Profile
+  // Foreman: Dashboard, Jobs, Goals, Reports, My Hours, Profile (no consolidation needed — already clean)
+  // Laborer: Dashboard, Jobs, Goals, Reports, My Hours, Profile
 
+  const isManagement = isOwner || isOfficeMgr || isLogistics;
   const canManageTeam = isOwner || isOfficeMgr || isLogistics;
   const canViewPayroll = isOwner || isOfficeMgr;
-  const canMeetings = isOwner || isOfficeMgr || isLogistics; // Foreman removed from meetings
-  const canViewGoals = true; // All roles can see goals now (laborer sees own goals)
-  const canViewHours = true; // All roles can see their hours
-  const canViewReports = true; // All roles can create/view daily reports
+  const canMeetings = isOwner || isOfficeMgr || isLogistics;
+  const canViewGoals = true;
+  const canViewHours = true;
+  const canViewReports = true;
 
   return (
     <Tabs
@@ -67,7 +67,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Dashboard",
+          title: "Home",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="house.fill" color={color} />,
         }}
       />
@@ -79,11 +79,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="clock"
+        name="goals"
         options={{
-          title: "Clock",
-          tabBarIcon: ({ color }) => <IconSymbol size={30} name="clock.fill" color={color} />,
-          href: undefined,
+          title: "Goals",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="target" color={color} />,
+          href: canViewGoals ? undefined : null,
         }}
       />
       <Tabs.Screen
@@ -93,12 +93,32 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="doc.text.fill" color={color} />,
         }}
       />
+
+      {/* ─── Consolidated "Manage" tab for management roles ─── */}
+      <Tabs.Screen
+        name="manage"
+        options={{
+          title: "Manage",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="square.grid.2x2.fill" color={color} />,
+          href: isManagement ? undefined : null,
+        }}
+      />
+
+      {/* ─── Individual tabs hidden for management, shown for field roles ─── */}
+      <Tabs.Screen
+        name="clock"
+        options={{
+          title: "Clock",
+          tabBarIcon: ({ color }) => <IconSymbol size={30} name="clock.fill" color={color} />,
+          href: undefined,
+        }}
+      />
       <Tabs.Screen
         name="hours"
         options={{
           title: "My Hours",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="timer" color={color} />,
-          href: canViewHours ? undefined : null,
+          href: (!isManagement && canViewHours) ? undefined : null,
         }}
       />
       <Tabs.Screen
@@ -106,15 +126,7 @@ export default function TabLayout() {
         options={{
           title: "Meetings",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="mic.fill" color={color} />,
-          href: canMeetings ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="goals"
-        options={{
-          title: "Goals",
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="target" color={color} />,
-          href: canViewGoals ? undefined : null,
+          href: null, // Always hidden from tab bar — accessed via Manage tab for management
         }}
       />
       <Tabs.Screen
@@ -146,7 +158,7 @@ export default function TabLayout() {
         options={{
           title: "Payroll",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="dollarsign.circle.fill" color={color} />,
-          href: canViewPayroll ? undefined : null,
+          href: null, // Always hidden — accessed via Manage tab
         }}
       />
       <Tabs.Screen
@@ -154,7 +166,7 @@ export default function TabLayout() {
         options={{
           title: "Team",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="person.3.fill" color={color} />,
-          href: canManageTeam ? undefined : null,
+          href: null, // Always hidden — accessed via Manage tab
         }}
       />
       <Tabs.Screen

@@ -65,6 +65,7 @@ const MAPPING = {
   "dollarsign.square.fill": "payments",
   "shield.fill": "shield" as const,
   "shield.checkmark.fill": "verified-user" as const,
+  "square.grid.2x2.fill": "dashboard" as const,
 } satisfies Record<string, ComponentProps<typeof MaterialIcons>["name"]>;
 
 /**

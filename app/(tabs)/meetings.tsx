@@ -92,7 +92,7 @@ const STATUS_LABELS: Record<string, string> = {
 const TOPIC_CATEGORIES = ["general", "fall_protection", "electrical", "excavation", "scaffolding", "ppe", "fire", "chemical", "equipment", "heat_stress"];
 
 // ═══════════════════════════════════════════════════════════════════════════
-export default function MeetingsScreen() {
+export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
@@ -505,13 +505,15 @@ export default function MeetingsScreen() {
     photoBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },
     actionBtn: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 4 } });
 
+  const MWrapper = embedded ? View : ScreenContainer;
+
   // ═══════════════════════════════════════════════════════════════════════════
   // MANAGEMENT: Recording Room
   // ═══════════════════════════════════════════════════════════════════════════
   if (mainTab === "management" && mgmtScreen === "room") {
     const activeMeeting = meetings?.find((m) => m.id === activeMeetingId);
     return (
-      <ScreenContainer>
+      <MWrapper style={embedded ? { flex: 1 } : undefined}>
         <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
           <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: colors.error + "22", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
@@ -540,7 +542,7 @@ export default function MeetingsScreen() {
           </View>
         </View>
     </ImageBackground>
-    </ScreenContainer>
+    </MWrapper>
     );
   }
 
@@ -549,7 +551,7 @@ export default function MeetingsScreen() {
   // ═══════════════════════════════════════════════════════════════════════════
   if (mainTab === "management" && mgmtScreen === "detail" && selectedMeeting) {
     return (
-      <ScreenContainer>
+      <MWrapper style={embedded ? { flex: 1 } : undefined}>
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
           <TouchableOpacity
             style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, flexDirection: "row", alignItems: "center" }}
@@ -666,7 +668,7 @@ export default function MeetingsScreen() {
             </View>
           )}
         </ScrollView>
-      </ScreenContainer>
+      </MWrapper>
     );
   }
 
@@ -675,7 +677,7 @@ export default function MeetingsScreen() {
   // ═══════════════════════════════════════════════════════════════════════════
   if (mainTab === "safety" && safetyScreen === "new") {
     return (
-      <ScreenContainer>
+      <MWrapper style={embedded ? { flex: 1 } : undefined}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
           <TouchableOpacity onPress={() => { resetSafetyForm(); setSafetyScreen("list"); }}>
             <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
@@ -831,7 +833,7 @@ export default function MeetingsScreen() {
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Submit Meeting Record</Text>}
           </TouchableOpacity>
         </ScrollView>
-      </ScreenContainer>
+      </MWrapper>
     );
   }
 
@@ -840,7 +842,7 @@ export default function MeetingsScreen() {
   // ═══════════════════════════════════════════════════════════════════════════
   if (mainTab === "safety" && safetyScreen === "topics" && canManageTopics) {
     return (
-      <ScreenContainer>
+      <MWrapper style={embedded ? { flex: 1 } : undefined}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
           <TouchableOpacity onPress={() => setSafetyScreen("list")}>
             <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
@@ -913,7 +915,7 @@ export default function MeetingsScreen() {
             <Text style={{ textAlign: "center", color: colors.muted, fontSize: 14, paddingVertical: 40 }}>No safety topics yet. Post one above for your foremen.</Text>
           )}
         </ScrollView>
-      </ScreenContainer>
+      </MWrapper>
     );
   }
 
@@ -921,7 +923,7 @@ export default function MeetingsScreen() {
   // MAIN VIEW — Tabbed: Management | Safety & Huddles
   // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <ScreenContainer>
+    <MWrapper style={embedded ? { flex: 1 } : undefined}>
     <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       {/* Header */}
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
@@ -1185,6 +1187,6 @@ export default function MeetingsScreen() {
         </>
       )}
     </ImageBackground>
-    </ScreenContainer>
+    </MWrapper>
   );
 }

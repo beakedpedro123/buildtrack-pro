@@ -4,7 +4,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
   Alert,
@@ -12,6 +12,7 @@ import { ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -42,6 +43,12 @@ export default function KPIsScreen() {
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
   const utils = trpc.useUtils();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await utils.invalidate(); } catch {}
+    setRefreshing(false);
+  }, [utils]);
 
   const role = employee?.role ?? "laborer";
   const canEdit = role === "owner" || role === "office_manager";
@@ -194,6 +201,7 @@ export default function KPIsScreen() {
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
           data={Object.entries(grouped)}
           keyExtractor={([cat]) => cat}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}

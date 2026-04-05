@@ -4,7 +4,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
   Alert,
@@ -12,6 +12,7 @@ import { ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
@@ -50,12 +51,18 @@ function formatDuration(ms: number) {
   return `${h}h ${m}m`;
 }
 
-export default function TeamScreen() {
+export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
   const utils = trpc.useUtils();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await utils.invalidate(); } catch {}
+    setRefreshing(false);
+  }, [utils]);
 
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
@@ -217,9 +224,10 @@ export default function TeamScreen() {
     submitBtn: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 8, marginBottom: 32 },
     detailRow: { flexDirection: "row", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border } });
 
+  const Wrapper = embedded ? View : ScreenContainer;
   if (!canViewTeam && !employee) {
     return (
-      <ScreenContainer>
+      <Wrapper style={embedded ? { flex: 1 } : undefined}>
         <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
           <Text style={{ fontSize: 40, marginBottom: 16 }}>🔒</Text>
@@ -227,12 +235,12 @@ export default function TeamScreen() {
           <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginTop: 8 }}>Team management is only available to management roles. Use the My Hours tab to view your own shifts.</Text>
         </View>
           </ImageBackground>
-    </ScreenContainer>
+    </Wrapper>
     );
   }
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]}>
+    <Wrapper style={embedded ? { flex: 1 } : undefined} edges={embedded ? undefined : ["top", "left", "right"]}>
         <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <View style={styles.header}>
         <View>
@@ -267,6 +275,7 @@ export default function TeamScreen() {
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
           data={filteredEmployees}
           keyExtractor={(item) => item.id.toString()}
           showsVerticalScrollIndicator={false}
@@ -676,6 +685,6 @@ export default function TeamScreen() {
         </View>
       </Modal>
     </ImageBackground>
-    </ScreenContainer>
+    </Wrapper>
   );
 }

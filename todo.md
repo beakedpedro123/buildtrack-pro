@@ -1312,3 +1312,29 @@
 - [x] Fix Voice Goal Creator — fixed KeyboardAvoidingView for Android
 - [x] Fix Invite screen — fixed KeyboardAvoidingView for Android
 - [x] Fix Root Layout — fixed KeyboardAvoidingView for Android
+
+## Phase 49 — Fix iOS Voice Transcription (Invalid File Format)
+- [x] Fix Pivot voice recording on iOS — added magic bytes detection, URL extension fallback, default to m4a in server voiceTranscription.ts
+- [x] Ensure iOS audio recordings are sent as m4a/mp3/wav format accepted by Whisper API
+- [x] Add pull-to-refresh on Dashboard (index.tsx)
+- [x] Add pull-to-refresh on Jobs screen
+- [x] Add pull-to-refresh on Clock screen
+- [x] Add pull-to-refresh on Reports screen
+- [x] Add pull-to-refresh on Hours screen (already has onRefresh via FlatList)
+- [x] Add pull-to-refresh on Payroll screen
+- [x] Add pull-to-refresh on Team screen
+- [x] Add pull-to-refresh on Meetings screen (already has onRefresh via FlatList)
+- [x] Add pull-to-refresh on Goals screen (already has onRefresh via FlatList)
+- [x] Add pull-to-refresh on Profile screen
+- [x] Add pull-to-refresh on Safety screen
+- [x] Add pull-to-refresh on KPIs screen
+- [x] Add pull-to-refresh on Timecard detail screen
+
+## Phase 50 — Tab Consolidation & Final Polish
+
+- [x] Consolidate tab bar for management roles (Owner/Office Manager/Logistics) — reduced from 10 to 6 tabs
+- [x] Create "Manage" tab with sub-tabs: Team, Meetings, Payroll, My Hours
+- [x] Keep Goals as its own prominent tab for all roles
+- [x] Foreman/Laborer tab layout unchanged (already clean)
+- [x] All sub-screens support embedded prop to avoid double SafeArea wrapping
+- [x] Final TypeScript check — 0 errors

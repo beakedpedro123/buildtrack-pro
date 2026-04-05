@@ -4,11 +4,12 @@ import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -46,6 +47,12 @@ export default function ProfileScreen() {
   const colors = useColors();
   const { employee, logout } = useAppAuth();
   const utils = trpc.useUtils();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await utils.invalidate(); } catch {}
+    setRefreshing(false);
+  }, [utils]);
 
   const [editingName, setEditingName] = useState(false);
   const [editingPin, setEditingPin] = useState(false);
@@ -166,7 +173,7 @@ export default function ProfileScreen() {
     <ScreenContainer>
         <ImageBackground source={bg_more} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
           {/* Header */}
           <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20 }}>
             <Text style={{ fontSize: 26, fontWeight: "700", color: colors.foreground }}>My Profile</Text>

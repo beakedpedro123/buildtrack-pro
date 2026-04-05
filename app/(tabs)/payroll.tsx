@@ -5,7 +5,7 @@ import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { ActivityIndicator,
   Alert,
   FlatList,
@@ -13,6 +13,7 @@ import { ActivityIndicator,
   Linking,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -167,7 +168,7 @@ function DateInput({ label, value, onChange, colors }: { label: string; value: s
   );
 }
 
-export default function PayrollScreen() {
+export default function PayrollScreen({ embedded }: { embedded?: boolean } = {}) {
   const colors = useColors();
   const router = useRouter();
   const { employee } = useAppAuth();
@@ -190,9 +191,10 @@ export default function PayrollScreen() {
   const canAccessPayroll = employee?.role === "owner" || employee?.role === "office_manager";
   const canSeeRates = employee?.role === "owner" || employee?.role === "office_manager";
 
+  const PWrapper = embedded ? View : ScreenContainer;
   if (!canAccessPayroll) {
     return (
-      <ScreenContainer>
+      <PWrapper style={embedded ? { flex: 1 } : undefined}>
         <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
           <Text style={{ fontSize: 48, marginBottom: 16 }}>🔒</Text>
@@ -204,10 +206,17 @@ export default function PayrollScreen() {
           </Text>
         </View>
           </ImageBackground>
-    </ScreenContainer>
+    </PWrapper>
     );
   }
 
+  const utils = trpc.useUtils();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await utils.invalidate(); } catch {}
+    setRefreshing(false);
+  }, [utils]);
   const { data, isLoading, refetch } = trpc.payroll.getReport.useQuery({
     startDate: range.startDate,
     endDate: range.endDate });
@@ -295,9 +304,9 @@ export default function PayrollScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <PWrapper style={embedded ? { flex: 1 } : undefined}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
         {/* Header */}
         <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.foreground }}>
@@ -630,6 +639,6 @@ export default function PayrollScreen() {
           </View>
         </View>
       </Modal>
-    </ScreenContainer>
+    </PWrapper>
   );
 }

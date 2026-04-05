@@ -8,7 +8,7 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
   Alert,
@@ -18,6 +18,7 @@ import { ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -58,6 +59,12 @@ export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
   const utils = trpc.useUtils();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await utils.invalidate(); } catch {}
+    setRefreshing(false);
+  }, [utils]);
 
   const [showNewReport, setShowNewReport] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
@@ -370,6 +377,7 @@ export default function ReportsScreen() {
       </View>
 
       <FlatList
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
         data={recentReports || []}
         keyExtractor={(item) => item.id.toString()}
         showsVerticalScrollIndicator={false}

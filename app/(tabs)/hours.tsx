@@ -60,7 +60,7 @@ function calcEstimatedPay(totalMinutes: number, hourlyRate: string | null): stri
   return `$${(hours * rate).toFixed(2)}`;
 }
 
-export default function HoursScreen() {
+export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
   const colors = useColors();
   const router = useRouter();
   const { employee } = useAppAuth();
@@ -118,8 +118,9 @@ export default function HoursScreen() {
     { key: "month", label: "This Month" },
   ];
 
+  const Wrapper = embedded ? View : ScreenContainer;
   return (
-    <ScreenContainer>
+    <Wrapper style={embedded ? { flex: 1 } : undefined}>
         <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       {/* Header */}
       <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
@@ -236,6 +237,6 @@ export default function HoursScreen() {
         />
       )}
     </ImageBackground>
-    </ScreenContainer>
+    </Wrapper>
   );
 }

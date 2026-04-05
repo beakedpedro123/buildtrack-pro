@@ -15,6 +15,7 @@ import { ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -104,6 +105,7 @@ export default function ClockScreen() {
   const clockTargetId = isManager ? selectedEmployeeId : employee?.id;
 
   const utils = trpc.useUtils();
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -166,6 +168,11 @@ export default function ClockScreen() {
       utils.clock.history.invalidate();
     } catch { /* ignore refresh errors */ }
   }, [refetchActive, refetchHistory, isManager, refetchClockedIn, utils]);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await refreshAll(); } catch {}
+    setRefreshing(false);
+  }, [refreshAll]);
 
   const handleClockIn = useCallback(async () => {
     if (!clockTargetId || !selectedJobId) {
@@ -476,7 +483,7 @@ export default function ClockScreen() {
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <OfflineBanner />
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
         <View style={styles.header}>
           <Text style={styles.title}>Time Clock</Text>
           <Text style={styles.subtitle}>

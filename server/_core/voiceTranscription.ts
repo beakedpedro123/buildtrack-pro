@@ -70,6 +70,74 @@ export type TranscriptionError = {
 };
 
 /**
+ * Detect audio format from file magic bytes (file signature).
+ * This is the most reliable method since it checks the actual file content.
+ */
+function detectFormatFromMagicBytes(buffer: Buffer): { ext: string; mime: string } | null {
+  if (buffer.length < 12) return null;
+
+  // Check for MP4/M4A container (ftyp box) — iOS records in this format
+  // ftyp appears at offset 4
+  if (buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70) {
+    return { ext: "m4a", mime: "audio/mp4" };
+  }
+
+  // Check for RIFF/WAV
+  if (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46) {
+    return { ext: "wav", mime: "audio/wav" };
+  }
+
+  // Check for OGG
+  if (buffer[0] === 0x4F && buffer[1] === 0x67 && buffer[2] === 0x67 && buffer[3] === 0x53) {
+    return { ext: "ogg", mime: "audio/ogg" };
+  }
+
+  // Check for FLAC
+  if (buffer[0] === 0x66 && buffer[1] === 0x4C && buffer[2] === 0x61 && buffer[3] === 0x43) {
+    return { ext: "flac", mime: "audio/flac" };
+  }
+
+  // Check for MP3 (ID3 tag or sync word)
+  if (
+    (buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33) || // ID3 tag
+    (buffer[0] === 0xFF && (buffer[1] & 0xE0) === 0xE0) // MP3 sync word
+  ) {
+    return { ext: "mp3", mime: "audio/mpeg" };
+  }
+
+  // Check for WebM (EBML header)
+  if (buffer[0] === 0x1A && buffer[1] === 0x45 && buffer[2] === 0xDF && buffer[3] === 0xA3) {
+    return { ext: "webm", mime: "audio/webm" };
+  }
+
+  // Check for CAF (Apple Core Audio Format — newer iOS might use this)
+  if (buffer[0] === 0x63 && buffer[1] === 0x61 && buffer[2] === 0x66 && buffer[3] === 0x66) {
+    // CAF is not supported by Whisper, but we detect it to give a better error
+    return { ext: "caf", mime: "audio/x-caf" };
+  }
+
+  return null;
+}
+
+/**
+ * Extract file extension from a URL path, ignoring query parameters
+ */
+function getExtensionFromUrl(url: string): string | null {
+  try {
+    const pathname = new URL(url).pathname;
+    const match = pathname.match(/\.(\w+)$/);
+    if (match) {
+      const ext = match[1].toLowerCase();
+      const validExts = ["m4a", "mp3", "mp4", "wav", "ogg", "flac", "webm", "mpeg", "mpga", "oga"];
+      if (validExts.includes(ext)) return ext;
+    }
+  } catch {
+    // URL parsing failed, ignore
+  }
+  return null;
+}
+
+/**
  * Transcribe audio to text using the internal Speech-to-Text service
  *
  * @param options - Audio data and metadata
@@ -97,7 +165,7 @@ export async function transcribeAudio(
 
     // Step 2: Download audio from URL
     let audioBuffer: Buffer;
-    let mimeType: string;
+    let headerMimeType: string;
     try {
       const response = await fetch(options.audioUrl);
       if (!response.ok) {
@@ -109,7 +177,7 @@ export async function transcribeAudio(
       }
 
       audioBuffer = Buffer.from(await response.arrayBuffer());
-      mimeType = response.headers.get("content-type") || "audio/mpeg";
+      headerMimeType = response.headers.get("content-type") || "";
 
       // Check file size (16MB limit)
       const sizeMB = audioBuffer.length / (1024 * 1024);
@@ -128,11 +196,49 @@ export async function transcribeAudio(
       };
     }
 
-    // Step 3: Create FormData for multipart upload to Whisper API
+    // Step 3: Determine the actual audio format using multiple strategies
+    // Priority: 1) Magic bytes, 2) URL extension, 3) Content-Type header, 4) Default to m4a
+    let ext: string;
+    let mimeType: string;
+
+    const magicResult = detectFormatFromMagicBytes(audioBuffer);
+    const urlExt = getExtensionFromUrl(options.audioUrl);
+
+    if (magicResult) {
+      // Magic bytes are the most reliable — use them
+      ext = magicResult.ext;
+      mimeType = magicResult.mime;
+      console.log(`[transcribe] Format detected from magic bytes: ${ext} (${mimeType})`);
+
+      // Special case: CAF format is not supported by Whisper
+      if (ext === "caf") {
+        return {
+          error: "Unsupported audio format (CAF). Please update the app to use a supported format.",
+          code: "INVALID_FORMAT",
+          details: "iOS Core Audio Format (CAF) is not supported by the transcription service. Supported formats: m4a, mp3, mp4, wav, ogg, flac, webm",
+        };
+      }
+    } else if (urlExt) {
+      // Fall back to URL extension
+      ext = urlExt;
+      mimeType = getExtToMime(ext);
+      console.log(`[transcribe] Format detected from URL extension: ${ext} (${mimeType})`);
+    } else if (headerMimeType && headerMimeType.startsWith("audio/")) {
+      // Fall back to Content-Type header
+      ext = getFileExtension(headerMimeType);
+      mimeType = headerMimeType;
+      console.log(`[transcribe] Format from Content-Type header: ${ext} (${mimeType})`);
+    } else {
+      // Default: iOS records as m4a (AAC in MP4 container) — safest default
+      ext = "m4a";
+      mimeType = "audio/mp4";
+      console.log(`[transcribe] No format detected, defaulting to m4a. Content-Type was: "${headerMimeType}", URL: ${options.audioUrl}`);
+    }
+
+    // Step 4: Create FormData for multipart upload to Whisper API
     const formData = new FormData();
 
-    // Create a Blob from the buffer and append to form
-    const filename = `audio.${getFileExtension(mimeType)}`;
+    const filename = `audio.${ext}`;
     const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType });
     formData.append("file", audioBlob, filename);
 
@@ -147,10 +253,12 @@ export async function transcribeAudio(
         : "Transcribe the user's voice to text");
     formData.append("prompt", prompt);
 
-    // Step 4: Call the transcription service
+    // Step 5: Call the transcription service
     const baseUrl = ENV.forgeApiUrl.endsWith("/") ? ENV.forgeApiUrl : `${ENV.forgeApiUrl}/`;
 
     const fullUrl = new URL("v1/audio/transcriptions", baseUrl).toString();
+
+    console.log(`[transcribe] Sending to Whisper API: filename=${filename}, mimeType=${mimeType}, size=${audioBuffer.length} bytes`);
 
     const response = await fetch(fullUrl, {
       method: "POST",
@@ -163,6 +271,7 @@ export async function transcribeAudio(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
+      console.error(`[transcribe] Whisper API error: ${response.status} ${response.statusText} - ${errorText}`);
       return {
         error: "Transcription service request failed",
         code: "TRANSCRIPTION_FAILED",
@@ -170,7 +279,7 @@ export async function transcribeAudio(
       };
     }
 
-    // Step 5: Parse and return the transcription result
+    // Step 6: Parse and return the transcription result
     const whisperResponse = (await response.json()) as WhisperResponse;
 
     // Validate response structure
@@ -206,9 +315,37 @@ function getFileExtension(mimeType: string): string {
     "audio/ogg": "ogg",
     "audio/m4a": "m4a",
     "audio/mp4": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/aac": "m4a",
+    "audio/x-aac": "m4a",
+    "audio/flac": "flac",
+    "audio/x-flac": "flac",
+    "audio/mpeg4-generic": "m4a",
+    "video/mp4": "m4a",
+    "application/octet-stream": "m4a", // Default for unknown binary — iOS audio is usually m4a
   };
 
-  return mimeToExt[mimeType] || "audio";
+  return mimeToExt[mimeType] || "m4a"; // Default to m4a instead of "audio"
+}
+
+/**
+ * Helper function to get MIME type from file extension
+ */
+function getExtToMime(ext: string): string {
+  const extToMime: Record<string, string> = {
+    "m4a": "audio/mp4",
+    "mp3": "audio/mpeg",
+    "mp4": "audio/mp4",
+    "wav": "audio/wav",
+    "ogg": "audio/ogg",
+    "flac": "audio/flac",
+    "webm": "audio/webm",
+    "mpeg": "audio/mpeg",
+    "mpga": "audio/mpeg",
+    "oga": "audio/ogg",
+  };
+
+  return extToMime[ext] || "audio/mp4";
 }
 
 /**
