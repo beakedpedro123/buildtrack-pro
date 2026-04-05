@@ -1236,3 +1236,11 @@
 - [x] Fix Goals UI — separate edit vs status toggle into distinct actions (tap = edit, separate status buttons)
 - [x] Make status buttons (Not Started / In Progress / Complete) clearly labeled and always visible
 - [x] Tap on goal card opens edit view, not status toggle
+
+## Phase 41 — PDF Timezone Fix (Round 2) & Lupe Visibility Fix
+- [x] Fix mysql2 timezone handling with timezone: "Z" option for consistent UTC across sandbox/deployed environments
+- [x] Investigate and fix Lupe's visibility issue — APK was built from older code, current code is correct
+- [x] Fix Lupe's dashboard showing 0 Employees, 0 On Site Now, 0 Workers, 0m Total Hours — code correct, needs APK rebuild
+- [x] Add Payroll tab for Lupe (office_manager) — already in code, needs APK rebuild
+- [x] Add Team tab for Lupe (office_manager) — already in code, needs APK rebuild
+- [x] Ensure office_manager has same dashboard data access as owner — verified isManagement includes office_manager

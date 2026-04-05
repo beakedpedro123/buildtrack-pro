@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2";
 import {
   InsertBudgetCategory,
   InsertClockEntry,
@@ -50,7 +51,14 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // Use timezone: "Z" to ensure mysql2 serializes/deserializes Date objects
+      // as UTC regardless of the server's local timezone. This prevents the
+      // 4-hour offset bug between sandbox (EDT) and deployed (UTC) environments.
+      const pool = mysql.createPool({
+        uri: process.env.DATABASE_URL,
+        timezone: "Z",
+      });
+      _db = drizzle({ client: pool });
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
