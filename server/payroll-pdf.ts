@@ -55,7 +55,7 @@ function fmtMoney(amount: number): string {
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
-  secretary: "Office Manager",
+  office_manager: "Office Manager",
   logistics: "Logistics",
   foreman: "Foreman",
   laborer: "Laborer",
@@ -132,7 +132,7 @@ async function buildReportData(startDate: Date, endDate: Date) {
     });
   }
 
-  const roleOrder = ["owner", "secretary", "logistics", "foreman", "laborer"];
+  const roleOrder = ["owner", "office_manager", "logistics", "foreman", "laborer"];
   timecards.sort((a, b) => {
     const ri = roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role);
     if (ri !== 0) return ri;

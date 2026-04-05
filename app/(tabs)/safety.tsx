@@ -67,7 +67,7 @@ export default function SafetyScreen() {
   const [photo, setPhoto] = useState<{ uri: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Topic management (owner/secretary/logistics)
+  // Topic management (owner/office_manager/logistics)
   const [newTopicTitle, setNewTopicTitle] = useState("");
   const [newTopicContent, setNewTopicContent] = useState("");
   const [newTopicCategory, setNewTopicCategory] = useState("general");
@@ -76,7 +76,7 @@ export default function SafetyScreen() {
   const isOwner = employee?.role === "owner";
   const isLogistics = employee?.role === "logistics";
   const isForeman = employee?.role === "foreman";
-  const canManageTopics = isOwner || isLogistics; // Secretary excluded from safety
+  const canManageTopics = isOwner || isLogistics; // Office Manager excluded from safety
   const canDocument = isForeman || canManageTopics;
 
   const { data: jobs } = trpc.jobs.listActive.useQuery();

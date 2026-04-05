@@ -59,8 +59,8 @@ export default function LaborCostsScreen() {
   const colors = useColors();
   const { employee } = useAppAuth();
   const role = employee?.role ?? "laborer";
-  const canSeeDollars = role === "owner" || role === "secretary" || role === "logistics";
-  const canAccess = role === "owner" || role === "secretary" || role === "logistics";
+  const canSeeDollars = role === "owner" || role === "office_manager";
+  const canAccess = role === "owner" || role === "office_manager" || role === "logistics";
 
   const [period, setPeriod] = useState<Period>("week");
   const { startDate, endDate, label: periodLabel } = useMemo(() => getDateRange(period), [period]);
@@ -144,7 +144,7 @@ export default function LaborCostsScreen() {
   const getRoleColor = (r: string) => {
     switch (r) {
       case "owner": return colors.primary;
-      case "secretary": return "#6366F1";
+      case "office_manager": return "#6366F1";
       case "logistics": return "#0EA5E9";
       case "foreman": return colors.success;
       case "laborer": return colors.muted;

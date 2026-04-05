@@ -23,6 +23,7 @@ import type { EdgeInsets, Metrics, Rect } from "react-native-safe-area-context";
 import { trpc, createTRPCClient } from "@/lib/trpc";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
 import { PivotChat } from "@/components/pivot-chat";
+import { LanguageProvider } from "@/lib/language-context";
 
 // Set up notification handler at module level (before any component mounts)
 if (Platform.OS !== "web") {
@@ -111,6 +112,7 @@ export default function RootLayout() {
         <trpc.Provider client={trpcClient} queryClient={queryClient}>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
+              <LanguageProvider>
               <OfflineQueueProvider>
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" />
@@ -121,6 +123,7 @@ export default function RootLayout() {
                 <StatusBar style="auto" />
                 <PivotChat />
               </OfflineQueueProvider>
+              </LanguageProvider>
             </AuthProvider>
           </QueryClientProvider>
         </trpc.Provider>

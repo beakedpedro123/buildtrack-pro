@@ -95,7 +95,7 @@ function buildCSV(rows: any[], startDate: string, endDate: string): string {
   return lines.join("\n");
 }
 
-const ROLE_ORDER = ["owner", "secretary", "logistics", "foreman", "laborer"];
+const ROLE_ORDER = ["owner", "office_manager", "logistics", "foreman", "laborer"];
 
 // Simple date input component
 function DateInput({ label, value, onChange, colors }: { label: string; value: string; onChange: (v: string) => void; colors: any }) {
@@ -200,9 +200,9 @@ export default function PayrollScreen() {
 
   const range = getDateRange(period, customStart, customEnd);
 
-  // RBAC: payroll screen is for owner/secretary/logistics only
-  const canAccessPayroll = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
-  const canSeeRates = employee?.role === "owner" || employee?.role === "secretary";
+  // RBAC: payroll screen is for owner/office_manager/logistics only
+  const canAccessPayroll = employee?.role === "owner" || employee?.role === "office_manager";
+  const canSeeRates = employee?.role === "owner" || employee?.role === "office_manager";
 
   if (!canAccessPayroll) {
     return (

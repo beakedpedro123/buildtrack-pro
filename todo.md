@@ -1136,3 +1136,49 @@
 - [x] Add ability to delete a day from any employee's timesheet
 - [x] Fix Jose's updated hours not reflecting on actual time (manual add/delete now available)
 - [x] Fix Pivot interface spacing — status bar/timer overlaps content on different devices (SafeAreaView padding added in Expo + env(safe-area-inset-top) in PWA)
+
+## Phase 38 — Major Role System Overhaul
+
+### Remove Secretary Role
+- [x] Rename "secretary" to "office_manager" in database schema
+- [x] Migrate existing secretary employees to office_manager role
+- [x] Remove all "secretary" references from UI labels, role selectors, etc.
+- [x] Office Manager gets same access as Owner (payroll, clock management, add/delete days, create employees, meetings, reports)
+
+### Role Access Matrix Overhaul
+- [x] Owner: Full access to everything, sees ALL goals, coordinates everything
+- [x] Office Manager: Same as Owner for payroll, reports, meetings, clock mgmt, add/delete days, create employees
+- [x] Logistics: No dollar amounts, no pay rates, no other employees' pay info
+- [x] Foreman: Percentages only (no $), own goals + assigned goals, adjust hours, daily reports, voice-to-goals, NO meetings tab, punch list access
+- [x] Laborer: See own goals, create daily reports, download weekly hours, see daily goals, use Pivot
+
+### Tab Visibility per Role
+- [x] Owner: All tabs
+- [x] Office Manager: All tabs (same as owner)
+- [x] Logistics: Remove payroll details, hide dollar amounts
+- [x] Foreman: Remove meetings tab, keep punch list, daily reports, goals, clock
+- [x] Laborer: Goals, daily reports, clock, hours, Pivot
+
+### Personalized Daily Messages
+- [x] Owner dashboard: personalized motivational/business messages
+- [x] Office Manager dashboard: personalized office/operations messages
+- [x] Logistics dashboard: personalized logistics/coordination messages
+- [x] Foreman dashboard: personalized crew leadership messages
+- [x] Laborer dashboard: personalized daily work messages (always changing)
+
+### Spanish Language Support
+- [x] Add language toggle (English/Spanish) in settings or profile
+- [x] Translate key UI strings for Spanish-speaking laborers
+- [x] Pivot AI responds in user's preferred language
+- [x] Goals display in user's preferred language
+
+### Pivot Personalization per Role
+- [x] Owner: Full business AI assistant with all data access
+- [x] Office Manager: Same as owner Pivot access
+- [x] Logistics: Logistics-focused Pivot (no financial data)
+- [x] Foreman: Crew management focused Pivot
+- [x] Laborer: Personal work assistant Pivot with Spanish option
+
+### Foreman Punch List Feature
+- [x] Add punch list creation/management for foreman role (existing punch list feature available)
+- [x] Keep voice-to-goals feature for foreman (remove meetings tab)

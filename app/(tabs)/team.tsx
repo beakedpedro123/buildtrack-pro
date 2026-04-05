@@ -26,19 +26,19 @@ import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#E8500A",
-  secretary: "#8B5CF6",
+  office_manager: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#F59E0B",
   laborer: "#22C55E" };
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
-  secretary: "Office Manager",
+  office_manager: "Office Manager",
   logistics: "Logistics",
   foreman: "Foreman",
   laborer: "Laborer" };
 
-const ROLES = ["owner", "secretary", "logistics", "foreman", "laborer"] as const;
+const ROLES = ["owner", "office_manager", "logistics", "foreman", "laborer"] as const;
 
 function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
@@ -71,14 +71,14 @@ export default function TeamScreen() {
   const [useInviteLink, setUseInviteLink] = useState(true);
   const [inviteResult, setInviteResult] = useState<{ token: string; code: string } | null>(null);
 
-  // Owner, secretary, logistics can add/edit employees
-  const canManage = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
-  // Secretary and logistics can view the team list
-  const canViewTeam = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
+  // Owner, office_manager, logistics can add/edit employees
+  const canManage = employee?.role === "owner" || employee?.role === "office_manager" || employee?.role === "logistics";
+  // Office Manager and logistics can view the team list
+  const canViewTeam = employee?.role === "owner" || employee?.role === "office_manager" || employee?.role === "logistics";
   // Only owner can see hourly rates
-  const canSeeRates = employee?.role === "owner" || employee?.role === "secretary";
-  // Owner, secretary, logistics can alter time entries
-  const canAlterTime = employee?.role === "owner" || employee?.role === "secretary" || employee?.role === "logistics";
+  const canSeeRates = employee?.role === "owner" || employee?.role === "office_manager";
+  // Owner, office_manager, logistics can alter time entries
+  const canAlterTime = employee?.role === "owner" || employee?.role === "office_manager" || employee?.role === "logistics";
   // Laborer/foreman can only tap their own card (to see their own info)
   const canViewOthers = canViewTeam;
 

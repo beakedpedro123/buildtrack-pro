@@ -44,7 +44,7 @@ export default function KPIsScreen() {
   const utils = trpc.useUtils();
 
   const role = employee?.role ?? "laborer";
-  const canEdit = role === "owner" || role === "secretary";
+  const canEdit = role === "owner" || role === "office_manager";
 
   const [showCreate, setShowCreate] = useState(false);
   const [showUpdate, setShowUpdate] = useState(false);
@@ -144,7 +144,7 @@ export default function KPIsScreen() {
     input: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.foreground, backgroundColor: colors.background, marginBottom: 10 },
     submitBtn: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 12 } });
 
-  // Access guard — only owner, secretary, logistics, foreman
+  // Access guard — only owner, office_manager, logistics, foreman
   if (role === "laborer") {
     return (
       <ScreenContainer className="p-6">

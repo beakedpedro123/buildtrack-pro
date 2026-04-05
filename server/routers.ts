@@ -25,21 +25,21 @@ const employeeRouter = router({
   verifyPin: publicProcedure.input(z.object({ pin: z.string() })).mutation(({ input }) => db.getEmployeeByPin(input.pin)),
   create: publicProcedure.input(z.object({
     name: z.string().min(1).max(128),
-    role: z.enum(["owner", "secretary", "logistics", "foreman", "laborer"]),
+    role: z.enum(["owner", "office_manager", "logistics", "foreman", "laborer"]),
     pin: z.string().min(4).max(6),
     phone: z.string().optional(),
     email: z.string().email().optional(),
     hourlyRate: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "add employees");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "add employees");
     const { requestingEmployeeId: _, ...data } = input;
     return db.createEmployee(data);
   }),
   update: publicProcedure.input(z.object({
     id: z.number(),
     name: z.string().min(1).max(128).optional(),
-    role: z.enum(["owner", "secretary", "logistics", "foreman", "laborer"]).optional(),
+    role: z.enum(["owner", "office_manager", "logistics", "foreman", "laborer"]).optional(),
     pin: z.string().min(4).max(6).optional(),
     phone: z.string().optional(),
     email: z.string().email().optional(),
@@ -48,24 +48,24 @@ const employeeRouter = router({
     requestingEmployeeId: z.number().optional(),
   })).mutation(async ({ input }) => {
     if (input.requestingEmployeeId) {
-      await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "update employee records");
+      await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update employee records");
     }
     const { id, requestingEmployeeId: _, ...data } = input;
     return db.updateEmployee(id, data);
   }),
   deactivate: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "deactivate employees");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "deactivate employees");
     return db.deactivateEmployee(input.id);
   }),
   createWithInvite: publicProcedure.input(z.object({
     name: z.string().min(1).max(128),
-    role: z.enum(["owner", "secretary", "logistics", "foreman", "laborer"]),
+    role: z.enum(["owner", "office_manager", "logistics", "foreman", "laborer"]),
     email: z.string().email().optional(),
     phone: z.string().optional(),
     hourlyRate: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "add employees");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "add employees");
     const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36);
     const { requestingEmployeeId: _, ...data } = input;
     const id = await db.createEmployee({ ...data, pin: "0000", inviteToken: token, inviteStatus: "pending" });
@@ -165,7 +165,7 @@ const clockRouter = router({
     adjustedBy: z.number(),
     reason: z.string().min(1),
   })).mutation(async ({ input }) => {
-    await assertRole(input.adjustedBy, ["owner", "secretary", "logistics"], "adjust time entries");
+    await assertRole(input.adjustedBy, ["owner", "office_manager", "logistics", "foreman"], "adjust time entries");
     return db.updateClockEntryWithAdjustment(
       input.entryId,
       {
@@ -197,7 +197,7 @@ const clockRouter = router({
     addedBy: z.number(),
     reason: z.string().min(1),
   })).mutation(async ({ input }) => {
-    await assertRole(input.addedBy, ["owner", "secretary", "logistics"], "add manual time entries");
+    await assertRole(input.addedBy, ["owner", "office_manager", "logistics"], "add manual time entries");
     return db.addManualClockEntry({
       employeeId: input.employeeId,
       jobId: input.jobId,
@@ -212,7 +212,7 @@ const clockRouter = router({
     deletedBy: z.number(),
     reason: z.string().min(1),
   })).mutation(async ({ input }) => {
-    await assertRole(input.deletedBy, ["owner", "secretary", "logistics"], "delete time entries");
+    await assertRole(input.deletedBy, ["owner", "office_manager", "logistics"], "delete time entries");
     return db.deleteClockEntry(input.entryId, input.deletedBy, input.reason);
   }),
 });
@@ -570,7 +570,7 @@ const qbEstimatesRouter = router({
     notes: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "create QB estimates");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "create QB estimates");
     const { requestingEmployeeId, ...data } = input;
     return db.createQbEstimate({
       ...data,
@@ -586,13 +586,13 @@ const qbEstimatesRouter = router({
     notes: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "update QB estimates");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update QB estimates");
     const { id, requestingEmployeeId, ...data } = input;
     await db.updateQbEstimate(id, data);
     return { success: true };
   }),
   delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "delete QB estimates");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "delete QB estimates");
     await db.deleteQbEstimate(input.id);
     return { success: true };
   }),
@@ -601,7 +601,7 @@ const qbEstimatesRouter = router({
     jobId: z.number(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "extract estimates");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "extract estimates");
     // Use LLM with the PDF URL to extract line items
     const llmResult = await invokeLLM({
       messages: [
@@ -683,7 +683,7 @@ const kpiRouter = router({
     period: z.enum(["weekly", "monthly", "quarterly", "yearly"]).default("monthly"),
     createdBy: z.number(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.createdBy, ["owner", "secretary"], "create KPIs");
+    await assertRole(input.createdBy, ["owner", "office_manager"], "create KPIs");
     return db.createKpi(input);
   }),
   update: publicProcedure.input(z.object({
@@ -694,13 +694,13 @@ const kpiRouter = router({
     description: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary"], "update KPIs");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "update KPIs");
     const { id, requestingEmployeeId, ...data } = input;
     await db.updateKpi(id, data);
     return { success: true };
   }),
   delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary"], "delete KPIs");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "delete KPIs");
     await db.deleteKpi(input.id);
     return { success: true };
   }),
@@ -710,7 +710,7 @@ const kpiRouter = router({
     notes: z.string().optional(),
     recordedBy: z.number(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.recordedBy, ["owner", "secretary"], "record KPI values");
+    await assertRole(input.recordedBy, ["owner", "office_manager"], "record KPI values");
     await db.addKpiHistoryEntry(input);
     return { success: true };
   }),
@@ -725,7 +725,7 @@ const safetyTopicsRouter = router({
     category: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "create safety topics");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "create safety topics");
     const id = await db.createSafetyTopic({ title: input.title, content: input.content, category: input.category, createdBy: input.requestingEmployeeId });
     return { id };
   }),
@@ -737,13 +737,13 @@ const safetyTopicsRouter = router({
     isActive: z.boolean().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "update safety topics");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update safety topics");
     const { id, requestingEmployeeId, ...data } = input;
     await db.updateSafetyTopic(id, data);
     return { success: true };
   }),
   delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics"], "delete safety topics");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "delete safety topics");
     await db.deleteSafetyTopic(input.id);
     return { success: true };
   }),
@@ -767,7 +767,7 @@ const safetyMeetingsRouter = router({
     conductedBy: z.number(),
     conductedAt: z.string(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.conductedBy, ["owner", "secretary", "logistics", "foreman"], "create safety meetings");
+    await assertRole(input.conductedBy, ["owner", "office_manager", "logistics", "foreman"], "create safety meetings");
     const id = await db.createSafetyMeeting({
       ...input,
       conductedAt: new Date(input.conductedAt),
@@ -775,7 +775,7 @@ const safetyMeetingsRouter = router({
     return { id };
   }),
   delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "secretary", "logistics", "foreman"], "delete safety meetings");
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "delete safety meetings");
     await db.deleteSafetyMeeting(input.id);
     return { success: true };
   }),
@@ -807,7 +807,7 @@ const pivotRouter = router({
     const employee = await db.getEmployeeById(input.employeeId);
     if (!employee) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
 
-    const isManagement = ["owner", "secretary", "logistics"].includes(employee.role);
+    const isManagement = ["owner", "office_manager", "logistics"].includes(employee.role);
     const isForeman = employee.role === "foreman";
     const isLaborer = employee.role === "laborer";
     const isOwner = employee.role === "owner";
@@ -1075,7 +1075,7 @@ Always show your math clearly and explain each step.
 
 Carranza Custom Construction specializes in framing and steel erection, with additional work in carpentry, soffits, and finished fascia. They operate in Utah.
 
-You are talking to: ${employee.name} (${employee.role === "secretary" ? "Office Manager" : employee.role === "logistics" ? "Logistics Manager" : "Owner"})
+You are talking to: ${employee.name} (${employee.role === "office_manager" ? "Office Manager" : employee.role === "logistics" ? "Logistics Manager" : "Owner"})
 ${personalityBlock}
 ${languageBlock}
 ${greetingInstruction}
@@ -1135,7 +1135,7 @@ Measurement: [how to track it weekly]
 - Suggest negotiation points
 - Compare labor hours to industry benchmarks
 
-${employee.role === "secretary" ? `## Office Manager Special Capabilities (THIS IS YOU — ${employee.name})
+${employee.role === "office_manager" ? `## Office Manager Special Capabilities (THIS IS YOU — ${employee.name})
 - Calculate total payroll for any date range from live data
 - Summarize hours by employee or job
 - Flag employees approaching or over 40 hours (overtime)

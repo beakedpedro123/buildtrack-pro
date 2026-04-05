@@ -3,7 +3,7 @@
  *
  * Role-based access:
  *   owner / logistics  → Full access: voice, files, URLs, business context, cross-tab actions
- *   secretary          → Full access: voice, files, URLs, payroll/HR focus
+ *   office_manager          → Full access: voice, files, URLs, payroll/HR focus
  *   foreman            → Voice + text only, field-focused responses
  *   laborer            → Text only, goals and safety focused
  */
@@ -41,6 +41,7 @@ import { trpc } from "@/lib/trpc";
 import { useAppAuth } from "@/lib/auth-context";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { useColors } from "@/hooks/use-colors";
+import { useLanguage } from "@/lib/language-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ interface Attachment {
   name: string;
 }
 
-type Role = "owner" | "secretary" | "logistics" | "foreman" | "laborer";
+type Role = "owner" | "office_manager" | "logistics" | "foreman" | "laborer";
 
 // ─── Role access matrix ───────────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ const ROLE_ACCESS: Record<Role, {
   label: string;
   placeholder: string;
   suggestions: string[];
+  suggestionsEs?: string[];
 }> = {
   owner: {
     canUseChat: true,
@@ -94,7 +96,7 @@ const ROLE_ACCESS: Record<Role, {
       "Help me schedule crew",
     ],
   },
-  secretary: {
+  office_manager: {
     canUseChat: true,
     canUseVoice: true,
     canAttachFiles: true,
@@ -128,6 +130,11 @@ const ROLE_ACCESS: Record<Role, {
       "Sup Pivot, what are my goals?",
       "Safety tips for today",
       "How do I clock in?",
+    ],
+    suggestionsEs: [
+      "¿Qué onda Pivot, cuáles son mis metas?",
+      "Consejos de seguridad para hoy",
+      "¿Cómo registro mi entrada?",
     ],
   },
 };
@@ -215,6 +222,8 @@ export function PivotChat() {
 
   const role = ((employee as any)?.role || "laborer") as Role;
   const access = ROLE_ACCESS[role] || ROLE_ACCESS.laborer;
+  const { language } = useLanguage();
+  const activeSuggestions = (language === "es" && access.suggestionsEs) ? access.suggestionsEs : access.suggestions;
 
   // Request mic permission on mount for eligible roles
   useEffect(() => {
@@ -707,7 +716,7 @@ export function PivotChat() {
                   <Text style={s.welcomeText}>Hey, I'm Pivot</Text>
                   <Text style={s.welcomeSub}>
                     {role === "owner" ? "Your AI business assistant. Ask me anything about your projects, costs, or team." :
-                     role === "secretary" ? "Your office assistant. I can help with payroll, hours, and reports." :
+                     role === "office_manager" ? "Your office assistant. I can help with payroll, hours, and reports." :
                      role === "foreman" ? "Your field assistant. Ask about safety, goals, or construction techniques." :
                      "Your team assistant. I can show you your goals and help with questions."}
                   </Text>
@@ -748,7 +757,7 @@ export function PivotChat() {
               {/* Suggestions — show when no messages or only 1 exchange */}
               {messages.length <= 2 && (
                 <View style={s.suggestions}>
-                  {access.suggestions.map((sug) => (
+                  {activeSuggestions.map((sug) => (
                     <TouchableOpacity key={sug} style={s.suggestion} onPress={() => sendMessage(sug)}>
                       <Text style={s.suggestionText}>{sug}</Text>
                     </TouchableOpacity>

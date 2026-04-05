@@ -27,7 +27,7 @@ export const users = mysqlTable("users", {
 export const employees = mysqlTable("employees", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 128 }).notNull(),
-  role: mysqlEnum("role", ["owner", "secretary", "logistics", "foreman", "laborer"])
+  role: mysqlEnum("role", ["owner", "office_manager", "secretary", "logistics", "foreman", "laborer"])
     .default("laborer")
     .notNull(),
   pin: varchar("pin", { length: 64 }).notNull(),

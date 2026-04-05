@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 import { trpc } from "./trpc";
 import { scheduleFridayMeetingReminder, cancelFridayMeetingReminder } from "./notifications";
 
-export type EmployeeRole = "owner" | "secretary" | "logistics" | "foreman" | "laborer";
+export type EmployeeRole = "owner" | "office_manager" | "logistics" | "foreman" | "laborer";
 
 export interface AuthEmployee {
   id: number;

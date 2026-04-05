@@ -100,7 +100,7 @@ export default function ClockScreen() {
   const [showEditJobPicker, setShowEditJobPicker] = useState(false);
 
   const role = employee?.role ?? "laborer";
-  const isManager = role === "owner" || role === "secretary" || role === "logistics";
+  const isManager = role === "owner" || role === "office_manager" || role === "logistics";
   const clockTargetId = isManager ? selectedEmployeeId : employee?.id;
 
   const utils = trpc.useUtils();
@@ -464,7 +464,7 @@ export default function ClockScreen() {
   const getRoleColor = (r: string) => {
     switch (r) {
       case "owner": return colors.primary;
-      case "secretary": return "#6366F1";
+      case "office_manager": return "#6366F1";
       case "logistics": return "#0EA5E9";
       case "foreman": return colors.success;
       default: return colors.muted;

@@ -89,7 +89,7 @@ export default function ReportsScreen() {
   // Keep the tRPC mutation for saving photo metadata to DB after upload
   const savePhotoRecord = trpc.reports.uploadPhoto.useMutation();
 
-  const canSubmitReport = employee?.role === "foreman" || employee?.role === "laborer" || employee?.role === "logistics" || employee?.role === "owner" || employee?.role === "secretary";
+  const canSubmitReport = employee?.role === "foreman" || employee?.role === "laborer" || employee?.role === "logistics" || employee?.role === "owner" || employee?.role === "office_manager";
 
   // Request permissions on mount
   useEffect(() => {

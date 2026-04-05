@@ -7,7 +7,7 @@ const MEETING_NOTIF_ENABLED_KEY = "buildtrack_meeting_notif_enabled";
 const CHANNEL_ID = "meeting_reminders";
 
 // Management roles that should receive the Friday meeting reminder
-const MANAGEMENT_ROLES = ["owner", "secretary", "logistics", "foreman"];
+const MANAGEMENT_ROLES = ["owner", "office_manager", "logistics", "foreman"];
 
 /**
  * Configure the notification handler so alerts show when the app is in foreground.

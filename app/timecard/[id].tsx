@@ -74,9 +74,9 @@ export default function TimecardScreen() {
   const [period, setPeriod] = useState<Period>("biweek");
   const range = getDateRange(period);
 
-  const isManagement = currentUser?.role === "owner" || currentUser?.role === "secretary" || currentUser?.role === "logistics";
+  const isManagement = currentUser?.role === "owner" || currentUser?.role === "office_manager" || currentUser?.role === "logistics";
   const isSelf = currentUser?.id === employeeId;
-  const canSeeRates = currentUser?.role === "owner" || currentUser?.role === "secretary";
+  const canSeeRates = currentUser?.role === "owner" || currentUser?.role === "office_manager";
 
   const utils = trpc.useUtils();
   const { data, isLoading, refetch } = trpc.clock.getDetailedTimecard.useQuery(

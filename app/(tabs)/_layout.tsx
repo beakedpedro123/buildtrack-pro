@@ -26,12 +26,25 @@ export default function TabLayout() {
   }
 
   const role = employee?.role || "laborer";
-  const canManageTeam = role === "owner" || role === "secretary" || role === "logistics";
-  const canViewPayroll = role === "owner" || role === "secretary";
-  const canMeetings = role === "owner" || role === "secretary" || role === "logistics" || role === "foreman";
-  const canViewGoals = role === "owner" || role === "secretary" || role === "logistics" || role === "foreman";
-  // Safety is now merged into Meetings tab
-  const isFieldRole = role === "foreman" || role === "laborer";
+  const isOwner = role === "owner";
+  const isOfficeMgr = role === "office_manager";
+  const isLogistics = role === "logistics";
+  const isForeman = role === "foreman";
+  const isLaborer = role === "laborer";
+
+  // ─── Role Access Matrix ───────────────────────────────────────────────
+  // Owner: ALL tabs
+  // Office Manager: Same as Owner (payroll, clock mgmt, meetings, reports, team, goals, etc.)
+  // Logistics: No dollar amounts, no payroll, but can see team, jobs, reports, goals, meetings, clock
+  // Foreman: Daily reports, goals, clock, hours, punch list, safety — NO meetings tab, NO payroll
+  // Laborer: Goals, daily reports, clock, hours, profile
+
+  const canManageTeam = isOwner || isOfficeMgr || isLogistics;
+  const canViewPayroll = isOwner || isOfficeMgr;
+  const canMeetings = isOwner || isOfficeMgr || isLogistics; // Foreman removed from meetings
+  const canViewGoals = true; // All roles can see goals now (laborer sees own goals)
+  const canViewHours = true; // All roles can see their hours
+  const canViewReports = true; // All roles can create/view daily reports
 
   return (
     <Tabs
@@ -85,7 +98,7 @@ export default function TabLayout() {
         options={{
           title: "My Hours",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="timer" color={color} />,
-          href: isFieldRole ? undefined : null,
+          href: canViewHours ? undefined : null,
         }}
       />
       <Tabs.Screen

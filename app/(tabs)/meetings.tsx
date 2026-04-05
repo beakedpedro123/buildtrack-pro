@@ -102,7 +102,7 @@ export default function MeetingsScreen() {
   const isOwner = role === "owner";
   const isLogistics = role === "logistics";
   const isForeman = role === "foreman";
-  const canManage = ["owner", "secretary", "logistics", "foreman"].includes(role);
+  const canManage = ["owner", "office_manager", "logistics", "foreman"].includes(role);
   const canManageTopics = isOwner || isLogistics;
   const canDocument = isForeman || canManageTopics;
 

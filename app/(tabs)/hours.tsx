@@ -68,7 +68,7 @@ export default function HoursScreen() {
   const range = getDateRange(period);
 
   // Only the owner can see their own hourly rate and estimated pay
-  const canSeePayRate = employee?.role === "owner" || employee?.role === "secretary";
+  const canSeePayRate = employee?.role === "owner" || employee?.role === "office_manager";
 
   const { data, isLoading, refetch } = trpc.payroll.getMyHours.useQuery(
     {

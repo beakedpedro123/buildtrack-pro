@@ -20,7 +20,7 @@ type Step = "select" | "pin";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
-  secretary: "Office Manager",
+  office_manager: "Office Manager",
   logistics: "Logistics",
   foreman: "Foreman",
   laborer: "Laborer",
@@ -28,7 +28,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#E8500A",
-  secretary: "#8B5CF6",
+  office_manager: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#F59E0B",
   laborer: "#22C55E",

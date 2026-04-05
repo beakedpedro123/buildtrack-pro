@@ -17,17 +17,18 @@ import { ActivityIndicator,
   View, ImageBackground } from "react-native";
 
 import { BG_MORE as bg_more } from "@/constants/bg-urls";
+import { useLanguage, type AppLanguage } from "@/lib/language-context";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
-  secretary: "Office Manager",
+  office_manager: "Office Manager",
   logistics: "Logistics",
   foreman: "Foreman",
   laborer: "Laborer" };
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#E8500A",
-  secretary: "#8B5CF6",
+  office_manager: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#F59E0B",
   laborer: "#22C55E" };
@@ -53,6 +54,7 @@ export default function ProfileScreen() {
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [saving, setSaving] = useState(false);
+  const { language, setLanguage } = useLanguage();
 
   const updateEmployee = trpc.employees.update.useMutation({
     onSuccess: () => {
@@ -268,6 +270,44 @@ export default function ProfileScreen() {
                 <Text style={{ fontSize: 15, color: colors.muted }}>••••</Text>
               </View>
             )}
+          </View>
+
+          {/* Language Toggle */}
+          <View style={styles.section}>
+            <View style={styles.row}>
+              <Text style={{ fontSize: 13, color: colors.muted, fontWeight: "600" }}>APP LANGUAGE / IDIOMA</Text>
+            </View>
+            <View style={{ flexDirection: "row", padding: 16, gap: 10 }}>
+              {(["en", "es"] as AppLanguage[]).map((lang) => {
+                const isActive = language === lang;
+                const label = lang === "en" ? "English" : "Espa\u00f1ol";
+                const flag = lang === "en" ? "\ud83c\uddfa\ud83c\uddf8" : "\ud83c\uddf2\ud83c\uddfd";
+                return (
+                  <TouchableOpacity
+                    key={lang}
+                    style={{
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      paddingVertical: 14,
+                      borderRadius: 12,
+                      backgroundColor: isActive ? colors.primary + "18" : colors.background,
+                      borderWidth: 2,
+                      borderColor: isActive ? colors.primary : colors.border,
+                    }}
+                    onPress={() => {
+                      setLanguage(lang);
+                      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    }}
+                  >
+                    <Text style={{ fontSize: 22 }}>{flag}</Text>
+                    <Text style={{ fontSize: 15, fontWeight: isActive ? "800" : "600", color: isActive ? colors.primary : colors.foreground }}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           {/* Account Info */}

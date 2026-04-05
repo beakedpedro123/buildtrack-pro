@@ -27,14 +27,14 @@ import { BG_HOME as bgHome } from "@/constants/bg-urls";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#C8A951",
-  secretary: "#8B5CF6",
+  office_manager: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#D4A843",
   laborer: "#22C55E" };
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
-  secretary: "Office Manager",
+  office_manager: "Office Manager",
   logistics: "Logistics",
   foreman: "Foreman",
   laborer: "Laborer" };
@@ -105,7 +105,7 @@ const OWNER_QUOTES = [
   "The grind never lies. Keep going, boss.",
 ];
 
-const MANAGEMENT_QUOTES = [
+const OFFICE_MANAGER_QUOTES = [
   "Organization is the backbone of every great project.",
   "Your attention to detail keeps everything running smooth.",
   "Behind every great crew is someone keeping it all together.",
@@ -118,6 +118,23 @@ const MANAGEMENT_QUOTES = [
   "Keep the machine running — you're doing amazing.",
   "Details matter. And you nail every one of them.",
   "The office is the engine room — keep it humming.",
+  "Payroll, hours, reports — you handle it all with grace.",
+  "The crew doesn't see everything you do, but the business wouldn't run without you.",
+];
+
+const LOGISTICS_QUOTES = [
+  "Coordination is your superpower — keep it flowing.",
+  "Every delivery, every schedule, every move — you make it happen.",
+  "The crew builds it, but you make sure they have what they need.",
+  "Logistics wins jobs. Keep those wheels turning.",
+  "On time, on budget, on point — that's your standard.",
+  "Materials don't move themselves. You're the engine.",
+  "Great logistics means zero excuses on the job site.",
+  "You keep the supply chain tight and the crew happy.",
+  "Planning today saves headaches tomorrow. Keep planning.",
+  "When the job runs smooth, that's your fingerprint on it.",
+  "Every truck, every load, every schedule — you own it.",
+  "The field depends on your timing. Don't let up.",
 ];
 
 const FOREMAN_QUOTES = [
@@ -155,7 +172,8 @@ const LABORER_QUOTES = [
 function getDailyQuote(role?: string): string {
   const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
   if (role === "owner") return OWNER_QUOTES[dayOfYear % OWNER_QUOTES.length];
-  if (role === "secretary" || role === "logistics") return MANAGEMENT_QUOTES[dayOfYear % MANAGEMENT_QUOTES.length];
+  if (role === "office_manager") return OFFICE_MANAGER_QUOTES[dayOfYear % OFFICE_MANAGER_QUOTES.length];
+  if (role === "logistics") return LOGISTICS_QUOTES[dayOfYear % LOGISTICS_QUOTES.length];
   if (role === "foreman") return FOREMAN_QUOTES[dayOfYear % FOREMAN_QUOTES.length];
   return LABORER_QUOTES[dayOfYear % LABORER_QUOTES.length];
 }
@@ -173,7 +191,7 @@ export default function DashboardScreen() {
   }, []);
 
   const role = employee?.role || "laborer";
-  const isManagement = role === "owner" || role === "secretary" || role === "logistics";
+  const isManagement = role === "owner" || role === "office_manager" || role === "logistics";
   const isOwner = role === "owner";
   const isForeman = role === "foreman";
   const isLaborer = role === "laborer";
@@ -249,7 +267,7 @@ export default function DashboardScreen() {
   const totalCost = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalCost, 0), [byJob]);
   const totalMinutes = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalMinutes, 0), [byJob]);
 
-  const canSeeDollars = isManagement;
+  const canSeeDollars = isOwner || role === "office_manager";
 
   const maxJobCost = useMemo(() => {
     if (!byJob || byJob.length === 0) return 1;
@@ -334,7 +352,7 @@ export default function DashboardScreen() {
   const getRoleColor = (r: string) => {
     switch (r) {
       case "owner": return "#C8A951";
-      case "secretary": return "#8B5CF6";
+      case "office_manager": return "#8B5CF6";
       case "logistics": return "#0EA5E9";
       case "foreman": return "#D4A843";
       case "laborer": return "#22C55E";
@@ -366,7 +384,7 @@ export default function DashboardScreen() {
             <Text style={{ fontSize: 13, color: colors.muted }}>
               {now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
             </Text>
-            <Text style={styles.fieldQuote}>{getDailyQuote()}</Text>
+            <Text style={styles.fieldQuote}>{getDailyQuote(role)}</Text>
           </View>
 
           {/* Clock Status Card */}
@@ -406,17 +424,17 @@ export default function DashboardScreen() {
 
           {/* Quick Actions */}
           <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
-            <TouchableOpacity style={styles.quickAction} onPress={() => router.push("/clock" as any)}>
-              <Text style={styles.quickActionIcon}>⏰</Text>
-              <Text style={styles.quickActionLabel}>My Hours</Text>
+            <TouchableOpacity style={styles.quickAction} onPress={() => router.push("/goals" as any)}>
+              <Text style={styles.quickActionIcon}>🎯</Text>
+              <Text style={styles.quickActionLabel}>My Goals</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.quickAction} onPress={() => router.push("/reports" as any)}>
               <Text style={styles.quickActionIcon}>📋</Text>
-              <Text style={styles.quickActionLabel}>Reports</Text>
+              <Text style={styles.quickActionLabel}>Daily Report</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickAction} onPress={() => router.push("/profile" as any)}>
-              <Text style={styles.quickActionIcon}>⚙️</Text>
-              <Text style={styles.quickActionLabel}>Settings</Text>
+            <TouchableOpacity style={styles.quickAction} onPress={() => router.push("/hours" as any)}>
+              <Text style={styles.quickActionIcon}>⏰</Text>
+              <Text style={styles.quickActionLabel}>My Hours</Text>
             </TouchableOpacity>
           </View>
 
@@ -545,7 +563,7 @@ export default function DashboardScreen() {
     );
   }
   // ═══════════════════════════════════════════════════════════
-  // MANAGEMENT HOME — Full dashboard (Owner, Secretary, Logistics)
+  // MANAGEMENT HOME — Full dashboard (Owner, Office Manager, Logistics)
   // ═══════════════════════════════════════════════════════════
   return (
     <ScreenContainer edges={["top", "left", "right"]}>

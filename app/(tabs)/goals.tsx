@@ -726,7 +726,7 @@ export default function GoalsScreen() {
 
   // Roles
   const isOwner = employee?.role === "owner";
-  const isOwnerOrManager = ["owner", "secretary", "logistics"].includes(employee?.role || "");
+  const isOwnerOrManager = ["owner", "office_manager", "logistics"].includes(employee?.role || "");
   const isForeman = employee?.role === "foreman";
   const isLaborer = employee?.role === "laborer";
   const canManage = isOwnerOrManager || isForeman;

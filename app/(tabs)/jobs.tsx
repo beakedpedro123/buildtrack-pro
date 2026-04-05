@@ -74,8 +74,8 @@ export default function JobsScreen() {
 
   // RBAC role helpers
   const role = employee?.role ?? "laborer";
-  const canManage = role === "owner" || role === "secretary" || role === "logistics";
-  const canSeeBudget = canManage;
+  const canManage = role === "owner" || role === "office_manager" || role === "logistics";
+  const canSeeBudget = role === "owner" || role === "office_manager";
   const canUpdateStatus = canManage || role === "foreman";
 
   const { data: allJobs, isLoading } = trpc.jobs.list.useQuery();
