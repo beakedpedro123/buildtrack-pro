@@ -265,15 +265,24 @@ export default function MeetingsScreen() {
         const uri = audioRecorder.uri;
         if (uri) {
           const formData = new FormData();
-          formData.append("file", { uri, name: `meeting_${activeMeetingId}.m4a`, type: "audio/m4a" } as any);
+          // iOS records as .m4a (AAC in MP4 container) — use correct MIME type audio/mp4
+          formData.append("file", { uri, name: `meeting_${activeMeetingId}.m4a`, type: "audio/mp4" } as any);
           const apiBase = getApiBaseUrl();
+          console.log(`[meeting] Uploading recording for meeting ${activeMeetingId}, duration: ${recordingSeconds}s, platform: ${Platform.OS}`);
           try {
             const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
             if (uploadRes.ok) {
               const json = await uploadRes.json();
               audioUrl = json.url || uri;
-            } else { audioUrl = uri; }
-          } catch { audioUrl = uri; }
+              console.log(`[meeting] Upload success: ${audioUrl}`);
+            } else {
+              console.warn(`[meeting] Upload failed: ${uploadRes.status}`);
+              audioUrl = uri;
+            }
+          } catch (uploadErr: any) {
+            console.warn(`[meeting] Upload error: ${uploadErr?.message}`);
+            audioUrl = uri;
+          }
         }
       }
       const savedId = activeMeetingId;
@@ -293,8 +302,11 @@ export default function MeetingsScreen() {
   const handleTranscribe = async (meetingId: number) => {
     try {
       await transcribeAndSummarize.mutateAsync({ id: meetingId });
-    } catch {
-      Alert.alert("Transcription Error", "Could not process the recording. Please try again.");
+    } catch (err: any) {
+      const errMsg = err?.message?.includes("Transcription failed:") 
+        ? err.message.replace("Transcription failed: ", "") 
+        : "Could not process the recording. Please try again.";
+      Alert.alert("Transcription Error", errMsg);
     }
   };
 

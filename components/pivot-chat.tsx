@@ -298,37 +298,50 @@ export function PivotChat() {
       Alert.alert("Recording Error", "No audio was captured. Please try recording again.");
       return;
     }
+    // Check minimum recording duration (~1 second)
+    const durationMs = recorderState.durationMillis || 0;
+    if (durationMs < 800) {
+      Alert.alert("Recording Too Short", "Please hold the mic button longer and speak clearly.");
+      return;
+    }
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsTranscribing(true);
     try {
       const apiBase = getApiBaseUrl();
       const formData = new FormData();
+      // iOS records as .m4a (AAC in MP4 container) — use correct MIME type audio/mp4
       const ext = Platform.OS === "ios" ? "m4a" : "mp4";
-      formData.append("file", { uri, name: `pivot_voice_${Date.now()}.${ext}`, type: `audio/${ext}` } as any);
+      const mimeType = "audio/mp4";
+      formData.append("file", { uri, name: `pivot_voice_${Date.now()}.${ext}`, type: mimeType } as any);
+      console.log(`[voice] Uploading ${ext} file, duration: ${durationMs}ms, platform: ${Platform.OS}`);
       const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
       if (!uploadRes.ok) {
         const errText = await uploadRes.text().catch(() => "");
+        console.warn(`[voice] Upload failed: ${uploadRes.status} ${errText}`);
         throw new Error(`Upload failed: ${uploadRes.status} ${errText}`);
       }
       const { url } = await uploadRes.json();
+      console.log(`[voice] Uploaded to: ${url}`);
       const result = await transcribeMutation.mutateAsync({ audioUrl: url });
       if (result.text?.trim()) {
-        // Set the transcribed text in input — user can review and send
         const transcribedText = result.text.trim();
+        console.log(`[voice] Transcribed: ${transcribedText.substring(0, 50)}...`);
         setInput(transcribedText);
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        // Store for auto-send via effect
         pendingVoiceRef.current = transcribedText;
       } else {
-        Alert.alert("Voice Input", "Could not understand the audio. Please try again or speak more clearly.");
+        Alert.alert("Voice Input", "Could not understand the audio. Please try again or speak more clearly and closer to the microphone.");
       }
     } catch (err: any) {
       console.warn("Transcription error:", err?.message || err);
-      Alert.alert("Transcription Failed", "Could not transcribe your voice. Please try again or type your message.");
+      const errMsg = err?.message?.includes("Transcription failed:") 
+        ? err.message.replace("Transcription failed: ", "") 
+        : "Could not transcribe your voice. Please try again or type your message.";
+      Alert.alert("Transcription Failed", errMsg);
     } finally {
       setIsTranscribing(false);
     }
-  }, [recorderState.isRecording, audioRecorder, transcribeMutation]);
+  }, [recorderState.isRecording, recorderState.durationMillis, audioRecorder, transcribeMutation]);
 
   // ─── File attachment ──────────────────────────────────────────────────────────
 

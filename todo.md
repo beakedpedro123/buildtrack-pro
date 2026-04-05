@@ -1269,3 +1269,25 @@
 - [x] Show biweekly salary line in payroll PDF summary — Pablo/Lupe show 'Biweekly Salary | $2,500.00'
 - [x] Add salary badge in payroll screen UI for salaried employees
 - [x] Remove CSV export from payroll screen (replaced by PDF reports)
+
+## Phase 44 — Annual $2.5M Goal Plan (Pablo & Lupe)
+- [x] Build $2.5M revenue model from 2025 baseline ($1.55M revenue, $158K profit)
+- [x] Write 52-week Pivot goal schedule for Pablo and Lupe
+- [x] Write 12-month milestone tracker
+- [x] Write 4-quarter targets with KPIs
+- [x] Fix gameplan PDF: correct invoice wording (request payment FROM GCs, not pay them)
+- [x] Export final annual plan as PDF for upload to Pivot
+
+## Phase 45 — One-Time Salary Adjustment (Mar 23 - Apr 4 Period)
+- [x] Set Pablo and Lupe salaryAmount to $1,250 for current pay period report
+- [x] Restore Pablo and Lupe salaryAmount to $2,500 starting Apr 6 new period — scheduled auto-restore at midnight Apr 6
+
+## Phase 47 — Fix iOS Mic/Voice Input Across All Screens
+- [x] Audit all mic/audio recording code (Pivot chat, meetings, voice goals)
+- [x] Fix iOS voice recording transcription — MIME type audio/m4a → audio/mp4 across all 3 recording locations
+- [x] Fix server transcribeVoice endpoint — proper error handling, returns actual error messages instead of swallowing them
+- [x] Fix server transcribeAndSummarize endpoint — same error handling improvement
+- [x] Add minimum recording duration check (800ms) to prevent empty audio uploads
+- [x] Add console logging for upload/transcription debugging
+- [x] Verify audio format is iOS-compatible (AAC in MP4 container via RecordingPresets.HIGH_QUALITY)
+- [x] Verify setAudioModeAsync with allowsRecording:true is called before recording in all screens

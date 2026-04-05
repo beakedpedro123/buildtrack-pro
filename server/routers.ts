@@ -337,9 +337,17 @@ const meetingsRouter = router({
     const employeeNames = employees.map(e => e.name).join(", ");
     let transcript = "";
     try {
+      console.log(`[transcribeAndSummarize] Starting transcription for meeting ${input.id}, audioUrl: ${meeting.audioUrl}`);
       const result = await transcribeAudio({ audioUrl: meeting.audioUrl, language: "en", prompt: "Construction management meeting" });
-      transcript = (result as any).text || "";
-    } catch {
+      if ("error" in result) {
+        console.error(`[transcribeAndSummarize] Transcription error:`, JSON.stringify(result));
+        transcript = `[Transcription failed: ${result.error}]`;
+      } else {
+        transcript = result.text || "";
+        console.log(`[transcribeAndSummarize] Transcription success, length: ${transcript.length}`);
+      }
+    } catch (err) {
+      console.error(`[transcribeAndSummarize] Unexpected transcription error:`, err);
       transcript = "[Transcription failed — please review audio manually]";
     }
     let summary = "";
@@ -1799,11 +1807,23 @@ ${isOwner ? "\n## OWNER_PATTERNS\nDecision-making patterns, recurring concerns, 
     audioUrl: z.string().url(),
   })).mutation(async ({ input }) => {
     try {
+      console.log(`[transcribeVoice] Starting transcription for: ${input.audioUrl}`);
       const result = await transcribeAudio({ audioUrl: input.audioUrl, language: "en" });
-      const text = (result as any)?.text || "";
-      return { text: text || "" };
-    } catch {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Transcription failed" });
+      // Check if result is an error object
+      if ("error" in result) {
+        console.error(`[transcribeVoice] Transcription error:`, JSON.stringify(result));
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Transcription failed: ${result.error}${result.details ? ` (${result.details})` : ""}`,
+        });
+      }
+      const text = result.text || "";
+      console.log(`[transcribeVoice] Success, length: ${text.length}`);
+      return { text };
+    } catch (err: any) {
+      if (err instanceof TRPCError) throw err;
+      console.error(`[transcribeVoice] Unexpected error:`, err);
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Transcription failed unexpectedly" });
     }
   }),
 });

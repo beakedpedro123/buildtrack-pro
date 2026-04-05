@@ -106,7 +106,8 @@ export function VoiceGoalCreator({ visible, onClose, onGoalsCreated }: VoiceGoal
     try {
       const apiBase = getApiBaseUrl();
       const formData = new FormData();
-      formData.append("file", { uri, name: `goal_voice_${Date.now()}.m4a`, type: "audio/m4a" } as any);
+      // iOS records as .m4a (AAC in MP4 container) — use correct MIME type audio/mp4
+      formData.append("file", { uri, name: `goal_voice_${Date.now()}.m4a`, type: "audio/mp4" } as any);
       const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
       if (!uploadRes.ok) throw new Error("Upload failed");
       const { url } = await uploadRes.json();
