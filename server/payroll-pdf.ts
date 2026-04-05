@@ -401,7 +401,7 @@ function renderJobCostSummary(
   return y;
 }
 
-function renderEmployeeDetail(
+async function renderEmployeeDetail(
   doc: PDFKit.PDFDocument,
   timecards: EmployeeTimecard[],
   pageWidth: number,
@@ -421,53 +421,76 @@ function renderEmployeeDetail(
     doc.fontSize(14).fillColor("#ffffff").text(tc.name.toUpperCase(), 52, y + 6, { width: pageWidth - 120 });
     doc.fontSize(9).fillColor(gold).text(ROLE_LABELS[tc.role] || tc.role, 52, y + 23);
 
+    const isSalary = tc.payType === "salary";
     const rate = tc.hourlyRate ? parseFloat(tc.hourlyRate) : 0;
-    const totalPay = (tc.totalMinutes / 60) * rate;
+    const salaryAmt = tc.salaryAmount ? parseFloat(tc.salaryAmount) : 0;
+    const totalPay = isSalary ? salaryAmt : (tc.totalMinutes / 60) * rate;
     doc.fontSize(10).fillColor("#ffffff").text(
-      `${fmtHours(tc.totalMinutes)} hrs | ${fmtMoney(totalPay)}`,
+      isSalary
+        ? `Biweekly Salary | ${fmtMoney(totalPay)}`
+        : `${fmtHours(tc.totalMinutes)} hrs | ${fmtMoney(totalPay)}`,
       40, y + 10, { width: pageWidth - 12, align: "right" }
     );
     y += 48;
 
     // Employee summary row
     doc.fontSize(9).fillColor(mutedColor);
-    if (tc.hourlyRate) {
-      doc.text(`Hourly Rate: ${fmtMoney(rate)}`, 40, y);
+    if (isSalary) {
+      doc.text(`Pay Type: Biweekly Salary`, 40, y);
+      doc.text(`Salary Amount: ${fmtMoney(salaryAmt)}/period`, 200, y);
+      doc.text(`Assigned Projects: ${tc.salaryProjects.length}`, 380, y);
+    } else {
+      if (tc.hourlyRate) doc.text(`Hourly Rate: ${fmtMoney(rate)}`, 40, y);
+      doc.text(`Total Days Worked: ${tc.days.length}`, 200, y);
+      doc.text(`Total Hours: ${fmtDuration(tc.totalMinutes)}`, 360, y);
     }
-    doc.text(`Total Days Worked: ${tc.days.length}`, 200, y);
-    doc.text(`Total Hours: ${fmtDuration(tc.totalMinutes)}`, 360, y);
     y += 18;
 
     // Per-job breakdown for this employee
-    const empJobMap = new Map<number, { name: string; minutes: number; cost: number }>();
-    for (const day of tc.days) {
-      for (const entry of day.entries) {
-        const ej = empJobMap.get(entry.jobId) || { name: entry.jobName, minutes: 0, cost: 0 };
-        ej.minutes += entry.durationMinutes;
-        ej.cost += (entry.durationMinutes / 60) * rate;
-        empJobMap.set(entry.jobId, ej);
-      }
-    }
-
+    // Job breakdown
     doc.fontSize(10).fillColor(gold).text("Job Breakdown", 40, y);
     y += 14;
     const ejColWidths = [220, 100, 100];
     doc.fontSize(8).fillColor(mutedColor);
     let cx = 40;
     doc.text("Job Site", cx, y); cx += ejColWidths[0];
-    doc.text("Hours", cx, y); cx += ejColWidths[1];
+    doc.text(isSalary ? "Salary Allocation" : "Hours", cx, y); cx += ejColWidths[1];
     doc.text("Cost", cx, y);
     y += 12;
     doc.moveTo(40, y).lineTo(40 + 420, y).strokeColor(borderColor).lineWidth(0.5).stroke();
     y += 4;
 
-    for (const [, ej] of empJobMap) {
-      doc.fontSize(9).fillColor(textColor);
-      cx = 40;
-      doc.text(ej.name, cx, y, { width: ejColWidths[0] }); cx += ejColWidths[0];
-      doc.text(`${fmtHours(ej.minutes)} hrs`, cx, y, { width: ejColWidths[1] }); cx += ejColWidths[1];
-      doc.text(fmtMoney(ej.cost), cx, y, { width: ejColWidths[2] });
-      y += 14;
+    if (isSalary) {
+      // For salary employees: show each assigned project with equal split
+      const perProject = tc.salaryProjects.length > 0 ? salaryAmt / tc.salaryProjects.length : 0;
+      const jobMap = await db.getAllJobs();
+      const jobNameMap = new Map(jobMap.map((j: any) => [j.id, j.name]));
+      for (const projId of tc.salaryProjects) {
+        doc.fontSize(9).fillColor(textColor);
+        cx = 40;
+        doc.text(jobNameMap.get(projId) || `Job #${projId}`, cx, y, { width: ejColWidths[0] }); cx += ejColWidths[0];
+        doc.text(`${fmtMoney(perProject)} / ${tc.salaryProjects.length} proj`, cx, y, { width: ejColWidths[1] }); cx += ejColWidths[1];
+        doc.text(fmtMoney(perProject), cx, y, { width: ejColWidths[2] });
+        y += 14;
+      }
+    } else {
+      const empJobMap = new Map<number, { name: string; minutes: number; cost: number }>();
+      for (const day of tc.days) {
+        for (const entry of day.entries) {
+          const ej = empJobMap.get(entry.jobId) || { name: entry.jobName, minutes: 0, cost: 0 };
+          ej.minutes += entry.durationMinutes;
+          ej.cost += (entry.durationMinutes / 60) * rate;
+          empJobMap.set(entry.jobId, ej);
+        }
+      }
+      for (const [, ej] of empJobMap) {
+        doc.fontSize(9).fillColor(textColor);
+        cx = 40;
+        doc.text(ej.name, cx, y, { width: ejColWidths[0] }); cx += ejColWidths[0];
+        doc.text(`${fmtHours(ej.minutes)} hrs`, cx, y, { width: ejColWidths[1] }); cx += ejColWidths[1];
+        doc.text(fmtMoney(ej.cost), cx, y, { width: ejColWidths[2] });
+        y += 14;
+      }
     }
     y += 10;
 
@@ -517,8 +540,11 @@ function renderEmployeeDetail(
     doc.moveTo(40, y).lineTo(40 + pageWidth, y).strokeColor(gold).lineWidth(1).stroke();
     y += 8;
     doc.fontSize(10).fillColor(textColor).font("Helvetica-Bold");
-    doc.text(`TOTAL: ${fmtHours(tc.totalMinutes)} hours`, 40, y);
-    if (tc.hourlyRate) {
+    if (isSalary) {
+      doc.text(`PAY TYPE: Biweekly Salary`, 40, y);
+      doc.text(`TOTAL PAY: ${fmtMoney(totalPay)}`, 250, y);
+    } else {
+      doc.text(`TOTAL: ${fmtHours(tc.totalMinutes)} hours`, 40, y);
       doc.text(`ESTIMATED PAY: ${fmtMoney(totalPay)}`, 250, y);
     }
     doc.font("Helvetica");
@@ -533,60 +559,60 @@ export async function generateDetailedPayrollPDF(
 ): Promise<Buffer> {
   const { timecards, jobCosts, totalPayroll, totalHours } = await buildReportData(startDate, endDate);
 
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({
-      size: "LETTER",
-      margins: { top: 40, bottom: 40, left: 40, right: 40 },
-      bufferPages: true,
-    });
+  const doc = new PDFDocument({
+    size: "LETTER",
+    margins: { top: 40, bottom: 40, left: 40, right: 40 },
+    bufferPages: true,
+  });
 
-    const chunks: Buffer[] = [];
-    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+  const chunks: Buffer[] = [];
+  doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+
+  const pageWidth = 612 - 80;
+  const gold = "#D4AF37";
+
+  // Cover header (always shown)
+  renderCoverHeader(doc, startDate, endDate, reportType, pageWidth, gold);
+
+  let y = 120;
+
+  // Render sections based on reportType
+  if (reportType === "full" || reportType === "payroll") {
+    y = renderPayrollSummary(doc, timecards, totalPayroll, totalHours, pageWidth, gold, y);
+  }
+
+  if (reportType === "full" || reportType === "jobcost") {
+    if (reportType === "full") {
+      doc.addPage();
+      y = 40;
+    }
+    y = renderJobCostSummary(doc, jobCosts, totalHours, totalPayroll, pageWidth, gold, y);
+  }
+
+  if (reportType === "full" || reportType === "employee") {
+    await renderEmployeeDetail(doc, timecards, pageWidth, gold);
+  }
+
+  // Footer on all pages
+  const mutedColor = "#666666";
+  const pageCount = doc.bufferedPageRange().count;
+  for (let i = 0; i < pageCount; i++) {
+    doc.switchToPage(i);
+    doc.fontSize(7).fillColor(mutedColor);
+    doc.text(
+      `Carranza Custom Construction — ${REPORT_TITLES[reportType]} — Page ${i + 1} of ${pageCount}`,
+      40, 752, { width: pageWidth, align: "center" }
+    );
+    doc.text(
+      `Generated: ${new Date().toLocaleString("en-US", { timeZone: TZ })} MT`,
+      40, 762, { width: pageWidth, align: "center" }
+    );
+  }
+
+  // Finalize and collect
+  return new Promise((resolve, reject) => {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
-
-    const pageWidth = 612 - 80;
-    const gold = "#D4AF37";
-
-    // Cover header (always shown)
-    renderCoverHeader(doc, startDate, endDate, reportType, pageWidth, gold);
-
-    let y = 120;
-
-    // Render sections based on reportType
-    if (reportType === "full" || reportType === "payroll") {
-      y = renderPayrollSummary(doc, timecards, totalPayroll, totalHours, pageWidth, gold, y);
-    }
-
-    if (reportType === "full" || reportType === "jobcost") {
-      if (reportType === "full") {
-        // Start job cost on new page for full report
-        doc.addPage();
-        y = 40;
-      }
-      y = renderJobCostSummary(doc, jobCosts, totalHours, totalPayroll, pageWidth, gold, y);
-    }
-
-    if (reportType === "full" || reportType === "employee") {
-      renderEmployeeDetail(doc, timecards, pageWidth, gold);
-    }
-
-    // Footer on all pages
-    const mutedColor = "#666666";
-    const pageCount = doc.bufferedPageRange().count;
-    for (let i = 0; i < pageCount; i++) {
-      doc.switchToPage(i);
-      doc.fontSize(7).fillColor(mutedColor);
-      doc.text(
-        `Carranza Custom Construction — ${REPORT_TITLES[reportType]} — Page ${i + 1} of ${pageCount}`,
-        40, 752, { width: pageWidth, align: "center" }
-      );
-      doc.text(
-        `Generated: ${new Date().toLocaleString("en-US", { timeZone: TZ })} MT`,
-        40, 762, { width: pageWidth, align: "center" }
-      );
-    }
-
     doc.end();
   });
 }

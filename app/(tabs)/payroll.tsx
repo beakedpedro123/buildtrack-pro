@@ -60,39 +60,25 @@ function formatDuration(minutes: number) {
   return `${h}h ${m}m`;
 }
 
-function calcPay(totalMinutes: number, hourlyRate: string | null): string {
-  if (!hourlyRate) return "—";
-  const rate = parseFloat(hourlyRate);
+function calcPay(row: { payType?: string; salaryAmount?: string | null; totalMinutes: number; hourlyRate: string | null }): string {
+  if (row.payType === "salary") {
+    const amt = row.salaryAmount ? parseFloat(row.salaryAmount) : 0;
+    return amt > 0 ? `$${amt.toFixed(2)}` : "—";
+  }
+  if (!row.hourlyRate) return "—";
+  const rate = parseFloat(row.hourlyRate);
   if (isNaN(rate)) return "—";
-  const hours = totalMinutes / 60;
-  return `$${(hours * rate).toFixed(2)}`;
+  return `$${((row.totalMinutes / 60) * rate).toFixed(2)}`;
 }
 
-function calcPayNum(totalMinutes: number, hourlyRate: string | null): number {
-  if (!hourlyRate) return 0;
-  const rate = parseFloat(hourlyRate);
+function calcPayNum(row: { payType?: string; salaryAmount?: string | null; totalMinutes: number; hourlyRate: string | null }): number {
+  if (row.payType === "salary") {
+    return row.salaryAmount ? parseFloat(row.salaryAmount) : 0;
+  }
+  if (!row.hourlyRate) return 0;
+  const rate = parseFloat(row.hourlyRate);
   if (isNaN(rate)) return 0;
-  return (totalMinutes / 60) * rate;
-}
-
-function buildCSV(rows: any[], startDate: string, endDate: string): string {
-  const header = ["Employee", "Role", "Hourly Rate", "Total Hours", "Total Minutes", "Estimated Pay"];
-  const lines = [
-    `Payroll Report: ${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`,
-    "",
-    header.join(","),
-    ...rows.map((r) => [
-      `"${r.name}"`,
-      r.role,
-      r.hourlyRate || "N/A",
-      (r.totalMinutes / 60).toFixed(2),
-      r.totalMinutes,
-      calcPay(r.totalMinutes, r.hourlyRate),
-    ].join(",")),
-    "",
-    `Total Payroll,,,,,$${rows.reduce((sum, r) => sum + calcPayNum(r.totalMinutes, r.hourlyRate), 0).toFixed(2)}`,
-  ];
-  return lines.join("\n");
+  return (row.totalMinutes / 60) * rate;
 }
 
 const ROLE_ORDER = ["owner", "office_manager", "logistics", "foreman", "laborer"];
@@ -247,13 +233,6 @@ export default function PayrollScreen() {
       marginBottom: 10,
       borderWidth: 1,
       borderColor: colors.border },
-    exportBtn: {
-      backgroundColor: colors.primary,
-      borderRadius: 12,
-      paddingVertical: 14,
-      marginHorizontal: 16,
-      marginBottom: 8,
-      alignItems: "center" },
     pdfBtn: {
       backgroundColor: "#D4AF37",
       borderRadius: 12,
@@ -270,28 +249,8 @@ export default function PayrollScreen() {
   );
 
   const totalPayroll = canSeeRates
-    ? sortedRows.reduce((sum, r) => sum + calcPayNum(r.totalMinutes, r.hourlyRate), 0)
+    ? sortedRows.reduce((sum, r) => sum + calcPayNum(r), 0)
     : 0;
-
-  const handleExportCSV = () => {
-    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const csv = buildCSV(sortedRows, range.startDate, range.endDate);
-    if (Platform.OS === "web") {
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `payroll_${range.label.replace(/\s/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } else {
-      Alert.alert(
-        "Export Payroll Report",
-        `Payroll CSV for ${range.label}:\n\n${csv.slice(0, 400)}...\n\nOn mobile, share this via email or save to Files.`,
-        [{ text: "OK" }]
-      );
-    }
-  };
 
   const REPORT_TYPES: { key: typeof reportType; label: string; desc: string }[] = [
     { key: "full", label: "Full Report", desc: "Payroll + Job Costs + Employee Detail" },
@@ -427,13 +386,6 @@ export default function PayrollScreen() {
               </View>
             </View>
 
-            {/* Export Buttons */}
-            <TouchableOpacity style={styles.exportBtn} onPress={handleExportCSV}>
-              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
-                ⬇ Export CSV
-              </Text>
-            </TouchableOpacity>
-
             {canSeeRates && (
               <View style={{ marginHorizontal: 16, marginBottom: 12 }}>
                 {/* Report Type Selector */}
@@ -494,7 +446,7 @@ export default function PayrollScreen() {
                       <Text style={{ fontSize: 16, fontWeight: "700", color: colors.primary }}>
                         {row.name}
                       </Text>
-                      <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+                      <View style={{ flexDirection: "row", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
                         <View
                           style={{
                             backgroundColor: colors.primary + "22",
@@ -503,10 +455,17 @@ export default function PayrollScreen() {
                             paddingVertical: 2 }}
                         >
                           <Text style={{ fontSize: 11, color: colors.primary, fontWeight: "600", textTransform: "capitalize" }}>
-                            {row.role}
+                            {row.role?.replace("_", " ")}
                           </Text>
                         </View>
-                        {canSeeRates && row.hourlyRate && (
+                        {canSeeRates && row.payType === "salary" && (
+                          <View style={{ backgroundColor: "#D4AF3722", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 11, color: "#D4AF37", fontWeight: "700" }}>
+                              SALARY · ${row.salaryAmount}/period
+                            </Text>
+                          </View>
+                        )}
+                        {canSeeRates && row.payType !== "salary" && row.hourlyRate && (
                           <Text style={{ fontSize: 12, color: colors.muted }}>
                             ${row.hourlyRate}/hr
                           </Text>
@@ -514,12 +473,16 @@ export default function PayrollScreen() {
                       </View>
                     </View>
                     <View style={{ alignItems: "flex-end" }}>
-                      <Text style={{ fontSize: 18, fontWeight: "700", color: colors.primary }}>
-                        {formatDuration(row.totalMinutes)}
-                      </Text>
+                      {row.payType === "salary" ? (
+                        <Text style={{ fontSize: 11, color: colors.muted, fontStyle: "italic" }}>salaried</Text>
+                      ) : (
+                        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.primary }}>
+                          {formatDuration(row.totalMinutes)}
+                        </Text>
+                      )}
                       {canSeeRates && (
-                        <Text style={{ fontSize: 13, fontWeight: "600", color: colors.success, marginTop: 2 }}>
-                          {calcPay(row.totalMinutes, row.hourlyRate)}
+                        <Text style={{ fontSize: 15, fontWeight: "700", color: colors.success, marginTop: 2 }}>
+                          {calcPay(row)}
                         </Text>
                       )}
                     </View>
@@ -533,12 +496,18 @@ export default function PayrollScreen() {
                       flexDirection: "row",
                       justifyContent: "space-between" }}
                   >
-                    <Text style={{ fontSize: 12, color: colors.muted }}>
-                      {row.entries.length} shifts
-                    </Text>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>
-                      {(row.totalMinutes / 60).toFixed(1)} hrs total
-                    </Text>
+                    {row.payType === "salary" ? (
+                      <Text style={{ fontSize: 12, color: colors.muted }}>Biweekly salary — no clock-in required</Text>
+                    ) : (
+                      <>
+                        <Text style={{ fontSize: 12, color: colors.muted }}>
+                          {row.entries.length} shifts
+                        </Text>
+                        <Text style={{ fontSize: 12, color: colors.muted }}>
+                          {(row.totalMinutes / 60).toFixed(1)} hrs total
+                        </Text>
+                      </>
+                    )}
                   </View>
                 </TouchableOpacity>
               ))

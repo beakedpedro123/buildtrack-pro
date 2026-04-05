@@ -521,15 +521,42 @@ const payrollRouter = router({
     const entries = await db.getClockEntriesForPayroll(start, end);
     const allEmployees = await db.getAllEmployees();
     const employeeMap = new Map(allEmployees.map((e) => [e.id, e]));
-    type SummaryRow = { employeeId: number; name: string; role: string; hourlyRate: string | null; totalMinutes: number; entries: typeof entries };
+    type SummaryRow = {
+      employeeId: number; name: string; role: string; hourlyRate: string | null;
+      payType: string; salaryAmount: string | null; salaryProjects: number[];
+      totalMinutes: number; entries: typeof entries;
+    };
     const summary: Record<number, SummaryRow> = {};
+
+    // First: include ALL salaried employees (they get paid regardless of clock entries)
+    for (const emp of allEmployees) {
+      if (emp.payType === "salary" && emp.isActive) {
+        let salaryProjects: number[] = [];
+        try { salaryProjects = emp.salaryProjects ? JSON.parse(emp.salaryProjects) : []; } catch {}
+        summary[emp.id] = {
+          employeeId: emp.id, name: emp.name, role: emp.role,
+          hourlyRate: emp.hourlyRate ?? null,
+          payType: "salary", salaryAmount: emp.salaryAmount ?? null, salaryProjects,
+          totalMinutes: 0, entries: [],
+        };
+      }
+    }
+
+    // Then: add hourly employees from clock entries
     for (const entry of entries) {
       if (!entry.clockOut) continue;
       const durationMs = new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime();
       const minutes = Math.floor(durationMs / 60000);
       if (!summary[entry.employeeId]) {
         const emp = employeeMap.get(entry.employeeId);
-        summary[entry.employeeId] = { employeeId: entry.employeeId, name: emp?.name || "Unknown", role: emp?.role || "laborer", hourlyRate: emp?.hourlyRate ?? null, totalMinutes: 0, entries: [] };
+        let salaryProjects: number[] = [];
+        try { salaryProjects = emp?.salaryProjects ? JSON.parse(emp.salaryProjects) : []; } catch {}
+        summary[entry.employeeId] = {
+          employeeId: entry.employeeId, name: emp?.name || "Unknown", role: emp?.role || "laborer",
+          hourlyRate: emp?.hourlyRate ?? null,
+          payType: emp?.payType || "hourly", salaryAmount: emp?.salaryAmount ?? null, salaryProjects,
+          totalMinutes: 0, entries: [],
+        };
       }
       summary[entry.employeeId].totalMinutes += minutes;
       summary[entry.employeeId].entries.push(entry);

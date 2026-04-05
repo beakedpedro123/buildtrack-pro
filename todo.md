@@ -1259,3 +1259,13 @@
 - [x] Verified Pedro is the owner account
 - [x] Investigate Lupe's cached auth data — confirmed stale cache is root cause, fixed with auto-refresh
 - [x] Add auto-refresh of employee role on app launch to prevent stale cached roles
+
+## Phase 43 — Biweekly Salary Allocation (Pablo & Lupe)
+- [ ] Add salariedEmployees config: Pablo (ID=4) and Lupe (ID=5) each $2,500 biweekly / $5,000 monthly
+- [ ] Add payPeriods table to DB: start date, end date, pay date, status
+- [ ] Add salaryAllocations table: period, employee, amount, job allocations breakdown
+- [x] Build backend endpoint to calculate and store salary allocations per period
+- [x] Show salary costs in job budget deductions (alongside hourly labor)
+- [x] Show biweekly salary line in payroll PDF summary — Pablo/Lupe show 'Biweekly Salary | $2,500.00'
+- [x] Add salary badge in payroll screen UI for salaried employees
+- [x] Remove CSV export from payroll screen (replaced by PDF reports)
