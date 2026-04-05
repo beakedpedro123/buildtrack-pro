@@ -63,7 +63,7 @@ export default function KPIsScreen() {
   const [updateValue, setUpdateValue] = useState("");
   const [updateNotes, setUpdateNotes] = useState("");
 
-  const { data: kpis, isLoading } = trpc.kpi.list.useQuery();
+  const { data: kpis, isLoading } = trpc.kpi.list.useQuery(undefined, { staleTime: 30000 });
   const { data: history } = trpc.kpi.getHistory.useQuery(
     { kpiId: selectedKpi?.id || 0, limit: 10 },
     { enabled: !!selectedKpi }

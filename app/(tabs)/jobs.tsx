@@ -78,7 +78,7 @@ export default function JobsScreen() {
   const canSeeBudget = role === "owner" || role === "office_manager";
   const canUpdateStatus = canManage || role === "foreman";
 
-  const { data: allJobs, isLoading } = trpc.jobs.list.useQuery();
+  const { data: allJobs, isLoading } = trpc.jobs.list.useQuery(undefined, { staleTime: 30000 });
   const { data: jobReports } = trpc.reports.forJob.useQuery(
     { jobId: selectedJob?.id || 0 },
     { enabled: !!selectedJob }

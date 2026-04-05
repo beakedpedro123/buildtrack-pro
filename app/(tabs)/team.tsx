@@ -61,6 +61,14 @@ export default function TeamScreen() {
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const [filterRole, setFilterRole] = useState<string>("all");
 
+  // Inline pay editing state
+  const [editingPay, setEditingPay] = useState(false);
+  const [editPayType, setEditPayType] = useState<"hourly" | "salary">("hourly");
+  const [editHourlyRate, setEditHourlyRate] = useState("");
+  const [editSalaryAmount, setEditSalaryAmount] = useState("");
+  const [editSalaryProjects, setEditSalaryProjects] = useState<number[]>([]);
+  const [savingPay, setSavingPay] = useState(false);
+
   // New employee form
   const [empName, setEmpName] = useState("");
   const [empRole, setEmpRole] = useState<typeof ROLES[number]>("laborer");
@@ -82,9 +90,9 @@ export default function TeamScreen() {
   // Laborer/foreman can only tap their own card (to see their own info)
   const canViewOthers = canViewTeam;
 
-  const { data: employees, isLoading } = trpc.employees.list.useQuery();
-  const { data: clockedIn } = trpc.clock.allClockedIn.useQuery();
-  const { data: activeJobs } = trpc.jobs.listActive.useQuery();
+  const { data: employees, isLoading } = trpc.employees.list.useQuery(undefined, { staleTime: 30000 });
+  const { data: clockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { staleTime: 30000 });
+  const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 30000 });
 
   const createEmployee = trpc.employees.create.useMutation({
     onSuccess: () => {
@@ -329,11 +337,10 @@ export default function TeamScreen() {
                   </View>
                 </View>
 
-                {/* Details — hourly rate only shown to owner */}
+                {/* Details */}
                 {[
                   { label: "Phone", value: selectedEmployee.phone },
                   { label: "Email", value: selectedEmployee.email },
-                  ...(canSeeRates ? [{ label: "Hourly Rate", value: selectedEmployee.hourlyRate ? `$${selectedEmployee.hourlyRate}/hr` : null }] : []),
                   { label: "Status", value: selectedEmployee.isActive ? "Active" : "Inactive" },
                   { label: "Member Since", value: new Date(selectedEmployee.createdAt).toLocaleDateString() },
                 ].filter((r) => r.value).map((row) => (
@@ -342,6 +349,185 @@ export default function TeamScreen() {
                     <Text style={{ fontSize: 14, color: colors.foreground, flex: 1 }}>{row.value}</Text>
                   </View>
                 ))}
+
+                {/* Pay Section — Owner/Office Manager only */}
+                {canSeeRates && (
+                  <View style={{ marginTop: 20, backgroundColor: colors.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Pay Information</Text>
+                      {canManage && !editingPay && (
+                        <TouchableOpacity onPress={() => {
+                          setEditingPay(true);
+                          setEditPayType(selectedEmployee.payType || "hourly");
+                          setEditHourlyRate(selectedEmployee.hourlyRate || "");
+                          setEditSalaryAmount(selectedEmployee.salaryAmount || "");
+                          try { setEditSalaryProjects(selectedEmployee.salaryProjects ? JSON.parse(selectedEmployee.salaryProjects) : []); } catch { setEditSalaryProjects([]); }
+                        }}>
+                          <Text style={{ color: colors.primary, fontWeight: "600", fontSize: 14 }}>Edit</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {!editingPay ? (
+                      <View>
+                        <View style={styles.detailRow}>
+                          <Text style={{ fontSize: 14, color: colors.muted, width: 110 }}>Pay Type</Text>
+                          <Text style={{ fontSize: 14, color: colors.foreground, flex: 1, textTransform: "capitalize" }}>{selectedEmployee.payType || "Hourly"}</Text>
+                        </View>
+                        {(selectedEmployee.payType || "hourly") === "hourly" ? (
+                          <View style={styles.detailRow}>
+                            <Text style={{ fontSize: 14, color: colors.muted, width: 110 }}>Hourly Rate</Text>
+                            <Text style={{ fontSize: 14, color: colors.foreground, flex: 1 }}>{selectedEmployee.hourlyRate ? `$${selectedEmployee.hourlyRate}/hr` : "Not set"}</Text>
+                          </View>
+                        ) : (
+                          <>
+                            <View style={styles.detailRow}>
+                              <Text style={{ fontSize: 14, color: colors.muted, width: 110 }}>Salary</Text>
+                              <Text style={{ fontSize: 14, color: colors.foreground, flex: 1 }}>{selectedEmployee.salaryAmount ? `$${Number(selectedEmployee.salaryAmount).toLocaleString()}` : "Not set"}</Text>
+                            </View>
+                            {(() => {
+                              let projIds: number[] = [];
+                              try { projIds = selectedEmployee.salaryProjects ? JSON.parse(selectedEmployee.salaryProjects) : []; } catch {}
+                              if (projIds.length === 0) return null;
+                              const projNames = projIds.map((pid: number) => (activeJobs || []).find((j) => j.id === pid)?.name || `Job #${pid}`).join(", ");
+                              const perProject = selectedEmployee.salaryAmount ? `$${(Number(selectedEmployee.salaryAmount) / projIds.length).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "$0";
+                              return (
+                                <>
+                                  <View style={styles.detailRow}>
+                                    <Text style={{ fontSize: 14, color: colors.muted, width: 110 }}>Split Across</Text>
+                                    <Text style={{ fontSize: 14, color: colors.foreground, flex: 1 }}>{projIds.length} projects</Text>
+                                  </View>
+                                  <View style={styles.detailRow}>
+                                    <Text style={{ fontSize: 14, color: colors.muted, width: 110 }}>Per Project</Text>
+                                    <Text style={{ fontSize: 14, color: colors.primary, flex: 1, fontWeight: "600" }}>{perProject}</Text>
+                                  </View>
+                                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 6 }}>{projNames}</Text>
+                                </>
+                              );
+                            })()}
+                          </>
+                        )}
+                      </View>
+                    ) : (
+                      <View>
+                        {/* Pay Type Toggle */}
+                        <View style={{ flexDirection: "row", backgroundColor: colors.background, borderRadius: 10, padding: 3, marginBottom: 14, borderWidth: 1, borderColor: colors.border }}>
+                          <TouchableOpacity
+                            style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: editPayType === "hourly" ? colors.primary : "transparent" }}
+                            onPress={() => setEditPayType("hourly")}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: editPayType === "hourly" ? "#fff" : colors.muted }}>Hourly</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: editPayType === "salary" ? colors.primary : "transparent" }}
+                            onPress={() => setEditPayType("salary")}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: editPayType === "salary" ? "#fff" : colors.muted }}>Salary</Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        {editPayType === "hourly" ? (
+                          <>
+                            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Hourly Rate ($)</Text>
+                            <TextInput
+                              style={styles.input}
+                              placeholder="e.g. 25.00"
+                              placeholderTextColor={colors.muted}
+                              value={editHourlyRate}
+                              onChangeText={setEditHourlyRate}
+                              keyboardType="decimal-pad"
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Salary Amount ($)</Text>
+                            <TextInput
+                              style={styles.input}
+                              placeholder="e.g. 52000"
+                              placeholderTextColor={colors.muted}
+                              value={editSalaryAmount}
+                              onChangeText={setEditSalaryAmount}
+                              keyboardType="decimal-pad"
+                            />
+
+                            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6, marginTop: 8 }}>Distribute Cost Across Projects (up to 6)</Text>
+                            <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 8 }}>Salary will be split evenly across selected projects</Text>
+                            {(activeJobs || []).filter((j) => j.status === "active").map((job) => {
+                              const isSelected = editSalaryProjects.includes(job.id);
+                              return (
+                                <TouchableOpacity
+                                  key={job.id}
+                                  style={[styles.roleOption, { borderColor: isSelected ? colors.primary : colors.border, backgroundColor: isSelected ? colors.primary + "15" : colors.background }]}
+                                  onPress={() => {
+                                    if (isSelected) {
+                                      setEditSalaryProjects(editSalaryProjects.filter((id) => id !== job.id));
+                                    } else if (editSalaryProjects.length < 6) {
+                                      setEditSalaryProjects([...editSalaryProjects, job.id]);
+                                    } else {
+                                      Alert.alert("Maximum 6 Projects", "You can distribute salary across up to 6 projects.");
+                                    }
+                                  }}
+                                >
+                                  <Text style={{ fontSize: 14, fontWeight: "600", flex: 1, color: isSelected ? colors.primary : colors.foreground }}>{job.name}</Text>
+                                  {isSelected && <Text style={{ color: colors.primary, fontWeight: "700" }}>✓</Text>}
+                                </TouchableOpacity>
+                              );
+                            })}
+                            {editSalaryProjects.length > 0 && editSalaryAmount && (
+                              <View style={{ backgroundColor: colors.primary + "10", borderRadius: 8, padding: 10, marginTop: 8 }}>
+                                <Text style={{ fontSize: 13, color: colors.primary, fontWeight: "600" }}>
+                                  ${(Number(editSalaryAmount) / editSalaryProjects.length).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per project ({editSalaryProjects.length} projects)
+                                </Text>
+                              </View>
+                            )}
+                          </>
+                        )}
+
+                        {/* Save / Cancel buttons */}
+                        <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+                          <TouchableOpacity
+                            style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 10, padding: 12, alignItems: "center", borderWidth: 1, borderColor: colors.border }}
+                            onPress={() => setEditingPay(false)}
+                          >
+                            <Text style={{ color: colors.muted, fontWeight: "600" }}>Cancel</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={{ flex: 1, backgroundColor: colors.primary, borderRadius: 10, padding: 12, alignItems: "center" }}
+                            disabled={savingPay}
+                            onPress={async () => {
+                              setSavingPay(true);
+                              try {
+                                await updateEmployee.mutateAsync({
+                                  id: selectedEmployee.id,
+                                  hourlyRate: editPayType === "hourly" ? editHourlyRate : undefined,
+                                  payType: editPayType,
+                                  salaryAmount: editPayType === "salary" ? editSalaryAmount : undefined,
+                                  salaryProjects: editPayType === "salary" ? JSON.stringify(editSalaryProjects) : undefined,
+                                });
+                                setSelectedEmployee({
+                                  ...selectedEmployee,
+                                  hourlyRate: editPayType === "hourly" ? editHourlyRate : selectedEmployee.hourlyRate,
+                                  payType: editPayType,
+                                  salaryAmount: editPayType === "salary" ? editSalaryAmount : selectedEmployee.salaryAmount,
+                                  salaryProjects: editPayType === "salary" ? JSON.stringify(editSalaryProjects) : selectedEmployee.salaryProjects,
+                                });
+                                setEditingPay(false);
+                                if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                Alert.alert("Saved", "Pay information updated successfully.");
+                              } catch (err) {
+                                Alert.alert("Error", "Failed to update pay information.");
+                              } finally {
+                                setSavingPay(false);
+                              }
+                            }}
+                          >
+                            {savingPay ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "700" }}>Save</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
 
                 {/* Current Status */}
                 {clockedInIds.has(selectedEmployee.id) && (() => {

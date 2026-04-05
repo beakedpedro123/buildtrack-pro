@@ -35,6 +35,9 @@ export const employees = mysqlTable("employees", {
   email: varchar("email", { length: 320 }),
   isActive: boolean("isActive").default(true).notNull(),
   hourlyRate: decimal("hourlyRate", { precision: 8, scale: 2 }),
+  payType: mysqlEnum("payType", ["hourly", "salary"]).default("hourly").notNull(),
+  salaryAmount: decimal("salaryAmount", { precision: 12, scale: 2 }),
+  salaryProjects: text("salaryProjects"),  // JSON array of up to 6 job IDs for salary distribution
   inviteToken: varchar("inviteToken", { length: 64 }),
   inviteStatus: mysqlEnum("inviteStatus", ["pending", "accepted"]).default("accepted"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

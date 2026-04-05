@@ -110,11 +110,11 @@ export default function ClockScreen() {
     return () => { mountedRef.current = false; };
   }, []);
 
-  // Update clock every 10 seconds for responsive elapsed time
+  // Update clock every 30 seconds for elapsed time display
   useEffect(() => {
     const interval = setInterval(() => {
       if (mountedRef.current) setNow(new Date());
-    }, 10000);
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -128,19 +128,19 @@ export default function ClockScreen() {
 
   const { data: activeEntry, refetch: refetchActive } = trpc.clock.activeEntry.useQuery(
     { employeeId: clockTargetId || 0 },
-    { enabled: !!clockTargetId, refetchInterval: 10000, staleTime: 5000 }
+    { enabled: !!clockTargetId, refetchInterval: 30000, staleTime: 15000 }
   );
 
-  const { data: jobs } = trpc.jobs.listActive.useQuery();
+  const { data: jobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 60000 });
 
   const { data: history, refetch: refetchHistory } = trpc.clock.history.useQuery(
     { employeeId: clockTargetId || 0, since: new Date(Date.now() - 7 * 86400000).toISOString() },
-    { enabled: !!clockTargetId }
+    { enabled: !!clockTargetId, staleTime: 15000 }
   );
 
-  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManager });
+  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManager, staleTime: 30000 });
   const { data: allClockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(
-    undefined, { enabled: isManager, refetchInterval: 10000, staleTime: 5000 }
+    undefined, { enabled: isManager, refetchInterval: 30000, staleTime: 15000 }
   );
 
   const activeEmployees = useMemo(() => {

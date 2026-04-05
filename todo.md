@@ -1191,3 +1191,48 @@
 - [x] Ensure delete and adjust features work identically on Android, iOS, and web — all use modal dialogs
 - [x] Fix Pivot context dates to use Mountain Time
 - [x] Fix goal deadline display to use Mountain Time
+
+## Phase 40 — Final Polish & Publish Readiness
+
+### Pivot Keyboard Fix
+- [x] Fix Pivot chat input hidden behind keyboard on iOS and Android
+- [x] Ensure keyboard avoidance works consistently on both platforms
+
+### Team Tab — Real-Time Pay Editing
+- [x] Allow owner/office_manager to edit employee pay rate inline from Team tab
+- [x] Changes save immediately and reflect in real time
+
+### Salary Pay for Office Managers
+- [x] Add salary pay option (annual/monthly) for office managers and owner
+- [x] Allow selecting up to 6 active projects to distribute salary cost evenly
+- [x] Salary cost deducted from each selected project's budget proportionally
+
+### Voice-to-Goals from Dashboard
+- [x] Dashboard Goals button opens voice recording for goal creation
+- [x] Voice recording → Pivot summarizes → user confirms → goals pushed to Goals tab
+- [x] Keep existing copy/paste and type-to-create goals functionality
+- [x] Voice option available for owner, office_manager, foreman
+
+### Salary in Payroll Reports
+- [x] Include salary employees in payroll report with their salary amounts
+- [x] Include owner's own pay per project in payroll report
+
+### Pivot Voice Recording Fix
+- [x] Audit and fix Pivot voice recording UI/functionality
+- [x] Improve Pivot overall experience (response quality, UI polish)
+
+### Performance Optimization
+- [x] Audit app for unnecessary re-renders, heavy components, memory leaks
+- [x] Optimize/compress assets and reduce bundle size
+- [x] Fix lag and freezing on both Android and iOS
+
+### Publish Readiness Audit
+- [x] Full audit for iOS App Store readiness
+- [x] Full audit for Android APK readiness
+- [x] Ensure all functions work identically on both platforms
+- [x] Remove any dead code, unused imports, console.logs
+
+### Goals UI Fix
+- [x] Fix Goals UI — separate edit vs status toggle into distinct actions (tap = edit, separate status buttons)
+- [x] Make status buttons (Not Started / In Progress / Complete) clearly labeled and always visible
+- [x] Tap on goal card opens edit view, not status toggle

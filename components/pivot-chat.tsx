@@ -24,6 +24,7 @@ import {
   Keyboard,
   Dimensions,
   Linking,
+  StatusBar,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
@@ -212,6 +213,7 @@ export function PivotChat() {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
+  const pendingVoiceRef = useRef<string | null>(null);
 
   const chatMutation = trpc.pivot.chat.useMutation();
   const transcribeMutation = trpc.pivot.transcribeVoice.useMutation();
@@ -278,34 +280,51 @@ export function PivotChat() {
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch (err) {
-      Alert.alert("Recording Error", "Could not start recording. Please try again.");
+    } catch (err: any) {
+      console.warn("Recording start error:", err?.message || err);
+      Alert.alert("Recording Error", "Could not start recording. Please close and reopen Pivot, then try again.");
     }
   }, [access.canUseVoice, audioRecorder]);
 
   const stopRecording = useCallback(async () => {
     if (!recorderState.isRecording) return;
-    await audioRecorder.stop();
+    try {
+      await audioRecorder.stop();
+    } catch (err: any) {
+      console.warn("Recording stop error:", err?.message || err);
+    }
     const uri = audioRecorder.uri;
-    if (!uri) return;
+    if (!uri) {
+      Alert.alert("Recording Error", "No audio was captured. Please try recording again.");
+      return;
+    }
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsTranscribing(true);
     try {
       const apiBase = getApiBaseUrl();
       const formData = new FormData();
-      formData.append("file", { uri, name: `pivot_voice_${Date.now()}.m4a`, type: "audio/m4a" } as any);
+      const ext = Platform.OS === "ios" ? "m4a" : "mp4";
+      formData.append("file", { uri, name: `pivot_voice_${Date.now()}.${ext}`, type: `audio/${ext}` } as any);
       const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
-      if (!uploadRes.ok) throw new Error("Upload failed");
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text().catch(() => "");
+        throw new Error(`Upload failed: ${uploadRes.status} ${errText}`);
+      }
       const { url } = await uploadRes.json();
       const result = await transcribeMutation.mutateAsync({ audioUrl: url });
       if (result.text?.trim()) {
-        setInput(result.text.trim());
+        // Set the transcribed text in input — user can review and send
+        const transcribedText = result.text.trim();
+        setInput(transcribedText);
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Store for auto-send via effect
+        pendingVoiceRef.current = transcribedText;
       } else {
-        Alert.alert("Voice Input", "Could not understand the audio. Please try again or type your message.");
+        Alert.alert("Voice Input", "Could not understand the audio. Please try again or speak more clearly.");
       }
-    } catch {
-      Alert.alert("Transcription Failed", "Could not transcribe your voice. Please type your message.");
+    } catch (err: any) {
+      console.warn("Transcription error:", err?.message || err);
+      Alert.alert("Transcription Failed", "Could not transcribe your voice. Please try again or type your message.");
     } finally {
       setIsTranscribing(false);
     }
@@ -385,7 +404,7 @@ export function PivotChat() {
     setLoading(true);
 
     // Don't dismiss keyboard on send — let user keep typing follow-ups
-    // Keyboard.dismiss();
+    
 
     try {
       const result = await chatMutation.mutateAsync({
@@ -402,6 +421,16 @@ export function PivotChat() {
       setLoading(false);
     }
   };
+
+  // Auto-send voice transcription after sendMessage is available
+  useEffect(() => {
+    if (pendingVoiceRef.current && !loading && !isTranscribing) {
+      const text = pendingVoiceRef.current;
+      pendingVoiceRef.current = null;
+      // Small delay so user sees the transcribed text in the input
+      setTimeout(() => sendMessage(text), 400);
+    }
+  }, [isTranscribing, loading]);
 
   // ─── Don't render for roles without chat access ──────────────────────────────
 
@@ -618,7 +647,7 @@ export function PivotChat() {
       flexDirection: "row",
       alignItems: "flex-end",
       padding: 10,
-      paddingBottom: Platform.OS === "ios" ? 28 : 12,
+      paddingBottom: Platform.OS === "ios" ? Math.max(insets.bottom, 12) : 12,
       gap: 8,
       borderTopWidth: 0.5,
       borderTopColor: colors.border,
@@ -688,9 +717,9 @@ export function PivotChat() {
         statusBarTranslucent
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
           style={{ flex: 1, backgroundColor: colors.surface }}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : StatusBar.currentHeight || 0}
         >
           <View style={[s.panel, { flex: 1, maxHeight: "100%" }]}>
               {/* Header with safe area padding for status bar */}

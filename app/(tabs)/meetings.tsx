@@ -193,8 +193,8 @@ export default function MeetingsScreen() {
 
   // ─── Safety meeting queries ──────────────────────────────────────────────
   const { data: jobs } = trpc.jobs.listActive.useQuery();
-  const { data: topics } = trpc.safetyTopics.list.useQuery({ activeOnly: true });
-  const { data: allSafetyMeetings } = trpc.safetyMeetings.list.useQuery({ limit: 50 });
+  const { data: topics } = trpc.safetyTopics.list.useQuery({ activeOnly: true }, { staleTime: 30000 });
+  const { data: allSafetyMeetings } = trpc.safetyMeetings.list.useQuery({ limit: 50 }, { staleTime: 30000 });
 
   const now = new Date();
   const weekStart = getWeekStart(now);

@@ -21,6 +21,7 @@ import {
   TouchableOpacity,
   View } from "react-native";
 import * as Haptics from "expo-haptics";
+import { VoiceGoalCreator } from "@/components/voice-goal-creator";
 
 const companyLogo = require("@/assets/images/company-logo.png");
 import { BG_HOME as bgHome } from "@/constants/bg-urls";
@@ -199,9 +200,12 @@ export default function DashboardScreen() {
 
   const { startDate, endDate, label: periodLabel } = useMemo(() => getDateRange(laborPeriod), [laborPeriod]);
 
-  const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { enabled: isManagement });
-  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManagement });
-  const { data: clockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement });
+  const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
+  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
+  const { data: clockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 15000 });
+
+  // Voice goal creator state
+  const [showVoiceGoals, setShowVoiceGoals] = useState(false);
 
   // Edit time state for Onsite Now
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
@@ -239,7 +243,7 @@ export default function DashboardScreen() {
 
   const { data: activeEntry } = trpc.clock.activeEntry.useQuery(
     { employeeId: employee?.id || 0 },
-    { enabled: !!employee }
+    { enabled: !!employee, staleTime: 10000 }
   );
   const { data: myJobs } = trpc.jobs.forEmployee.useQuery(
     { employeeId: employee?.id || 0 },
@@ -247,21 +251,21 @@ export default function DashboardScreen() {
   );
 
   // Budget alerts (owner/management only)
-  const { data: budgetAlerts } = trpc.budgetAlerts.getAlerts.useQuery(undefined, { enabled: isOwner });
+  const { data: budgetAlerts } = trpc.budgetAlerts.getAlerts.useQuery(undefined, { enabled: isOwner, staleTime: 60000 });
   const activeAlerts = useMemo(() => (budgetAlerts || []).filter(a => a.alertLevel !== "ok"), [budgetAlerts]);
 
   // Labor cost data (management only on Home)
   const { data: byJob } = trpc.laborDashboard.byJob.useQuery(
     { startDate, endDate },
-    { enabled: isManagement }
+    { enabled: isManagement, staleTime: 30000 }
   );
   const { data: weeklyTrend } = trpc.laborDashboard.weeklyTrend.useQuery(
     { weeks: 8 },
-    { enabled: isManagement }
+    { enabled: isManagement, staleTime: 60000 }
   );
   const { data: byEmployee } = trpc.laborDashboard.byEmployee.useQuery(
     { startDate, endDate },
-    { enabled: isManagement }
+    { enabled: isManagement, staleTime: 30000 }
   );
 
   const totalCost = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalCost, 0), [byJob]);
@@ -424,7 +428,7 @@ export default function DashboardScreen() {
 
           {/* Quick Actions */}
           <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
-            <TouchableOpacity style={styles.quickAction} onPress={() => router.push("/goals" as any)}>
+            <TouchableOpacity style={styles.quickAction} onPress={() => setShowVoiceGoals(true)}>
               <Text style={styles.quickActionIcon}>🎯</Text>
               <Text style={styles.quickActionLabel}>My Goals</Text>
             </TouchableOpacity>
@@ -458,6 +462,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </ScrollView>
       </ImageBackground>
+      <VoiceGoalCreator visible={showVoiceGoals} onClose={() => setShowVoiceGoals(false)} />
       </ScreenContainer>
     );
   }
@@ -533,7 +538,7 @@ export default function DashboardScreen() {
               <Text style={styles.quickActionIcon}>🛡️</Text>
               <Text style={styles.quickActionLabel}>Safety</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickAction} onPress={() => router.push("/goals" as any)}>
+            <TouchableOpacity style={styles.quickAction} onPress={() => setShowVoiceGoals(true)}>
               <Text style={styles.quickActionIcon}>🎯</Text>
               <Text style={styles.quickActionLabel}>Goals</Text>
             </TouchableOpacity>
@@ -559,6 +564,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
          </ScrollView>
       </ImageBackground>
+      <VoiceGoalCreator visible={showVoiceGoals} onClose={() => setShowVoiceGoals(false)} />
       </ScreenContainer>
     );
   }

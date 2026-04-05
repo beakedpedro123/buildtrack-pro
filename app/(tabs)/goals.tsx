@@ -197,13 +197,13 @@ function DateTimePicker({
 function PunchListSubTab({ colors, employee, canManage }: { colors: any; employee: any; canManage: boolean }) {
   const utils = trpc.useUtils();
   const insets = useSafeAreaInsets();
-  const { data: jobs } = trpc.jobs.listActive.useQuery();
+  const { data: jobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 30000 });
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const { data: punchItems, isLoading: loadingItems, refetch: refetchItems } = trpc.punchList.listForJob.useQuery(
     { jobId: selectedJobId! },
     { enabled: !!selectedJobId }
   );
-  const { data: allEmployees } = trpc.employees.list.useQuery();
+  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { staleTime: 30000 });
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [bulkText, setBulkText] = useState("");
@@ -688,7 +688,7 @@ export default function GoalsScreen() {
     weekOf: weekStart.toISOString(),
     employeeId: employee?.id,
     employeeRole: employee?.role });
-  const { data: allEmployees } = trpc.employees.list.useQuery();
+  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { staleTime: 30000 });
 
   const employeeMap = useMemo(() => {
     const map: Record<number, string> = {};
@@ -987,6 +987,14 @@ export default function GoalsScreen() {
   );
 
   // ─── Goal Card ────────────────────────────────────────────────────────────────
+  const setGoalStatus = useCallback((goalId: number, newStatus: GoalStatus) => {
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    updateGoal.mutate({
+      id: goalId,
+      status: newStatus,
+      completedAt: newStatus === "completed" ? new Date().toISOString() : undefined });
+  }, [updateGoal]);
+
   const renderGoalCard = ({ item }: { item: any }) => {
     const status = item.status as GoalStatus;
     const priority = item.priority as Priority;
@@ -1002,11 +1010,14 @@ export default function GoalsScreen() {
     const isOverdue = dl && dl < now && !isCompleted && !isCancelled;
     const isDueSoon = dl && !isOverdue && dl.getTime() - now.getTime() < 24 * 60 * 60 * 1000 && !isCompleted && !isCancelled;
 
+    const statusOptions: { key: GoalStatus; label: string }[] = [
+      { key: "pending", label: "Not Started" },
+      { key: "in_progress", label: "In Progress" },
+      { key: "completed", label: "Complete" },
+    ];
+
     return (
-      <TouchableOpacity
-        onPress={() => canEdit ? openEditModal(item) : (canUpdateStatus && handleStatusCycle(item))}
-        onLongPress={() => canUpdateStatus && handleStatusCycle(item)}
-        activeOpacity={0.8}
+      <View
         style={{
           marginHorizontal: 16, marginBottom: 12, borderRadius: 16,
           backgroundColor: colors.surface, overflow: "hidden",
@@ -1023,20 +1034,22 @@ export default function GoalsScreen() {
             borderTopLeftRadius: 16, borderBottomLeftRadius: 16,
           }} />
           <View style={{ flex: 1, padding: 16 }}>
-            <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
-              <TouchableOpacity
-                onPress={() => canUpdateStatus && handleStatusCycle(item)}
-                style={{
-                  width: 28, height: 28, borderRadius: 14,
-                  backgroundColor: STATUS_COLORS[status] + "18",
-                  alignItems: "center", justifyContent: "center",
-                  marginRight: 12, marginTop: 1,
-                }}
-              >
+            {/* Title row — tap to edit */}
+            <TouchableOpacity
+              onPress={() => canEdit && openEditModal(item)}
+              activeOpacity={canEdit ? 0.7 : 1}
+              style={{ flexDirection: "row", alignItems: "flex-start" }}
+            >
+              <View style={{
+                width: 28, height: 28, borderRadius: 14,
+                backgroundColor: STATUS_COLORS[status] + "18",
+                alignItems: "center", justifyContent: "center",
+                marginRight: 12, marginTop: 1,
+              }}>
                 <Text style={{ fontSize: 16, color: STATUS_COLORS[status], fontWeight: "700" }}>
                   {STATUS_ICONS[status]}
                 </Text>
-              </TouchableOpacity>
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={{
                   fontSize: 15, fontWeight: "700",
@@ -1051,6 +1064,11 @@ export default function GoalsScreen() {
                     {item.description}
                   </Text>
                 ) : null}
+                {canEdit && (
+                  <Text style={{ fontSize: 11, color: colors.primary, marginTop: 4, fontWeight: "600" }}>
+                    Tap to edit
+                  </Text>
+                )}
               </View>
               {canManage && (
                 <TouchableOpacity
@@ -1064,13 +1082,12 @@ export default function GoalsScreen() {
                   <Text style={{ fontSize: 13, color: colors.muted }}>✕</Text>
                 </TouchableOpacity>
               )}
-            </View>
+            </TouchableOpacity>
+
+            {/* Info badges */}
             <View style={{ flexDirection: "row", gap: 6, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
               <View style={{ backgroundColor: PRIORITY_COLORS[priority] + "14", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
                 <Text style={{ fontSize: 10, fontWeight: "700", color: PRIORITY_COLORS[priority], textTransform: "uppercase", letterSpacing: 0.5 }}>{priority}</Text>
-              </View>
-              <View style={{ backgroundColor: STATUS_COLORS[status] + "14", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 10, fontWeight: "700", color: STATUS_COLORS[status], textTransform: "uppercase", letterSpacing: 0.5 }}>{status.replace("_", " ")}</Text>
               </View>
               <View style={{ backgroundColor: (item.assignedTo || item.assignedToList) ? colors.primary + "14" : colors.muted + "14", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, maxWidth: "60%" }}>
                 <Text style={{ fontSize: 10, fontWeight: "600", color: (item.assignedTo || item.assignedToList) ? colors.primary : colors.muted }} numberOfLines={1}>{assigneeName}</Text>
@@ -1087,9 +1104,43 @@ export default function GoalsScreen() {
                 );
               })()}
             </View>
+
+            {/* Status action buttons — always visible, clearly separated */}
+            {canUpdateStatus && !isCancelled && (
+              <View style={{
+                flexDirection: "row", gap: 8, marginTop: 12,
+                paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border + "40",
+              }}>
+                {statusOptions.map((opt) => {
+                  const isActive = status === opt.key;
+                  return (
+                    <TouchableOpacity
+                      key={opt.key}
+                      onPress={() => !isActive && setGoalStatus(item.id, opt.key)}
+                      activeOpacity={isActive ? 1 : 0.7}
+                      style={{
+                        flex: 1, paddingVertical: 8, borderRadius: 10,
+                        backgroundColor: isActive ? STATUS_COLORS[opt.key] + "22" : colors.background,
+                        borderWidth: isActive ? 1.5 : 1,
+                        borderColor: isActive ? STATUS_COLORS[opt.key] : colors.border + "60",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{
+                        fontSize: 11, fontWeight: isActive ? "800" : "600",
+                        color: isActive ? STATUS_COLORS[opt.key] : colors.muted,
+                        letterSpacing: 0.3,
+                      }}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 

@@ -77,7 +77,7 @@ export default function ReportsScreen() {
   photosRef.current = photos;
 
   const { data: jobs } = trpc.jobs.listActive.useQuery();
-  const { data: recentReports } = trpc.reports.recent.useQuery({ limit: 20 });
+  const { data: recentReports } = trpc.reports.recent.useQuery({ limit: 20 }, { staleTime: 30000 });
   const { data: allJobs } = trpc.jobs.list.useQuery();
 
   const createReport = trpc.reports.create.useMutation();
@@ -98,7 +98,7 @@ export default function ReportsScreen() {
         const { status: libStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         const { status: camStatus } = await ImagePicker.requestCameraPermissionsAsync();
         if (libStatus !== "granted" || camStatus !== "granted") {
-          console.log("Permissions not fully granted:", { libStatus, camStatus });
+          // permissions debug removed
         }
       }
     })();
@@ -228,7 +228,7 @@ export default function ReportsScreen() {
       }
 
       const data = await response.json();
-      console.log("Photo uploaded successfully:", data.url);
+      // upload debug removed
       return data.url || null;
     } catch (err: any) {
       console.error("Photo upload error:", err?.message || err);

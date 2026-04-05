@@ -79,7 +79,7 @@ export default function SafetyScreen() {
   const canManageTopics = isOwner || isLogistics; // Office Manager excluded from safety
   const canDocument = isForeman || canManageTopics;
 
-  const { data: jobs } = trpc.jobs.listActive.useQuery();
+  const { data: jobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 30000 });
   const { data: topics } = trpc.safetyTopics.list.useQuery({ activeOnly: true });
   const { data: allMeetings } = trpc.safetyMeetings.list.useQuery({ limit: 50 });
 

@@ -25,6 +25,9 @@ interface EmployeeTimecard {
   name: string;
   role: string;
   hourlyRate: string | null;
+  payType: string;
+  salaryAmount: string | null;
+  salaryProjects: number[];
   days: EmployeeDay[];
   totalMinutes: number;
 }
@@ -125,11 +128,16 @@ async function buildReportData(startDate: Date, endDate: Date) {
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
+    let salaryProjects: number[] = [];
+    try { salaryProjects = emp.salaryProjects ? JSON.parse(emp.salaryProjects) : []; } catch {}
     timecards.push({
       employeeId: empId,
       name: emp.name,
       role: emp.role,
       hourlyRate: emp.hourlyRate ?? null,
+      payType: emp.payType || "hourly",
+      salaryAmount: emp.salaryAmount ?? null,
+      salaryProjects,
       days,
       totalMinutes,
     });
@@ -142,22 +150,60 @@ async function buildReportData(startDate: Date, endDate: Date) {
     return a.name.localeCompare(b.name);
   });
 
+  // Also include salary employees who had NO clock entries (they still cost money)
+  for (const emp of activeEmployees) {
+    if (emp.payType === "salary" && !byEmployee.has(emp.id)) {
+      let salaryProjects: number[] = [];
+      try { salaryProjects = emp.salaryProjects ? JSON.parse(emp.salaryProjects) : []; } catch {}
+      timecards.push({
+        employeeId: emp.id,
+        name: emp.name,
+        role: emp.role,
+        hourlyRate: emp.hourlyRate ?? null,
+        payType: "salary",
+        salaryAmount: emp.salaryAmount ?? null,
+        salaryProjects,
+        days: [],
+        totalMinutes: 0,
+      });
+    }
+  }
+
   // Job cost summary
-  const jobCosts = new Map<number, { name: string; totalMinutes: number; totalCost: number; employees: Set<string> }>();
+  const jobCosts = new Map<number, { name: string; totalMinutes: number; totalCost: number; salaryCost: number; employees: Set<string> }>();
   for (const tc of timecards) {
-    const rate = tc.hourlyRate ? parseFloat(tc.hourlyRate) : 0;
-    for (const day of tc.days) {
-      for (const entry of day.entries) {
-        const jc = jobCosts.get(entry.jobId) || { name: entry.jobName, totalMinutes: 0, totalCost: 0, employees: new Set() };
-        jc.totalMinutes += entry.durationMinutes;
-        jc.totalCost += (entry.durationMinutes / 60) * rate;
-        jc.employees.add(tc.name);
-        jobCosts.set(entry.jobId, jc);
+    if (tc.payType === "salary") {
+      // Distribute salary cost across assigned projects
+      const salaryAmt = tc.salaryAmount ? parseFloat(tc.salaryAmount) : 0;
+      if (tc.salaryProjects.length > 0 && salaryAmt > 0) {
+        const perProject = salaryAmt / tc.salaryProjects.length;
+        for (const projId of tc.salaryProjects) {
+          const job = jobMap.get(projId);
+          const jc = jobCosts.get(projId) || { name: job?.name || `Job #${projId}`, totalMinutes: 0, totalCost: 0, salaryCost: 0, employees: new Set() };
+          jc.salaryCost += perProject;
+          jc.totalCost += perProject;
+          jc.employees.add(tc.name + " (salary)");
+          jobCosts.set(projId, jc);
+        }
+      }
+    } else {
+      const rate = tc.hourlyRate ? parseFloat(tc.hourlyRate) : 0;
+      for (const day of tc.days) {
+        for (const entry of day.entries) {
+          const jc = jobCosts.get(entry.jobId) || { name: entry.jobName, totalMinutes: 0, totalCost: 0, salaryCost: 0, employees: new Set() };
+          jc.totalMinutes += entry.durationMinutes;
+          jc.totalCost += (entry.durationMinutes / 60) * rate;
+          jc.employees.add(tc.name);
+          jobCosts.set(entry.jobId, jc);
+        }
       }
     }
   }
 
   const totalPayroll = timecards.reduce((sum, tc) => {
+    if (tc.payType === "salary") {
+      return sum + (tc.salaryAmount ? parseFloat(tc.salaryAmount) : 0);
+    }
     const rate = tc.hourlyRate ? parseFloat(tc.hourlyRate) : 0;
     return sum + (tc.totalMinutes / 60) * rate;
   }, 0);
@@ -241,16 +287,17 @@ function renderPayrollSummary(
 
   for (const tc of timecards) {
     if (y > 700) { doc.addPage(); y = 40; }
+    const isSalary = tc.payType === "salary";
     const rate = tc.hourlyRate ? parseFloat(tc.hourlyRate) : 0;
-    const pay = (tc.totalMinutes / 60) * rate;
+    const pay = isSalary ? (tc.salaryAmount ? parseFloat(tc.salaryAmount) : 0) : (tc.totalMinutes / 60) * rate;
     doc.fontSize(9).fillColor(textColor);
     cx = 40;
     doc.text(tc.name, cx, y, { width: colWidths[0] }); cx += colWidths[0];
     doc.text(ROLE_LABELS[tc.role] || tc.role, cx, y, { width: colWidths[1] }); cx += colWidths[1];
-    doc.text(fmtHours(tc.totalMinutes), cx, y, { width: colWidths[2] }); cx += colWidths[2];
-    doc.text(tc.hourlyRate ? fmtMoney(rate) : "—", cx, y, { width: colWidths[3] }); cx += colWidths[3];
+    doc.text(isSalary ? "Salary" : fmtHours(tc.totalMinutes), cx, y, { width: colWidths[2] }); cx += colWidths[2];
+    doc.text(isSalary ? "Salary" : (tc.hourlyRate ? fmtMoney(rate) : "—"), cx, y, { width: colWidths[3] }); cx += colWidths[3];
     doc.text(fmtMoney(pay), cx, y, { width: colWidths[4] }); cx += colWidths[4];
-    doc.text(`${tc.days.length}`, cx, y, { width: colWidths[5] });
+    doc.text(isSalary ? `${tc.salaryProjects.length} proj` : `${tc.days.length}`, cx, y, { width: colWidths[5] });
     y += 16;
   }
 
