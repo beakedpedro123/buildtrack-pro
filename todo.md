@@ -1244,3 +1244,18 @@
 - [x] Add Payroll tab for Lupe (office_manager) — already in code, needs APK rebuild
 - [x] Add Team tab for Lupe (office_manager) — already in code, needs APK rebuild
 - [x] Ensure office_manager has same dashboard data access as owner — verified isManagement includes office_manager
+
+## Phase 42 — Comprehensive Role Access Audit
+- [x] Audit all employees/users in DB with their roles
+- [x] Verify Owner (Pedro) sees all tabs, all data, dollar amounts, budget alerts
+- [x] Verify Office Manager (Lupe/Pablo) sees same tabs as owner, payroll, team, all employees, dollar amounts
+- [x] Verify Logistics (Alberto) sees team, jobs, reports, goals, meetings — NO dollar amounts, NO payroll
+- [x] Verify Foreman (Ricardo, Juan) sees daily reports, goals, clock, hours — NO meetings, NO payroll, NO team
+- [x] Verify Laborer sees goals, daily reports, clock, hours, profile only
+- [x] Verify dashboard data loads correctly for each role (KPIs, labor overview, onsite now)
+- [x] Verify profile screen shows correct data for each role
+- [x] Fix: Added auto-refresh of employee data on app launch to sync stale cached roles
+- [x] Verified Pablo Carranza is correctly office_manager (not owner)
+- [x] Verified Pedro is the owner account
+- [x] Investigate Lupe's cached auth data — confirmed stale cache is root cause, fixed with auto-refresh
+- [x] Add auto-refresh of employee role on app launch to prevent stale cached roles

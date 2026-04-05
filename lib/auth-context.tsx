@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from "react";
 import { Platform } from "react-native";
 import { trpc } from "./trpc";
 import { scheduleFridayMeetingReminder, cancelFridayMeetingReminder } from "./notifications";
@@ -40,7 +40,20 @@ const STORAGE_KEY = "buildtrack_employee";
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [employee, setEmployee] = useState<AuthEmployee | null>(null);
   const [loading, setLoading] = useState(true);
+  const refreshedRef = useRef(false);
 
+  // tRPC query to refresh employee data from server
+  // Only enabled when we have a cached employee and haven't refreshed yet
+  const { data: freshEmployee } = trpc.employees.getById.useQuery(
+    { id: employee?.id || 0 },
+    {
+      enabled: !!employee && !refreshedRef.current,
+      staleTime: 0,
+      retry: 1,
+    }
+  );
+
+  // Load cached employee from AsyncStorage on mount
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => {
@@ -54,7 +67,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
+  // Auto-refresh: when fresh data arrives from server, update cached employee
+  // This ensures role changes, name changes, rate changes, etc. are picked up
+  // without requiring logout/login
+  useEffect(() => {
+    if (freshEmployee && employee && !refreshedRef.current) {
+      refreshedRef.current = true;
+
+      // Check if the employee was deactivated
+      if (!freshEmployee.isActive) {
+        // Employee was deactivated — force logout
+        setEmployee(null);
+        AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+        if (Platform.OS !== "web") {
+          cancelFridayMeetingReminder().catch(() => {});
+        }
+        return;
+      }
+
+      // Check if any fields changed
+      const hasChanges =
+        freshEmployee.role !== employee.role ||
+        freshEmployee.name !== employee.name ||
+        freshEmployee.phone !== employee.phone ||
+        freshEmployee.email !== employee.email ||
+        freshEmployee.hourlyRate !== employee.hourlyRate ||
+        freshEmployee.isActive !== employee.isActive;
+
+      if (hasChanges) {
+        const updated: AuthEmployee = {
+          ...employee,
+          role: freshEmployee.role as EmployeeRole,
+          name: freshEmployee.name,
+          phone: freshEmployee.phone,
+          email: freshEmployee.email,
+          hourlyRate: freshEmployee.hourlyRate,
+          isActive: freshEmployee.isActive,
+        };
+        setEmployee(updated);
+        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated)).catch(() => {});
+
+        // Re-schedule meeting reminder if role changed
+        if (freshEmployee.role !== employee.role && Platform.OS !== "web") {
+          scheduleFridayMeetingReminder(freshEmployee.role as EmployeeRole).catch(() => {});
+        }
+      }
+    }
+  }, [freshEmployee, employee]);
+
   const login = useCallback(async (emp: AuthEmployee) => {
+    refreshedRef.current = true; // No need to refresh right after login
     setEmployee(emp);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(emp));
     // Schedule Friday meeting reminder for management roles
@@ -64,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    refreshedRef.current = false; // Reset for next login
     setEmployee(null);
     await AsyncStorage.removeItem(STORAGE_KEY);
     // Cancel meeting reminder on logout
