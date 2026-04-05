@@ -189,6 +189,32 @@ const clockRouter = router({
   getAdjustments: publicProcedure.input(z.object({
     clockEntryId: z.number(),
   })).query(({ input }) => db.getAdjustmentsForEntry(input.clockEntryId)),
+  addManualEntry: publicProcedure.input(z.object({
+    employeeId: z.number(),
+    jobId: z.number(),
+    clockIn: z.string(),
+    clockOut: z.string(),
+    addedBy: z.number(),
+    reason: z.string().min(1),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.addedBy, ["owner", "secretary", "logistics"], "add manual time entries");
+    return db.addManualClockEntry({
+      employeeId: input.employeeId,
+      jobId: input.jobId,
+      clockIn: new Date(input.clockIn),
+      clockOut: new Date(input.clockOut),
+      addedBy: input.addedBy,
+      reason: input.reason,
+    });
+  }),
+  deleteEntry: publicProcedure.input(z.object({
+    entryId: z.number(),
+    deletedBy: z.number(),
+    reason: z.string().min(1),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.deletedBy, ["owner", "secretary", "logistics"], "delete time entries");
+    return db.deleteClockEntry(input.entryId, input.deletedBy, input.reason);
+  }),
 });
 
 const reportsRouter = router({

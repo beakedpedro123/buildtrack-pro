@@ -1123,3 +1123,16 @@
 
 ### Web App Not Found Fix
 - [x] Fix web app: root URL can't redirect (platform only proxies /api/*), correct URL is /api/web/
+
+### Database Fix — Employee ID Disconnect
+- [ ] Diagnose employee ID changes that disconnected clock entries from employees
+- [ ] Reconnect clock entries to correct employees based on names/timestamps
+
+## Phase 37 — Job Reconnect, Timesheet Fixes, Pivot Spacing
+
+- [x] Reconnect jobs to clock entries (65 entries + 7 daily reports remapped to correct job IDs)
+- [x] Fix Jose Marquina's corrupted 33hr 30min day entry (clockOut was 24hrs off, corrected to 9h 30m)
+- [x] Add ability to add a full day to any employee's timesheet
+- [x] Add ability to delete a day from any employee's timesheet
+- [x] Fix Jose's updated hours not reflecting on actual time (manual add/delete now available)
+- [x] Fix Pivot interface spacing — status bar/timer overlaps content on different devices (SafeAreaView padding added in Expo + env(safe-area-inset-top) in PWA)

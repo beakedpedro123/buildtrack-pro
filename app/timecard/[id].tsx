@@ -46,8 +46,6 @@ function formatDuration(minutes: number) {
   return `${h}h ${m}m`;
 }
 
-// Using formatTime12 from @/lib/utils for 12-hour format
-
 function formatDay(dateStr: string) {
   const d = new Date(dateStr + "T12:00:00");
   return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
@@ -58,6 +56,13 @@ function calcPay(minutes: number, rate: string | null | undefined): string {
   const r = parseFloat(rate);
   if (isNaN(r)) return "";
   return `$${((minutes / 60) * r).toFixed(2)}`;
+}
+
+function formatDateForInput(d: Date): string {
+  const y = d.getFullYear();
+  const m = (d.getMonth() + 1).toString().padStart(2, "0");
+  const day = d.getDate().toString().padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export default function TimecardScreen() {
@@ -80,16 +85,21 @@ export default function TimecardScreen() {
   );
 
   const jobsQuery = trpc.jobs.list.useQuery();
+
+  // ── Invalidate all related caches ──
+  const invalidateAll = () => {
+    refetch();
+    utils.clock.history.invalidate();
+    utils.clock.activeEntry.invalidate();
+    utils.clock.allClockedIn.invalidate();
+    utils.payroll.getMyHours.invalidate();
+    utils.payroll.getReport.invalidate();
+  };
+
+  // ── Adjust Entry Mutation ──
   const adjustMutation = trpc.clock.adjustEntry.useMutation({
     onSuccess: () => {
-      // Invalidate ALL related caches so hours update everywhere
-      refetch();
-      utils.clock.history.invalidate();
-      utils.clock.activeEntry.invalidate();
-      utils.clock.allClockedIn.invalidate();
-      utils.payroll.getMyHours.invalidate();
-      // Also invalidate payroll report cache
-      utils.payroll.getReport.invalidate();
+      invalidateAll();
       setEditModal(null);
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
@@ -98,7 +108,33 @@ export default function TimecardScreen() {
     },
   });
 
-  // Edit modal state
+  // ── Add Manual Entry Mutation ──
+  const addEntryMutation = trpc.clock.addManualEntry.useMutation({
+    onSuccess: () => {
+      invalidateAll();
+      setAddModal(false);
+      resetAddForm();
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Success", "Manual time entry added successfully.");
+    },
+    onError: (err) => {
+      Alert.alert("Error", err.message);
+    },
+  });
+
+  // ── Delete Entry Mutation ──
+  const deleteEntryMutation = trpc.clock.deleteEntry.useMutation({
+    onSuccess: () => {
+      invalidateAll();
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Deleted", "Time entry has been removed.");
+    },
+    onError: (err) => {
+      Alert.alert("Error", err.message);
+    },
+  });
+
+  // ── Edit modal state ──
   const [editModal, setEditModal] = useState<{
     entryId: number;
     clockIn: string;
@@ -113,6 +149,27 @@ export default function TimecardScreen() {
   const [editJobId, setEditJobId] = useState(0);
   const [editReason, setEditReason] = useState("");
   const [showJobPicker, setShowJobPicker] = useState(false);
+
+  // ── Add Day modal state ──
+  const [addModal, setAddModal] = useState(false);
+  const [addDate, setAddDate] = useState(formatDateForInput(new Date()));
+  const [addClockIn, setAddClockIn] = useState("7:00");
+  const [addClockInAmpm, setAddClockInAmpm] = useState("AM");
+  const [addClockOut, setAddClockOut] = useState("3:30");
+  const [addClockOutAmpm, setAddClockOutAmpm] = useState("PM");
+  const [addJobId, setAddJobId] = useState(0);
+  const [addReason, setAddReason] = useState("");
+  const [showAddJobPicker, setShowAddJobPicker] = useState(false);
+
+  const resetAddForm = () => {
+    setAddDate(formatDateForInput(new Date()));
+    setAddClockIn("7:00");
+    setAddClockInAmpm("AM");
+    setAddClockOut("3:30");
+    setAddClockOutAmpm("PM");
+    setAddJobId(0);
+    setAddReason("");
+  };
 
   const openEditModal = (entry: any) => {
     if (!isManagement) return;
@@ -139,7 +196,6 @@ export default function TimecardScreen() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  // Using formatTimeForEdit and parse12HrTime from @/lib/utils
   function parseTimeInput12(timeStr: string, ampm: string, refDate: Date): Date | null {
     const parsed = parse12HrTime(timeStr, ampm);
     if (!parsed) return null;
@@ -172,6 +228,113 @@ export default function TimecardScreen() {
     adjustMutation.mutate(updates);
   };
 
+  const handleAddManualEntry = () => {
+    if (!addReason.trim()) {
+      Alert.alert("Reason Required", "Please provide a reason for adding this entry (e.g., 'Forgot to clock in').");
+      return;
+    }
+    if (!addJobId) {
+      Alert.alert("Job Required", "Please select a job site for this entry.");
+      return;
+    }
+    // Parse the date
+    const dateParts = addDate.split("-");
+    if (dateParts.length !== 3) {
+      Alert.alert("Invalid Date", "Please enter a valid date in YYYY-MM-DD format.");
+      return;
+    }
+    const year = parseInt(dateParts[0], 10);
+    const month = parseInt(dateParts[1], 10) - 1;
+    const day = parseInt(dateParts[2], 10);
+    const baseDate = new Date(year, month, day);
+    if (isNaN(baseDate.getTime())) {
+      Alert.alert("Invalid Date", "Please enter a valid date.");
+      return;
+    }
+
+    const clockInTime = parseTimeInput12(addClockIn, addClockInAmpm, baseDate);
+    const clockOutTime = parseTimeInput12(addClockOut, addClockOutAmpm, baseDate);
+
+    if (!clockInTime || !clockOutTime) {
+      Alert.alert("Invalid Time", "Please enter valid clock in and clock out times (e.g., 7:00).");
+      return;
+    }
+
+    if (clockOutTime <= clockInTime) {
+      Alert.alert("Invalid Times", "Clock out time must be after clock in time.");
+      return;
+    }
+
+    addEntryMutation.mutate({
+      employeeId,
+      jobId: addJobId,
+      clockIn: clockInTime.toISOString(),
+      clockOut: clockOutTime.toISOString(),
+      addedBy: currentUser!.id,
+      reason: addReason.trim(),
+    });
+  };
+
+  const handleDeleteEntry = (entry: any) => {
+    const entryInfo = `${entry.jobName}\n${formatTime12(entry.clockIn)}${entry.clockOut ? ` - ${formatTime12(entry.clockOut)}` : " (active)"}`;
+
+    if (Platform.OS === "web") {
+      const reason = prompt(`Delete this entry?\n\n${entryInfo}\n\nPlease provide a reason for deletion:`);
+      if (reason && reason.trim()) {
+        deleteEntryMutation.mutate({
+          entryId: entry.id,
+          deletedBy: currentUser!.id,
+          reason: reason.trim(),
+        });
+      }
+    } else {
+      Alert.prompt
+        ? Alert.prompt(
+            "Delete Entry",
+            `Are you sure you want to delete this entry?\n\n${entryInfo}\n\nPlease provide a reason:`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Delete",
+                style: "destructive",
+                onPress: (reason?: string) => {
+                  if (reason && reason.trim()) {
+                    deleteEntryMutation.mutate({
+                      entryId: entry.id,
+                      deletedBy: currentUser!.id,
+                      reason: reason.trim(),
+                    });
+                  } else {
+                    Alert.alert("Reason Required", "You must provide a reason to delete an entry.");
+                  }
+                },
+              },
+            ],
+            "plain-text",
+            "",
+            "default"
+          )
+        : Alert.alert(
+            "Delete Entry",
+            `Are you sure you want to delete this entry?\n\n${entryInfo}`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Delete",
+                style: "destructive",
+                onPress: () => {
+                  deleteEntryMutation.mutate({
+                    entryId: entry.id,
+                    deletedBy: currentUser!.id,
+                    reason: "Entry deleted by management",
+                  });
+                },
+              },
+            ]
+          );
+    }
+  };
+
   const PERIODS: { key: Period; label: string }[] = [
     { key: "week", label: "Week" },
     { key: "biweek", label: "2 Weeks" },
@@ -201,6 +364,8 @@ export default function TimecardScreen() {
     saveBtn: { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center" as const, marginTop: 8 },
     cancelBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center" as const, marginTop: 6 },
     jobOption: { paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+    addDayBtn: { backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16, alignItems: "center" as const, marginHorizontal: 16, marginBottom: 12 },
+    deleteBtn: { backgroundColor: colors.error + "18", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, marginTop: 8, alignSelf: "flex-start" as const },
   });
 
   return (
@@ -233,6 +398,19 @@ export default function TimecardScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Add Day Button (management only) */}
+      {isManagement && (
+        <TouchableOpacity
+          style={styles.addDayBtn}
+          onPress={() => {
+            setAddModal(true);
+            if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>+ Add Manual Day Entry</Text>
+        </TouchableOpacity>
+      )}
 
       {isLoading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -293,42 +471,52 @@ export default function TimecardScreen() {
 
               {/* Entries for this day */}
               {day.entries.map((entry: any) => (
-                <TouchableOpacity
-                  key={entry.id}
-                  style={styles.entryCard}
-                  onPress={() => openEditModal(entry)}
-                  disabled={!isManagement}
-                  activeOpacity={isManagement ? 0.6 : 1}
-                >
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>
-                        {entry.jobName}
-                      </Text>
-                      <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
-                        <Text style={{ fontSize: 12, color: colors.muted }}>
-                          In: {formatTime12(entry.clockIn)}
+                <View key={entry.id} style={styles.entryCard}>
+                  <TouchableOpacity
+                    onPress={() => openEditModal(entry)}
+                    disabled={!isManagement}
+                    activeOpacity={isManagement ? 0.6 : 1}
+                  >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>
+                          {entry.jobName}
                         </Text>
-                        {entry.clockOut ? (
+                        <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
                           <Text style={{ fontSize: 12, color: colors.muted }}>
-                            Out: {formatTime12(entry.clockOut)}
+                            In: {formatTime12(entry.clockIn)}
                           </Text>
-                        ) : (
-                          <View style={{ backgroundColor: colors.success + "22", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
-                            <Text style={{ fontSize: 10, color: colors.success, fontWeight: "600" }}>ACTIVE</Text>
-                          </View>
+                          {entry.clockOut ? (
+                            <Text style={{ fontSize: 12, color: colors.muted }}>
+                              Out: {formatTime12(entry.clockOut)}
+                            </Text>
+                          ) : (
+                            <View style={{ backgroundColor: colors.success + "22", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
+                              <Text style={{ fontSize: 10, color: colors.success, fontWeight: "600" }}>ACTIVE</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      <View style={{ alignItems: "flex-end" }}>
+                        <Text style={{ fontSize: 15, fontWeight: "700", color: colors.primary }}>
+                          {entry.durationMinutes > 0 ? formatDuration(entry.durationMinutes) : "—"}
+                        </Text>
+                        {isManagement && (
+                          <Text style={{ fontSize: 10, color: colors.primary, marginTop: 2 }}>Tap to edit</Text>
                         )}
                       </View>
                     </View>
-                    <View style={{ alignItems: "flex-end" }}>
-                      <Text style={{ fontSize: 15, fontWeight: "700", color: colors.primary }}>
-                        {entry.durationMinutes > 0 ? formatDuration(entry.durationMinutes) : "—"}
-                      </Text>
-                      {isManagement && (
-                        <Text style={{ fontSize: 10, color: colors.primary, marginTop: 2 }}>Tap to edit</Text>
-                      )}
-                    </View>
-                  </View>
+                  </TouchableOpacity>
+
+                  {/* Delete button for management */}
+                  {isManagement && (
+                    <TouchableOpacity
+                      style={styles.deleteBtn}
+                      onPress={() => handleDeleteEntry(entry)}
+                    >
+                      <Text style={{ fontSize: 12, color: colors.error, fontWeight: "600" }}>🗑 Delete Entry</Text>
+                    </TouchableOpacity>
+                  )}
 
                   {/* Show adjustments history */}
                   {entry.adjustments && entry.adjustments.length > 0 && (
@@ -337,7 +525,7 @@ export default function TimecardScreen() {
                         <View key={i} style={styles.adjustmentRow}>
                           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                             <Text style={{ fontSize: 11, fontWeight: "600", color: colors.warning }}>
-                              {adj.fieldChanged === "clockIn" ? "Clock In" : adj.fieldChanged === "clockOut" ? "Clock Out" : "Job"} adjusted
+                              {adj.fieldChanged === "clockIn" ? "Clock In" : adj.fieldChanged === "clockOut" ? "Clock Out" : adj.fieldChanged === "delete" ? "Deleted" : adj.fieldChanged === "manual_add" ? "Manual Add" : "Job"} adjusted
                             </Text>
                             <Text style={{ fontSize: 10, color: colors.muted }}>
                               by {adj.adjustedByName}
@@ -357,7 +545,7 @@ export default function TimecardScreen() {
                   {entry.isOfflineEntry && (
                     <Text style={{ fontSize: 10, color: colors.warning, marginTop: 4 }}>⚡ Synced from offline</Text>
                   )}
-                </TouchableOpacity>
+                </View>
               ))}
             </View>
           )}
@@ -378,7 +566,7 @@ export default function TimecardScreen() {
         />
       )}
 
-      {/* Edit Modal */}
+      {/* ── Edit Entry Modal ── */}
       <Modal visible={!!editModal} transparent animationType="fade" onRequestClose={() => setEditModal(null)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
@@ -467,7 +655,7 @@ export default function TimecardScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Job Picker Modal */}
+      {/* ── Job Picker Modal (for edit) ── */}
       <Modal visible={showJobPicker} transparent animationType="slide" onRequestClose={() => setShowJobPicker(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: "60%" as any }]}>
@@ -495,6 +683,143 @@ export default function TimecardScreen() {
               )}
             />
             <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowJobPicker(false)}>
+              <Text style={{ color: colors.muted, fontWeight: "600" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Add Manual Day Modal ── */}
+      <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>
+                Add Manual Day
+              </Text>
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16 }}>
+                Add a time entry for {empName} who forgot to clock in.
+              </Text>
+
+              {/* Date */}
+              <Text style={styles.modalLabel}>Date (YYYY-MM-DD)</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={addDate}
+                onChangeText={setAddDate}
+                placeholder="2026-04-04"
+                placeholderTextColor={colors.muted}
+                keyboardType="numbers-and-punctuation"
+              />
+
+              {/* Clock In */}
+              <Text style={styles.modalLabel}>Clock In Time</Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+                <TextInput
+                  style={[styles.modalInput, { flex: 1, marginBottom: 0 }]}
+                  value={addClockIn}
+                  onChangeText={setAddClockIn}
+                  placeholder="e.g. 7:00"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="numbers-and-punctuation"
+                />
+                <TouchableOpacity
+                  onPress={() => setAddClockInAmpm(addClockInAmpm === "AM" ? "PM" : "AM")}
+                  style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 14, justifyContent: "center" }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{addClockInAmpm}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Clock Out */}
+              <Text style={styles.modalLabel}>Clock Out Time</Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+                <TextInput
+                  style={[styles.modalInput, { flex: 1, marginBottom: 0 }]}
+                  value={addClockOut}
+                  onChangeText={setAddClockOut}
+                  placeholder="e.g. 3:30"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="numbers-and-punctuation"
+                />
+                <TouchableOpacity
+                  onPress={() => setAddClockOutAmpm(addClockOutAmpm === "AM" ? "PM" : "AM")}
+                  style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 14, justifyContent: "center" }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{addClockOutAmpm}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Job Site */}
+              <Text style={styles.modalLabel}>Job Site *</Text>
+              <TouchableOpacity
+                style={[styles.modalInput, { justifyContent: "center" }]}
+                onPress={() => setShowAddJobPicker(true)}
+              >
+                <Text style={{ color: addJobId ? colors.foreground : colors.muted, fontSize: 16 }}>
+                  {addJobId ? (jobsQuery.data || []).find((j: any) => j.id === addJobId)?.name || "Select job" : "Select job site..."}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Reason (required) */}
+              <Text style={styles.modalLabel}>Reason for Manual Entry *</Text>
+              <TextInput
+                style={[styles.modalInput, { minHeight: 80, textAlignVertical: "top" }]}
+                value={addReason}
+                onChangeText={setAddReason}
+                placeholder="e.g. Employee forgot to clock in, was on site from 7 AM to 3:30 PM"
+                placeholderTextColor={colors.muted}
+                multiline
+              />
+
+              <TouchableOpacity
+                style={[styles.saveBtn, { opacity: addEntryMutation.isPending ? 0.6 : 1 }]}
+                onPress={handleAddManualEntry}
+                disabled={addEntryMutation.isPending}
+              >
+                <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
+                  {addEntryMutation.isPending ? "Adding..." : "Add Entry"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => { setAddModal(false); resetAddForm(); }}>
+                <Text style={{ color: colors.muted, fontWeight: "600", fontSize: 15 }}>Cancel</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Job Picker Modal (for add) ── */}
+      <Modal visible={showAddJobPicker} transparent animationType="slide" onRequestClose={() => setShowAddJobPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: "60%" as any }]}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>
+              Select Job Site
+            </Text>
+            <FlatList
+              data={jobsQuery.data || []}
+              keyExtractor={(item: any) => item.id.toString()}
+              renderItem={({ item }: { item: any }) => (
+                <TouchableOpacity
+                  style={[styles.jobOption, addJobId === item.id && { backgroundColor: colors.primary + "15" }]}
+                  onPress={() => {
+                    setAddJobId(item.id);
+                    setShowAddJobPicker(false);
+                  }}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: addJobId === item.id ? "700" : "400", color: colors.foreground }}>
+                    {item.name}
+                  </Text>
+                  {item.address && (
+                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{item.address}</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddJobPicker(false)}>
               <Text style={{ color: colors.muted, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
           </View>

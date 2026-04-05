@@ -1340,3 +1340,53 @@ export async function deletePunchListItem(id: number) {
   if (!dbConn) return;
   await dbConn.delete(punchListItems).where(eq(punchListItems.id, id));
 }
+
+
+// ── Manual Clock Entry Management ──────────────────────────────────────
+export async function addManualClockEntry(input: {
+  employeeId: number;
+  jobId: number;
+  clockIn: Date;
+  clockOut: Date;
+  addedBy: number;
+  reason: string;
+}) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+  const [entry] = await dbConn.insert(clockEntries).values({
+    employeeId: input.employeeId,
+    jobId: input.jobId,
+    clockIn: input.clockIn,
+    clockOut: input.clockOut,
+    isOfflineEntry: false,
+  }).$returningId();
+  // Log the manual addition as an adjustment
+  await dbConn.insert(timeAdjustments).values({
+    clockEntryId: entry.id,
+    adjustedBy: input.addedBy,
+    fieldChanged: "manual_add",
+    oldValue: null,
+    newValue: `${input.clockIn.toISOString()} - ${input.clockOut.toISOString()}`,
+    reason: `Manual entry added: ${input.reason}`,
+  });
+  return entry;
+}
+
+export async function deleteClockEntry(entryId: number, deletedBy: number, reason: string) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+  // Log the deletion as an adjustment before deleting
+  const [existing] = await dbConn.select().from(clockEntries).where(eq(clockEntries.id, entryId));
+  if (existing) {
+    await dbConn.insert(timeAdjustments).values({
+      clockEntryId: entryId,
+      adjustedBy: deletedBy,
+      fieldChanged: "delete",
+      oldValue: `${existing.clockIn} - ${existing.clockOut}`,
+      newValue: null,
+      reason: `Entry deleted: ${reason}`,
+    });
+  }
+  await dbConn.delete(clockEntries).where(eq(clockEntries.id, entryId));
+  return { success: true };
+}

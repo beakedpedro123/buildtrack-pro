@@ -25,6 +25,7 @@ import {
   Dimensions,
   Linking,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -193,6 +194,7 @@ function PivotAvatar({ size = 38 }: { size?: number }) {
 export function PivotChat() {
   const { employee } = useAppAuth();
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -682,8 +684,8 @@ export function PivotChat() {
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         >
           <View style={[s.panel, { flex: 1, maxHeight: "100%" }]}>
-              {/* Header */}
-              <View style={s.header}>
+              {/* Header with safe area padding for status bar */}
+              <View style={[s.header, { paddingTop: Math.max(insets.top, 16) + 8 }]}>
                 <PivotAvatar size={42} />
                 <View>
                   <Text style={s.headerTitle}>Pivot</Text>
