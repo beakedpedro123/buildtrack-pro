@@ -160,12 +160,18 @@ export default function ClockScreen() {
 
   const refreshAll = useCallback(async () => {
     try {
+      // Invalidate ALL clock queries first to mark them stale
+      await Promise.all([
+        utils.clock.activeEntry.invalidate(),
+        utils.clock.history.invalidate(),
+        utils.clock.allClockedIn.invalidate(),
+      ]);
+      // Then refetch to get fresh data
       await Promise.all([
         refetchActive(),
         refetchHistory(),
         ...(isManager ? [refetchClockedIn()] : []),
       ]);
-      utils.clock.history.invalidate();
     } catch { /* ignore refresh errors */ }
   }, [refetchActive, refetchHistory, isManager, refetchClockedIn, utils]);
   const onRefresh = useCallback(async () => {
@@ -205,8 +211,8 @@ export default function ClockScreen() {
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         if (mountedRef.current) {
           setSuccessMsg("Clocked in!");
-          // Refresh in background — don't block the UI
-          refreshAll().catch(() => {});
+          // MUST await refresh so UI updates immediately
+          await refreshAll();
         }
       } catch {
         if (!isManager) {
@@ -257,14 +263,13 @@ export default function ClockScreen() {
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (mountedRef.current) {
         if (Platform.OS !== "web") setSuccessMsg("Clocked out!");
-        // Refresh in background — don't block the UI
-        refreshAll().catch(() => {});
+        // MUST await refresh so UI updates immediately
+        await refreshAll();
       }
     } catch (e) {
       if (mountedRef.current) setSuccessMsg("");
       Alert.alert("Error", "Could not clock out. Please try again.");
-      // Refresh to restore correct state
-      refreshAll().catch(() => {});
+      await refreshAll();
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -295,12 +300,12 @@ export default function ClockScreen() {
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (mountedRef.current) {
         if (Platform.OS !== "web") setSuccessMsg("Employee clocked out!");
-        refreshAll().catch(() => {});
+        await refreshAll();
       }
     } catch {
       if (mountedRef.current) setSuccessMsg("");
       Alert.alert("Error", "Could not clock out. Please try again.");
-      refreshAll().catch(() => {});
+      await refreshAll();
     }
   }, [clockOutMutation, refreshAll]);
 

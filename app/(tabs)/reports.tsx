@@ -54,7 +54,7 @@ interface MaterialRow {
   supplier: string;
 }
 
-export default function ReportsScreen() {
+export default function ReportsScreen({ embedded }: { embedded?: boolean } = {}) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
@@ -363,8 +363,9 @@ export default function ReportsScreen() {
 
   const getJobName = (jobId: number) => allJobs?.find((j) => j.id === jobId)?.name || `Job #${jobId}`;
 
-  return (
-    <ScreenContainer edges={["top", "left", "right"]}>
+    const RWrapper = embedded ? View : ScreenContainer;
+    return (
+    <RWrapper style={embedded ? { flex: 1 } : undefined} edges={embedded ? undefined : ["top", "left", "right"]}>
         <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <View style={styles.header}>
         <Text style={styles.title}>Field Reports</Text>
@@ -616,6 +617,6 @@ export default function ReportsScreen() {
         </View>
       </Modal>
     </ImageBackground>
-    </ScreenContainer>
+    </RWrapper>
   );
 }

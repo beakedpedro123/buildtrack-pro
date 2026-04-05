@@ -40,7 +40,7 @@ const DEFAULT_BUDGET_CATEGORIES = [
   "Miscellaneous",
 ];
 
-export default function JobsScreen() {
+export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
@@ -371,8 +371,9 @@ export default function JobsScreen() {
     pdfBtn: { backgroundColor: "#D4A843", borderRadius: 10, padding: 14, alignItems: "center", marginTop: 12 },
     catRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border } });
 
-  return (
-    <ScreenContainer edges={["top", "left", "right"]}>
+    const JWrapper = embedded ? View : ScreenContainer;
+    return (
+    <JWrapper style={embedded ? { flex: 1 } : undefined} edges={embedded ? undefined : ["top", "left", "right"]}>
         <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <View style={styles.header}>
         <Text style={styles.title}>Jobs</Text>
@@ -932,6 +933,6 @@ export default function JobsScreen() {
         </Modal>
       )}
     </ImageBackground>
-    </ScreenContainer>
+    </JWrapper>
   );
 }

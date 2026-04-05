@@ -1338,3 +1338,14 @@
 - [x] Foreman/Laborer tab layout unchanged (already clean)
 - [x] All sub-screens support embedded prop to avoid double SafeArea wrapping
 - [x] Final TypeScript check — 0 errors
+
+## Phase 51 — Tab Merges, Clock-Out Fix, Team+Clock Unification
+
+- [x] Fix clock-out UI refresh bug — fixed by invalidating queries before refetch, awaiting refreshAll
+- [x] Merge Jobs + Reports into one tab with sub-tabs (Jobs | Reports) — created jobsreports.tsx
+- [x] Merge Team + Clock into unified Team tab — inline clock-out buttons on each clocked-in employee row
+- [x] Add floating action button for clock-in on Team screen — green stopwatch FAB
+- [x] Add Employee button already exists at top of Team screen
+- [x] Clock-in/out with full error handling, haptic feedback, query invalidation, and immediate UI refresh
+- [x] Updated tab layout: Owner/OM/Logistics: Home, Jobs, Goals, Manage, Profile (5 tabs). Foreman/Laborer: Home, Jobs, Goals, My Hours, Profile (5 tabs)
+- [x] TypeScript check — 0 errors
