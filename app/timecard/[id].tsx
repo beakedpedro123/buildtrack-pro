@@ -134,6 +134,10 @@ export default function TimecardScreen() {
     },
   });
 
+  // ── Delete modal state (cross-platform) ──
+  const [deleteModal, setDeleteModal] = useState<{ entryId: number; entryInfo: string } | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+
   // ── Edit modal state ──
   const [editModal, setEditModal] = useState<{
     entryId: number;
@@ -276,63 +280,25 @@ export default function TimecardScreen() {
   };
 
   const handleDeleteEntry = (entry: any) => {
-    const entryInfo = `${entry.jobName}\n${formatTime12(entry.clockIn)}${entry.clockOut ? ` - ${formatTime12(entry.clockOut)}` : " (active)"}`;
+    const entryInfo = `${entry.jobName} — ${formatTime12(entry.clockIn)}${entry.clockOut ? ` to ${formatTime12(entry.clockOut)}` : " (active)"}`;
+    setDeleteModal({ entryId: entry.id, entryInfo });
+    setDeleteReason("");
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
 
-    if (Platform.OS === "web") {
-      const reason = prompt(`Delete this entry?\n\n${entryInfo}\n\nPlease provide a reason for deletion:`);
-      if (reason && reason.trim()) {
-        deleteEntryMutation.mutate({
-          entryId: entry.id,
-          deletedBy: currentUser!.id,
-          reason: reason.trim(),
-        });
-      }
-    } else {
-      Alert.prompt
-        ? Alert.prompt(
-            "Delete Entry",
-            `Are you sure you want to delete this entry?\n\n${entryInfo}\n\nPlease provide a reason:`,
-            [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Delete",
-                style: "destructive",
-                onPress: (reason?: string) => {
-                  if (reason && reason.trim()) {
-                    deleteEntryMutation.mutate({
-                      entryId: entry.id,
-                      deletedBy: currentUser!.id,
-                      reason: reason.trim(),
-                    });
-                  } else {
-                    Alert.alert("Reason Required", "You must provide a reason to delete an entry.");
-                  }
-                },
-              },
-            ],
-            "plain-text",
-            "",
-            "default"
-          )
-        : Alert.alert(
-            "Delete Entry",
-            `Are you sure you want to delete this entry?\n\n${entryInfo}`,
-            [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Delete",
-                style: "destructive",
-                onPress: () => {
-                  deleteEntryMutation.mutate({
-                    entryId: entry.id,
-                    deletedBy: currentUser!.id,
-                    reason: "Entry deleted by management",
-                  });
-                },
-              },
-            ]
-          );
+  const confirmDelete = () => {
+    if (!deleteModal) return;
+    if (!deleteReason.trim()) {
+      Alert.alert("Reason Required", "You must provide a reason to delete an entry.");
+      return;
     }
+    deleteEntryMutation.mutate({
+      entryId: deleteModal.entryId,
+      deletedBy: currentUser!.id,
+      reason: deleteReason.trim(),
+    });
+    setDeleteModal(null);
+    setDeleteReason("");
   };
 
   const PERIODS: { key: Period; label: string }[] = [
@@ -787,6 +753,52 @@ export default function TimecardScreen() {
                 <Text style={{ color: colors.muted, fontWeight: "600", fontSize: 15 }}>Cancel</Text>
               </TouchableOpacity>
             </ScrollView>
+          </View>
+        </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Delete Confirmation Modal (cross-platform) ── */}
+      <Modal visible={!!deleteModal} transparent animationType="fade" onRequestClose={() => setDeleteModal(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.error, marginBottom: 8 }}>
+              Delete Entry
+            </Text>
+            <Text style={{ fontSize: 14, color: colors.foreground, marginBottom: 4 }}>
+              Are you sure you want to delete this entry?
+            </Text>
+            <View style={{ backgroundColor: colors.surface, borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>
+                {deleteModal?.entryInfo}
+              </Text>
+            </View>
+
+            <Text style={styles.modalLabel}>Reason for Deletion *</Text>
+            <TextInput
+              style={[styles.modalInput, { minHeight: 80, textAlignVertical: "top" }]}
+              value={deleteReason}
+              onChangeText={setDeleteReason}
+              placeholder="e.g. Duplicate entry, wrong clock-in time"
+              placeholderTextColor={colors.muted}
+              multiline
+              autoFocus
+            />
+
+            <TouchableOpacity
+              style={[styles.saveBtn, { backgroundColor: colors.error, opacity: deleteEntryMutation.isPending ? 0.6 : 1 }]}
+              onPress={confirmDelete}
+              disabled={deleteEntryMutation.isPending}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
+                {deleteEntryMutation.isPending ? "Deleting..." : "Delete Entry"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setDeleteModal(null)}>
+              <Text style={{ color: colors.muted, fontWeight: "600", fontSize: 15 }}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         </View>
         </KeyboardAvoidingView>

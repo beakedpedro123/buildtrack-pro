@@ -1182,3 +1182,12 @@
 ### Foreman Punch List Feature
 - [x] Add punch list creation/management for foreman role (existing punch list feature available)
 - [x] Keep voice-to-goals feature for foreman (remove meetings tab)
+
+## Phase 39 — Timezone Fix & Platform Parity
+
+- [x] Fix PDF reports to display times in Mountain Time (America/Denver) instead of UTC
+- [x] Fix timesheet delete not working on Android — replaced iOS-only Alert.prompt with cross-platform modal
+- [x] Fix timesheet adjust not working on iOS — modal already cross-platform, verified
+- [x] Ensure delete and adjust features work identically on Android, iOS, and web — all use modal dialogs
+- [x] Fix Pivot context dates to use Mountain Time
+- [x] Fix goal deadline display to use Mountain Time

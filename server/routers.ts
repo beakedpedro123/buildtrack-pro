@@ -919,7 +919,7 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
           const assigneeNames = g.assignedToList ? String(g.assignedToList).split(",").map(Number).map(id => empMap.get(id) || "Unknown").join(", ") : (g.assignedTo ? empMap.get(g.assignedTo) || "Unknown" : "Everyone");
           const dl = g.deadline ? new Date(g.deadline) : null;
           const isOverdue = dl && dl < now && g.status !== "completed" && g.status !== "cancelled";
-          goalsContext += `- ${status} ${g.title} [${g.priority.toUpperCase()}] → ${assigneeNames}${dl ? ` (Due: ${dl.toLocaleDateString([], { month: "short", day: "numeric" })} ${dl.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })})` : ""}${isOverdue ? " ⚠️ OVERDUE" : ""}\n`;
+          goalsContext += `- ${status} ${g.title} [${g.priority.toUpperCase()}] → ${assigneeNames}${dl ? ` (Due: ${dl.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" })} ${dl.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Denver" })})` : ""}${isOverdue ? " ⚠️ OVERDUE" : ""}\n`;
         }
         if (overdueGoals.length > 0) {
           goalsContext += `\n⚠️ ${overdueGoals.length} OVERDUE GOAL(S) — mention these proactively when the user greets you or asks about their day.\n`;
@@ -969,7 +969,7 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
         const totalWeekCost = laborByJob.reduce((s: number, j: any) => s + (j.totalCost || 0), 0);
         const kpis = await db.getAllKpis();
 
-        businessContext = `\n## Live Business Data (as of ${now.toLocaleDateString()})\n- Active Jobs: ${activeJobs.length} (${activeJobs.map((j: any) => j.name).join(", ")})\n- Active Employees: ${activeEmployees.length}\n- Labor Cost This Week: $${totalWeekCost.toFixed(2)}\n- Jobs with labor this week: ${laborByJob.length}\n${kpis.length > 0 ? `- KPIs tracked: ${kpis.map((k: any) => `${k.name} (${k.category}): ${k.currentValue || "no data"} / target ${k.targetValue || "not set"}`).join("; ")}` : ""}\n`;
+        businessContext = `\n## Live Business Data (as of ${now.toLocaleDateString("en-US", { timeZone: "America/Denver" })})\n- Active Jobs: ${activeJobs.length} (${activeJobs.map((j: any) => j.name).join(", ")})\n- Active Employees: ${activeEmployees.length}\n- Labor Cost This Week: $${totalWeekCost.toFixed(2)}\n- Jobs with labor this week: ${laborByJob.length}\n${kpis.length > 0 ? `- KPIs tracked: ${kpis.map((k: any) => `${k.name} (${k.category}): ${k.currentValue || "no data"} / target ${k.targetValue || "not set"}`).join("; ")}` : ""}\n`;
       } catch {
         businessContext = "(Business data temporarily unavailable)";
       }
@@ -1513,7 +1513,7 @@ Keep responses short, practical, and encouraging. You're here to help them succe
               createdBy: input.employeeId,
             });
 
-            toolResult = `Goal created successfully! ID: ${goalId}\nTitle: ${title}\nAssigned to: ${assignedName}\nPriority: ${priority}\n${deadline ? `Deadline: ${new Date(deadline).toLocaleDateString()}` : "No deadline set"}\n\nTell the user the goal was created and they can see it in the Goals tab.`;
+            toolResult = `Goal created successfully! ID: ${goalId}\nTitle: ${title}\nAssigned to: ${assignedName}\nPriority: ${priority}\n${deadline ? `Deadline: ${new Date(deadline).toLocaleDateString("en-US", { timeZone: "America/Denver" })}` : "No deadline set"}\n\nTell the user the goal was created and they can see it in the Goals tab.`;
           } catch (goalErr) {
             toolResult = `Failed to create goal: ${goalErr instanceof Error ? goalErr.message : "unknown error"}`;
           }

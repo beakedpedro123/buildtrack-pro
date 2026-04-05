@@ -30,13 +30,15 @@ interface EmployeeTimecard {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
+const TZ = "America/Denver"; // Mountain Time
+
 function fmtTime(d: Date | string): string {
-  return new Date(d).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+  return new Date(d).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: TZ });
 }
 
 function fmtDate(d: string): string {
   const dt = new Date(d + "T12:00:00");
-  return dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  return dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: TZ });
 }
 
 function fmtDuration(minutes: number): string {
@@ -96,7 +98,8 @@ async function buildReportData(startDate: Date, endDate: Date) {
     let totalMinutes = 0;
 
     for (const entry of empEntries) {
-      const dayKey = new Date(entry.clockIn).toISOString().slice(0, 10);
+      // Use Mountain Time for day grouping
+      const dayKey = new Date(entry.clockIn).toLocaleDateString("en-CA", { timeZone: TZ });
       const list = dayMap.get(dayKey) || [];
       const durationMs = new Date(entry.clockOut!).getTime() - new Date(entry.clockIn).getTime();
       const minutes = Math.floor(durationMs / 60000);
@@ -177,7 +180,7 @@ function renderCoverHeader(
   doc.fontSize(24).fillColor("#ffffff").text("CARRANZA CUSTOM CONSTRUCTION", 40, 30, { width: pageWidth });
   doc.fontSize(11).fillColor(gold).text(REPORT_TITLES[reportType], 40, 60);
   doc.fontSize(10).fillColor("#cccccc").text(
-    `Period: ${startDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} — ${endDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
+    `Period: ${startDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: TZ })} — ${endDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: TZ })}`,
     40, 78
   );
 }
@@ -532,7 +535,7 @@ export async function generateDetailedPayrollPDF(
         40, 752, { width: pageWidth, align: "center" }
       );
       doc.text(
-        `Generated: ${new Date().toLocaleString("en-US")}`,
+        `Generated: ${new Date().toLocaleString("en-US", { timeZone: TZ })} MT`,
         40, 762, { width: pageWidth, align: "center" }
       );
     }
