@@ -451,7 +451,7 @@ export default function ReportsScreen() {
               <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
           </View>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* Job Selection */}
               <View style={styles.section}>

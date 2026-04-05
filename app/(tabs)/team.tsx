@@ -592,8 +592,8 @@ export default function TeamScreen() {
               <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>
           </View>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-            <ScrollView style={styles.section}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+            <ScrollView style={styles.section} keyboardShouldPersistTaps="handled">
               {inviteResult ? (
                 <View style={{ alignItems: "center", paddingVertical: 20 }}>
                   <Text style={{ fontSize: 48, marginBottom: 16 }}>✅</Text>

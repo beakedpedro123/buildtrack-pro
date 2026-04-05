@@ -534,7 +534,7 @@ export default function TimecardScreen() {
 
       {/* ── Edit Entry Modal ── */}
       <Modal visible={!!editModal} transparent animationType="fade" onRequestClose={() => setEditModal(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <ScrollView keyboardShouldPersistTaps="handled">
@@ -657,7 +657,7 @@ export default function TimecardScreen() {
 
       {/* ── Add Manual Day Modal ── */}
       <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <ScrollView keyboardShouldPersistTaps="handled">
@@ -760,7 +760,7 @@ export default function TimecardScreen() {
 
       {/* ── Delete Confirmation Modal (cross-platform) ── */}
       <Modal visible={!!deleteModal} transparent animationType="fade" onRequestClose={() => setDeleteModal(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={{ fontSize: 18, fontWeight: "700", color: colors.error, marginBottom: 8 }}>

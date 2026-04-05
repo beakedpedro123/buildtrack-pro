@@ -473,7 +473,7 @@ export default function ClockScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <OfflineBanner />
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">

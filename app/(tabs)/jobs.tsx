@@ -140,16 +140,21 @@ export default function JobsScreen() {
 
   const handleCreateJob = async () => {
     if (!jobName.trim() || !employee) return;
-    await createJob.mutateAsync({
-      name: jobName.trim(),
-      address: jobAddress || undefined,
-      clientName: jobClient || undefined,
-      totalBudget: jobBudget || undefined,
-      notes: jobNotes || undefined,
-      taxRate: jobTaxRate || undefined,
-      workersCompRate: jobWorkersComp || undefined,
-      liabilityInsRate: jobLiabilityIns || undefined,
-      createdBy: employee.id });
+    try {
+      await createJob.mutateAsync({
+        name: jobName.trim(),
+        address: jobAddress || undefined,
+        clientName: jobClient || undefined,
+        totalBudget: jobBudget || undefined,
+        notes: jobNotes || undefined,
+        taxRate: jobTaxRate || undefined,
+        workersCompRate: jobWorkersComp || undefined,
+        liabilityInsRate: jobLiabilityIns || undefined,
+        createdBy: employee.id });
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Could not create job. Please try again.");
+    }
   };
 
   // Generate PDF Budget Report
@@ -258,9 +263,7 @@ export default function JobsScreen() {
       if (Platform.OS !== "web") {
         await shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${selectedJob.name} Budget Report` });
       }
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       Alert.alert("Error", "Could not generate PDF report. Please try again.");
     } finally {
@@ -794,7 +797,7 @@ export default function JobsScreen() {
             {/* Add Expense Modal */}
             {canManage && (
               <Modal visible={showAddExpense} animationType="slide" presentationStyle="formSheet">
-                <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
+                <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.background }}>
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>Add Expense</Text>
                     <TouchableOpacity onPress={() => { setShowAddExpense(false); resetExpForm(); }}>
@@ -837,7 +840,7 @@ export default function JobsScreen() {
             {/* Add Budget Category Modal */}
             {canManage && (
               <Modal visible={showAddBudget} animationType="slide" presentationStyle="formSheet">
-                <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
+                <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.background }}>
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>Add Budget Category</Text>
                     <TouchableOpacity onPress={() => { setShowAddBudget(false); setBudgetName(""); setBudgetAmount(""); }}>
@@ -878,14 +881,14 @@ export default function JobsScreen() {
       {/* New Job Modal */}
       {canManage && (
         <Modal visible={showNewJob} animationType="slide" presentationStyle="formSheet">
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
+          <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={Platform.OS === "android" ? 24 : 0} style={{ flex: 1, backgroundColor: colors.background }}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>New Job</Text>
               <TouchableOpacity onPress={() => { setShowNewJob(false); resetJobForm(); }}>
                 <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ padding: 20 }}>
+            <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
               <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Job Name *</Text>
               <TextInput style={styles.input} placeholder="e.g. Smith Residence Remodel" placeholderTextColor={colors.muted} value={jobName} onChangeText={setJobName} />
               <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Address</Text>
@@ -909,12 +912,13 @@ export default function JobsScreen() {
               </View>
 
               <TouchableOpacity
-                style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 8 }}
+                style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 8, opacity: (!jobName.trim() || createJob.isPending) ? 0.5 : 1 }}
                 onPress={handleCreateJob}
                 disabled={createJob.isPending || !jobName.trim()}
               >
                 {createJob.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Create Job</Text>}
               </TouchableOpacity>
+              <View style={{ height: Platform.OS === "android" ? 80 : 40 }} />
             </ScrollView>
           </KeyboardAvoidingView>
         </Modal>

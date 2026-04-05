@@ -165,7 +165,7 @@ export default function ProfileScreen() {
   return (
     <ScreenContainer>
         <ImageBackground source={bg_more} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
           {/* Header */}
           <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20 }}>

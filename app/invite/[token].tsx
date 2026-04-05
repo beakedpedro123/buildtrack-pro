@@ -132,7 +132,7 @@ export default function InviteScreen() {
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container}>
           <View style={{ alignItems: "center", marginBottom: 24 }}>
             <Image source={companyLogo} style={{ width: 100, height: 100, resizeMode: "contain", marginBottom: 12 }} />

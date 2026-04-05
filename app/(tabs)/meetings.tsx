@@ -972,14 +972,14 @@ export default function MeetingsScreen() {
 
           {/* New Meeting Modal */}
           <Modal visible={showNewMeeting} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowNewMeeting(false)}>
-            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.background }}>
+            <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.background }}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: Math.max(insets.top + 12, 28), paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                 <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>Schedule Meeting</Text>
                 <TouchableOpacity onPress={() => { setShowNewMeeting(false); setNewTitle(""); setUseAutoTitle(true); }}>
                   <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
                 </TouchableOpacity>
               </View>
-              <ScrollView style={{ padding: 20 }}>
+              <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
                 <View style={[styles.toggleRow, { backgroundColor: colors.surface, borderRadius: 12, paddingHorizontal: 14, marginBottom: 12 }]}>
                   <View>
                     <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Auto-title</Text>

@@ -74,7 +74,7 @@ export default function KPIsScreen() {
       utils.kpi.list.invalidate();
       setShowCreate(false);
       resetCreateForm();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } });
   const updateKpiMut = trpc.kpi.update.useMutation({
     onSuccess: () => { utils.kpi.list.invalidate(); } });
@@ -90,7 +90,7 @@ export default function KPIsScreen() {
       setShowUpdate(false);
       setUpdateValue("");
       setUpdateNotes("");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } });
 
   const resetCreateForm = () => {
@@ -344,7 +344,7 @@ export default function KPIsScreen() {
 
             {/* Update Value Modal */}
             <Modal visible={showUpdate} animationType="slide" presentationStyle="formSheet">
-              <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
+              <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.background }}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Update Value</Text>
                   <TouchableOpacity onPress={() => setShowUpdate(false)}>
@@ -396,7 +396,7 @@ export default function KPIsScreen() {
 
       {/* Create KPI Modal */}
       <Modal visible={showCreate} animationType="slide" presentationStyle="formSheet">
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.background }}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>New KPI</Text>
             <TouchableOpacity onPress={() => { setShowCreate(false); resetCreateForm(); }}>
