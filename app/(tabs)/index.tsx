@@ -499,6 +499,7 @@ export default function DashboardScreen() {
             <Text style={{ fontSize: 13, color: colors.muted }}>
               {now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
             </Text>
+            <Text style={styles.fieldQuote}>{getDailyQuote(role)}</Text>
           </View>
 
           {/* Clock Status Card */}
