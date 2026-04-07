@@ -26,13 +26,15 @@ export default function ManageScreen() {
   const role = employee?.role || "laborer";
   const isOwner = role === "owner";
   const isOfficeMgr = role === "office_manager";
+  const isForeman = role === "foreman";
+  const isManagement = isOwner || isOfficeMgr || role === "logistics";
   const canViewPayroll = isOwner || isOfficeMgr;
 
   const [activeTab, setActiveTab] = useState<ManageTab>("team");
 
   const tabs: { key: ManageTab; label: string; icon: string }[] = [
-    { key: "team", label: "Team", icon: "👥" },
-    { key: "meetings", label: "Meetings", icon: "🎙️" },
+    { key: "team", label: isForeman ? "Crew" : "Team", icon: "👥" },
+    ...(isManagement ? [{ key: "meetings" as ManageTab, label: "Meetings", icon: "🎤️" }] : []),
     ...(canViewPayroll ? [{ key: "payroll" as ManageTab, label: "Payroll", icon: "💰" }] : []),
     { key: "hours", label: "My Hours", icon: "⏱️" },
   ];

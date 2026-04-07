@@ -86,15 +86,17 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
   const [useInviteLink, setUseInviteLink] = useState(true);
   const [inviteResult, setInviteResult] = useState<{ token: string; code: string } | null>(null);
 
-  // Owner, office_manager, logistics can add/edit employees
-  const canManage = employee?.role === "owner" || employee?.role === "office_manager" || employee?.role === "logistics";
-  // Office Manager and logistics can view the team list
-  const canViewTeam = employee?.role === "owner" || employee?.role === "office_manager" || employee?.role === "logistics";
-  // Only owner can see hourly rates
+  // Owner, office_manager, logistics can add/edit employees and manage team
+  const canManageTeam = employee?.role === "owner" || employee?.role === "office_manager" || employee?.role === "logistics";
+  // Foremen can also clock crew in/out (but can't add/edit employees or see pay)
+  const canManage = canManageTeam || employee?.role === "foreman";
+  // Foremen and above can view the team list
+  const canViewTeam = canManageTeam || employee?.role === "foreman";
+  // Only owner/office_manager can see hourly rates
   const canSeeRates = employee?.role === "owner" || employee?.role === "office_manager";
   // Owner, office_manager, logistics can alter time entries
   const canAlterTime = employee?.role === "owner" || employee?.role === "office_manager" || employee?.role === "logistics";
-  // Laborer/foreman can only tap their own card (to see their own info)
+  // Foremen and above can view other employees' cards
   const canViewOthers = canViewTeam;
 
   const { data: employees, isLoading } = trpc.employees.list.useQuery(undefined, { staleTime: 30000 });
@@ -110,6 +112,10 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
   const [clockEmpId, setClockEmpId] = useState<number | null>(null);
   const [clockJobId, setClockJobId] = useState<number | null>(null);
   const [clockLoading, setClockLoading] = useState(false);
+  // Custom clock-in time
+  const [useCustomClockTime, setUseCustomClockTime] = useState(false);
+  const [customClockTime, setCustomClockTime] = useState("");
+  const [customClockAmpm, setCustomClockAmpm] = useState("AM");
 
   const handleQuickClockIn = useCallback(async () => {
     if (!clockEmpId || !clockJobId) {
@@ -120,10 +126,26 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
     setClockLoading(true);
     try {
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // Build clock-in time: use custom time if set, otherwise now
+      let clockInTime = new Date().toISOString();
+      if (useCustomClockTime && customClockTime) {
+        const parts = customClockTime.split(":");
+        if (parts.length === 2) {
+          let hours = parseInt(parts[0], 10);
+          const mins = parseInt(parts[1], 10);
+          if (!isNaN(hours) && !isNaN(mins)) {
+            if (customClockAmpm === "PM" && hours < 12) hours += 12;
+            if (customClockAmpm === "AM" && hours === 12) hours = 0;
+            const customDate = new Date();
+            customDate.setHours(hours, mins, 0, 0);
+            clockInTime = customDate.toISOString();
+          }
+        }
+      }
       await clockInMutation.mutateAsync({
         employeeId: clockEmpId,
         jobId: clockJobId,
-        clockIn: new Date().toISOString(),
+        clockIn: clockInTime,
         isOfflineEntry: false,
       });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -136,13 +158,15 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
       setShowClockIn(false);
       setClockEmpId(null);
       setClockJobId(null);
+      setUseCustomClockTime(false);
+      setCustomClockTime("");
       Alert.alert("Clocked In", "Employee has been clocked in successfully.");
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Could not clock in. Please try again.");
     } finally {
       setClockLoading(false);
     }
-  }, [clockEmpId, clockJobId, clockLoading, clockInMutation, utils, refetchClockedIn]);
+  }, [clockEmpId, clockJobId, clockLoading, clockInMutation, utils, refetchClockedIn, useCustomClockTime, customClockTime, customClockAmpm]);
 
   const handleQuickClockOut = useCallback(async (entryId: number, empName: string) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -329,9 +353,14 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
             {(employees || []).filter((e) => e.isActive).length} active · {clockedInIds.size} on site
           </Text>
         </View>
-        {canManage && (
+        {canManageTeam && (
           <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddEmployee(true)}>
             <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>+ Add Employee</Text>
+          </TouchableOpacity>
+        )}
+        {!canManageTeam && canManage && (
+          <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.success }]} onPress={() => setShowClockIn(true)}>
+            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>⏱ Clock In</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -363,11 +392,13 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
           renderItem={({ item }) => {
             const isClockedIn = clockedInIds.has(item.id);
             const clockEntry = (clockedIn || []).find((e: any) => e.employeeId === item.id);
-            const job = clockEntry ? (activeJobs || []).find((j) => j.id === clockEntry.jobId) : null;
+            // Use enriched jobName from server join, fallback to activeJobs lookup
+            const jobName = clockEntry?.jobName || (clockEntry ? (activeJobs || []).find((j) => j.id === clockEntry.jobId)?.name : null);
             const dur = clockEntry ? Date.now() - new Date(clockEntry.clockIn).getTime() : 0;
+            const durDisplay = dur > 0 ? formatDuration(dur) : "0h 0m";
             const roleColor = ROLE_COLORS[item.role] || colors.primary;
 
-            // Laborer/foreman can only tap their own card
+            // Foremen and above can tap any card; laborers can only tap their own
             const canTap = canViewOthers || item.id === employee?.id;
             return (
               <TouchableOpacity style={styles.empCard} onPress={() => canTap ? setSelectedEmployee(item) : null} activeOpacity={canTap ? 0.75 : 1}>
@@ -382,9 +413,9 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
                   <View style={[styles.roleBadge, { backgroundColor: roleColor }]}>
                     <Text style={styles.roleBadgeText}>{ROLE_LABELS[item.role]}</Text>
                   </View>
-                  {isClockedIn && job && (
+                  {isClockedIn && jobName && (
                     <Text style={{ fontSize: 12, color: colors.success, marginTop: 3 }}>
-                      {job.name} · {formatDuration(dur)}
+                      {jobName} · {durDisplay}
                     </Text>
                   )}
                 </View>
@@ -651,8 +682,8 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
                   <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 15 }}>View Full Timecard</Text>
                 </TouchableOpacity>
 
-                {/* Management Actions */}
-                {canManage && selectedEmployee.id !== employee?.id && (
+                {/* Management Actions - only full managers can change roles/deactivate */}
+                {canManageTeam && selectedEmployee.id !== employee?.id && (
                   <View style={{ marginTop: 24, gap: 10 }}>
                     <Text style={styles.sectionTitle}>Change Role</Text>
                     {ROLES.map((r) => (
@@ -851,8 +882,63 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
               );
             })}
 
+            {/* Custom Clock-In Time Picker */}
+            <View style={{ marginTop: 24, marginBottom: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Clock-In Time</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    const next = !useCustomClockTime;
+                    setUseCustomClockTime(next);
+                    if (next) {
+                      const now2 = new Date();
+                      let h = now2.getHours();
+                      const m = now2.getMinutes();
+                      const ampm = h >= 12 ? "PM" : "AM";
+                      if (h > 12) h -= 12;
+                      if (h === 0) h = 12;
+                      setCustomClockTime(`${h}:${m.toString().padStart(2, "0")}`);
+                      setCustomClockAmpm(ampm);
+                    }
+                  }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <View style={{ width: 36, height: 20, borderRadius: 10, backgroundColor: useCustomClockTime ? colors.primary : colors.border, justifyContent: "center", paddingHorizontal: 2 }}>
+                    <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: "#fff", alignSelf: useCustomClockTime ? "flex-end" : "flex-start" }} />
+                  </View>
+                  <Text style={{ fontSize: 13, color: useCustomClockTime ? colors.primary : colors.muted, fontWeight: "600" }}>
+                    {useCustomClockTime ? "Custom" : "Now"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {useCustomClockTime && (
+                <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0, fontSize: 18, fontWeight: "700", textAlign: "center" }]}
+                    value={customClockTime}
+                    onChangeText={setCustomClockTime}
+                    placeholder="7:30"
+                    placeholderTextColor={colors.muted}
+                    keyboardType="numbers-and-punctuation"
+                    returnKeyType="done"
+                  />
+                  <View style={{ flexDirection: "row", borderRadius: 8, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
+                    {["AM", "PM"].map((ap) => (
+                      <TouchableOpacity
+                        key={ap}
+                        onPress={() => setCustomClockAmpm(ap)}
+                        style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: customClockAmpm === ap ? colors.primary : colors.surface }}
+                      >
+                        <Text style={{ fontWeight: "700", fontSize: 14, color: customClockAmpm === ap ? "#fff" : colors.muted }}>{ap}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
+
             <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: colors.success, marginTop: 24, opacity: (!clockEmpId || !clockJobId || clockLoading) ? 0.5 : 1 }]}
+              style={[styles.submitBtn, { backgroundColor: colors.success, marginTop: 16, opacity: (!clockEmpId || !clockJobId || clockLoading) ? 0.5 : 1 }]}
               onPress={handleQuickClockIn}
               disabled={!clockEmpId || !clockJobId || clockLoading}
             >

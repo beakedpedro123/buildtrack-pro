@@ -32,10 +32,12 @@ export default function TabLayout() {
 
   // ─── Role Access Matrix ───────────────────────────────────────────────
   // Owner/Office Manager/Logistics: Home, Jobs & Reports, Goals, Manage (Team+Clock+Meetings+Payroll+Hours), Profile
-  // Foreman: Home, Jobs & Reports, Goals, My Hours, Profile
+  // Foreman: Home, Jobs & Reports, Goals, Manage (Team for crew clock-in/out + My Hours), Profile
   // Laborer: Home, Jobs & Reports, Goals, My Hours, Profile
-
   const isManagement = isOwner || isOfficeMgr || isLogistics;
+  const isForeman = role === "foreman";
+  // Foreman gets Manage tab for crew clock-in/out access
+  const hasManageTab = isManagement || isForeman;
 
   return (
     <Tabs
@@ -86,7 +88,7 @@ export default function TabLayout() {
         options={{
           title: "Manage",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="square.grid.2x2.fill" color={color} />,
-          href: isManagement ? undefined : null,
+          href: hasManageTab ? undefined : null,
         }}
       />
 
@@ -96,7 +98,7 @@ export default function TabLayout() {
         options={{
           title: "My Hours",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="timer" color={color} />,
-          href: !isManagement ? undefined : null,
+          href: !isManagement ? undefined : null, // Laborer only; foreman uses Manage tab
         }}
       />
 

@@ -544,11 +544,14 @@ export function PivotChat() {
   const s = StyleSheet.create({
     fab: {
       position: "absolute",
-      bottom: 80,
+      // Tab bar is 56px + bottom inset. Add 12px gap above it.
+      // On iPhone with home indicator: insets.bottom ~34px, so tab bar ~90px, FAB at 90+12=102px
+      // On older iPhone / Android: insets.bottom ~0px, so tab bar ~64px, FAB at 64+12=76px
+      bottom: 56 + Math.max(insets.bottom, 8) + 12,
       right: 16,
-      width: 56,
-      height: 56,
-      borderRadius: 28,
+      width: 50,
+      height: 50,
+      borderRadius: 25,
       backgroundColor: "#1a1a2e",
       alignItems: "center",
       justifyContent: "center",

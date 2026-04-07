@@ -27,6 +27,7 @@ import { BG_CLOCK as bg_clock } from "@/constants/bg-urls";
 import { formatTime12, formatDateTime12, formatTimeForEdit, parse12HrTime } from "@/lib/utils";
 
 function formatDuration(ms: number) {
+  if (ms <= 0) return "0h 0m";
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   return `${h}h ${m}m`;
@@ -100,9 +101,20 @@ export default function ClockScreen() {
   const [editSaving, setEditSaving] = useState(false);
   const [showEditJobPicker, setShowEditJobPicker] = useState(false);
 
+  // Custom clock-in time (managers can set a specific time when clocking someone in)
+  const [customClockInTime, setCustomClockInTime] = useState("");
+  const [customClockInAmpm, setCustomClockInAmpm] = useState("AM");
+  const [useCustomTime, setUseCustomTime] = useState(false);
+  // Mid-day job transfer state
+  const [showJobTransfer, setShowJobTransfer] = useState(false);
+  const [transferJobId, setTransferJobId] = useState<number | null>(null);
+  const [transferLoading, setTransferLoading] = useState(false);
+
   const role = employee?.role ?? "laborer";
   const isManager = role === "owner" || role === "office_manager" || role === "logistics";
-  const clockTargetId = isManager ? selectedEmployeeId : employee?.id;
+  const isForeman = role === "foreman";
+  const canClockCrew = isManager || isForeman;
+  const clockTargetId = canClockCrew ? selectedEmployeeId : employee?.id;
 
   const utils = trpc.useUtils();
   const [refreshing, setRefreshing] = useState(false);
@@ -140,9 +152,9 @@ export default function ClockScreen() {
     { enabled: !!clockTargetId, staleTime: 15000 }
   );
 
-  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManager, staleTime: 30000 });
+  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: canClockCrew, staleTime: 30000 });
   const { data: allClockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(
-    undefined, { enabled: isManager, refetchInterval: 30000, staleTime: 15000 }
+    undefined, { enabled: canClockCrew, refetchInterval: 30000, staleTime: 15000 }
   );
 
   const activeEmployees = useMemo(() => {
@@ -150,9 +162,9 @@ export default function ClockScreen() {
   }, [allEmployees]);
 
   const selectedEmployee = useMemo(() => {
-    if (!isManager) return employee;
+    if (!canClockCrew) return employee;
     return activeEmployees.find((e: any) => e.id === selectedEmployeeId) || null;
-  }, [isManager, employee, activeEmployees, selectedEmployeeId]);
+  }, [canClockCrew, employee, activeEmployees, selectedEmployeeId]);
 
   const clockInMutation = trpc.clock.in.useMutation();
   const clockOutMutation = trpc.clock.out.useMutation();
@@ -170,10 +182,10 @@ export default function ClockScreen() {
       await Promise.all([
         refetchActive(),
         refetchHistory(),
-        ...(isManager ? [refetchClockedIn()] : []),
+        ...(canClockCrew ? [refetchClockedIn()] : []),
       ]);
     } catch { /* ignore refresh errors */ }
-  }, [refetchActive, refetchHistory, isManager, refetchClockedIn, utils]);
+  }, [refetchActive, refetchHistory, canClockCrew, refetchClockedIn, utils]);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try { await refreshAll(); } catch {}
@@ -189,8 +201,22 @@ export default function ClockScreen() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     try {
-      // Get location in parallel with a short timeout — don't let it block clock-in
-      const clockInTime = new Date().toISOString();
+      // Calculate clock-in time: use custom time if set, otherwise use current time
+      let clockInTime = new Date().toISOString();
+      if (useCustomTime && customClockInTime) {
+        const parts = customClockInTime.split(":");
+        if (parts.length === 2) {
+          let hours = parseInt(parts[0], 10);
+          const mins = parseInt(parts[1], 10);
+          if (!isNaN(hours) && !isNaN(mins)) {
+            if (customClockInAmpm === "PM" && hours < 12) hours += 12;
+            if (customClockInAmpm === "AM" && hours === 12) hours = 0;
+            const customDate = new Date();
+            customDate.setHours(hours, mins, 0, 0);
+            clockInTime = customDate.toISOString();
+          }
+        }
+      }
       let loc: { lat: number; lng: number } | null = null;
       try {
         loc = await getLocationSafe();
@@ -232,7 +258,7 @@ export default function ClockScreen() {
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [clockTargetId, selectedJobId, loading, isManager, clockInMutation, addClockEntry, refreshAll]);
+  }, [clockTargetId, selectedJobId, loading, isManager, canClockCrew, clockInMutation, addClockEntry, refreshAll, useCustomTime, customClockInTime, customClockInAmpm]);
 
   const handleClockOut = useCallback(async () => {
     if (!activeEntry) return;
@@ -309,8 +335,39 @@ export default function ClockScreen() {
     }
   }, [clockOutMutation, refreshAll]);
 
-  /* ─── ClockShark-style: Edit clock-in, clock-out, and job ─── */
+  /* ─── Mid-day job transfer: clock out of current job, clock in to new job ─── */
+  const handleJobTransfer = useCallback(async () => {
+    if (!activeEntry || !transferJobId) return;
+    if (transferLoading) return;
+    setTransferLoading(true);
+    try {
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const now = new Date().toISOString();
+      // 1. Clock out of current job
+      await clockOutMutation.mutateAsync({ entryId: activeEntry.id, clockOut: now });
+      // 2. Clock in to new job
+      await clockInMutation.mutateAsync({
+        employeeId: clockTargetId!,
+        jobId: transferJobId,
+        clockIn: now,
+        isOfflineEntry: false,
+      });
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowJobTransfer(false);
+      setTransferJobId(null);
+      if (mountedRef.current) {
+        setSuccessMsg("Transferred to new job!");
+        await refreshAll();
+      }
+    } catch {
+      Alert.alert("Error", "Could not transfer jobs. Please try again.");
+      await refreshAll();
+    } finally {
+      if (mountedRef.current) setTransferLoading(false);
+    }
+  }, [activeEntry, transferJobId, transferLoading, clockOutMutation, clockInMutation, clockTargetId, refreshAll]);
 
+  /* ─── ClockShark-style: Edit clock-in, clock-out, and job ─── */
   const startEditEntry = (entry: any) => {
     const inEdit = formatTimeForEdit(entry.clockIn);
     setEditClockInStr(inEdit.time);
@@ -503,8 +560,8 @@ export default function ClockScreen() {
           </View>
         )}
 
-        {/* Manager: Employee Picker */}
-        {isManager && (
+        {/* Manager/Foreman: Employee Picker */}
+        {canClockCrew && (
           <>
             <TouchableOpacity style={styles.empPickerBtn} onPress={() => setShowEmployeePicker(true)}>
               <Text style={styles.empPickerText}>
@@ -555,8 +612,44 @@ export default function ClockScreen() {
           </>
         )}
 
-        {/* Currently Clocked In (Manager view) with Edit Time */}
-        {isManager && allClockedIn && allClockedIn.length > 0 && (
+        {/* Job Transfer Modal */}
+        <Modal visible={showJobTransfer} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowJobTransfer(false)}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Switch Job</Text>
+              <TouchableOpacity onPress={() => setShowJobTransfer(false)}>
+                <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ flex: 1, paddingHorizontal: 20 }}>
+              <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 16 }}>
+                Currently on: <Text style={{ fontWeight: "700", color: colors.foreground }}>{activeJob?.name || "Unknown Job"}</Text>
+              </Text>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Select New Job</Text>
+              {(jobs || []).filter((j) => j.id !== activeEntry?.jobId).map((job) => (
+                <TouchableOpacity
+                  key={job.id}
+                  style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: transferJobId === job.id ? colors.primary : colors.border, backgroundColor: transferJobId === job.id ? colors.primary + "15" : colors.surface }}
+                  onPress={() => setTransferJobId(job.id)}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "600", flex: 1, color: transferJobId === job.id ? colors.primary : colors.foreground }}>{job.name}</Text>
+                  {job.address && <Text style={{ fontSize: 12, color: colors.muted }}>{job.address}</Text>}
+                  {transferJobId === job.id && <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 18, marginLeft: 8 }}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 16, marginBottom: 32, opacity: (!transferJobId || transferLoading) ? 0.5 : 1 }}
+                onPress={handleJobTransfer}
+                disabled={!transferJobId || transferLoading}
+              >
+                {transferLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Transfer to New Job</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Currently Clocked In (Manager/Foreman view) with Edit Time */}
+        {canClockCrew && allClockedIn && allClockedIn.length > 0 && (
           <View style={{ marginBottom: 16 }}>
             <Text style={[styles.sectionTitle, { paddingHorizontal: 20 }]}>
               Currently Clocked In ({allClockedIn.length})
@@ -716,9 +809,17 @@ export default function ClockScreen() {
                   <Text style={[styles.jobName, { color: colors.muted }]}>
                     {activeJob?.name || "Unknown Job"}
                   </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 20 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 12 }}>
                     Since {formatTime12(activeEntry!.clockIn)}
                   </Text>
+                  {/* Switch Job button */}
+                  <TouchableOpacity
+                    onPress={() => { setTransferJobId(null); setShowJobTransfer(true); }}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.primary + "15", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, marginBottom: 16, borderWidth: 1, borderColor: colors.primary + "30" }}
+                  >
+                    <Text style={{ fontSize: 14 }}>🔄</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: colors.primary }}>Switch Job</Text>
+                  </TouchableOpacity>
                 </>
               )}
 
@@ -772,10 +873,66 @@ export default function ClockScreen() {
               </View>
             )}
 
+            {/* Custom Clock-In Time (managers/foremen can set a specific time) */}
+            {!isClockedIn && canClockCrew && (
+              <View style={{ marginHorizontal: 20, marginTop: 4, marginBottom: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.muted }}>CLOCK-IN TIME</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setUseCustomTime(!useCustomTime);
+                      if (!useCustomTime) {
+                        const now2 = new Date();
+                        let h = now2.getHours();
+                        const m = now2.getMinutes();
+                        const ampm = h >= 12 ? "PM" : "AM";
+                        if (h > 12) h -= 12;
+                        if (h === 0) h = 12;
+                        setCustomClockInTime(`${h}:${m.toString().padStart(2, "0")}`);
+                        setCustomClockInAmpm(ampm);
+                      }
+                    }}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                  >
+                    <View style={{ width: 36, height: 20, borderRadius: 10, backgroundColor: useCustomTime ? colors.primary : colors.border, justifyContent: "center", paddingHorizontal: 2 }}>
+                      <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: "#fff", alignSelf: useCustomTime ? "flex-end" : "flex-start" }} />
+                    </View>
+                    <Text style={{ fontSize: 13, color: useCustomTime ? colors.primary : colors.muted, fontWeight: "600" }}>
+                      {useCustomTime ? "Custom time" : "Now"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {useCustomTime && (
+                  <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                    <TextInput
+                      style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: colors.foreground, backgroundColor: colors.surface, fontWeight: "700" }}
+                      value={customClockInTime}
+                      onChangeText={setCustomClockInTime}
+                      placeholder="7:30"
+                      placeholderTextColor={colors.muted}
+                      keyboardType="numbers-and-punctuation"
+                      returnKeyType="done"
+                    />
+                    <View style={{ flexDirection: "row", borderRadius: 8, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
+                      {["AM", "PM"].map((ap) => (
+                        <TouchableOpacity
+                          key={ap}
+                          onPress={() => setCustomClockInAmpm(ap)}
+                          style={{ paddingHorizontal: 14, paddingVertical: 10, backgroundColor: customClockInAmpm === ap ? colors.primary : colors.surface }}
+                        >
+                          <Text style={{ fontWeight: "700", fontSize: 14, color: customClockInAmpm === ap ? "#fff" : colors.muted }}>{ap}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Recent History with Edit capability for managers */}
             <View style={{ marginHorizontal: 20, marginTop: 8 }}>
               <Text style={styles.sectionTitle}>
-                Recent Time Entries{isManager && selectedEmployee ? ` — ${selectedEmployee.name}` : ""}
+                Recent Time Entries{canClockCrew && selectedEmployee ? ` — ${selectedEmployee.name}` : ""}
               </Text>
             </View>
             {(history || []).slice(0, 10).map((entry: any) => {
@@ -796,7 +953,7 @@ export default function ClockScreen() {
                     <Text style={[styles.historyDuration, { color: dur ? colors.foreground : colors.success }]}>
                       {dur ? formatDuration(dur) : "Active"}
                     </Text>
-                    {isManager && (
+                    {canClockCrew && (
                       <TouchableOpacity
                         onPress={() => startEditEntry(entry)}
                         style={{ marginLeft: 8, padding: 4 }}

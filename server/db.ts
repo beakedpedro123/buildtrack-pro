@@ -260,7 +260,26 @@ export async function getClockEntriesForJob(jobId: number, date?: Date) {
 export async function getClockedInEmployees() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(clockEntries).where(isNull(clockEntries.clockOut));
+  // Join with employees and jobs so the client has name/job info without extra queries
+  const rows = await db
+    .select({
+      id: clockEntries.id,
+      employeeId: clockEntries.employeeId,
+      jobId: clockEntries.jobId,
+      clockIn: clockEntries.clockIn,
+      clockOut: clockEntries.clockOut,
+      isOfflineEntry: clockEntries.isOfflineEntry,
+      localId: clockEntries.localId,
+      notes: clockEntries.notes,
+      employeeName: employees.name,
+      employeeRole: employees.role,
+      jobName: jobs.name,
+    })
+    .from(clockEntries)
+    .leftJoin(employees, eq(clockEntries.employeeId, employees.id))
+    .leftJoin(jobs, eq(clockEntries.jobId, jobs.id))
+    .where(isNull(clockEntries.clockOut));
+  return rows;
 }
 
 export async function updateClockEntry(entryId: number, data: { clockIn?: Date; clockOut?: Date; jobId?: number }) {
@@ -606,7 +625,7 @@ export async function getLaborCostForJob(jobId: number) {
   let totalCost = 0;
   for (const entry of entries) {
     if (!entry.clockOut) continue;
-    const mins = Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000);
+    const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
     totalMinutes += mins;
     const emp = empMap.get(entry.employeeId);
     if (emp?.hourlyRate) {
@@ -635,7 +654,7 @@ export async function getLaborCostByJob(startDate: Date, endDate: Date) {
   const jobAgg: Record<number, { jobId: number; jobName: string; totalMinutes: number; totalCost: number; employeeIds: Set<number> }> = {};
   for (const entry of entries) {
     if (!entry.clockOut) continue;
-    const mins = Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000);
+    const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
     if (!jobAgg[entry.jobId]) {
       const job = jobMap.get(entry.jobId);
       jobAgg[entry.jobId] = { jobId: entry.jobId, jobName: job?.name || `Job #${entry.jobId}`, totalMinutes: 0, totalCost: 0, employeeIds: new Set() };
@@ -720,7 +739,7 @@ export async function getWeeklyLaborCostTrend(weeks: number = 8) {
     const bucketIdx = Math.floor(diffDays / 7);
     if (bucketIdx < 0 || bucketIdx >= weeks) continue;
 
-    const mins = Math.floor((new Date(entry.clockOut).getTime() - clockInDate.getTime()) / 60000);
+    const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - clockInDate.getTime()) / 60000));
     weekBuckets[bucketIdx].totalMinutes += mins;
     weekBuckets[bucketIdx].jobIds.add(entry.jobId);
     const emp = empMap.get(entry.employeeId);
@@ -753,7 +772,7 @@ export async function getLaborCostByEmployee(startDate: Date, endDate: Date) {
   const empAgg: Record<number, { employeeId: number; employeeName: string; role: string; hourlyRate: string | null; totalMinutes: number; totalCost: number }> = {};
   for (const entry of entries) {
     if (!entry.clockOut) continue;
-    const mins = Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000);
+    const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
     if (!empAgg[entry.employeeId]) {
       const emp = empMap.get(entry.employeeId);
       empAgg[entry.employeeId] = {
@@ -811,7 +830,7 @@ export async function getBudgetAlerts() {
     const jobEntries = allClockEntries.filter(e => e.jobId === job.id && e.clockOut);
     let laborCost = 0;
     for (const entry of jobEntries) {
-      const mins = Math.floor((new Date(entry.clockOut!).getTime() - new Date(entry.clockIn).getTime()) / 60000);
+      const mins = Math.max(0, Math.floor((new Date(entry.clockOut!).getTime() - new Date(entry.clockIn).getTime()) / 60000));
       const emp = empMap.get(entry.employeeId);
       if (emp?.hourlyRate) {
         laborCost += (mins / 60) * parseFloat(emp.hourlyRate as string);
@@ -1216,7 +1235,7 @@ export async function getDetailedTimecard(employeeId: number, startDate: Date, e
     const durationMs = entry.clockOut
       ? new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()
       : 0;
-    const minutes = Math.floor(durationMs / 60000);
+    const minutes = Math.max(0, Math.floor(durationMs / 60000)); // Guard against negative (timezone edge case)
     totalMinutes += minutes;
     const job = jobMap.get(entry.jobId);
     list.push({

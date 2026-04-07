@@ -210,11 +210,24 @@ export default function DashboardScreen() {
 
   const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
-  const { data: clockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 15000 });
-
+    const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 15000, refetchInterval: 30000 });
   // Voice goal creator state
   const [showVoiceGoals, setShowVoiceGoals] = useState(false);
-
+  // Clock-out from dashboard
+  const clockOutMutation = trpc.clock.out.useMutation();
+  const [clockingOutId, setClockingOutId] = useState<number | null>(null);
+  const handleDashboardClockOut = useCallback(async (entryId: number) => {
+    if (clockingOutId) return;
+    setClockingOutId(entryId);
+    try {
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await clockOutMutation.mutateAsync({ entryId, clockOut: new Date().toISOString() });
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await Promise.all([utils.clock.allClockedIn.invalidate(), utils.clock.activeEntry.invalidate()]);
+      refetchClockedIn();
+    } catch { Alert.alert("Error", "Could not clock out. Please try again."); }
+    finally { setClockingOutId(null); }
+  }, [clockingOutId, clockOutMutation, utils, refetchClockedIn]);
   // Edit time state for Onsite Now
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editTimeStr, setEditTimeStr] = useState("");
@@ -539,6 +552,10 @@ export default function DashboardScreen() {
 
           {/* Quick Actions for Foreman */}
           <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
+            <TouchableOpacity style={[styles.quickAction, { backgroundColor: colors.success + "15", borderColor: colors.success + "40", borderWidth: 1 }]} onPress={() => router.push("/manage" as any)}>
+              <Text style={styles.quickActionIcon}>⏱️</Text>
+              <Text style={[styles.quickActionLabel, { color: colors.success }]}>Crew Clock</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.quickAction} onPress={() => router.push("/reports" as any)}>
               <Text style={styles.quickActionIcon}>📋</Text>
               <Text style={styles.quickActionLabel}>Field Report</Text>
@@ -636,21 +653,24 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
             {(clockedIn || []).slice(0, 5).map((entry: any) => {
-              const emp = (allEmployees || []).find((e: any) => e.id === entry.employeeId);
-              const job = (activeJobs || []).find((j: any) => j.id === entry.jobId);
+              // Use enriched data from server join (employeeName, jobName) — no need for client-side lookup
+              const empName = entry.employeeName || (allEmployees || []).find((e: any) => e.id === entry.employeeId)?.name || "Unknown";
+              const empRole = entry.employeeRole || (allEmployees || []).find((e: any) => e.id === entry.employeeId)?.role || "laborer";
+              const jobName = entry.jobName || (activeJobs || []).find((j: any) => j.id === entry.jobId)?.name || "Unknown Job";
               const dur = now.getTime() - new Date(entry.clockIn).getTime();
-              if (!emp) return null;
+              // Guard against negative duration (clock-in in future due to timezone issues)
+              const durDisplay = dur > 0 ? formatDuration(dur) : "0h 0m";
               const isEditing = editingEntryId === entry.id;
-              const clockInTime = new Date(entry.clockIn);
               const timeStr = formatTime12(entry.clockIn);
+              const isClockingOut = clockingOutId === entry.id;
               return (
                 <View key={entry.id} style={styles.empRow}>
-                  <View style={[styles.avatar, { backgroundColor: ROLE_COLORS[emp.role] || colors.primary }]}>
-                    <Text style={styles.avatarText}>{getInitials(emp.name)}</Text>
+                  <View style={[styles.avatar, { backgroundColor: ROLE_COLORS[empRole] || colors.primary }]}>
+                    <Text style={styles.avatarText}>{getInitials(empName)}</Text>
                   </View>
-                  <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push(`/timecard/${emp.id}` as any)} activeOpacity={0.6}>
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>{emp.name}</Text>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>{job?.name || "Unknown Job"} • In: {timeStr}</Text>
+                  <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push(`/timecard/${entry.employeeId}` as any)} activeOpacity={0.6}>
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>{empName}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>{jobName} • In: {timeStr}</Text>
                   </TouchableOpacity>
                   {isEditing ? (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -671,11 +691,20 @@ export default function DashboardScreen() {
                     </View>
                   ) : (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.success }}>{formatDuration(dur)}</Text>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.success }}>{durDisplay}</Text>
                       {isManagement && (
-                        <TouchableOpacity onPress={() => startEditTime(entry.id, entry.clockIn)} style={{ padding: 4 }}>
-                          <Text style={{ fontSize: 14 }}>✏️</Text>
-                        </TouchableOpacity>
+                        <>
+                          <TouchableOpacity onPress={() => startEditTime(entry.id, entry.clockIn)} style={{ padding: 4 }}>
+                            <Text style={{ fontSize: 14 }}>✏️</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => handleDashboardClockOut(entry.id)}
+                            style={{ backgroundColor: colors.error, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, minWidth: 44, alignItems: "center" }}
+                            disabled={isClockingOut}
+                          >
+                            {isClockingOut ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>OUT</Text>}
+                          </TouchableOpacity>
+                        </>
                       )}
                     </View>
                   )}
