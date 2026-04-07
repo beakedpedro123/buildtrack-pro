@@ -26,6 +26,29 @@ import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
 
 type Period = "week" | "biweek" | "month" | "custom";
 
+// ─── Biweekly pay period engine ───────────────────────────────────────────────
+// Anchor: April 6, 2026 (first day of current pay period). Repeats every 14 days.
+// Pay date is always 4 days after period start (April 10 for the April 6 period).
+const PERIOD_ANCHOR_MS = new Date("2026-04-06T00:00:00").getTime();
+const PERIOD_DAYS = 14;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function getCurrentPayPeriod(now: Date): { periodStart: Date; periodEnd: Date } {
+  const daysSinceAnchor = (now.getTime() - PERIOD_ANCHOR_MS) / MS_PER_DAY;
+  const periodsElapsed = daysSinceAnchor >= 0
+    ? Math.floor(daysSinceAnchor / PERIOD_DAYS)
+    : Math.ceil(daysSinceAnchor / PERIOD_DAYS) - 1;
+  const periodStart = new Date(PERIOD_ANCHOR_MS + periodsElapsed * PERIOD_DAYS * MS_PER_DAY);
+  periodStart.setHours(0, 0, 0, 0);
+  const periodEnd = new Date(periodStart.getTime() + (PERIOD_DAYS - 1) * MS_PER_DAY);
+  periodEnd.setHours(23, 59, 59, 999);
+  return { periodStart, periodEnd };
+}
+
+function fmtDate(d: Date): string {
+  return d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+}
+
 function getDateRange(period: Period, customStart?: string, customEnd?: string): { startDate: string; endDate: string; label: string } {
   if (period === "custom" && customStart && customEnd) {
     const start = new Date(customStart + "T00:00:00");
@@ -33,24 +56,39 @@ function getDateRange(period: Period, customStart?: string, customEnd?: string):
     return {
       startDate: start.toISOString(),
       endDate: end.toISOString(),
-      label: `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+      label: `${fmtDate(start)} \u2013 ${fmtDate(end)}`,
     };
   }
   const now = new Date();
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
-  const start = new Date(now);
+  const { periodStart, periodEnd } = getCurrentPayPeriod(now);
+
   if (period === "week") {
-    start.setDate(now.getDate() - 6);
-    start.setHours(0, 0, 0, 0);
-    return { startDate: start.toISOString(), endDate: end.toISOString(), label: "This Week" };
+    // Show the current week within the pay period (first 7 days or second 7 days)
+    const dayInPeriod = Math.floor((now.getTime() - periodStart.getTime()) / MS_PER_DAY);
+    const weekStart = dayInPeriod >= 7
+      ? new Date(periodStart.getTime() + 7 * MS_PER_DAY)
+      : new Date(periodStart);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart.getTime() + 6 * MS_PER_DAY);
+    weekEnd.setHours(23, 59, 59, 999);
+    return {
+      startDate: weekStart.toISOString(),
+      endDate: weekEnd.toISOString(),
+      label: `${fmtDate(weekStart)} \u2013 ${fmtDate(weekEnd)}`,
+    };
   } else if (period === "biweek") {
-    start.setDate(now.getDate() - 13);
-    start.setHours(0, 0, 0, 0);
-    return { startDate: start.toISOString(), endDate: end.toISOString(), label: "Last 2 Weeks" };
+    // Full current pay period
+    return {
+      startDate: periodStart.toISOString(),
+      endDate: periodEnd.toISOString(),
+      label: `${fmtDate(periodStart)} \u2013 ${fmtDate(periodEnd)}`,
+    };
   } else {
-    start.setDate(1);
+    // This month
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
     start.setHours(0, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
     return { startDate: start.toISOString(), endDate: end.toISOString(), label: "This Month" };
   }
 }
@@ -290,7 +328,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
 
   const PERIODS: { key: Period; label: string }[] = [
     { key: "week", label: "This Week" },
-    { key: "biweek", label: "2 Weeks" },
+    { key: "biweek", label: "Pay Period" },
     { key: "month", label: "This Month" },
     { key: "custom", label: "Custom" },
   ];
@@ -313,9 +351,18 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
             Payroll Report
           </Text>
           <Text style={{ fontSize: 14, color: colors.muted, marginTop: 2 }}>
-            {new Date(range.startDate).toLocaleDateString()} –{" "}
+            {new Date(range.startDate).toLocaleDateString()} \u2013{" "}
             {new Date(range.endDate).toLocaleDateString()}
           </Text>
+          {period === "biweek" && (() => {
+            const { periodStart } = getCurrentPayPeriod(new Date());
+            const payDate = new Date(periodStart.getTime() + 4 * MS_PER_DAY);
+            return (
+              <Text style={{ fontSize: 12, color: colors.primary, marginTop: 2, fontWeight: "600" }}>
+                Pay Date: {payDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </Text>
+            );
+          })()}
         </View>
 
         {/* Period Selector */}
