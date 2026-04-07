@@ -2,6 +2,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { OfflineBanner } from "@/components/ui/offline-banner";
 import { JobCard } from "@/components/ui/job-card";
 import { useAppAuth } from "@/lib/auth-context";
+import { useClockState } from "@/lib/clock-state-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import { formatTime12, formatTimeForEdit, parse12HrTime } from "@/lib/utils";
@@ -213,7 +214,8 @@ export default function DashboardScreen() {
     const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 15000, refetchInterval: 30000 });
   // Voice goal creator state
   const [showVoiceGoals, setShowVoiceGoals] = useState(false);
-  // Clock-out from dashboard
+  // Clock-out from dashboard — uses forceRefresh from ClockStateContext for instant UI update
+  const { forceRefresh: clockForceRefresh } = useClockState();
   const clockOutMutation = trpc.clock.out.useMutation();
   const [clockingOutId, setClockingOutId] = useState<number | null>(null);
   const handleDashboardClockOut = useCallback(async (entryId: number) => {
@@ -223,11 +225,12 @@ export default function DashboardScreen() {
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await clockOutMutation.mutateAsync({ entryId, clockOut: new Date().toISOString() });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await Promise.all([utils.clock.allClockedIn.invalidate(), utils.clock.activeEntry.invalidate()]);
+      // Force refresh through the shared state context (invalidates + refetches all clock queries)
+      await clockForceRefresh();
       refetchClockedIn();
     } catch { Alert.alert("Error", "Could not clock out. Please try again."); }
     finally { setClockingOutId(null); }
-  }, [clockingOutId, clockOutMutation, utils, refetchClockedIn]);
+  }, [clockingOutId, clockOutMutation, clockForceRefresh, refetchClockedIn]);
   // Edit time state for Onsite Now
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editTimeStr, setEditTimeStr] = useState("");
@@ -262,10 +265,8 @@ export default function DashboardScreen() {
     finally { setEditSaving(false); }
   }, [editingEntryId, editTimeStr, clockedIn, updateEntryMutation]);
 
-  const { data: activeEntry } = trpc.clock.activeEntry.useQuery(
-    { employeeId: employee?.id || 0 },
-    { enabled: !!employee, staleTime: 10000 }
-  );
+  // Use the shared local-first clock state (instant updates, no stale data)
+  const { activeEntry } = useClockState();
   const { data: myJobs } = trpc.jobs.forEmployee.useQuery(
     { employeeId: employee?.id || 0 },
     { enabled: !!employee && !isManagement }

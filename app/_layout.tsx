@@ -10,6 +10,7 @@ import { KeyboardAvoidingView, Platform } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { AuthProvider } from "@/lib/auth-context";
+import { ClockStateProvider } from "@/lib/clock-state-context";
 import { OfflineQueueProvider } from "@/lib/offline-queue";
 import { setupNotificationHandler } from "@/lib/notifications";
 import * as Notifications from "expo-notifications";
@@ -119,6 +120,7 @@ export default function RootLayout() {
             <AuthProvider>
               <LanguageProvider>
               <OfflineQueueProvider>
+              <ClockStateProvider>
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="timecard/[id]" options={{ presentation: "card" }} />
@@ -127,6 +129,7 @@ export default function RootLayout() {
                 </Stack>
                 <StatusBar style="auto" />
                 <PivotChat />
+              </ClockStateProvider>
               </OfflineQueueProvider>
               </LanguageProvider>
             </AuthProvider>

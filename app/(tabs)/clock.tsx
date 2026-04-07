@@ -8,6 +8,7 @@ import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useClockState } from "@/lib/clock-state-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
   Alert,
@@ -140,21 +141,25 @@ export default function ClockScreen() {
     }
   }, [successMsg]);
 
-  const { data: activeEntry, refetch: refetchActive } = trpc.clock.activeEntry.useQuery(
-    { employeeId: clockTargetId || 0 },
-    { enabled: !!clockTargetId, refetchInterval: 30000, staleTime: 15000 }
-  );
+  // ─── New local-first clock state (instant UI updates) ───
+  const {
+    activeEntry,
+    optimisticClockOut,
+    optimisticClockIn,
+    forceRefresh: clockForceRefresh,
+    setMutating: setClockMutating,
+  } = useClockState();
 
   const { data: jobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 60000 });
 
   const { data: history, refetch: refetchHistory } = trpc.clock.history.useQuery(
     { employeeId: clockTargetId || 0, since: new Date(Date.now() - 7 * 86400000).toISOString() },
-    { enabled: !!clockTargetId, staleTime: 15000 }
+    { enabled: !!clockTargetId, staleTime: 0, refetchOnMount: true }
   );
 
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: canClockCrew, staleTime: 30000 });
   const { data: allClockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(
-    undefined, { enabled: canClockCrew, refetchInterval: 30000, staleTime: 15000 }
+    undefined, { enabled: canClockCrew, refetchInterval: 20000, staleTime: 0 }
   );
 
   const activeEmployees = useMemo(() => {
@@ -172,20 +177,13 @@ export default function ClockScreen() {
 
   const refreshAll = useCallback(async () => {
     try {
-      // Invalidate ALL clock queries first to mark them stale
+      await clockForceRefresh();
       await Promise.all([
-        utils.clock.activeEntry.invalidate(),
-        utils.clock.history.invalidate(),
-        utils.clock.allClockedIn.invalidate(),
-      ]);
-      // Then refetch to get fresh data
-      await Promise.all([
-        refetchActive(),
         refetchHistory(),
         ...(canClockCrew ? [refetchClockedIn()] : []),
       ]);
     } catch { /* ignore refresh errors */ }
-  }, [refetchActive, refetchHistory, canClockCrew, refetchClockedIn, utils]);
+  }, [clockForceRefresh, refetchHistory, canClockCrew, refetchClockedIn]);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try { await refreshAll(); } catch {}
@@ -222,6 +220,21 @@ export default function ClockScreen() {
         loc = await getLocationSafe();
       } catch { /* location is optional, proceed without it */ }
 
+      // OPTIMISTIC: update UI immediately before server responds
+      const optimisticEntry = {
+        id: -1, // temporary placeholder
+        employeeId: clockTargetId,
+        jobId: selectedJobId,
+        clockIn: clockInTime,
+        clockOut: null,
+        clockInLatitude: loc?.lat ?? null,
+        clockInLongitude: loc?.lng ?? null,
+      };
+      setClockMutating(true);
+      optimisticClockIn(optimisticEntry);
+      if (mountedRef.current) setSuccessMsg("Clocked in!");
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
       try {
         await withTimeout(
           clockInMutation.mutateAsync({
@@ -232,15 +245,13 @@ export default function ClockScreen() {
             clockInLongitude: loc?.lng,
             isOfflineEntry: false,
           }),
-          Platform.OS === "web" ? 20000 : 15000 // Give web a bit more time
+          Platform.OS === "web" ? 20000 : 15000
         );
-        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        if (mountedRef.current) {
-          setSuccessMsg("Clocked in!");
-          // MUST await refresh so UI updates immediately
-          await refreshAll();
-        }
+        // Server confirmed — force refresh to get real entry ID
+        setClockMutating(false);
+        await refreshAll();
       } catch {
+        setClockMutating(false);
         if (!isManager) {
           await addClockEntry({
             employeeId: clockTargetId,
@@ -249,16 +260,18 @@ export default function ClockScreen() {
             clockInLatitude: loc?.lat,
             clockInLongitude: loc?.lng,
           });
-          if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           Alert.alert("Clocked In (Offline)", "Clock-in was saved locally and will sync when you have service.");
         } else {
+          // Revert optimistic update
+          optimisticClockOut();
+          if (mountedRef.current) setSuccessMsg(null);
           Alert.alert("Error", "Could not clock in. Please check your connection and try again.");
         }
       }
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [clockTargetId, selectedJobId, loading, isManager, canClockCrew, clockInMutation, addClockEntry, refreshAll, useCustomTime, customClockInTime, customClockInAmpm]);
+  }, [clockTargetId, selectedJobId, loading, isManager, canClockCrew, clockInMutation, addClockEntry, refreshAll, useCustomTime, customClockInTime, customClockInAmpm, optimisticClockIn, optimisticClockOut, setClockMutating]);
 
   const handleClockOut = useCallback(async () => {
     if (!activeEntry) return;
@@ -266,17 +279,21 @@ export default function ClockScreen() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     const entryId = activeEntry.id;
+    const savedEntry = activeEntry; // save in case we need to revert
     const clockOutTime = new Date().toISOString();
-    try {
-      // Optimistic: show success immediately on web to avoid perceived lag
-      if (Platform.OS === "web" && mountedRef.current) {
-        setSuccessMsg("Clocked out!");
-      }
-      let loc: { lat: number; lng: number } | null = null;
-      try {
-        loc = await getLocationSafe();
-      } catch { /* location is optional */ }
 
+    // ★ OPTIMISTIC: update UI to "Clocked Out" IMMEDIATELY — before any server call
+    setClockMutating(true);
+    optimisticClockOut();
+    if (mountedRef.current) setSuccessMsg("Clocked out!");
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    let loc: { lat: number; lng: number } | null = null;
+    try {
+      loc = await getLocationSafe();
+    } catch { /* location is optional */ }
+
+    try {
       await withTimeout(
         clockOutMutation.mutateAsync({
           entryId,
@@ -286,20 +303,19 @@ export default function ClockScreen() {
         }),
         Platform.OS === "web" ? 20000 : 15000
       );
-      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (mountedRef.current) {
-        if (Platform.OS !== "web") setSuccessMsg("Clocked out!");
-        // MUST await refresh so UI updates immediately
-        await refreshAll();
-      }
-    } catch (e) {
-      if (mountedRef.current) setSuccessMsg("");
-      Alert.alert("Error", "Could not clock out. Please try again.");
+      // Server confirmed — release mutating lock and refresh history
+      setClockMutating(false);
       await refreshAll();
+    } catch (e) {
+      // Server failed — revert optimistic update
+      setClockMutating(false);
+      optimisticClockIn(savedEntry as any);
+      if (mountedRef.current) setSuccessMsg(null);
+      Alert.alert("Error", "Could not clock out. Please try again.");
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [activeEntry, loading, clockOutMutation, refreshAll]);
+  }, [activeEntry, loading, clockOutMutation, refreshAll, optimisticClockOut, optimisticClockIn, setClockMutating]);
 
   const handleQuickClockOut = useCallback(async (entryId: number) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
