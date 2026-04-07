@@ -147,7 +147,6 @@ export default function ClockScreen() {
     optimisticClockOut,
     optimisticClockIn,
     forceRefresh: clockForceRefresh,
-    setMutating: setClockMutating,
   } = useClockState();
 
   const { data: jobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 60000 });
@@ -221,6 +220,7 @@ export default function ClockScreen() {
       } catch { /* location is optional, proceed without it */ }
 
       // OPTIMISTIC: update UI immediately before server responds
+      // The context sets an 8-second lock so server responses can't overwrite this
       const optimisticEntry = {
         id: -1, // temporary placeholder
         employeeId: clockTargetId,
@@ -230,7 +230,6 @@ export default function ClockScreen() {
         clockInLatitude: loc?.lat ?? null,
         clockInLongitude: loc?.lng ?? null,
       };
-      setClockMutating(true);
       optimisticClockIn(optimisticEntry);
       if (mountedRef.current) setSuccessMsg("Clocked in!");
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -247,11 +246,9 @@ export default function ClockScreen() {
           }),
           Platform.OS === "web" ? 20000 : 15000
         );
-        // Server confirmed — force refresh to get real entry ID
-        setClockMutating(false);
+        // Server confirmed — refresh history (lock still active, won't overwrite UI)
         await refreshAll();
       } catch {
-        setClockMutating(false);
         if (!isManager) {
           await addClockEntry({
             employeeId: clockTargetId,
@@ -271,7 +268,7 @@ export default function ClockScreen() {
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [clockTargetId, selectedJobId, loading, isManager, canClockCrew, clockInMutation, addClockEntry, refreshAll, useCustomTime, customClockInTime, customClockInAmpm, optimisticClockIn, optimisticClockOut, setClockMutating]);
+  }, [clockTargetId, selectedJobId, loading, isManager, canClockCrew, clockInMutation, addClockEntry, refreshAll, useCustomTime, customClockInTime, customClockInAmpm, optimisticClockIn, optimisticClockOut]);
 
   const handleClockOut = useCallback(async () => {
     if (!activeEntry) return;
@@ -283,16 +280,14 @@ export default function ClockScreen() {
     const clockOutTime = new Date().toISOString();
 
     // ★ OPTIMISTIC: update UI to "Clocked Out" IMMEDIATELY — before any server call
-    setClockMutating(true);
+    // The context sets an 8-second lock so server responses can't overwrite this
     optimisticClockOut();
     if (mountedRef.current) setSuccessMsg("Clocked out!");
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
     let loc: { lat: number; lng: number } | null = null;
     try {
       loc = await getLocationSafe();
     } catch { /* location is optional */ }
-
     try {
       await withTimeout(
         clockOutMutation.mutateAsync({
@@ -303,19 +298,17 @@ export default function ClockScreen() {
         }),
         Platform.OS === "web" ? 20000 : 15000
       );
-      // Server confirmed — release mutating lock and refresh history
-      setClockMutating(false);
+      // Server confirmed — refresh history (lock still active, won't overwrite UI)
       await refreshAll();
     } catch (e) {
       // Server failed — revert optimistic update
-      setClockMutating(false);
       optimisticClockIn(savedEntry as any);
       if (mountedRef.current) setSuccessMsg(null);
       Alert.alert("Error", "Could not clock out. Please try again.");
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [activeEntry, loading, clockOutMutation, refreshAll, optimisticClockOut, optimisticClockIn, setClockMutating]);
+  }, [activeEntry, loading, clockOutMutation, refreshAll, optimisticClockOut, optimisticClockIn]);
 
   const handleQuickClockOut = useCallback(async (entryId: number) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

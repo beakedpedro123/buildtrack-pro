@@ -1,14 +1,16 @@
 /**
- * ClockStateContext — Local-first clock state machine
+ * ClockStateContext — Bulletproof local-first clock state
  *
- * Architecture:
- * - Local state is the source of truth for the UI (instant updates)
- * - Server is queried to hydrate initial state and confirm mutations
- * - On clock-in: local state → "clocked_in" immediately, then server confirms
- * - On clock-out: local state → "clocked_out" immediately, then server confirms
- * - AppState listener: every time app comes to foreground, re-fetch from server
- * - Polling: every 20s while app is active (reduced from 30s)
- * - staleTime: 0 — never consider data fresh, always re-fetch on focus
+ * KEY FIX: Uses a timestamp-based "optimistic lock" instead of a boolean flag.
+ * When the user taps Clock In/Out, we record the exact timestamp of the action.
+ * Server responses are IGNORED for 8 seconds after a local action.
+ * After 8 seconds, the server response is allowed to sync (to confirm or correct).
+ *
+ * This prevents the race condition where:
+ *   1. User taps Clock Out → optimistic state = clocked_out
+ *   2. refreshAll() fires → server query re-fetches
+ *   3. Server returns the OLD cached "clocked_in" response (network lag)
+ *   4. useEffect syncs server state → overwrites optimistic state → UI shows "Clocked In" again
  */
 
 import React, {
@@ -36,25 +38,20 @@ export interface ActiveClockEntry {
 }
 
 interface ClockStateContextValue {
-  /** Current clock status — drives all UI */
   status: ClockStatus;
-  /** The active clock entry (null if clocked out) */
   activeEntry: ActiveClockEntry | null;
-  /** Whether we are currently performing a clock-in or clock-out */
   isMutating: boolean;
-  /** Optimistically set clocked-out immediately */
   optimisticClockOut: () => void;
-  /** Optimistically set clocked-in immediately */
   optimisticClockIn: (entry: ActiveClockEntry) => void;
-  /** Force a server re-fetch */
   forceRefresh: () => Promise<void>;
-  /** Whether the initial load is happening */
   isLoading: boolean;
-  /** Set mutating flag */
   setMutating: (v: boolean) => void;
 }
 
 const ClockStateContext = createContext<ClockStateContextValue | null>(null);
+
+// How long (ms) to ignore server responses after a local optimistic action
+const OPTIMISTIC_LOCK_MS = 8000;
 
 export function ClockStateProvider({ children }: { children: React.ReactNode }) {
   const { employee } = useAppAuth();
@@ -63,32 +60,35 @@ export function ClockStateProvider({ children }: { children: React.ReactNode }) 
   const [status, setStatus] = useState<ClockStatus>("unknown");
   const [activeEntry, setActiveEntry] = useState<ActiveClockEntry | null>(null);
   const [isMutating, setMutating] = useState(false);
+
+  // Timestamp of the last optimistic action — server data is ignored until this expires
+  const optimisticLockUntil = useRef<number>(0);
+
   const utils = trpc.useUtils();
 
-  // Track if we've done the initial load
-  const initialLoadDone = useRef(false);
-
-  // Query with staleTime: 0 so it always re-fetches on invalidate
   const { data: serverEntry, isLoading, refetch } = trpc.clock.activeEntry.useQuery(
     { employeeId: employeeId || 0 },
     {
       enabled: !!employeeId,
-      staleTime: 0,          // Never consider stale — always re-fetch
-      gcTime: 0,             // Don't cache between navigations
-      refetchInterval: 20000, // Poll every 20s
+      staleTime: 0,
+      gcTime: 0,
+      refetchInterval: 20000,
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
       refetchOnMount: true,
     }
   );
 
-  // Sync server state → local state (but only when NOT mutating to avoid flicker)
+  // Sync server → local state ONLY when the optimistic lock has expired
   useEffect(() => {
     if (isLoading) return;
-    if (isMutating) return; // Don't overwrite optimistic state during mutation
+    const now = Date.now();
+    if (now < optimisticLockUntil.current) {
+      // Still within lock window — ignore server response, keep optimistic state
+      return;
+    }
 
-    initialLoadDone.current = true;
-
+    // Lock expired — server response is authoritative
     if (serverEntry) {
       setActiveEntry(serverEntry as unknown as ActiveClockEntry);
       setStatus("clocked_in");
@@ -96,32 +96,32 @@ export function ClockStateProvider({ children }: { children: React.ReactNode }) 
       setActiveEntry(null);
       setStatus("clocked_out");
     }
-  }, [serverEntry, isLoading, isMutating]);
+  }, [serverEntry, isLoading]);
 
   // AppState listener: re-fetch every time app comes to foreground
   useEffect(() => {
     const handleAppStateChange = async (nextState: AppStateStatus) => {
       if (nextState === "active") {
-        // App came to foreground — force fresh data from server
         try {
           await utils.clock.activeEntry.invalidate();
           await refetch();
         } catch { /* ignore */ }
       }
     };
-
     const subscription = AppState.addEventListener("change", handleAppStateChange);
     return () => subscription.remove();
   }, [utils, refetch]);
 
   const optimisticClockOut = useCallback(() => {
-    // Immediately update local state — UI responds instantly
+    // Set lock — server responses ignored for OPTIMISTIC_LOCK_MS
+    optimisticLockUntil.current = Date.now() + OPTIMISTIC_LOCK_MS;
     setActiveEntry(null);
     setStatus("clocked_out");
   }, []);
 
   const optimisticClockIn = useCallback((entry: ActiveClockEntry) => {
-    // Immediately update local state — UI responds instantly
+    // Set lock — server responses ignored for OPTIMISTIC_LOCK_MS
+    optimisticLockUntil.current = Date.now() + OPTIMISTIC_LOCK_MS;
     setActiveEntry(entry);
     setStatus("clocked_in");
   }, []);
@@ -131,7 +131,16 @@ export function ClockStateProvider({ children }: { children: React.ReactNode }) 
       await utils.clock.activeEntry.invalidate();
       await utils.clock.history.invalidate();
       await utils.clock.allClockedIn.invalidate();
-      await refetch();
+      // Only allow server to sync after the lock expires
+      // Schedule the refetch after the lock window
+      const remaining = optimisticLockUntil.current - Date.now();
+      if (remaining > 0) {
+        setTimeout(async () => {
+          try { await refetch(); } catch { /* ignore */ }
+        }, remaining + 500);
+      } else {
+        await refetch();
+      }
     } catch { /* ignore */ }
   }, [utils, refetch]);
 
@@ -144,7 +153,7 @@ export function ClockStateProvider({ children }: { children: React.ReactNode }) 
         optimisticClockOut,
         optimisticClockIn,
         forceRefresh,
-        isLoading: isLoading && !initialLoadDone.current,
+        isLoading: isLoading && status === "unknown",
         setMutating,
       }}
     >
