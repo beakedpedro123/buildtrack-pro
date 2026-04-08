@@ -391,24 +391,30 @@ const meetingsRouter = router({
 const goalsRouter = router({
   list: publicProcedure.input(z.object({ weekOf: z.string().optional(), employeeId: z.number().optional(), employeeRole: z.string().optional() })).query(async ({ input }) => {
     const allGoals = await db.getWeeklyGoals(input.weekOf ? new Date(input.weekOf) : undefined);
-    // Owner sees all goals
-    if (input.employeeRole === "owner") return allGoals;
-    // Everyone else sees only goals they created or goals assigned to them
+    const MANAGEMENT_ROLES = ["owner", "office_manager", "logistics"];
+    const isManagement = MANAGEMENT_ROLES.includes(input.employeeRole || "");
+    // Management (owner, office_manager, logistics) sees ALL goals
+    if (isManagement) return allGoals;
+    // Foreman sees goals assigned to them AND goals they created
+    // Laborer sees ONLY goals explicitly assigned to them
+    // CRITICAL: Goals with null assignedTo are management-only — never leak to field staff
     if (input.employeeId) {
       return allGoals.filter((g: any) => {
-        if (g.createdBy === input.employeeId) return true;
+        // Goal explicitly assigned to this employee
         if (g.assignedTo === input.employeeId) return true;
-        // Check multi-assign list
+        // Goal in multi-assign list that includes this employee
         if (g.assignedToList) {
           const ids = String(g.assignedToList).split(",").map(Number);
           if (ids.includes(input.employeeId!)) return true;
         }
-        // null assignedTo + no list = everyone
-        if (!g.assignedTo && !g.assignedToList) return true;
+        // Goal created by this employee (foreman creating goals for their crew)
+        if (g.createdBy === input.employeeId) return true;
+        // Goals with NO assignee = management-only, do NOT show to field staff
         return false;
       });
     }
-    return allGoals;
+    // No employeeId — return empty to prevent data leak
+    return [];
   }),
   forMeeting: publicProcedure.input(z.object({ meetingId: z.number() })).query(({ input }) =>
     db.getGoalsForMeeting(input.meetingId)

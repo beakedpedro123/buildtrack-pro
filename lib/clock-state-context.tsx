@@ -1,18 +1,24 @@
 /**
- * ClockStateContext — Bulletproof local-first clock state
+ * ClockStateContext — Bulletproof clock state management
  *
- * KEY FIX: Uses a timestamp-based "optimistic lock" instead of a boolean flag.
- * When the user taps Clock In/Out, we record the exact timestamp of the action.
- * Server responses are IGNORED for 8 seconds after a local action.
- * After 8 seconds, the server response is allowed to sync (to confirm or correct).
+ * Architecture: Plain fetch + useState. ZERO TanStack Query involvement.
  *
- * This prevents the race condition where:
- *   1. User taps Clock Out → optimistic state = clocked_out
- *   2. refreshAll() fires → server query re-fetches
- *   3. Server returns the OLD cached "clocked_in" response (network lag)
- *   4. useEffect syncs server state → overwrites optimistic state → UI shows "Clocked In" again
+ * Why plain fetch?
+ * TanStack Query has internal caching, stale-time, and background refetch
+ * logic that races against optimistic updates and causes the "still shows
+ * Clocked In after clock-out" bug regardless of invalidation strategy.
+ * Plain fetch is synchronous in intent: we call it, we get a result, we
+ * set state. No cache, no background polling, no races.
+ *
+ * Flow:
+ *   1. On mount: fetch active entry from server → set state
+ *   2. On Clock In tap: set state to "clocked_in" IMMEDIATELY (optimistic)
+ *      then call server in background
+ *   3. On Clock Out tap: set state to "clocked_out" IMMEDIATELY (optimistic)
+ *      then call server in background
+ *   4. AppState "active": re-fetch from server (app came back from background)
+ *   5. Every 30s: re-fetch from server (background polling, skipped during mutations)
  */
-
 import React, {
   createContext,
   useCallback,
@@ -22,10 +28,9 @@ import React, {
   useState,
 } from "react";
 import { AppState, AppStateStatus } from "react-native";
-import { trpc } from "@/lib/trpc";
 import { useAppAuth } from "@/lib/auth-context";
-
-export type ClockStatus = "unknown" | "clocked_in" | "clocked_out";
+import { getApiBaseUrl } from "@/constants/oauth";
+import * as Auth from "@/lib/_core/auth";
 
 export interface ActiveClockEntry {
   id: number;
@@ -38,123 +43,145 @@ export interface ActiveClockEntry {
 }
 
 interface ClockStateContextValue {
-  status: ClockStatus;
   activeEntry: ActiveClockEntry | null;
-  isMutating: boolean;
+  isLoading: boolean;
   optimisticClockOut: () => void;
   optimisticClockIn: (entry: ActiveClockEntry) => void;
   forceRefresh: () => Promise<void>;
-  isLoading: boolean;
+  // Legacy compat — kept so existing clock.tsx code doesn't need changes
+  status: "unknown" | "clocked_in" | "clocked_out";
+  isMutating: boolean;
   setMutating: (v: boolean) => void;
 }
 
 const ClockStateContext = createContext<ClockStateContextValue | null>(null);
 
-// How long (ms) to ignore server responses after a local optimistic action
-const OPTIMISTIC_LOCK_MS = 8000;
+async function fetchActiveEntry(employeeId: number): Promise<ActiveClockEntry | null> {
+  try {
+    const base = getApiBaseUrl();
+    const token = await Auth.getSessionToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const input = encodeURIComponent(JSON.stringify({ json: { employeeId } }));
+    const url = `${base}/api/trpc/clock.activeEntry?input=${input}`;
+    const res = await fetch(url, { method: "GET", headers, credentials: "include" });
+    if (!res.ok) return null;
+    const json = await res.json();
+    // tRPC response shape: { result: { data: { json: ... } } }
+    const data = json?.result?.data?.json ?? null;
+    return data as ActiveClockEntry | null;
+  } catch {
+    return null;
+  }
+}
 
 export function ClockStateProvider({ children }: { children: React.ReactNode }) {
   const { employee } = useAppAuth();
   const employeeId = employee?.id;
 
-  const [status, setStatus] = useState<ClockStatus>("unknown");
   const [activeEntry, setActiveEntry] = useState<ActiveClockEntry | null>(null);
-  const [isMutating, setMutating] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Timestamp of the last optimistic action — server data is ignored until this expires
-  const optimisticLockUntil = useRef<number>(0);
+  // Ref: true while a clock mutation is in flight or just completed (10s cooldown)
+  // During this window, background fetches do NOT overwrite the optimistic state
+  const mutatingRef = useRef(false);
+  const mutationCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
 
-  const utils = trpc.useUtils();
-
-  const { data: serverEntry, isLoading, refetch } = trpc.clock.activeEntry.useQuery(
-    { employeeId: employeeId || 0 },
-    {
-      enabled: !!employeeId,
-      staleTime: 0,
-      gcTime: 0,
-      refetchInterval: 20000,
-      refetchOnWindowFocus: true,
-      refetchOnReconnect: true,
-      refetchOnMount: true,
-    }
-  );
-
-  // Sync server → local state ONLY when the optimistic lock has expired
   useEffect(() => {
-    if (isLoading) return;
-    const now = Date.now();
-    if (now < optimisticLockUntil.current) {
-      // Still within lock window — ignore server response, keep optimistic state
-      return;
-    }
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
-    // Lock expired — server response is authoritative
-    if (serverEntry) {
-      setActiveEntry(serverEntry as unknown as ActiveClockEntry);
-      setStatus("clocked_in");
-    } else {
-      setActiveEntry(null);
-      setStatus("clocked_out");
+  // ── Core fetch function ─────────────────────────────────────────────────────
+  const fetchAndSync = useCallback(async (force = false) => {
+    if (!employeeId) return;
+    // Skip background fetches while mutating (prevents overwriting optimistic state)
+    if (!force && mutatingRef.current) return;
+    try {
+      const entry = await fetchActiveEntry(employeeId);
+      if (!mountedRef.current) return;
+      if (force || !mutatingRef.current) {
+        setActiveEntry(entry);
+        setIsLoading(false);
+      }
+    } catch {
+      if (mountedRef.current) setIsLoading(false);
     }
-  }, [serverEntry, isLoading]);
+  }, [employeeId]);
 
-  // AppState listener: re-fetch every time app comes to foreground
+  // ── Initial load ────────────────────────────────────────────────────────────
   useEffect(() => {
-    const handleAppStateChange = async (nextState: AppStateStatus) => {
+    if (!employeeId) return;
+    setIsLoading(true);
+    fetchAndSync(true);
+  }, [employeeId, fetchAndSync]);
+
+  // ── Background polling every 30s (skipped during mutations) ────────────────
+  useEffect(() => {
+    if (!employeeId) return;
+    const interval = setInterval(() => fetchAndSync(false), 30000);
+    return () => clearInterval(interval);
+  }, [employeeId, fetchAndSync]);
+
+  // ── AppState: force re-fetch when app comes back to foreground ─────────────
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
       if (nextState === "active") {
-        try {
-          await utils.clock.activeEntry.invalidate();
-          await refetch();
-        } catch { /* ignore */ }
+        fetchAndSync(true);
       }
     };
     const subscription = AppState.addEventListener("change", handleAppStateChange);
     return () => subscription.remove();
-  }, [utils, refetch]);
+  }, [fetchAndSync]);
 
+  // ── Optimistic clock-out: update UI INSTANTLY ──────────────────────────────
   const optimisticClockOut = useCallback(() => {
-    // Set lock — server responses ignored for OPTIMISTIC_LOCK_MS
-    optimisticLockUntil.current = Date.now() + OPTIMISTIC_LOCK_MS;
+    mutatingRef.current = true;
     setActiveEntry(null);
-    setStatus("clocked_out");
+    setIsLoading(false);
+    if (mutationCooldownRef.current) clearTimeout(mutationCooldownRef.current);
+    mutationCooldownRef.current = setTimeout(() => {
+      mutatingRef.current = false;
+    }, 10000);
   }, []);
 
+  // ── Optimistic clock-in: update UI INSTANTLY ──────────────────────────────
   const optimisticClockIn = useCallback((entry: ActiveClockEntry) => {
-    // Set lock — server responses ignored for OPTIMISTIC_LOCK_MS
-    optimisticLockUntil.current = Date.now() + OPTIMISTIC_LOCK_MS;
+    mutatingRef.current = true;
     setActiveEntry(entry);
-    setStatus("clocked_in");
+    setIsLoading(false);
+    if (mutationCooldownRef.current) clearTimeout(mutationCooldownRef.current);
+    mutationCooldownRef.current = setTimeout(() => {
+      mutatingRef.current = false;
+    }, 10000);
   }, []);
 
+  // ── Force refresh: called after server confirms mutation ───────────────────
   const forceRefresh = useCallback(async () => {
-    try {
-      await utils.clock.activeEntry.invalidate();
-      await utils.clock.history.invalidate();
-      await utils.clock.allClockedIn.invalidate();
-      // Only allow server to sync after the lock expires
-      // Schedule the refetch after the lock window
-      const remaining = optimisticLockUntil.current - Date.now();
-      if (remaining > 0) {
-        setTimeout(async () => {
-          try { await refetch(); } catch { /* ignore */ }
-        }, remaining + 500);
-      } else {
-        await refetch();
-      }
-    } catch { /* ignore */ }
-  }, [utils, refetch]);
+    // End mutation cooldown so server response is authoritative
+    mutatingRef.current = false;
+    if (mutationCooldownRef.current) {
+      clearTimeout(mutationCooldownRef.current);
+      mutationCooldownRef.current = null;
+    }
+    await fetchAndSync(true);
+  }, [fetchAndSync]);
+
+  const status = isLoading ? "unknown" : activeEntry ? "clocked_in" : "clocked_out";
 
   return (
     <ClockStateContext.Provider
       value={{
-        status,
         activeEntry,
-        isMutating,
+        isLoading,
         optimisticClockOut,
         optimisticClockIn,
         forceRefresh,
-        isLoading: isLoading && status === "unknown",
-        setMutating,
+        status,
+        isMutating: mutatingRef.current,
+        setMutating: () => {}, // no-op, kept for legacy compat
       }}
     >
       {children}

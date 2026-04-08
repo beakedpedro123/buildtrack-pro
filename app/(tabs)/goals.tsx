@@ -687,7 +687,10 @@ export default function GoalsScreen() {
   const { data: goals, isLoading, refetch } = trpc.goals.list.useQuery({
     weekOf: weekStart.toISOString(),
     employeeId: employee?.id,
-    employeeRole: employee?.role });
+    employeeRole: employee?.role },
+    // CRITICAL: Never fire this query until employee is loaded — prevents data leak
+    { enabled: !!employee?.id && !!employee?.role, staleTime: 0 }
+  );
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { staleTime: 30000 });
 
   const employeeMap = useMemo(() => {
@@ -735,15 +738,29 @@ export default function GoalsScreen() {
   const filteredGoals = useMemo(() => {
     if (!goals) return [];
     let filtered = [...goals];
+    // isGoalForMe: returns true ONLY if the goal is explicitly assigned to this employee
+    // Goals with no assignee are management-only and must never show to field staff
     const isGoalForMe = (g: any) => {
       if (g.assignedToList) {
         const ids = String(g.assignedToList).split(",").map(Number);
         return ids.includes(employee?.id || 0);
       }
       if (g.assignedTo) return g.assignedTo === employee?.id;
-      return true;
+      // No assignee = management-only, do NOT show to field staff
+      return false;
     };
     if (isOwner) {
+      if (filterAssignee !== "all") {
+        filtered = filtered.filter((g: any) => {
+          if (g.assignedToList) {
+            return String(g.assignedToList).split(",").map(Number).includes(filterAssignee as number);
+          }
+          return g.assignedTo === filterAssignee;
+        });
+      }
+    } else if (isOwnerOrManager) {
+      // office_manager and logistics also see all goals (already filtered by server)
+      // just apply assignee filter if set
       if (filterAssignee !== "all") {
         filtered = filtered.filter((g: any) => {
           if (g.assignedToList) {
