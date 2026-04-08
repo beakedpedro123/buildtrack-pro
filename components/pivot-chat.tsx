@@ -355,6 +355,28 @@ export function PivotChat() {
     }
   };
 
+  const takePhoto = async () => {
+    if (!access.canAttachFiles) return;
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Camera Permission", "Please allow camera access in your device settings to snap photos for Pivot.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        quality: 0.7,
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      const name = asset.fileName || `photo_${Date.now()}.jpg`;
+      await uploadAndAddAttachment(asset.uri, name, asset.mimeType || "image/jpeg");
+    } catch {
+      Alert.alert("Error", "Could not open camera.");
+    }
+  };
+
   const uploadAndAddAttachment = async (uri: string, name: string, mimeType: string) => {
     setUploading(true);
     try {
@@ -834,6 +856,9 @@ export function PivotChat() {
                 {/* File attachment buttons — only for eligible roles */}
                 {access.canAttachFiles && (
                   <>
+                    <TouchableOpacity style={s.iconBtn} onPress={takePhoto} disabled={uploading}>
+                      <Text style={{ fontSize: 18 }}>📷</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity style={s.iconBtn} onPress={pickImage} disabled={uploading}>
                       <Text style={{ fontSize: 18 }}>🖼️</Text>
                     </TouchableOpacity>

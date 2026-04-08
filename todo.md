@@ -1365,3 +1365,12 @@
 - [x] TypeScript check — 0 errors
 - [x] Full revert to last known working version (74db46b) — all 3 changed files (pivot-chat.tsx, _layout.tsx, clock.tsx) restored to the version that was working on devices
 - [x] Camera button + performance optimizations will be re-applied carefully in a future phase
+
+## Phase 54 — Camera Button + Performance (Safe Re-add)
+
+- [x] Camera button (📷) added to Pivot input bar — minimal change, function + button only, no structural refactoring
+- [x] takePhoto function inside component (same pattern as pickImage) with camera permission request
+- [x] Global staleTime (30s) and gcTime (5min) added to QueryClient defaults in _layout.tsx
+- [x] Only 2 files changed: pivot-chat.tsx (added function + button), _layout.tsx (added 2 lines to QueryClient)
+- [x] No module-level refactoring, no StyleSheet moves, no memoization changes
+- [x] TypeScript check — 0 errors
