@@ -1,8 +1,8 @@
 {
-  "source": "Utah State Construction Code, IRC/IBC as adopted, local jurisdiction amendments",
-  "last_updated": "2024-2025",
+  "source": "Utah State Construction Code, IRC/IBC as adopted, local jurisdiction amendments — HB65 2024 session updates",
+  "last_updated": "2025-2026",
   "state_code": {
-    "base_code": "2021 International Residential Code (IRC) with Utah amendments, transitioning to 2024 IBC/IRC per HB65",
+    "base_code": "2021 International Residential Code (IRC) with Utah amendments; 2024 IBC/IRC adopted via HB65 effective 2026",
     "energy_code": "2021 IECC with Utah amendments",
     "fire_code": "2021 International Fire Code (IFC) with Utah amendments",
     "plumbing_code": "2021 Uniform Plumbing Code (UPC)",
@@ -14,29 +14,33 @@
       "R313.1 Sprinkler systems: Not required for one- and two-family dwellings unless local jurisdiction requires",
       "R602.10.1 Braced wall panels: Continuous structural panel sheathing method allowed as alternative",
       "R802.10.4 Truss design: Trusses must be designed by registered engineer, sealed drawings required",
-      "Energy code: Prescriptive R-values for Climate Zone 5 (most of Utah) and Zone 6 (mountain areas)"
+      "Energy code: Prescriptive R-values for Climate Zone 5 (most of Utah) and Zone 6 (mountain areas)",
+      "HB65 2024: Adopts 2024 IBC, 2024 IECC, 2024 IRC — phased rollout, check jurisdiction for effective date",
+      "Utah snow load formula: Pf = 0.7 x Ce x Ct x I x Pg (ASCE 7); flat roof snow load = 0.7 x ground snow load minimum"
     ]
   },
   "climate_zones": {
     "zone_5": {
-      "areas": ["Salt Lake City", "Layton", "Ogden", "Provo", "most of Wasatch Front"],
+      "areas": ["Salt Lake City", "Layton", "Ogden", "Provo", "most of Wasatch Front", "Morgan County valley floors"],
       "wall_insulation": "R-20 or R-13+5ci",
       "ceiling_insulation": "R-49",
       "floor_insulation": "R-30",
       "basement_wall": "R-15/19",
       "slab_perimeter": "R-10 for 2ft",
       "fenestration_u_factor": 0.30,
-      "fenestration_shgc": 0.40
+      "fenestration_shgc": 0.40,
+      "window_notes": "Triple-pane windows strongly recommended for custom homes in Zone 5 mountain-adjacent areas"
     },
     "zone_6": {
-      "areas": ["Park City", "Summit County", "Powder Mountain", "Morgan (higher elevations)", "Coalville", "Heber City"],
+      "areas": ["Park City", "Summit County", "Powder Mountain", "Morgan (higher elevations)", "Coalville", "Heber City", "Deer Valley", "Midway"],
       "wall_insulation": "R-20+5ci or R-13+10ci",
-      "ceiling_insulation": "R-49",
+      "ceiling_insulation": "R-49 minimum — R-60 recommended for high-altitude custom homes",
       "floor_insulation": "R-30",
       "basement_wall": "R-15/19",
       "slab_perimeter": "R-10 for 4ft",
       "fenestration_u_factor": 0.30,
-      "fenestration_shgc": 0.40
+      "fenestration_shgc": 0.40,
+      "window_notes": "Triple-pane windows with U-0.22 or better strongly recommended; heated window frames in extreme snow areas"
     }
   },
   "jurisdictions": {
@@ -46,6 +50,7 @@
       "phone": "435-336-3124",
       "address": "60 N Main St, Coalville, UT 84017",
       "website": "summitcountyutah.gov",
+      "permit_portal": "summit.co.ut.eprocess360.com",
       "ground_snow_load_psf": 115,
       "wind_speed_mph": 115,
       "seismic_design_category": "D or D1",
@@ -56,78 +61,241 @@
       "termite": "Slight",
       "winter_design_temp_f": -7,
       "ice_barrier_required": true,
+      "plan_review_time_weeks": "4-8 weeks for custom homes",
+      "permit_fees_notes": "Fees based on valuation — typically $8,000-$25,000+ for large custom homes",
       "special_requirements": [
-        "Wildland-Urban Interface (WUI) requirements may apply in mountain areas",
-        "Steep slope building may require geotechnical report",
-        "Snow country design: roof snow loads often exceed 100 psf, drift loads must be calculated",
-        "Engineered foundation required for most custom homes",
-        "Radon mitigation system required in new construction",
-        "Fire sprinklers may be required based on access and fire district",
-        "Defensible space requirements in WUI zones"
+        "Wildland-Urban Interface (WUI) requirements apply in most mountain areas — Class A roofing required",
+        "Steep slope (>15%) building requires geotechnical report from licensed engineer",
+        "Snow country design: roof snow loads often exceed 100 psf, drift loads must be calculated per ASCE 7",
+        "Engineered foundation required for most custom homes — frost depth 36 inches minimum",
+        "Radon mitigation system required in new construction — passive system minimum, active recommended",
+        "Fire sprinklers required if fire district response time exceeds 5 minutes or access road exceeds 1,000 ft",
+        "Defensible space requirements in WUI zones — 30 ft zone 1, 100 ft zone 2",
+        "Driveway grade maximum 12% for fire apparatus access",
+        "Turnaround required for driveways over 150 ft",
+        "Septic system: OWTS permit from Summit County Health — perc test required",
+        "Well permit from Utah Division of Water Rights if not on municipal water",
+        "Elevation certificate required for flood zone properties",
+        "Solar-ready conduit required for new construction",
+        "EV charging rough-in required for new garages"
       ],
       "permit_requirements": [
-        "Building permit application with 2 sets of plans",
-        "Engineered plans required for custom homes",
-        "Soils/geotechnical report for hillside construction",
-        "SWPPP (Stormwater Pollution Prevention Plan) for sites > 1 acre",
-        "Septic permit if not on sewer",
-        "Access permit from county road department"
+        "Building permit application with 2 sets of stamped engineered plans",
+        "Soils/geotechnical report for hillside construction or lots with slopes >15%",
+        "SWPPP (Stormwater Pollution Prevention Plan) for sites > 1 acre — required before grading",
+        "Septic permit from Summit County Health Department",
+        "Access permit from county road department if new driveway",
+        "Grading permit for significant earthwork",
+        "Zoning compliance letter from planning department",
+        "Structural calculations stamped by Utah-licensed PE",
+        "Energy compliance report (REScheck or equivalent)"
+      ],
+      "custom_home_notes": [
+        "Most custom homes in Summit County require full structural engineering — not prescriptive IRC",
+        "Snow drift calculations critical — valleys between roof sections accumulate 2-3x ground snow load",
+        "Steel moment frames common for large open floor plans due to seismic requirements",
+        "Radiant floor heat is standard in high-end custom homes — plan for slab insulation",
+        "Heated driveways and walkways common — plan electrical or hydronic system early",
+        "Dark sky ordinance in some areas — exterior lighting must be downward-facing",
+        "Architectural review required in many HOA areas (Promontory, Glenwild, Tuhaye, etc.)"
       ]
     },
     "park_city": {
       "name": "Park City",
       "building_department": "Park City Building Department",
       "phone": "435-615-5100",
+      "address": "445 Marsac Ave, Park City, UT 84060",
+      "website": "parkcity.gov/departments/building-department",
       "ground_snow_load_psf": 100,
       "wind_speed_mph": 115,
       "seismic_design_category": "D",
       "frost_depth_inches": 36,
       "climate_zone": 6,
+      "winter_design_temp_f": -5,
+      "ice_barrier_required": true,
+      "plan_review_time_weeks": "6-10 weeks for custom homes",
       "special_requirements": [
-        "Historic district overlay may apply — check before design",
-        "Height restrictions vary by zone (28-35 ft typical)",
-        "Snow storage requirements on site",
-        "Heated driveway/walkway requirements in some zones",
-        "Green building incentives available"
+        "Historic district overlay (Old Town) — design review required, strict architectural guidelines",
+        "Height restrictions: 28 ft in most residential zones, 35 ft in some mountain zones — measured from grade",
+        "Snow storage requirements: 10% of lot area must be designated for snow storage",
+        "Heated driveway/walkway requirements in some steep zones — check with planning",
+        "Green building incentives: LEED or equivalent may qualify for expedited review",
+        "Dark sky ordinance — all exterior lighting must be full cutoff fixtures",
+        "Wildland-Urban Interface (WUI) code applies to most of Park City",
+        "Class A fire-rated roofing required in WUI zones",
+        "Defensible space: 30 ft zone 1 clearance required",
+        "Steep slope overlay: lots >30% slope require additional geotechnical review",
+        "View corridor protection in some zones — check with planning before design",
+        "Accessory Dwelling Units (ADUs) allowed in most zones — separate permit required"
+      ],
+      "permit_requirements": [
+        "Online permit application through Park City permit portal",
+        "2 sets of stamped engineered plans for custom homes",
+        "Energy compliance documentation — REScheck or COMcheck",
+        "Soils report for hillside lots",
+        "SWPPP for sites over 1 acre",
+        "Architectural review application if in design review overlay",
+        "Historic district application if in Old Town",
+        "Structural calculations by Utah-licensed PE"
+      ],
+      "custom_home_notes": [
+        "Park City is one of the most regulated custom home markets in Utah — budget extra time for approvals",
+        "Architectural review in many neighborhoods adds 4-8 weeks to approval timeline",
+        "Snow loads: 100 psf ground, but drift loads at roof valleys can reach 150-200 psf — engineer required",
+        "Luxury custom homes common — high-end finishes, smart home systems, wine cellars, home theaters",
+        "Ski-in/ski-out lots near Deer Valley and PCMR have additional easement requirements",
+        "Radiant heat standard — both floor and driveway in high-end builds",
+        "Steel structural systems common for large spans and open floor plans",
+        "Geothermal systems popular for heating/cooling in Park City custom homes"
+      ]
+    },
+    "deer_valley": {
+      "name": "Deer Valley / Deer Crest / Empire Pass",
+      "building_department": "Summit County Community Development (unincorporated) or Park City Building Dept (within city limits)",
+      "phone_summit": "435-336-3124",
+      "phone_park_city": "435-615-5100",
+      "note": "Deer Valley straddles Summit County and Park City boundaries — verify jurisdiction before permitting",
+      "ground_snow_load_psf": 115,
+      "wind_speed_mph": 115,
+      "seismic_design_category": "D or D1",
+      "frost_depth_inches": 36,
+      "climate_zone": 6,
+      "elevation_range_ft": "7000-9000 ft",
+      "winter_design_temp_f": -10,
+      "ice_barrier_required": true,
+      "plan_review_time_weeks": "6-12 weeks — complex projects may take longer",
+      "special_requirements": [
+        "Verify jurisdiction first: lower Deer Valley (Deer Valley Dr area) = Park City; upper areas (Empire Pass, Deer Crest) = Summit County",
+        "Deer Crest HOA has strict architectural review — Deer Crest Architectural Control Committee approval required",
+        "Empire Pass: Talisker Land Holdings has separate CC&Rs and architectural review process",
+        "Deer Valley East Village (Mayflower): Summit County jurisdiction — new development with specific design guidelines",
+        "Extreme snow loads at elevation — 115 psf ground, drift loads at roof valleys can exceed 200 psf",
+        "All structural systems must be fully engineered — no prescriptive IRC allowed at this elevation",
+        "Ski easements and ski run setbacks apply to many lots — check title report",
+        "Avalanche hazard zones exist in Empire Pass and upper Deer Crest — geotech and avalanche study may be required",
+        "WUI requirements: Class A roofing, ignition-resistant construction, defensible space mandatory",
+        "Fire sprinkler systems required in most Deer Valley custom homes due to access limitations",
+        "Heated driveways and walkways essentially mandatory at this elevation for safety",
+        "Snowmelt systems for decks and entries standard in luxury builds",
+        "Dark sky ordinance — full cutoff exterior lighting required",
+        "Minimum lot size varies by zone — check with county/city planning"
+      ],
+      "permit_requirements": [
+        "Full structural engineering package — stamped by Utah-licensed PE",
+        "Geotechnical/soils report — required for all lots",
+        "Avalanche hazard assessment if in mapped hazard zone",
+        "Architectural review approval from HOA/CC&R authority before permit submission",
+        "SWPPP for sites over 1 acre",
+        "Septic permit if not on sewer (many upper Deer Valley lots are on septic)",
+        "Energy compliance documentation",
+        "Grading and drainage plan",
+        "Access/driveway plan showing grade and turnaround"
+      ],
+      "custom_home_notes": [
+        "Deer Valley is Utah's most prestigious custom home market — projects typically $3M-$20M+",
+        "Steel moment frames and heavy timber are common structural systems for large spans",
+        "Snow management is critical: heated roofs, gutters, driveways, walkways, decks all need snowmelt",
+        "Radiant floor heat is standard — hydronic systems preferred over electric",
+        "Ski room/boot dryers, equipment storage, and ski-in/ski-out access are common program elements",
+        "Mechanical rooms must be sized for complex systems — radiant, snowmelt, generator, AV, smart home",
+        "Generator backup power is standard — mountain power outages common in winter storms",
+        "Water features (indoor/outdoor pools, hot tubs) common — plan for structural loads and mechanical space",
+        "Deer Valley East Village (Mayflower) is a new development with modern design guidelines — contact Summit County for current requirements",
+        "Construction season is limited: May-November for exterior work — plan schedule carefully",
+        "Material delivery to upper elevations can be challenging — plan for crane access and staging areas"
       ]
     },
     "powder_mountain": {
       "name": "Powder Mountain / Eden / Ogden Valley",
-      "building_department": "Weber County Planning",
+      "building_department": "Weber County Planning & Zoning",
       "phone": "801-399-8791",
+      "address": "2380 Washington Blvd, Ogden, UT 84401",
+      "website": "webercountyutah.gov",
       "ground_snow_load_psf": 150,
       "wind_speed_mph": 115,
       "seismic_design_category": "D",
       "frost_depth_inches": 42,
       "climate_zone": 6,
+      "elevation_range_ft": "5000-9000 ft",
+      "winter_design_temp_f": -15,
+      "ice_barrier_required": true,
+      "plan_review_time_weeks": "3-6 weeks",
       "special_requirements": [
-        "Extreme snow loads — 150+ psf ground snow load at higher elevations",
-        "Roof design must account for unbalanced snow loads and drift",
-        "Metal roofing with snow guards common/recommended",
-        "Structural engineer required for all custom homes",
-        "Access road grades limited — may need heated driveways",
-        "Fire district requirements for sprinklers based on response time",
-        "Avalanche hazard zones — check before building",
-        "Well and septic common — percolation test required"
+        "Extreme snow loads — 150 psf ground at base, 200+ psf at summit elevations",
+        "Roof design MUST account for unbalanced snow loads and drift — ASCE 7 Chapter 7 required",
+        "Metal roofing with snow guards strongly recommended — standing seam metal standard",
+        "Structural engineer required for ALL custom homes — no prescriptive IRC at these loads",
+        "Access road grades limited to 12% maximum for emergency vehicle access",
+        "Heated driveways required or strongly recommended for grades over 6%",
+        "Fire district: Ogden Valley Fire — sprinklers required if response time exceeds 5 min",
+        "Avalanche hazard zones exist on steep slopes — check USGS maps before design",
+        "Well and septic common — percolation test and OWTS permit required",
+        "Weber County has strict grading ordinance — limit disturbance to minimize erosion",
+        "Dark sky requirements in Ogden Valley — preserve night sky quality",
+        "Powder Mountain resort has its own CC&Rs for lots within the resort boundary"
+      ],
+      "permit_requirements": [
+        "Weber County building permit application",
+        "Stamped structural engineering plans",
+        "Soils/geotechnical report",
+        "SWPPP for sites over 1 acre",
+        "OWTS (septic) permit from Weber-Morgan Health Department",
+        "Well permit from Utah Division of Water Rights",
+        "Grading permit for significant earthwork",
+        "Access permit if new driveway on county road"
+      ],
+      "custom_home_notes": [
+        "Powder Mountain is becoming a premier ski resort community — custom home market growing rapidly",
+        "150 psf ground snow load means roof structural systems must be heavily engineered",
+        "Typical roof dead load + 150 psf snow = 170-180 psf total — steel or heavy timber often required",
+        "Snowmelt systems for driveways and entries are essentially mandatory at upper elevations",
+        "Construction season: May-October — winter construction very difficult at elevation",
+        "Powder Mountain resort village has specific architectural guidelines — contact resort for CC&Rs"
       ]
     },
     "morgan_county": {
       "name": "Morgan County / Morgan City",
       "building_department": "Morgan County Building Department",
       "phone": "801-845-4015",
+      "address": "48 W Young St, Morgan, UT 84050",
       "website": "morgancountyutah.gov",
       "ground_snow_load_psf": 60,
       "wind_speed_mph": 115,
       "seismic_design_category": "D",
       "frost_depth_inches": 30,
       "climate_zone": 5,
+      "winter_design_temp_f": 0,
+      "ice_barrier_required": true,
+      "plan_review_time_weeks": "2-4 weeks",
       "special_requirements": [
-        "IRC adopted with state amendments",
-        "One- and two-family dwellings per IRC Chapter 11 (energy)",
-        "Automatic fire sprinklers per IRC R313 as amended by state",
-        "Soils report may be required for expansive soils",
-        "Flood zone check required — FEMA maps",
-        "Agricultural exemptions may apply for outbuildings"
+        "IRC adopted with Utah state amendments — one of the more straightforward jurisdictions",
+        "One- and two-family dwellings per IRC Chapter 11 (energy) — Zone 5 requirements",
+        "Automatic fire sprinklers per IRC R313 as amended by Utah state — check current requirement",
+        "Soils report may be required for expansive soils (common in Morgan Valley)",
+        "Flood zone check required — FEMA maps, Morgan River corridor has flood zones",
+        "Agricultural exemptions may apply for outbuildings on agricultural-zoned parcels",
+        "Septic systems common — OWTS permit from Weber-Morgan Health Department",
+        "Well permits from Utah Division of Water Rights for rural lots",
+        "Hillside lots (east and west canyon walls) require geotechnical report",
+        "Wildfire risk in canyon areas — WUI requirements may apply"
+      ],
+      "permit_requirements": [
+        "Building permit application — can be submitted in person or online",
+        "2 sets of plans — engineered plans required for custom homes",
+        "Energy compliance documentation",
+        "Soils report if required by building official",
+        "SWPPP for sites over 1 acre",
+        "OWTS permit if on septic",
+        "Well permit if applicable"
+      ],
+      "custom_home_notes": [
+        "Morgan County is more affordable than Park City/Summit County — growing custom home market",
+        "60 psf ground snow load is manageable — engineered trusses handle it well",
+        "Morgan Valley has beautiful views and rural character — popular for acreage custom homes",
+        "East Canyon and Lost Creek areas have higher snow loads — verify with county",
+        "Commute to Salt Lake City is 30-45 minutes — popular for families wanting rural lifestyle",
+        "Agricultural land conversion to residential may require zone change — plan ahead",
+        "Water rights are critical in Morgan County — verify water availability before purchase"
       ]
     },
     "layton": {
@@ -141,11 +309,18 @@
       "frost_depth_inches": 24,
       "climate_zone": 5,
       "special_requirements": [
-        "Standard IRC/IBC with state amendments",
+        "Standard IRC/IBC with Utah state amendments",
         "Residential plan review typically 2-3 weeks",
-        "Impact fees apply for new construction",
-        "Landscaping requirements for new homes",
-        "Driveway approach permit from public works"
+        "Impact fees apply for new construction — verify current schedule",
+        "Landscaping requirements for new homes — 50% of front yard must be landscaped",
+        "Driveway approach permit from public works required",
+        "Hillside development ordinance for lots on Wasatch Front benches"
+      ],
+      "permit_requirements": [
+        "Online permit application through Layton City portal",
+        "2 sets of plans",
+        "Energy compliance documentation",
+        "Soils report for hillside lots"
       ]
     },
     "salt_lake_city": {
@@ -159,17 +334,23 @@
       "frost_depth_inches": 24,
       "climate_zone": 5,
       "special_requirements": [
-        "Historic preservation overlay in many neighborhoods",
-        "ADU (Accessory Dwelling Unit) regulations — check zoning",
+        "Historic preservation overlay in many neighborhoods — design review required",
+        "ADU (Accessory Dwelling Unit) regulations — allowed in most zones, separate permit",
         "Solar-ready requirements for new construction",
-        "EV charging infrastructure requirements",
-        "Stormwater management requirements",
-        "Tree protection ordinance during construction"
+        "EV charging infrastructure requirements for new garages",
+        "Stormwater management requirements — detention/retention may be required",
+        "Tree protection ordinance during construction — permit for removal of significant trees"
+      ],
+      "permit_requirements": [
+        "Online permit application",
+        "2 sets of plans",
+        "Energy compliance documentation",
+        "Historic review if in overlay district"
       ]
     },
     "coalville": {
       "name": "Coalville City",
-      "building_department": "Coalville City / Summit County",
+      "building_department": "Coalville City / Summit County Community Development",
       "phone": "435-336-5981",
       "ground_snow_load_psf": 75,
       "wind_speed_mph": 115,
@@ -179,14 +360,20 @@
       "special_requirements": [
         "Small city — uses Summit County building department for inspections",
         "Zoning check required before permit application",
-        "Water and sewer connection fees",
-        "Moderate snow loads — engineered trusses recommended"
+        "Water and sewer connection fees — verify capacity",
+        "Moderate snow loads — engineered trusses recommended",
+        "Proximity to I-80 corridor — some lots have noise considerations"
+      ],
+      "permit_requirements": [
+        "Submit to Summit County Community Development",
+        "2 sets of plans",
+        "Energy compliance documentation"
       ]
     }
   },
   "common_framing_requirements": {
     "wall_framing": {
-      "studs": "2x4 or 2x6 at 16 in OC (24 in OC allowed for some conditions)",
+      "studs": "2x4 or 2x6 at 16 in OC (24 in OC allowed for some conditions); 2x6 required for Zone 6 energy compliance",
       "top_plates": "Double top plate required, single allowed with approved connectors",
       "bottom_plate": "Pressure-treated on concrete, standard on wood subfloor",
       "headers": {
@@ -194,9 +381,9 @@
         "6ft_opening": "2-2x8 minimum",
         "8ft_opening": "2-2x10 minimum",
         "10ft_opening": "2-2x12 minimum or engineered",
-        "over_10ft": "Engineered header required"
+        "over_10ft": "Engineered header required — LVL, steel, or glulam"
       },
-      "bracing": "Per IRC R602.10 — continuous sheathing or let-in bracing",
+      "bracing": "Per IRC R602.10 — continuous sheathing or let-in bracing; engineered shear walls for high seismic/wind",
       "fire_blocking": "Required at 10ft vertical intervals, at floor/ceiling levels, at soffits, and at connections between horizontal and vertical spaces"
     },
     "floor_framing": {
@@ -210,7 +397,8 @@
       "collar_ties": "Required in upper 1/3 of attic space, 4ft OC maximum",
       "ridge_board": "Minimum 1x, depth equal to cut end of rafter",
       "ridge_beam": "Required for cathedral ceilings without collar ties — must be engineered",
-      "sheathing": "7/16 in OSB or 1/2 in plywood minimum, H-clips at unsupported edges"
+      "sheathing": "7/16 in OSB or 1/2 in plywood minimum, H-clips at unsupported edges",
+      "high_snow_load_notes": "For loads >75 psf: engineered trusses or rafters required; drift loads at valleys and parapets must be calculated; consider heated roof systems to prevent ice dams"
     },
     "fastener_schedule": {
       "sheathing_to_framing_walls": "8d common at 6 in OC edges, 12 in OC field",
@@ -223,18 +411,73 @@
       "joist_to_sill": "3-8d toe nailed or approved connector"
     }
   },
+  "steel_erection_utah": {
+    "general": "Steel erection in Utah follows AISC 303 Code of Standard Practice and OSHA 1926 Subpart R",
+    "high_altitude_considerations": [
+      "Snow loads at Deer Valley, Powder Mountain, and Summit County require heavier steel sections than Wasatch Front",
+      "Wind exposure category C or D at mountain elevations — check ASCE 7 wind maps",
+      "Seismic Design Category D throughout most of Utah — moment connections required for lateral resistance",
+      "Thermal expansion/contraction significant at mountain elevations — expansion joints required for long buildings",
+      "Crane access can be challenging at mountain sites — plan for terrain and road grade limits"
+    ],
+    "common_beam_applications": {
+      "residential_floor_beams": "W8, W10, W12 most common for residential spans 10-20 ft",
+      "residential_ridge_beams": "W10, W12, W14 for cathedral ceiling ridge beams",
+      "commercial_floor_framing": "W14, W16, W18 for spans 20-40 ft",
+      "moment_frames": "W14 columns with W18-W24 beams typical for seismic moment frames",
+      "long_span_beams": "W24, W27, W30 for spans 40-60 ft; W33, W36 for 60+ ft spans",
+      "custom_home_steel": "W12x26 to W12x50 common for residential ridge and floor beams; W14x48 to W14x82 for moment frame columns"
+    },
+    "connection_requirements": [
+      "All moment connections require engineer design and inspection",
+      "High-strength bolts: A325 or A490 per AISC/RCSC specification",
+      "Welds: E70XX electrodes minimum; weld inspection required for seismic connections",
+      "Base plates: anchor bolt pattern per engineer design; grout under base plate required",
+      "Shear tabs and clip angles for simple shear connections",
+      "Pre-qualified connections per AISC 358 for seismic moment frames"
+    ]
+  },
+  "custom_home_cost_benchmarks_utah": {
+    "note": "Approximate ranges as of 2025-2026 — verify with current supplier quotes",
+    "framing_labor_per_sqft": {
+      "standard_residential": "$8-$12/sqft",
+      "complex_custom_home": "$12-$18/sqft",
+      "mountain_premium": "$15-$25/sqft (Deer Valley, Park City, Powder Mountain)"
+    },
+    "steel_erection_labor": {
+      "simple_beam_installation": "$150-$250/beam",
+      "moment_frame_erection": "$2,500-$5,000/frame",
+      "full_steel_structure": "$18-$35/sqft installed"
+    },
+    "lumber_prices_approximate": {
+      "note": "Prices fluctuate — always get current quotes",
+      "2x4_stud_8ft": "$4-$7 each",
+      "2x6_stud_8ft": "$7-$11 each",
+      "2x10_joist_16ft": "$18-$28 each",
+      "lvl_beam_3.5x11.25_per_lf": "$12-$18/lf",
+      "osb_7_16_4x8": "$22-$35/sheet",
+      "plywood_3_4_4x8": "$45-$65/sheet"
+    },
+    "permit_cost_estimates": {
+      "summit_county_custom_home": "$8,000-$25,000+ depending on valuation",
+      "park_city_custom_home": "$10,000-$30,000+ depending on valuation and zone",
+      "morgan_county_custom_home": "$2,000-$8,000",
+      "powder_mountain_custom_home": "$3,000-$10,000"
+    }
+  },
   "inspection_sequence": [
     "1. Footing inspection — before concrete pour, verify rebar, depth, width",
     "2. Foundation inspection — forms, rebar, anchor bolts before pour",
     "3. Underslab plumbing/mechanical — before slab pour",
     "4. Slab inspection — vapor barrier, rebar, thickness",
     "5. Framing inspection — ALL framing complete, sheathing, nailing, connectors, fire blocking",
-    "6. Rough plumbing — supply and DWV before cover",
-    "7. Rough electrical — wiring, boxes, panels before cover",
-    "8. Rough mechanical — ductwork, equipment before cover",
-    "9. Insulation inspection — R-values, vapor barrier, air sealing",
-    "10. Drywall nailing inspection (some jurisdictions)",
-    "11. Final inspections — plumbing, electrical, mechanical, building"
+    "6. Steel inspection — if steel structure, special inspection required for welds and bolts",
+    "7. Rough plumbing — supply and DWV before cover",
+    "8. Rough electrical — wiring, boxes, panels before cover",
+    "9. Rough mechanical — ductwork, equipment before cover",
+    "10. Insulation inspection — R-values, vapor barrier, air sealing",
+    "11. Drywall nailing inspection (some jurisdictions)",
+    "12. Final inspections — plumbing, electrical, mechanical, building"
   ],
   "common_code_violations_framing": [
     "Missing or incorrect hurricane ties/straps at roof-to-wall connection",
@@ -246,6 +489,9 @@
     "Missing cripple studs below window sills",
     "Notching or boring joists/studs beyond code limits",
     "Missing bridging/blocking in floor systems",
-    "Incorrect Simpson connector installation — missing nails, wrong nail type"
+    "Incorrect Simpson connector installation — missing nails, wrong nail type",
+    "Snow drift loads not calculated at roof valleys and parapets (critical in Utah mountain areas)",
+    "Insufficient bearing length for beams at supports",
+    "Missing shear transfer hardware at floor-to-wall connections in high seismic zones"
   ]
 }

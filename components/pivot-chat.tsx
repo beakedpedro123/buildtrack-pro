@@ -158,42 +158,21 @@ function nextMsgId(): string {
   return `msg_${Date.now()}_${++msgCounter}`;
 }
 
-// ─── Modern Robot Avatar ─────────────────────────────────────────────────────
+// ─── Pivot Robot Avatar (uses generated image) ───────────────────────────────
 
 function PivotAvatar({ size = 38 }: { size?: number }) {
   return (
-    <View style={{
-      width: size, height: size, borderRadius: size / 2,
-      backgroundColor: "#1a1a2e",
-      alignItems: "center", justifyContent: "center",
-      borderWidth: 2, borderColor: "#D4AF37",
-      shadowColor: "#D4AF37", shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.4, shadowRadius: 6, elevation: 4,
-    }}>
-      {/* Robot face */}
-      <View style={{ alignItems: "center" }}>
-        {/* Eyes */}
-        <View style={{ flexDirection: "row", gap: size * 0.15, marginBottom: size * 0.04 }}>
-          <View style={{
-            width: size * 0.18, height: size * 0.12, borderRadius: size * 0.06,
-            backgroundColor: "#D4AF37",
-            shadowColor: "#D4AF37", shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.8, shadowRadius: 3,
-          }} />
-          <View style={{
-            width: size * 0.18, height: size * 0.12, borderRadius: size * 0.06,
-            backgroundColor: "#D4AF37",
-            shadowColor: "#D4AF37", shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.8, shadowRadius: 3,
-          }} />
-        </View>
-        {/* Mouth - thin line */}
-        <View style={{
-          width: size * 0.3, height: size * 0.04, borderRadius: size * 0.02,
-          backgroundColor: "#D4AF3788",
-        }} />
-      </View>
-    </View>
+    <Image
+      source={{ uri: "https://d2xsxph8kpxj0f.cloudfront.net/310519663449841780/dNJxctHZxj6wCg3jq4j4kh/pivot-icon_83666431.png" }}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        borderWidth: 1.5,
+        borderColor: "#D4AF37",
+      }}
+      contentFit="cover"
+    />
   );
 }
 
@@ -544,25 +523,23 @@ export function PivotChat() {
   const s = StyleSheet.create({
     fab: {
       position: "absolute",
-      // Tab bar is 56px + bottom inset. Add 12px gap above it.
-      // On iPhone with home indicator: insets.bottom ~34px, so tab bar ~90px, FAB at 90+12=102px
-      // On older iPhone / Android: insets.bottom ~0px, so tab bar ~64px, FAB at 64+12=76px
       bottom: 56 + Math.max(insets.bottom, 8) + 12,
       right: 16,
-      width: 50,
-      height: 50,
-      borderRadius: 25,
-      backgroundColor: "#1a1a2e",
+      width: 58,
+      height: 58,
+      borderRadius: 29,
+      backgroundColor: "#0d0d1a",
       alignItems: "center",
       justifyContent: "center",
       shadowColor: "#D4AF37",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.5,
-      shadowRadius: 8,
-      elevation: 8,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.7,
+      shadowRadius: 12,
+      elevation: 12,
       zIndex: 100,
-      borderWidth: 2,
+      borderWidth: 2.5,
       borderColor: "#D4AF37",
+      overflow: "hidden",
     },
     modal: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
     panel: {
@@ -712,7 +689,7 @@ export function PivotChat() {
 
   return (
     <>
-      {/* Floating Action Button — Modern Robot */}
+      {/* Floating Action Button — Pivot Robot */}
       <TouchableOpacity
         style={s.fab}
         onPress={() => {
@@ -721,7 +698,11 @@ export function PivotChat() {
         }}
         activeOpacity={0.85}
       >
-        <PivotAvatar size={40} />
+        <Image
+          source={{ uri: "https://d2xsxph8kpxj0f.cloudfront.net/310519663449841780/dNJxctHZxj6wCg3jq4j4kh/pivot-icon_83666431.png" }}
+          style={{ width: 58, height: 58, borderRadius: 29 }}
+          contentFit="cover"
+        />
       </TouchableOpacity>
 
       {/* Chat Modal */}
@@ -739,17 +720,26 @@ export function PivotChat() {
         >
           <View style={[s.panel, { flex: 1, maxHeight: "100%" }]}>
               {/* Header with safe area padding for status bar */}
-              <View style={[s.header, { paddingTop: Math.max(insets.top, 16) + 8 }]}>
-                <PivotAvatar size={42} />
-                <View>
-                  <Text style={s.headerTitle}>Pivot</Text>
+              <View style={[s.header, { paddingTop: Math.max(insets.top, 16) + 8, backgroundColor: "#0d0d1a" }]}>
+                <Image
+                  source={{ uri: "https://d2xsxph8kpxj0f.cloudfront.net/310519663449841780/dNJxctHZxj6wCg3jq4j4kh/pivot-icon_83666431.png" }}
+                  style={{ width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: "#D4AF37" }}
+                  contentFit="cover"
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.headerTitle, { color: "#D4AF37", fontSize: 18 }]}>Pivot</Text>
                   <Text style={s.headerSub}>{access.label}</Text>
                 </View>
-                <View style={{ marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#22C55E" }} />
-                  <Text style={{ fontSize: 11, color: colors.muted }}>Online</Text>
-                  <TouchableOpacity onPress={() => { Keyboard.dismiss(); setOpen(false); }} style={{ marginLeft: 8, padding: 4 }}>
-                    <Text style={{ fontSize: 20, color: colors.muted }}>✕</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#22C55E" }} />
+                    <Text style={{ fontSize: 11, color: "#22C55E", fontWeight: "600" }}>Online</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => { Keyboard.dismiss(); setOpen(false); }}
+                    style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#ffffff18", alignItems: "center", justifyContent: "center" }}
+                  >
+                    <Text style={{ fontSize: 16, color: colors.muted }}>✕</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -757,13 +747,17 @@ export function PivotChat() {
               {/* Messages or Welcome Screen */}
               {messages.length === 0 ? (
                 <View style={s.welcomeContainer}>
-                  <PivotAvatar size={72} />
+                  <Image
+                    source={{ uri: "https://d2xsxph8kpxj0f.cloudfront.net/310519663449841780/dNJxctHZxj6wCg3jq4j4kh/pivot-icon_83666431.png" }}
+                    style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: "#D4AF37", marginBottom: 4 }}
+                    contentFit="cover"
+                  />
                   <Text style={s.welcomeText}>Hey, I'm Pivot</Text>
                   <Text style={s.welcomeSub}>
-                    {role === "owner" ? "Your AI business assistant. Ask me anything about your projects, costs, or team." :
-                     role === "office_manager" ? "Your office assistant. I can help with payroll, hours, and reports." :
-                     role === "foreman" ? "Your field assistant. Ask about safety, goals, or construction techniques." :
-                     "Your team assistant. I can show you your goals and help with questions."}
+                    {role === "owner" ? "Your AI business partner. Ask me anything about your projects, costs, team, or Utah construction." :
+                     role === "office_manager" ? "Your office assistant. I can help with payroll, hours, reports, and team management." :
+                     role === "foreman" ? "Your field assistant. Ask about safety, goals, steel beams, or construction techniques." :
+                     "Your team assistant. I can show you your goals, safety tips, and help with any questions."}
                   </Text>
                 </View>
               ) : (

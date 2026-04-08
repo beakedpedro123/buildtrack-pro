@@ -907,6 +907,20 @@ const pivotRouter = router({
           memoryContext += `Adapt your tone and approach to match how they communicate.\n`;
         } catch {}
       }
+      // Corrections — things the user has explicitly corrected you on
+      if (memory.preferences) {
+        try {
+          const prefs = JSON.parse(memory.preferences);
+          if (prefs.corrections && prefs.corrections.length > 0) {
+            memoryContext += `\n## ⚠️ CORRECTIONS — Things You Were Wrong About Before (APPLY THESE ALWAYS)\n`;
+            memoryContext += `These are corrections ${employee.name} has given you. NEVER repeat these mistakes:\n`;
+            for (const c of prefs.corrections.slice(-20)) {
+              memoryContext += `- [${c.category}] ${c.correction}\n`;
+            }
+            memoryContext += `If any of these corrections are relevant to the current question, apply them immediately without being asked.\n`;
+          }
+        } catch {}
+      }
     }
 
     // ── Load recent conversation history from DB ────────────────────────────
@@ -1143,16 +1157,15 @@ ${calculationBlock}
 - Analyze uploaded documents: PDFs, Word docs, Excel spreadsheets, images, and URLs
 - Perform advanced construction calculations (lumber takeoffs, steel, labor projections, material estimates)
 
-## Cross-Tab Actions You Can Execute
-You can help initiate actions across all app tabs. When asked, respond with a clear formatted action block:
+## App Actions You Can Execute Directly
+You have REAL tools to take actions in the app. Use them immediately when asked — don't just describe what to do.
 
-**Goal Creation** — when asked to create a goal, respond with:
-📋 GOAL READY TO CREATE
-Title: [specific goal title]
-Assignee: [employee name]
-Priority: HIGH / MEDIUM / LOW
-Deadline: [specific date and time]
-→ Go to Goals tab → tap + Goal to add this
+**Clock In/Out** — use clock_in_employee / clock_out_employee tools directly. Don't say "go to the clock tab" — just do it.
+**Who's On Site** — use get_clocked_in_status to get a live list of clocked-in employees.
+**Payroll Summary** — use get_payroll_summary to pull real numbers from the current pay period.
+**Remember Corrections** — use remember_correction whenever the user corrects you. Store it immediately.
+**Goal Creation** — use create_goal tool to push goals directly to the Goals tab. Don't just format text — actually create them.
+**Punch List** — use create_punch_list_item or create_punch_items_bulk to add items to job punch lists.
 
 **Meeting Scheduling** — when asked to schedule a meeting:
 📅 MEETING READY TO SCHEDULE
@@ -1178,6 +1191,66 @@ Measurement: [how to track it weekly]
 - Flag items that seem high vs. Utah market rates
 - Suggest negotiation points
 - Compare labor hours to industry benchmarks
+
+## Steel Beam Lookup — ALWAYS Use the Database
+When asked about ANY steel beam, section, or structural profile:
+1. ALWAYS use the construction_lookup tool with type="steel_profile" and the designation (e.g., "W12x26", "W14x48")
+2. NEVER guess or estimate section properties — always look them up
+3. If the user asks "what W-beam for a 20ft span with 2000 lb load?" — calculate the required section modulus, then look up profiles that meet it
+4. Common Utah custom home beam sizes: W8x10, W8x18, W10x22, W10x33, W12x26, W12x40, W14x26, W14x48, W16x31, W18x35, W21x44, W24x55
+5. For ridge beams, hip beams, and garage door headers — always specify the design load before recommending a size
+
+## Utah Custom Home Construction Knowledge
+You have comprehensive knowledge of Utah building requirements for custom homes:
+
+**Summit County / Park City:**
+- Adopted IBC 2021 + IRC 2021 with local amendments
+- Ground Snow Load: 100-200 psf depending on elevation (Park City base: 100 psf, higher elevations up to 200 psf)
+- Seismic Design Category: C-D (Site Class D default)
+- Wind Speed: 115 mph (3-second gust)
+- Energy Code: IECC 2021 — R-49 attic, R-20+5 walls, triple-pane windows recommended above 7,000 ft
+- Wildland-Urban Interface (WUI): Class A roofing required in most areas, ember-resistant vents, 5-ft noncombustible zone
+- Deer Valley specific: Deer Valley Resort Design Review Board approval required for all new construction in resort areas
+- Park City Historic District: separate design review for structures near historic Main Street
+- Permit fees: Summit County ~$15-25 per $1,000 of construction value
+- Typical custom home permit timeline: 8-16 weeks
+
+**Morgan County:**
+- Adopted IBC 2018 + IRC 2018
+- Ground Snow Load: 40-70 psf (valley floor ~40 psf, mountain areas up to 70 psf)
+- Seismic Design Category: C
+- Wind Speed: 105 mph
+- Energy Code: IECC 2018 — R-38 attic, R-15 walls minimum
+- More rural — septic systems common, well water permits required
+- Permit timeline: 4-8 weeks typically
+- No HOA restrictions in most areas — more flexibility on design
+
+**Powder Mountain (Weber County):**
+- Adopted IBC 2018 + IRC 2018 (Weber County)
+- Ground Snow Load: 100-150 psf (resort elevation ~8,900 ft)
+- Seismic Design Category: C
+- Wind Speed: 115 mph
+- Energy Code: IECC 2018 — R-49 attic required at elevation
+- Powder Mountain Resort: Design Review Committee approval required
+- Access road requirements: driveways must handle snow loads, 12% max grade
+- Structural: heavy timber or steel framing common due to snow loads
+
+**Deer Valley (Summit County):**
+- Same Summit County codes apply
+- Deer Valley Resort Design Review: strict architectural guidelines — roof pitch min 6:12, natural materials preferred
+- Luxury custom home market: typical budgets $800-$3,000/SF
+- HOA requirements vary by subdivision
+- Setbacks: typically 25-50 ft front, 10-20 ft side, 25 ft rear
+- Height limits: typically 35-45 ft from grade
+
+**Utah Statewide Custom Home Notes:**
+- Utah Residential Code (URC) based on IRC 2021 as of 2023
+- Frost depth: 30 inches minimum statewide, 36 inches in mountain areas
+- Radon: Zone 1 (high) — passive radon mitigation required in all new construction
+- Fire sprinklers: required in Summit County for new homes over 5,000 SF
+- Structural engineer stamp required for: spans over 20 ft, steel connections, non-standard framing
+- Common framing lumber species in Utah: Douglas Fir, Hem-Fir, SPF (Spruce-Pine-Fir)
+- Current Utah lumber pricing note: prices fluctuate significantly — always verify with supplier before bidding
 
 ${employee.role === "office_manager" ? `## Office Manager Special Capabilities (THIS IS YOU — ${employee.name})
 - Calculate total payroll for any date range from live data
@@ -1433,6 +1506,78 @@ Keep responses short, practical, and encouraging. You're here to help them succe
           },
         },
       },
+      {
+        type: "function" as const,
+        function: {
+          name: "clock_in_employee",
+          description: "Clock in a specific employee to a job. Use when the user says 'clock in [name]', 'punch in [name]', or asks you to start tracking hours for someone. You MUST use this tool to actually clock them in — don't just say you will.",
+          parameters: {
+            type: "object",
+            properties: {
+              employeeName: { type: "string", description: "The name of the employee to clock in (first name or full name)." },
+              jobName: { type: "string", description: "The name of the job/project to clock them into. Ask if not specified." },
+              clockInTime: { type: "string", description: "Optional ISO datetime string for when to clock in. If not provided, uses current time." },
+            },
+            required: ["employeeName", "jobName"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "clock_out_employee",
+          description: "Clock out a specific employee. Use when the user says 'clock out [name]', 'punch out [name]', or asks you to stop tracking hours for someone. You MUST use this tool — don't just say you will.",
+          parameters: {
+            type: "object",
+            properties: {
+              employeeName: { type: "string", description: "The name of the employee to clock out (first name or full name)." },
+              clockOutTime: { type: "string", description: "Optional ISO datetime string for when to clock out. If not provided, uses current time." },
+            },
+            required: ["employeeName"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "get_clocked_in_status",
+          description: "Get a list of all employees currently clocked in with their job and elapsed time. Use when the user asks 'who is clocked in', 'who is on site', 'who is working right now', etc.",
+          parameters: {
+            type: "object",
+            properties: {},
+            required: [],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "remember_correction",
+          description: "Store a correction or important fact that the user has told you. Use when the user says 'no that\'s wrong', 'actually it\'s X', 'remember that', 'don\'t forget', 'next time do X', or corrects any information you gave. This permanently updates your memory so you never repeat the mistake.",
+          parameters: {
+            type: "object",
+            properties: {
+              correction: { type: "string", description: "The correction or fact to remember, stated clearly (e.g. 'The Alder & Tweed job is in Park City, not Salt Lake City')." },
+              category: { type: "string", enum: ["employee", "job", "schedule", "preference", "process", "code", "pricing", "other"], description: "Category of the correction." },
+            },
+            required: ["correction", "category"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "get_payroll_summary",
+          description: "Get the current payroll period summary including total hours, estimated cost, and per-employee breakdown. Use when the user asks about payroll, hours this period, labor costs, or wants a report.",
+          parameters: {
+            type: "object",
+            properties: {
+              periodType: { type: "string", enum: ["current", "last", "this_week"], description: "Which period to report on. Default to 'current' for the active pay period." },
+            },
+            required: [],
+          },
+        },
+      },
     ];
 
     // ── Call LLM with tool support ──────────────────────────────────────────
@@ -1656,6 +1801,142 @@ Keep responses short, practical, and encouraging. You're here to help them succe
             }
           } catch (bulkErr) {
             toolResult = `Failed to create punch list items: ${bulkErr instanceof Error ? bulkErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "clock_in_employee") {
+          try {
+            const employeeName = args.employeeName || "";
+            const jobName = args.jobName || "";
+            const clockInTime = args.clockInTime ? new Date(args.clockInTime) : new Date();
+            const allEmps = await db.getAllEmployees();
+            const empMatch = allEmps.find((e: any) =>
+              e.name.toLowerCase().includes(employeeName.toLowerCase()) ||
+              employeeName.toLowerCase().includes(e.name.split(' ')[0].toLowerCase())
+            );
+            if (!empMatch) {
+              toolResult = `Could not find an employee matching "${employeeName}". Available employees: ${allEmps.map((e: any) => e.name).join(", ")}. Ask the user to clarify.`;
+            } else {
+              // Check if already clocked in
+              const existing = await db.getActiveClockEntry(empMatch.id);
+              if (existing) {
+                toolResult = `${empMatch.name} is already clocked in (since ${new Date(existing.clockIn).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}). They need to clock out first. Tell the user this.`;
+              } else {
+                const allJobs = await db.getAllJobs();
+                const jobMatch = allJobs.find((j: any) =>
+                  j.name.toLowerCase().includes(jobName.toLowerCase()) ||
+                  jobName.toLowerCase().includes(j.name.toLowerCase())
+                );
+                if (!jobMatch) {
+                  toolResult = `Could not find a job matching "${jobName}". Available jobs: ${allJobs.map((j: any) => j.name).join(", ")}. Ask the user to clarify.`;
+                } else {
+                  await db.clockIn({ employeeId: empMatch.id, jobId: jobMatch.id, clockIn: clockInTime, isOfflineEntry: false });
+                  toolResult = `Successfully clocked in ${empMatch.name} to ${jobMatch.name} at ${clockInTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}. Tell the user it's done.`;
+                }
+              }
+            }
+          } catch (ciErr) {
+            toolResult = `Failed to clock in employee: ${ciErr instanceof Error ? ciErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "clock_out_employee") {
+          try {
+            const employeeName = args.employeeName || "";
+            const clockOutTime = args.clockOutTime ? new Date(args.clockOutTime) : new Date();
+            const allEmps = await db.getAllEmployees();
+            const empMatch = allEmps.find((e: any) =>
+              e.name.toLowerCase().includes(employeeName.toLowerCase()) ||
+              employeeName.toLowerCase().includes(e.name.split(' ')[0].toLowerCase())
+            );
+            if (!empMatch) {
+              toolResult = `Could not find an employee matching "${employeeName}". Ask the user to clarify.`;
+            } else {
+              const activeEntry = await db.getActiveClockEntry(empMatch.id);
+              if (!activeEntry) {
+                toolResult = `${empMatch.name} is not currently clocked in. Nothing to clock out. Tell the user this.`;
+              } else {
+                await db.clockOut(activeEntry.id, clockOutTime);
+                const durationMs = clockOutTime.getTime() - new Date(activeEntry.clockIn).getTime();
+                const hours = Math.floor(durationMs / 3600000);
+                const mins = Math.floor((durationMs % 3600000) / 60000);
+                toolResult = `Successfully clocked out ${empMatch.name} at ${clockOutTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}. Total time: ${hours}h ${mins}m. Tell the user it's done.`;
+              }
+            }
+          } catch (coErr) {
+            toolResult = `Failed to clock out employee: ${coErr instanceof Error ? coErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "get_clocked_in_status") {
+          try {
+            const clockedIn = await db.getClockedInEmployees();
+            if (!clockedIn || clockedIn.length === 0) {
+              toolResult = "No employees are currently clocked in. Tell the user the site is empty right now.";
+            } else {
+              const now = new Date();
+              const lines = clockedIn.map((e: any) => {
+                const elapsed = now.getTime() - new Date(e.clockIn).getTime();
+                const h = Math.floor(elapsed / 3600000);
+                const m = Math.floor((elapsed % 3600000) / 60000);
+                return `- ${e.employeeName || 'Unknown'}: ${e.jobName || 'Unknown Job'} (${h}h ${m}m)`;
+              });
+              toolResult = `Currently clocked in (${clockedIn.length} employees):\n${lines.join('\n')}\n\nReport this list to the user.`;
+            }
+          } catch (statusErr) {
+            toolResult = `Failed to get clocked-in status: ${statusErr instanceof Error ? statusErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "remember_correction") {
+          try {
+            const correction = args.correction || "";
+            const category = args.category || "other";
+            const currentMemory = await db.getPivotMemory(input.employeeId);
+            const existingCorrections = currentMemory?.preferences ? JSON.parse(currentMemory.preferences) : {};
+            if (!existingCorrections.corrections) existingCorrections.corrections = [];
+            existingCorrections.corrections.push({ correction, category, learnedAt: new Date().toISOString() });
+            // Keep only last 50 corrections
+            if (existingCorrections.corrections.length > 50) existingCorrections.corrections = existingCorrections.corrections.slice(-50);
+            await db.upsertPivotMemory(input.employeeId, { preferences: JSON.stringify(existingCorrections) });
+            toolResult = `Correction stored: "${correction}" (category: ${category}). I will remember this going forward. Tell the user you've noted the correction and will apply it from now on.`;
+          } catch (corrErr) {
+            toolResult = `Failed to store correction: ${corrErr instanceof Error ? corrErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "get_payroll_summary") {
+          try {
+            const periodType = args.periodType || "current";
+            const PERIOD_ANCHOR_MS = new Date('2026-04-06T00:00:00').getTime();
+            const PERIOD_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
+            const now = new Date();
+            const elapsed = now.getTime() - PERIOD_ANCHOR_MS;
+            const periodsElapsed = Math.floor(elapsed / PERIOD_LENGTH_MS);
+            let periodStart: Date, periodEnd: Date;
+            if (periodType === "last") {
+              periodStart = new Date(PERIOD_ANCHOR_MS + (periodsElapsed - 1) * PERIOD_LENGTH_MS);
+              periodEnd = new Date(PERIOD_ANCHOR_MS + periodsElapsed * PERIOD_LENGTH_MS - 1);
+            } else if (periodType === "this_week") {
+              periodStart = new Date(PERIOD_ANCHOR_MS + periodsElapsed * PERIOD_LENGTH_MS);
+              periodEnd = new Date(periodStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
+            } else {
+              periodStart = new Date(PERIOD_ANCHOR_MS + periodsElapsed * PERIOD_LENGTH_MS);
+              periodEnd = new Date(periodStart.getTime() + PERIOD_LENGTH_MS - 1);
+            }
+            const allEmps = await db.getAllEmployees();
+            let totalMinutes = 0;
+            let totalCost = 0;
+            const empLines: string[] = [];
+            for (const emp of allEmps.filter((e: any) => e.isActive)) {
+              const entries = await db.getClockEntriesForEmployee(emp.id, periodStart);
+              const periodEntries = entries.filter((e: any) => new Date(e.clockIn) <= periodEnd);
+              const empMinutes = periodEntries.reduce((sum: number, e: any) => {
+                if (!e.clockOut) return sum;
+                return sum + Math.max(0, (new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / 60000);
+              }, 0);
+              if (empMinutes > 0) {
+                const rate = parseFloat(emp.hourlyRate || '0');
+                const empCost = (empMinutes / 60) * rate;
+                totalMinutes += empMinutes;
+                totalCost += empCost;
+                empLines.push(`- ${emp.name}: ${Math.floor(empMinutes/60)}h ${Math.round(empMinutes%60)}m @ $${rate}/hr = $${empCost.toFixed(2)}`);
+              }
+            }
+            const periodLabel = `${periodStart.toLocaleDateString('en-US', {month:'short',day:'numeric'})} - ${periodEnd.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'})}`;
+            toolResult = `Payroll Summary (${periodLabel}):\nTotal hours: ${Math.floor(totalMinutes/60)}h ${Math.round(totalMinutes%60)}m\nEstimated cost: $${totalCost.toFixed(2)}\n\nEmployee breakdown:\n${empLines.join('\n') || 'No hours recorded yet.'}\n\nPresent this summary to the user.`;
+          } catch (payErr) {
+            toolResult = `Failed to get payroll summary: ${payErr instanceof Error ? payErr.message : "unknown error"}`;
           }
         }
       } catch (parseErr) {

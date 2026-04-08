@@ -812,7 +812,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
           style={{
             position: "absolute",
             bottom: embedded ? 20 : Math.max(insets.bottom + 8, 20),
-            right: 20,
+            left: 20,
             backgroundColor: colors.success,
             width: 56,
             height: 56,
