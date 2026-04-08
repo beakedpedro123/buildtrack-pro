@@ -4,8 +4,8 @@
  * Role-based access:
  *   owner / logistics  → Full access: voice, files, URLs, business context, cross-tab actions
  *   office_manager          → Full access: voice, files, URLs, payroll/HR focus
- *   foreman            → Voice + text only, field-focused responses
- *   laborer            → Text only, goals and safety focused
+ *   foreman            → Voice + text + files, field-focused responses
+ *   laborer            → Text + files, goals and safety focused
  */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
@@ -112,7 +112,7 @@ const ROLE_ACCESS: Record<Role, {
   foreman: {
     canUseChat: true,
     canUseVoice: true,
-    canAttachFiles: false,
+    canAttachFiles: true,
     label: "Field Assistant",
     placeholder: "Ask about safety, tasks, techniques...",
     suggestions: [
@@ -124,7 +124,7 @@ const ROLE_ACCESS: Record<Role, {
   laborer: {
     canUseChat: true,
     canUseVoice: false,
-    canAttachFiles: false,
+    canAttachFiles: true,
     label: "Team Assistant",
     placeholder: "Ask about your goals, safety, tasks...",
     suggestions: [

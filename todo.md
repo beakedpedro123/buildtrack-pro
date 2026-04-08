@@ -1374,3 +1374,14 @@
 - [x] Only 2 files changed: pivot-chat.tsx (added function + button), _layout.tsx (added 2 lines to QueryClient)
 - [x] No module-level refactoring, no StyleSheet moves, no memoization changes
 - [x] TypeScript check — 0 errors
+
+## Phase 55 — GPS Logging Bug
+
+- [ ] GPS permission is requested but location is never actually logged on clock-in/clock-out
+- [ ] Store GPS coordinates with each clock entry for job site verification
+
+## Phase 56 — Enable File Attachments for Foreman & Laborer
+
+- [x] Enable canAttachFiles for foreman role in ROLE_ACCESS
+- [x] Enable canAttachFiles for laborer role in ROLE_ACCESS
+- [x] TypeScript check passes
