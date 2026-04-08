@@ -1349,3 +1349,17 @@
 - [x] Clock-in/out with full error handling, haptic feedback, query invalidation, and immediate UI refresh
 - [x] Updated tab layout: Owner/OM/Logistics: Home, Jobs, Goals, Manage, Profile (5 tabs). Foreman/Laborer: Home, Jobs, Goals, My Hours, Profile (5 tabs)
 - [x] TypeScript check — 0 errors
+
+## Phase 52 — Camera Button + Performance Optimizations
+
+- [x] Camera button in Pivot chat for photo capture on job site
+- [x] Memoized PivotAvatar and MessageItem components to prevent unnecessary FlatList re-renders
+- [x] Moved StyleSheet.create outside component render cycle (module-level)
+- [x] Added global staleTime (30s) and gcTime (5min) to QueryClient defaults
+- [x] Bumped clock crew polling from 20s to 30s
+
+## Phase 53 — Crash Fix (iOS/Android)
+
+- [x] Fix startup crash — staticStyles was referenced before declaration in pivot-chat.tsx (const hoisting issue)
+- [x] Reordered module-level declarations: staticStyles now defined BEFORE MessageItem
+- [x] TypeScript check — 0 errors

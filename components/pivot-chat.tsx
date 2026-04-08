@@ -184,37 +184,7 @@ const PivotAvatar = React.memo(function PivotAvatar({ size = 38 }: { size?: numb
   );
 });
 
-// ─── Message item component (memoized to prevent FlatList re-renders) ─────────
-
-interface MessageItemProps {
-  item: Message;
-  colors: ReturnType<typeof useColors>;
-  renderContent: (content: string, role: "user" | "assistant") => React.ReactNode;
-}
-
-const MessageItem = React.memo(function MessageItem({ item, colors, renderContent }: MessageItemProps) {
-  return (
-    <View>
-      {item.attachments?.map((att, ai) => (
-        <View key={ai} style={[staticStyles.attachmentChip, { alignSelf: item.role === "user" ? "flex-end" : "flex-start" }]}>
-          <Text>{getFileIcon(att.type)}</Text>
-          <Text style={[staticStyles.attachmentChipText, { color: colors.foreground }]} numberOfLines={1}>{att.name}</Text>
-        </View>
-      ))}
-      <View style={item.role === "user" ? staticStyles.userBubble : [staticStyles.aiBubble, { backgroundColor: colors.background, borderColor: colors.border }]}>
-        {item.role === "assistant" && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
-            <PivotAvatar size={20} />
-            <Text style={{ fontSize: 11, fontWeight: "600", color: "#D4AF37" }}>Pivot</Text>
-          </View>
-        )}
-        {renderContent(item.content, item.role)}
-      </View>
-    </View>
-  );
-});
-
-// ─── Static styles (outside component — never recreated) ─────────────────────
+// ─── Static styles (outside component — never recreated, MUST be before MessageItem) ───
 
 const staticStyles = StyleSheet.create({
   userBubble: {
@@ -253,6 +223,36 @@ const staticStyles = StyleSheet.create({
     backgroundColor: "#FF4444",
   },
   recordingText: { fontSize: 11, color: "#FF4444" },
+});
+
+// ─── Message item component (memoized to prevent FlatList re-renders) ─────────
+
+interface MessageItemProps {
+  item: Message;
+  colors: ReturnType<typeof useColors>;
+  renderContent: (content: string, role: "user" | "assistant") => React.ReactNode;
+}
+
+const MessageItem = React.memo(function MessageItem({ item, colors, renderContent }: MessageItemProps) {
+  return (
+    <View>
+      {item.attachments?.map((att, ai) => (
+        <View key={ai} style={[staticStyles.attachmentChip, { alignSelf: item.role === "user" ? "flex-end" : "flex-start" }]}>
+          <Text>{getFileIcon(att.type)}</Text>
+          <Text style={[staticStyles.attachmentChipText, { color: colors.foreground }]} numberOfLines={1}>{att.name}</Text>
+        </View>
+      ))}
+      <View style={item.role === "user" ? staticStyles.userBubble : [staticStyles.aiBubble, { backgroundColor: colors.background, borderColor: colors.border }]}>
+        {item.role === "assistant" && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <PivotAvatar size={20} />
+            <Text style={{ fontSize: 11, fontWeight: "600", color: "#D4AF37" }}>Pivot</Text>
+          </View>
+        )}
+        {renderContent(item.content, item.role)}
+      </View>
+    </View>
+  );
 });
 
 // ─── Main Component ───────────────────────────────────────────────────────────
