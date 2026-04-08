@@ -1363,3 +1363,5 @@
 - [x] Fix startup crash — staticStyles was referenced before declaration in pivot-chat.tsx (const hoisting issue)
 - [x] Reordered module-level declarations: staticStyles now defined BEFORE MessageItem
 - [x] TypeScript check — 0 errors
+- [x] Full revert to last known working version (74db46b) — all 3 changed files (pivot-chat.tsx, _layout.tsx, clock.tsx) restored to the version that was working on devices
+- [x] Camera button + performance optimizations will be re-applied carefully in a future phase

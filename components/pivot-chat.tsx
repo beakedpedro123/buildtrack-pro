@@ -7,7 +7,7 @@
  *   foreman            → Voice + text only, field-focused responses
  *   laborer            → Text only, goals and safety focused
  */
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -19,8 +19,10 @@ import {
   Platform,
   ActivityIndicator,
   StyleSheet,
+  Pressable,
   Alert,
   Keyboard,
+  Dimensions,
   Linking,
   StatusBar,
 } from "react-native";
@@ -156,22 +158,12 @@ function nextMsgId(): string {
   return `msg_${Date.now()}_${++msgCounter}`;
 }
 
-// ─── Module-level style constants (not theme-dependent) ───────────────────────
+// ─── Pivot Robot Avatar (uses generated image) ───────────────────────────────
 
-const PIVOT_ICON_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663449841780/dNJxctHZxj6wCg3jq4j4kh/pivot-icon_83666431.png";
-
-// Text styles that don't depend on theme (moved outside component to avoid recreation)
-const s2 = StyleSheet.create({
-  userText: { color: "#000", fontSize: 15, lineHeight: 21 },
-  aiText: { fontSize: 15, lineHeight: 22 },
-});
-
-// ─── Pivot Robot Avatar (memoized to prevent re-renders) ─────────────────────
-
-const PivotAvatar = React.memo(function PivotAvatar({ size = 38 }: { size?: number }) {
+function PivotAvatar({ size = 38 }: { size?: number }) {
   return (
     <Image
-      source={{ uri: PIVOT_ICON_URL }}
+      source={{ uri: "https://d2xsxph8kpxj0f.cloudfront.net/310519663449841780/dNJxctHZxj6wCg3jq4j4kh/pivot-icon_83666431.png" }}
       style={{
         width: size,
         height: size,
@@ -182,78 +174,7 @@ const PivotAvatar = React.memo(function PivotAvatar({ size = 38 }: { size?: numb
       contentFit="cover"
     />
   );
-});
-
-// ─── Static styles (outside component — never recreated, MUST be before MessageItem) ───
-
-const staticStyles = StyleSheet.create({
-  userBubble: {
-    alignSelf: "flex-end",
-    backgroundColor: "#D4AF37",
-    borderRadius: 18,
-    borderBottomRightRadius: 4,
-    padding: 12,
-    marginBottom: 10,
-    maxWidth: "82%",
-  },
-  aiBubble: {
-    alignSelf: "flex-start",
-    borderRadius: 18,
-    borderBottomLeftRadius: 4,
-    padding: 12,
-    marginBottom: 10,
-    maxWidth: "88%",
-    borderWidth: 0.5,
-  },
-  attachmentChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: "#D4AF3722",
-    borderWidth: 1,
-    borderColor: "#D4AF3744",
-    marginBottom: 4,
-  },
-  attachmentChipText: { fontSize: 11, maxWidth: 120 },
-  recordingDot: {
-    width: 6, height: 6, borderRadius: 3,
-    backgroundColor: "#FF4444",
-  },
-  recordingText: { fontSize: 11, color: "#FF4444" },
-});
-
-// ─── Message item component (memoized to prevent FlatList re-renders) ─────────
-
-interface MessageItemProps {
-  item: Message;
-  colors: ReturnType<typeof useColors>;
-  renderContent: (content: string, role: "user" | "assistant") => React.ReactNode;
 }
-
-const MessageItem = React.memo(function MessageItem({ item, colors, renderContent }: MessageItemProps) {
-  return (
-    <View>
-      {item.attachments?.map((att, ai) => (
-        <View key={ai} style={[staticStyles.attachmentChip, { alignSelf: item.role === "user" ? "flex-end" : "flex-start" }]}>
-          <Text>{getFileIcon(att.type)}</Text>
-          <Text style={[staticStyles.attachmentChipText, { color: colors.foreground }]} numberOfLines={1}>{att.name}</Text>
-        </View>
-      ))}
-      <View style={item.role === "user" ? staticStyles.userBubble : [staticStyles.aiBubble, { backgroundColor: colors.background, borderColor: colors.border }]}>
-        {item.role === "assistant" && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
-            <PivotAvatar size={20} />
-            <Text style={{ fontSize: 11, fontWeight: "600", color: "#D4AF37" }}>Pivot</Text>
-          </View>
-        )}
-        {renderContent(item.content, item.role)}
-      </View>
-    </View>
-  );
-});
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -381,36 +302,38 @@ export function PivotChat() {
       const { url } = await uploadRes.json();
       console.log(`[voice] Uploaded to: ${url}`);
       const result = await transcribeMutation.mutateAsync({ audioUrl: url });
-      const transcribed = result.text?.trim();
-      console.log(`[voice] Transcribed: "${transcribed}"`);
-      if (transcribed) {
-        setInput(transcribed);
-        pendingVoiceRef.current = transcribed;
+      if (result.text?.trim()) {
+        const transcribedText = result.text.trim();
+        console.log(`[voice] Transcribed: ${transcribedText.substring(0, 50)}...`);
+        setInput(transcribedText);
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        pendingVoiceRef.current = transcribedText;
       } else {
-        Alert.alert("Could Not Transcribe", "No speech detected. Please try again in a quieter environment.");
+        Alert.alert("Voice Input", "Could not understand the audio. Please try again or speak more clearly and closer to the microphone.");
       }
     } catch (err: any) {
-      console.warn("[voice] Transcription error:", err?.message || err);
-      Alert.alert("Transcription Failed", "Could not transcribe audio. Please try again.");
+      console.warn("Transcription error:", err?.message || err);
+      const errMsg = err?.message?.includes("Transcription failed:") 
+        ? err.message.replace("Transcription failed: ", "") 
+        : "Could not transcribe your voice. Please try again or type your message.";
+      Alert.alert("Transcription Failed", errMsg);
     } finally {
       setIsTranscribing(false);
     }
   }, [recorderState.isRecording, recorderState.durationMillis, audioRecorder, transcribeMutation]);
 
-  // ─── File pickers ─────────────────────────────────────────────────────────────
+  // ─── File attachment ──────────────────────────────────────────────────────────
 
   const pickDocument = async () => {
     if (!access.canAttachFiles) return;
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ["application/pdf", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-               "application/vnd.ms-excel", "text/csv", "application/msword",
-               "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+        type: ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv"],
         copyToCacheDirectory: true,
       });
       if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
-      await uploadAndAddAttachment(asset.uri, asset.name, asset.mimeType || "application/octet-stream");
+      await uploadAndAddAttachment(asset.uri, asset.name || "document", asset.mimeType || "application/octet-stream");
     } catch {
       Alert.alert("Error", "Could not pick document.");
     }
@@ -419,15 +342,9 @@ export function PivotChat() {
   const pickImage = async () => {
     if (!access.canAttachFiles) return;
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Photo Library Access", "Please allow photo library access in your device settings to attach images.");
-        return;
-      }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
-        quality: 0.7,
-        allowsEditing: false,
+        quality: 0.8,
       });
       if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
@@ -435,28 +352,6 @@ export function PivotChat() {
       await uploadAndAddAttachment(asset.uri, name, asset.mimeType || "image/jpeg");
     } catch {
       Alert.alert("Error", "Could not pick image.");
-    }
-  };
-
-  const takePhoto = async () => {
-    if (!access.canAttachFiles) return;
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Camera Permission", "Please allow camera access in your device settings to snap photos for Pivot.");
-        return;
-      }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ["images"],
-        quality: 0.7,
-        allowsEditing: false,
-      });
-      if (result.canceled || !result.assets?.length) return;
-      const asset = result.assets[0];
-      const name = asset.fileName || `photo_${Date.now()}.jpg`;
-      await uploadAndAddAttachment(asset.uri, name, asset.mimeType || "image/jpeg");
-    } catch {
-      Alert.alert("Error", "Could not open camera.");
     }
   };
 
@@ -499,8 +394,10 @@ export function PivotChat() {
     setInput("");
     setPendingAttachments([]);
     setLoading(true);
+
     // Don't dismiss keyboard on send — let user keep typing follow-ups
     
+
     try {
       const result = await chatMutation.mutateAsync({
         messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
@@ -528,6 +425,7 @@ export function PivotChat() {
   }, [isTranscribing, loading]);
 
   // ─── Don't render for roles without chat access ──────────────────────────────
+
   if (!employee || !access.canUseChat) return null;
 
   const isRecording = recorderState.isRecording;
@@ -592,15 +490,37 @@ export function PivotChat() {
     return <View>{parts}</View>;
   };
 
-  // ─── Memoized renderItem for FlatList (stable reference = no re-renders) ─────
+  // Inline text styles for renderMessageContent (defined before StyleSheet.create)
+  const s2 = {
+    userText: { color: "#000", fontSize: 15, lineHeight: 21 } as const,
+    aiText: { fontSize: 15, lineHeight: 22 } as const,
+  };
 
-  const renderMessage = useCallback(({ item }: { item: Message }) => (
-    <MessageItem item={item} colors={colors} renderContent={renderMessageContent} />
-  ), [colors]);
+  // ─── Render message item for FlatList ────────────────────────────────────────
 
-  // ─── Theme-dependent styles (memoized to avoid recreation on every render) ────
+  const renderMessage = ({ item }: { item: Message }) => (
+    <View>
+      {item.attachments?.map((att, ai) => (
+        <View key={ai} style={[s.attachmentChip, { alignSelf: item.role === "user" ? "flex-end" : "flex-start" }]}>
+          <Text>{getFileIcon(att.type)}</Text>
+          <Text style={[s.attachmentChipText, { color: colors.foreground }]} numberOfLines={1}>{att.name}</Text>
+        </View>
+      ))}
+      <View style={item.role === "user" ? s.userBubble : [s.aiBubble, { backgroundColor: colors.background, borderColor: colors.border }]}>
+        {item.role === "assistant" && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <PivotAvatar size={20} />
+            <Text style={{ fontSize: 11, fontWeight: "600", color: "#D4AF37" }}>Pivot</Text>
+          </View>
+        )}
+        {renderMessageContent(item.content, item.role)}
+      </View>
+    </View>
+  );
 
-  const s = useMemo(() => StyleSheet.create({
+  // ─── Styles ───────────────────────────────────────────────────────────────────
+
+  const s = StyleSheet.create({
     fab: {
       position: "absolute",
       bottom: 56 + Math.max(insets.bottom, 8) + 12,
@@ -639,6 +559,39 @@ export function PivotChat() {
     headerTitle: { fontSize: 17, fontWeight: "700", color: colors.foreground },
     headerSub: { fontSize: 11, color: "#D4AF37", fontWeight: "500" },
     messages: { flex: 1, paddingHorizontal: 12, paddingTop: 8 },
+    userBubble: {
+      alignSelf: "flex-end",
+      backgroundColor: "#D4AF37",
+      borderRadius: 18,
+      borderBottomRightRadius: 4,
+      padding: 12,
+      marginBottom: 10,
+      maxWidth: "82%",
+    },
+    userText: { color: "#000", fontSize: 15, lineHeight: 21 },
+    aiBubble: {
+      alignSelf: "flex-start",
+      borderRadius: 18,
+      borderBottomLeftRadius: 4,
+      padding: 12,
+      marginBottom: 10,
+      maxWidth: "88%",
+      borderWidth: 0.5,
+    },
+    aiText: { fontSize: 15, lineHeight: 22 },
+    attachmentChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+      backgroundColor: "#D4AF3722",
+      borderWidth: 1,
+      borderColor: "#D4AF3744",
+      marginBottom: 4,
+    },
+    attachmentChipText: { fontSize: 11, maxWidth: 120 },
     welcomeContainer: {
       flex: 1,
       alignItems: "center",
@@ -727,7 +680,12 @@ export function PivotChat() {
       paddingVertical: 4,
       backgroundColor: "#FF444422",
     },
-  }), [colors, insets.bottom]);
+    recordingDot: {
+      width: 6, height: 6, borderRadius: 3,
+      backgroundColor: "#FF4444",
+    },
+    recordingText: { fontSize: 11, color: "#FF4444" },
+  });
 
   return (
     <>
@@ -741,7 +699,7 @@ export function PivotChat() {
         activeOpacity={0.85}
       >
         <Image
-          source={{ uri: PIVOT_ICON_URL }}
+          source={{ uri: "https://d2xsxph8kpxj0f.cloudfront.net/310519663449841780/dNJxctHZxj6wCg3jq4j4kh/pivot-icon_83666431.png" }}
           style={{ width: 58, height: 58, borderRadius: 29 }}
           contentFit="cover"
         />
@@ -764,7 +722,7 @@ export function PivotChat() {
               {/* Header with safe area padding for status bar */}
               <View style={[s.header, { paddingTop: Math.max(insets.top, 16) + 8, backgroundColor: "#0d0d1a" }]}>
                 <Image
-                  source={{ uri: PIVOT_ICON_URL }}
+                  source={{ uri: "https://d2xsxph8kpxj0f.cloudfront.net/310519663449841780/dNJxctHZxj6wCg3jq4j4kh/pivot-icon_83666431.png" }}
                   style={{ width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: "#D4AF37" }}
                   contentFit="cover"
                 />
@@ -790,7 +748,7 @@ export function PivotChat() {
               {messages.length === 0 ? (
                 <View style={s.welcomeContainer}>
                   <Image
-                    source={{ uri: PIVOT_ICON_URL }}
+                    source={{ uri: "https://d2xsxph8kpxj0f.cloudfront.net/310519663449841780/dNJxctHZxj6wCg3jq4j4kh/pivot-icon_83666431.png" }}
                     style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: "#D4AF37", marginBottom: 4 }}
                     contentFit="cover"
                   />
@@ -817,7 +775,7 @@ export function PivotChat() {
                   ListFooterComponent={
                     <>
                       {loading && (
-                        <View style={[staticStyles.aiBubble, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                        <View style={[s.aiBubble, { backgroundColor: colors.background, borderColor: colors.border }]}>
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                             <PivotAvatar size={20} />
                             <ActivityIndicator size="small" color="#D4AF37" />
@@ -826,7 +784,7 @@ export function PivotChat() {
                         </View>
                       )}
                       {isTranscribing && (
-                        <View style={[staticStyles.userBubble, { backgroundColor: "#D4AF3733" }]}>
+                        <View style={[s.userBubble, { backgroundColor: "#D4AF3733" }]}>
                           <Text style={{ color: "#D4AF37", fontSize: 13 }}>🎤 Transcribing your voice...</Text>
                         </View>
                       )}
@@ -852,11 +810,11 @@ export function PivotChat() {
                   {pendingAttachments.map((att, i) => (
                     <TouchableOpacity
                       key={i}
-                      style={staticStyles.attachmentChip}
+                      style={s.attachmentChip}
                       onPress={() => setPendingAttachments((prev) => prev.filter((_, j) => j !== i))}
                     >
                       <Text>{getFileIcon(att.type)}</Text>
-                      <Text style={[staticStyles.attachmentChipText, { color: colors.foreground }]} numberOfLines={1}>{att.name}</Text>
+                      <Text style={[s.attachmentChipText, { color: colors.foreground }]} numberOfLines={1}>{att.name}</Text>
                       <Text style={{ fontSize: 10, color: colors.muted }}>✕</Text>
                     </TouchableOpacity>
                   ))}
@@ -865,9 +823,9 @@ export function PivotChat() {
 
               {/* Recording banner */}
               {isRecording && (
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 4, backgroundColor: "#FF444422" }}>
-                  <View style={staticStyles.recordingDot} />
-                  <Text style={staticStyles.recordingText}>Recording... tap 🔴 to stop</Text>
+                <View style={s.recordingBanner}>
+                  <View style={s.recordingDot} />
+                  <Text style={s.recordingText}>Recording... tap 🔴 to stop</Text>
                 </View>
               )}
 
@@ -876,9 +834,6 @@ export function PivotChat() {
                 {/* File attachment buttons — only for eligible roles */}
                 {access.canAttachFiles && (
                   <>
-                    <TouchableOpacity style={s.iconBtn} onPress={takePhoto} disabled={uploading}>
-                      <Text style={{ fontSize: 18 }}>📷</Text>
-                    </TouchableOpacity>
                     <TouchableOpacity style={s.iconBtn} onPress={pickImage} disabled={uploading}>
                       <Text style={{ fontSize: 18 }}>🖼️</Text>
                     </TouchableOpacity>

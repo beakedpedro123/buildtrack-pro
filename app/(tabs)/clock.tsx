@@ -158,7 +158,7 @@ export default function ClockScreen() {
 
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: canClockCrew, staleTime: 30000 });
   const { data: allClockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(
-    undefined, { enabled: canClockCrew, refetchInterval: 30000, staleTime: 0 }
+    undefined, { enabled: canClockCrew, refetchInterval: 20000, staleTime: 0 }
   );
 
   const activeEmployees = useMemo(() => {

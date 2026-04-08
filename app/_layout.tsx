@@ -89,10 +89,6 @@ export default function RootLayout() {
             refetchOnWindowFocus: false,
             // Retry failed requests once
             retry: 1,
-            // Default stale time: 30s — prevents redundant refetches when navigating between tabs
-            staleTime: 30000,
-            // Keep unused data in cache for 5 minutes before garbage collection
-            gcTime: 5 * 60 * 1000,
           },
         },
       }),
