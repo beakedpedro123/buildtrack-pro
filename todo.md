@@ -1587,3 +1587,11 @@
 - [x] Fix: applied same effectiveJobs normalization to clock.tsx
 - [x] Verified: server clock.out mutation works correctly — updates clockOut field by entryId
 - [x] Verified: syncPending calls clock.out when existingEntryId is present
+
+## Phase 69 — Replace Job Selector with Simple Buttons
+
+- [x] Remove broken radio button job selector from home screen
+- [x] Replace with standalone JobPicker component that fetches its own data directly
+- [x] JobPicker uses its own AsyncStorage cache (separate from data-cache.ts) with strict validation
+- [x] Applied to both foreman and laborer views
+- [x] Simple tappable buttons with job name as inline text — no flex tricks, no shrinking

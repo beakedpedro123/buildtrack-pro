@@ -26,6 +26,7 @@ import * as Haptics from "expo-haptics";
 import { useOfflineQueue } from "@/lib/offline-queue";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { VoiceGoalCreator } from "@/components/voice-goal-creator";
+import { JobPicker } from "@/components/ui/job-picker";
 
 const companyLogo = require("@/assets/images/company-logo.png");
 import { BG_HOME as bgHome } from "@/constants/bg-urls";
@@ -610,23 +611,13 @@ export default function DashboardScreen() {
                 <Text style={[styles.fieldTimeText, { color: colors.muted + "60" }]}>0h 0m</Text>
                 <Text style={[styles.fieldJobText, { marginBottom: 12 }]}>Select a jobsite and clock in</Text>
                 {/* Inline Job Picker */}
-                {effectiveMyJobs.length > 0 ? (
-                  <View style={{ marginBottom: 14 }}>
-                    {effectiveMyJobs.map((job) => (
-                      <TouchableOpacity
-                        key={job.id}
-                        onPress={() => setSelfClockJobId(job.id)}
-                        style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, marginBottom: 6, borderWidth: 1.5, borderColor: selfClockJobId === job.id ? colors.primary : colors.border, backgroundColor: selfClockJobId === job.id ? colors.primary + "15" : colors.surface }}
-                      >
-                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: selfClockJobId === job.id ? colors.primary : colors.muted, marginRight: 12, flexShrink: 0 }} />
-                        <Text style={{ flex: 1, flexShrink: 1, fontSize: 15, lineHeight: 20, fontWeight: selfClockJobId === job.id ? "700" : "500", color: selfClockJobId === job.id ? colors.primary : colors.foreground }} numberOfLines={1}>{String(job.name)}</Text>
-                        {selfClockJobId === job.id && <Text style={{ color: colors.primary, fontSize: 16, marginLeft: 8, flexShrink: 0 }}>✓</Text>}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ) : (
-                  <Text style={{ color: colors.muted, fontSize: 13, marginBottom: 14 }}>No assigned jobsites</Text>
-                )}
+                {employee?.id ? (
+                  <JobPicker
+                    employeeId={employee.id}
+                    selectedJobId={selfClockJobId}
+                    onSelectJob={setSelfClockJobId}
+                  />
+                ) : null}
                 <TouchableOpacity
                   style={[styles.fieldClockBtn, { backgroundColor: colors.success, opacity: (!selfClockJobId || selfClockLoading) ? 0.5 : 1 }]}
                   onPress={handleSelfClockIn}
@@ -738,23 +729,13 @@ export default function DashboardScreen() {
                 <Text style={[styles.fieldTimeText, { color: colors.muted + "60" }]}>0h 0m</Text>
                 <Text style={[styles.fieldJobText, { marginBottom: 12 }]}>Select a jobsite and clock in</Text>
                 {/* Inline Job Picker */}
-                {effectiveMyJobs.length > 0 ? (
-                  <View style={{ marginBottom: 14 }}>
-                    {effectiveMyJobs.map((job) => (
-                      <TouchableOpacity
-                        key={job.id}
-                        onPress={() => setSelfClockJobId(job.id)}
-                        style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, marginBottom: 6, borderWidth: 1.5, borderColor: selfClockJobId === job.id ? colors.primary : colors.border, backgroundColor: selfClockJobId === job.id ? colors.primary + "15" : colors.surface }}
-                      >
-                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: selfClockJobId === job.id ? colors.primary : colors.muted, marginRight: 12, flexShrink: 0 }} />
-                        <Text style={{ flex: 1, flexShrink: 1, fontSize: 15, lineHeight: 20, fontWeight: selfClockJobId === job.id ? "700" : "500", color: selfClockJobId === job.id ? colors.primary : colors.foreground }} numberOfLines={1}>{String(job.name)}</Text>
-                        {selfClockJobId === job.id && <Text style={{ color: colors.primary, fontSize: 16, marginLeft: 8, flexShrink: 0 }}>✓</Text>}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ) : (
-                  <Text style={{ color: colors.muted, fontSize: 13, marginBottom: 14 }}>No assigned jobsites</Text>
-                )}
+                {employee?.id ? (
+                  <JobPicker
+                    employeeId={employee.id}
+                    selectedJobId={selfClockJobId}
+                    onSelectJob={setSelfClockJobId}
+                  />
+                ) : null}
                 <TouchableOpacity
                   style={[styles.fieldClockBtn, { backgroundColor: colors.success, opacity: (!selfClockJobId || selfClockLoading) ? 0.5 : 1 }]}
                   onPress={handleSelfClockIn}
