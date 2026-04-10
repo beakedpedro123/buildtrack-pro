@@ -1434,3 +1434,29 @@
 - [x] FIX: Changed to process.cwd() + "server/data" for reliable resolution in both dev and production
 - [x] Verified: lookupSteelProfile now correctly returns all W-shape data (936 total shapes loaded)
 - [ ] Test steel lookup end-to-end via Pivot chat on deployed version
+
+## Phase 61 — Comprehensive Steel Data + HSS Diagrams + App Optimization
+
+### Steel Data Expansion
+- [x] Audit current AISC database — found 936 shapes, HSS missing section properties
+- [x] Added 12 new HSS rectangular + 11 new HSS round sizes for Utah residential
+- [x] Added 13 steel deck profiles (B-Deck, N-Deck, Roof Deck)
+- [x] Added Utah residential steel reference (seismic, snow loads, common sizes, connections, material grades)
+- [x] Added section properties (Ix, Iy, Sx, Sy) to ALL HSS rect, square, round, and pipe shapes
+- [x] Total: 959 structural shapes + deck + reference data
+
+### HSS/Tube Cross-Section Diagrams
+- [x] Built HSS rectangular/square SVG generator (green color scheme, hollow rect with rounded corners)
+- [x] Built HSS round/pipe SVG generator (orange color scheme, concentric circles)
+- [x] Wired into beam-diagram endpoint — auto-detects shape type (W, HSS rect, HSS square, HSS round, pipe)
+- [x] Updated all system prompts (owner, foreman, laborer) to reference HSS diagrams
+- [x] Tested all diagram types: W14x48, HSS8x6x3/8, HSS6x6x3/8, HSS6.625x0.375, PIPE 6 STD
+
+### App Optimization
+- [x] Compacted AISC JSON from 193KB to 115KB (minified separators, removed duplicate simpson data)
+- [x] Removed 3 unused react-logo files (~42KB)
+- [x] Truncated dev server log (992KB freed)
+- [x] Identified duplicate icon files (8 copies of same icon) — kept for platform compatibility
+- [x] Identified 4 stale public JS bundles (~3MB) — auto-generated, will be replaced on next build
+- [x] TypeScript check: 0 errors
+- [x] All beam diagram tests pass (7/7)

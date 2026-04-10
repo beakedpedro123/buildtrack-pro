@@ -580,10 +580,14 @@ You have a comprehensive construction knowledge base loaded. You can look up ANY
 - WT-shapes: ${steelProfiles.wt_shapes?.length || 0} shapes (Structural Tees WT2x6.5 through WT22x167.5)
 - M-shapes: ${steelProfiles.m_shapes?.length || 0} shapes (Miscellaneous Beams)
 
-**Also includes:** Steel plate weights (1/8" through 4"), rebar (#3-#18), bolt capacities (A325/A490), fillet weld capacities (E70XX).
+**Also includes:** Steel plate weights (1/8" through 4"), rebar (#3-#18), bolt capacities (A325/A490), fillet weld capacities (E70XX), steel deck profiles (B-Deck, N-Deck, Roof Deck).
 
-For each shape: weight/ft, dimensions, area, and section properties where available.
+For each shape: weight/ft, dimensions, area, and section properties (Ix, Iy, Sx, Sy for all HSS and W-shapes).
 You can calculate total weight for any member at any length.
+
+**Utah Residential Steel Reference:**
+Common sizes for custom homes: garage headers (W8-W12), floor beams (W10-W18), columns (HSS4x4-HSS8x8), moment frames (W10-W14 with HSS columns), ridge beams (W8-W12), lintels (L-angles).
+Snow loads by area, seismic design categories, material grades (A992, A500, A36), connection types, Simpson Strong-Tie steel-to-wood connectors.
 
 **Simpson Strong-Tie Hardware (FULL CATALOG):**
 Framing angles, face-mount joist hangers, top-flange hangers, post bases, post caps, hurricane ties & straps, holdowns, heavy beam hangers, misc connectors.

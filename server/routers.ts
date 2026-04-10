@@ -1229,20 +1229,32 @@ Measurement: [how to track it weekly]
 - Suggest negotiation points
 - Compare labor hours to industry benchmarks
 
-## Steel Beam Lookup — ALWAYS Use the Database
-When asked about ANY steel beam, section, or structural profile:
-1. ALWAYS use the construction_lookup tool with type="steel_profile" and the designation (e.g., "W12x26", "W14x48")
+## Steel Lookup — ALWAYS Use the Database (959 shapes + HSS + Pipe + Angles + Utah Data)
+When asked about ANY steel beam, section, column, tube, or structural profile:
+1. ALWAYS use the construction_lookup tool with type="steel_profile" and the designation
 2. NEVER guess or estimate section properties — always look them up
-3. If the user asks "what W-beam for a 20ft span with 2000 lb load?" — calculate the required section modulus, then look up profiles that meet it
-4. Common Utah custom home beam sizes: W8x10, W8x18, W10x22, W10x33, W12x26, W12x40, W14x26, W14x48, W16x31, W18x35, W21x44, W24x55
+3. Supported shapes: W-shapes (244), HP (20), S-shapes (28), C-channels (29), MC-channels (29), L-angles (103), HSS rectangular (114), HSS square (63), HSS round (77), Pipe (35), WT (201), M-shapes (16), plus plate weights, rebar, bolts, and welds
+4. Common Utah custom home sizes:
+   - Beams: W8x10, W10x22, W12x26, W14x30, W14x48, W16x36, W18x50
+   - Columns: HSS4x4x1/4, HSS4x4x3/8, HSS6x6x1/4, HSS6x6x3/8, HSS8x8x3/8
+   - Round columns: HSS4.000x0.250, HSS6.000x0.375, HSS6.625x0.375
+   - Moment frames: W10x33, W12x40, W14x48 beams with HSS6x6 or HSS8x8 columns
+   - Lintels: L3x3x1/4, L4x3x1/4, L4x4x3/8
+   - Garage headers: W8x10 to W12x26
+   - Ridge beams: W8x10 to W12x19
 5. For ridge beams, hip beams, and garage door headers — always specify the design load before recommending a size
-6. BEAM CROSS-SECTION DIAGRAM — MANDATORY:
-   - The tool result will include a full absolute URL to a professional SVG cross-section diagram
-   - You MUST include this diagram in your response as a markdown image: ![Designation Cross-Section](FULL_URL)
-   - Place the diagram image FIRST in your response, BEFORE the text data, so the user sees the visual immediately
-   - The diagram shows the I-beam shape with labeled dimensions: depth (d), flange width (bf), web thickness (tw), flange thickness (tf), area, and weight per foot
-   - This is like the AISC reference app — workers can see exact beam dimensions at a glance
+6. CROSS-SECTION DIAGRAM — MANDATORY:
+   - The tool result includes a full absolute URL to a professional SVG cross-section diagram
+   - You MUST include this diagram as a markdown image: ![Designation Cross-Section](FULL_URL)
+   - Place the diagram image FIRST in your response, BEFORE the text data
+   - Diagrams work for: W-shapes (blue I-beam), HSS rectangular/square (green hollow tube), HSS round (orange hollow circle), and pipe shapes
    - NEVER skip the diagram — it's the most useful part of the response for field workers
+7. Utah residential steel reference data is available in the database including:
+   - Seismic design categories for Wasatch Front and mountain areas
+   - Snow loads for Park City, Deer Valley, Powder Mountain, Summit County, Morgan County
+   - Common applications: garage headers, floor beams, ridge beams, columns, cantilevers, moment frames, lintels
+   - Material grades: A992 (W-shapes), A500 Grade B/C (HSS), A36 (angles/plates)
+   - Connection types: beam-to-column, column-to-base, steel-to-wood (Simpson Strong-Tie)
 
 ## Utah Custom Home Construction Knowledge
 You have comprehensive knowledge of Utah building requirements for custom homes:
@@ -1346,13 +1358,14 @@ ${calculationBlock}
 - Voice-to-goals: when the foreman speaks their goals to you, summarize them clearly and use the create_goal tool to push them directly to the Goals tab after confirmation
 - Look up AISC steel beam data (W-shapes) — use construction_lookup with type="steel_profile" for any beam question
 
-## Steel Beam Lookup — ALWAYS Use the Database
-When asked about ANY steel beam (e.g., "what's a W18x50?", "W12x26 specs"):
+## Steel Lookup — ALWAYS Use the Database (959 shapes)
+When asked about ANY steel shape (W-beams, HSS tubes, pipe, angles, channels):
 1. ALWAYS use the construction_lookup tool with type="steel_profile" and the designation
 2. The tool returns full AISC data PLUS a cross-section diagram URL
 3. You MUST include the diagram as a markdown image FIRST: ![Designation Cross-Section](FULL_URL)
-4. Then list the key specs: depth, flange width, web thickness, flange thickness, weight, area, Ix, Sx
-5. NEVER skip the diagram — it's the most useful part for field workers
+4. Then list the key specs: dimensions, weight, area, section properties (Ix, Sx, etc.)
+5. Diagrams work for: W-shapes (blue I-beam), HSS rect/square (green tube), HSS round (orange circle), pipe
+6. NEVER skip the diagram — it's the most useful part for field workers
 
 ## Voice Goal Creation
 When the foreman describes goals by voice or text, you MUST:
@@ -1385,13 +1398,14 @@ ${goalsContext}
 - Search the web for construction info, material prices, and safety guidelines
 - Look up AISC steel beam data (W-shapes) — use construction_lookup with type="steel_profile" for any beam question
 
-## Steel Beam Lookup
-When asked about ANY steel beam (e.g., "what's a W18x50?"):
+## Steel Lookup — 959 Shapes Available
+When asked about ANY steel shape (W-beams, HSS tubes, pipe, angles, channels):
 1. Use the construction_lookup tool with type="steel_profile" and the designation
 2. The tool returns AISC data PLUS a cross-section diagram URL
 3. Include the diagram as a markdown image FIRST: ![Designation Cross-Section](FULL_URL)
-4. Then list the key specs: depth, flange width, web thickness, weight, area
-5. NEVER skip the diagram — it helps you see the beam dimensions at a glance
+4. Then list the key specs: dimensions, weight, area, section properties
+5. Diagrams work for: W-shapes, HSS rect/square, HSS round, pipe
+6. NEVER skip the diagram — it helps you see the beam dimensions at a glance
 
 ## Voice Goal Creation
 When the laborer describes goals by voice or text, you MUST:
@@ -1700,7 +1714,7 @@ Keep responses short, practical, and encouraging. You're here to help them succe
               // Use the production base URL for absolute diagram URLs that render on mobile
               const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL || "https://buildtrack-dnjxcthz.manus.space";
               const diagramUrl = `${apiBase.replace(/\/$/, "")}/api/beam-diagram?designation=${encodeURIComponent(query)}`;
-              toolResult += `\n\n📐 BEAM CROSS-SECTION DIAGRAM URL: ${diagramUrl}\nYou MUST include this diagram in your response as a markdown image BEFORE the text data:\n![${query} Cross-Section](${diagramUrl})\nThis shows the I-beam cross-section with all labeled dimensions (depth, flange width, web thickness, flange thickness, area, weight).`;
+              toolResult += `\n\n📐 STEEL CROSS-SECTION DIAGRAM URL: ${diagramUrl}\nYou MUST include this diagram in your response as a markdown image BEFORE the text data:\n![${query} Cross-Section](${diagramUrl})\nThis shows the cross-section with all labeled dimensions. Works for W-shapes (I-beam), HSS rectangular/square (hollow tube), HSS round (hollow pipe), and standard pipe shapes.`;
             }
           } else if (lookupType === "steel_weight" && lengthFt > 0) {
             toolResult = calculateSteelWeight(query, lengthFt);
