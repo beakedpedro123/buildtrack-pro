@@ -1016,7 +1016,7 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
 
     // ── Gather live business data for management context ─────────────────────
     let businessContext = "";
-    if (isManagement) {
+        if (isManagement) {
       try {
         const activeJobs = await db.getActiveJobs();
         const allEmployees = await db.getAllEmployees();
@@ -1027,7 +1027,58 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
         const totalWeekCost = laborByJob.reduce((s: number, j: any) => s + (j.totalCost || 0), 0);
         const kpis = await db.getAllKpis();
 
-        businessContext = `\n## Live Business Data (as of ${now.toLocaleDateString("en-US", { timeZone: "America/Denver" })})\n- Active Jobs: ${activeJobs.length} (${activeJobs.map((j: any) => j.name).join(", ")})\n- Active Employees: ${activeEmployees.length}\n- Labor Cost This Week: $${totalWeekCost.toFixed(2)}\n- Jobs with labor this week: ${laborByJob.length}\n${kpis.length > 0 ? `- KPIs tracked: ${kpis.map((k: any) => `${k.name} (${k.category}): ${k.currentValue || "no data"} / target ${k.targetValue || "not set"}`).join("; ")}` : ""}\n`;
+        // Fetch recent daily reports and materials for richer context
+        const recentReports = await db.getRecentReports(15);
+        const recentMaterials: any[] = [];
+        for (const job of activeJobs.slice(0, 10)) {
+          const mats = await db.getMaterialsForJob(job.id);
+          if (mats.length > 0) {
+            recentMaterials.push({ jobName: job.name, materials: mats.slice(0, 10) });
+          }
+        }
+
+        // Build per-job labor breakdown
+        const laborBreakdown = laborByJob.slice(0, 10).map((j: any) =>
+          `  - ${j.jobName}: $${j.totalCost.toFixed(2)} (${Math.round(j.totalMinutes / 60)}h, ${j.employeeCount} workers, total w/ overhead: $${j.totalWithOverhead.toFixed(2)})`
+        ).join("\n");
+
+        // Build recent reports summary
+        const reportsSummary = recentReports.slice(0, 8).map((r: any) => {
+          const job = activeJobs.find((j: any) => j.id === r.jobId);
+          return `  - ${r.reportDate ? new Date(r.reportDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" }) : "Unknown date"} | ${job?.name || "Job #" + r.jobId} | ${r.notes ? r.notes.substring(0, 80) : "No notes"}`;
+        }).join("\n");
+
+        // Build materials summary
+        const materialsSummary = recentMaterials.map((jm: any) =>
+          `  ${jm.jobName}:\n` + jm.materials.map((m: any) =>
+            `    - ${m.materialName}: ${m.quantity} ${m.unit} @ $${m.unitCost || "?"}/unit (${m.supplier || "no supplier"})`
+          ).join("\n")
+        ).join("\n");
+
+        // Build employee roster with roles and rates
+        const employeeRoster = activeEmployees.slice(0, 30).map((e: any) =>
+          `  - ${e.name} (${e.role}) ${e.hourlyRate ? "$" + e.hourlyRate + "/hr" : ""}`
+        ).join("\n");
+
+        businessContext = `\n## Live Business Data (as of ${now.toLocaleDateString("en-US", { timeZone: "America/Denver" })})
+- Active Jobs: ${activeJobs.length} (${activeJobs.map((j: any) => j.name).join(", ")})
+- Active Employees: ${activeEmployees.length}
+- Labor Cost This Week: $${totalWeekCost.toFixed(2)}
+- Jobs with labor this week: ${laborByJob.length}
+${kpis.length > 0 ? `- KPIs tracked: ${kpis.map((k: any) => `${k.name} (${k.category}): ${k.currentValue || "no data"} / target ${k.targetValue || "not set"}`).join("; ")}` : ""}
+
+### Per-Job Labor Breakdown (This Week)
+${laborBreakdown || "  No labor data this week."}
+
+### Employee Roster
+${employeeRoster || "  No active employees."}
+
+### Recent Daily Reports
+${reportsSummary || "  No recent reports."}
+
+### Materials Used on Active Jobs
+${materialsSummary || "  No material entries recorded yet."}
+`;
       } catch {
         businessContext = "(Business data temporarily unavailable)";
       }

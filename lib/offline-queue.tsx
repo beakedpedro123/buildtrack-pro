@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
 import { trpc } from "./trpc";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 export interface OfflineClockEntry {
   localId: string;
@@ -32,12 +33,40 @@ const OfflineQueueContext = createContext<OfflineQueueContextType>({
 });
 
 const QUEUE_KEY = "buildtrack_offline_queue";
+const PING_INTERVAL = 15_000; // Check connectivity every 15s
+
+/**
+ * Lightweight connectivity check — pings the API server.
+ * Uses a HEAD request with a short timeout.
+ */
+async function checkConnectivity(): Promise<boolean> {
+  try {
+    const base = getApiBaseUrl();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${base}/api/trpc`, {
+      method: "HEAD",
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    // Any response (even 4xx) means the server is reachable
+    return true;
+  } catch {
+    // On web, also check navigator.onLine as a fallback
+    if (Platform.OS === "web" && typeof navigator !== "undefined") {
+      return navigator.onLine;
+    }
+    return false;
+  }
+}
 
 export function OfflineQueueProvider({ children }: { children: React.ReactNode }) {
   const [queue, setQueue] = useState<OfflineClockEntry[]>([]);
   const [isOnline, setIsOnline] = useState(true);
+  const wasOfflineRef = useRef(false);
   const utils = trpc.useUtils();
 
+  // Load queue from storage on mount
   useEffect(() => {
     AsyncStorage.getItem(QUEUE_KEY).then((raw) => {
       if (raw) {
@@ -81,16 +110,60 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     await saveQueue(remaining);
   }, [queue, saveQueue, utils]);
 
-  // Attempt sync when app comes to foreground
+  // Periodic connectivity check
+  useEffect(() => {
+    let mounted = true;
+
+    const check = async () => {
+      const online = await checkConnectivity();
+      if (!mounted) return;
+
+      const previouslyOffline = wasOfflineRef.current;
+      setIsOnline(online);
+
+      if (online) {
+        wasOfflineRef.current = false;
+        // If we just came back online, sync pending entries and invalidate queries
+        if (previouslyOffline) {
+          syncPending().catch(() => {});
+          // Invalidate all queries so they refetch fresh data
+          utils.invalidate();
+        }
+      } else {
+        wasOfflineRef.current = true;
+      }
+    };
+
+    // Initial check
+    check();
+
+    // Periodic check
+    const interval = setInterval(check, PING_INTERVAL);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [syncPending, utils]);
+
+  // Also check on app foreground (native only)
   useEffect(() => {
     if (Platform.OS === "web") return;
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active" && queue.length > 0) {
-        syncPending().catch(() => {});
+      if (state === "active") {
+        checkConnectivity().then((online) => {
+          setIsOnline(online);
+          if (online && queue.length > 0) {
+            syncPending().catch(() => {});
+          }
+          if (online) {
+            utils.invalidate();
+          }
+        });
       }
     });
     return () => sub.remove();
-  }, [queue, syncPending]);
+  }, [queue, syncPending, utils]);
 
   return (
     <OfflineQueueContext.Provider value={{ pendingCount: queue.length, isOnline, addClockEntry, syncPending }}>

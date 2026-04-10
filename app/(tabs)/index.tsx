@@ -23,6 +23,9 @@ import {
   TouchableOpacity,
   View } from "react-native";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
+import { useOfflineQueue } from "@/lib/offline-queue";
+import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { VoiceGoalCreator } from "@/components/voice-goal-creator";
 
 const companyLogo = require("@/assets/images/company-logo.png");
@@ -209,7 +212,24 @@ export default function DashboardScreen() {
 
   const { startDate, endDate, label: periodLabel } = useMemo(() => getDateRange(laborPeriod), [laborPeriod]);
 
+  const [cachedMyJobs, setCachedMyJobs] = useState<any[] | null>(null);
+  const [cachedActiveJobs, setCachedActiveJobs] = useState<any[] | null>(null);
+
+  // Load cached data on mount (for offline use)
+  useEffect(() => {
+    getCached<any[]>(CACHE_KEYS.MY_JOBS).then((d) => { if (d) setCachedMyJobs(d); });
+    getCached<any[]>(CACHE_KEYS.ACTIVE_JOBS).then((d) => { if (d) setCachedActiveJobs(d); });
+  }, []);
+
   const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
+
+  // Cache activeJobs when fetched
+  useEffect(() => {
+    if (activeJobs && activeJobs.length > 0) {
+      setCache(CACHE_KEYS.ACTIVE_JOBS, activeJobs);
+      setCachedActiveJobs(activeJobs);
+    }
+  }, [activeJobs]);
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
     const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 15000, refetchInterval: 30000 });
   // Voice goal creator state
@@ -266,11 +286,132 @@ export default function DashboardScreen() {
   }, [editingEntryId, editTimeStr, clockedIn, updateEntryMutation]);
 
   // Use the shared local-first clock state (instant updates, no stale data)
-  const { activeEntry } = useClockState();
+  const { activeEntry, optimisticClockIn, optimisticClockOut } = useClockState();
+  const { addClockEntry } = useOfflineQueue();
+  const clockInMutation = trpc.clock.in.useMutation();
+  const clockOutMutationSelf = trpc.clock.out.useMutation();
+
+  // State for inline job picker on home screen (foreman/laborer self-clock)
+  const [selfClockJobId, setSelfClockJobId] = useState<number | null>(null);
+  const [selfClockLoading, setSelfClockLoading] = useState(false);
+  const [selfClockSuccess, setSelfClockSuccess] = useState<string | null>(null);
+
+  // Direct self clock-in handler (no navigation to Clock tab)
+  const handleSelfClockIn = useCallback(async () => {
+    if (!employee?.id || !selfClockJobId) {
+      Alert.alert("Select a Job", "Please select a jobsite before clocking in.");
+      return;
+    }
+    if (selfClockLoading) return;
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelfClockLoading(true);
+    try {
+      const clockInTime = new Date().toISOString();
+      let loc: { lat: number; lng: number } | null = null;
+      try {
+        if (Platform.OS === "web") {
+          if (navigator?.geolocation) {
+            loc = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
+              const timer = setTimeout(() => resolve(null), 3000);
+              navigator.geolocation.getCurrentPosition(
+                (pos) => { clearTimeout(timer); resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
+                () => { clearTimeout(timer); resolve(null); },
+                { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+              );
+            });
+          }
+        } else {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === "granted") {
+            const position = await Promise.race([
+              Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+            ]);
+            loc = { lat: position.coords.latitude, lng: position.coords.longitude };
+          }
+        }
+      } catch { /* location is optional */ }
+
+      // Optimistic update
+      optimisticClockIn({
+        id: -1,
+        employeeId: employee.id,
+        jobId: selfClockJobId,
+        clockIn: clockInTime,
+        clockOut: null,
+        clockInLatitude: loc?.lat ?? null,
+        clockInLongitude: loc?.lng ?? null,
+      });
+      setSelfClockSuccess("Clocked in!");
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => setSelfClockSuccess(null), 4000);
+
+      try {
+        await clockInMutation.mutateAsync({
+          employeeId: employee.id,
+          jobId: selfClockJobId,
+          clockIn: clockInTime,
+          clockInLatitude: loc?.lat,
+          clockInLongitude: loc?.lng,
+          isOfflineEntry: false,
+        });
+      } catch {
+        // Save offline
+        await addClockEntry({
+          employeeId: employee.id,
+          jobId: selfClockJobId,
+          clockIn: clockInTime,
+          clockInLatitude: loc?.lat,
+          clockInLongitude: loc?.lng,
+        });
+        Alert.alert("Clocked In (Offline)", "Saved locally — will sync when you have service.");
+      }
+    } finally {
+      setSelfClockLoading(false);
+    }
+  }, [employee?.id, selfClockJobId, selfClockLoading, clockInMutation, addClockEntry, optimisticClockIn]);
+
+  // Direct self clock-out handler
+  const handleSelfClockOut = useCallback(async () => {
+    if (!activeEntry || activeEntry.id < 0) return;
+    if (selfClockLoading) return;
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelfClockLoading(true);
+    try {
+      optimisticClockOut();
+      setSelfClockSuccess("Clocked out!");
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => setSelfClockSuccess(null), 4000);
+      await clockOutMutationSelf.mutateAsync({ entryId: activeEntry.id, clockOut: new Date().toISOString() });
+    } catch {
+      Alert.alert("Error", "Could not clock out. Please try again.");
+    } finally {
+      setSelfClockLoading(false);
+    }
+  }, [activeEntry, selfClockLoading, clockOutMutationSelf, optimisticClockOut]);
   const { data: myJobs } = trpc.jobs.forEmployee.useQuery(
     { employeeId: employee?.id || 0 },
     { enabled: !!employee && !isManagement }
   );
+
+  // Cache myJobs when fetched
+  useEffect(() => {
+    if (myJobs && myJobs.length > 0) {
+      setCache(CACHE_KEYS.MY_JOBS, myJobs);
+      setCachedMyJobs(myJobs);
+    }
+  }, [myJobs]);
+
+  // Use server data if available, fall back to cache
+  const effectiveMyJobs = myJobs || cachedMyJobs || [];
+  const effectiveActiveJobs = activeJobs || cachedActiveJobs || [];
+
+  // Auto-select first job if only one available
+  useEffect(() => {
+    if (effectiveMyJobs.length === 1 && !selfClockJobId) {
+      setSelfClockJobId(effectiveMyJobs[0].id);
+    }
+  }, [effectiveMyJobs]);
 
   // Budget alerts (owner/management only)
   const { data: budgetAlerts } = trpc.budgetAlerts.getAlerts.useQuery(undefined, { enabled: isOwner, staleTime: 60000 });
@@ -306,7 +447,7 @@ export default function DashboardScreen() {
   }, [weeklyTrend, canSeeDollars]);
 
   const elapsed = activeEntry ? now.getTime() - new Date(activeEntry.clockIn).getTime() : 0;
-  const activeJobForEntry = (activeJobs || myJobs || []).find((j) => j.id === activeEntry?.jobId);
+  const activeJobForEntry = [...effectiveActiveJobs, ...effectiveMyJobs].find((j) => j.id === activeEntry?.jobId);
 
   const styles = StyleSheet.create({
     header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
@@ -421,6 +562,11 @@ export default function DashboardScreen() {
                 {activeEntry ? "Clocked In" : "Not Clocked In"}
               </Text>
             </View>
+            {selfClockSuccess && (
+              <View style={{ backgroundColor: colors.success + "15", borderRadius: 8, padding: 10, marginBottom: 12 }}>
+                <Text style={{ color: colors.success, fontSize: 14, fontWeight: "700", textAlign: "center" }}>✓ {selfClockSuccess}</Text>
+              </View>
+            )}
             {activeEntry ? (
               <>
                 <Text style={styles.fieldTimeText}>{formatDuration(elapsed)}</Text>
@@ -428,21 +574,41 @@ export default function DashboardScreen() {
                   {activeJobForEntry?.name || "Unknown Job"} · Since {formatTime12(activeEntry.clockIn)}
                 </Text>
                 <TouchableOpacity
-                  style={[styles.fieldClockBtn, { backgroundColor: colors.error }]}
-                  onPress={() => router.push("/clock" as any)}
+                  style={[styles.fieldClockBtn, { backgroundColor: colors.error, opacity: selfClockLoading ? 0.7 : 1 }]}
+                  onPress={handleSelfClockOut}
+                  disabled={selfClockLoading}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Clock Out</Text>
+                  {selfClockLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Clock Out</Text>}
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 <Text style={[styles.fieldTimeText, { color: colors.muted + "60" }]}>0h 0m</Text>
-                <Text style={[styles.fieldJobText, { marginBottom: 16 }]}>Ready to start your day</Text>
+                <Text style={[styles.fieldJobText, { marginBottom: 12 }]}>Select a jobsite and clock in</Text>
+                {/* Inline Job Picker */}
+                {effectiveMyJobs.length > 0 ? (
+                  <View style={{ marginBottom: 14 }}>
+                    {effectiveMyJobs.map((job) => (
+                      <TouchableOpacity
+                        key={job.id}
+                        onPress={() => setSelfClockJobId(job.id)}
+                        style={{ flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 10, marginBottom: 6, borderWidth: 1.5, borderColor: selfClockJobId === job.id ? colors.primary : colors.border, backgroundColor: selfClockJobId === job.id ? colors.primary + "15" : colors.surface }}
+                      >
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: selfClockJobId === job.id ? colors.primary : colors.muted, marginRight: 10 }} />
+                        <Text style={{ flex: 1, fontSize: 14, fontWeight: selfClockJobId === job.id ? "700" : "500", color: selfClockJobId === job.id ? colors.primary : colors.foreground }}>{job.name}</Text>
+                        {selfClockJobId === job.id && <Text style={{ color: colors.primary, fontSize: 16 }}>✓</Text>}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={{ color: colors.muted, fontSize: 13, marginBottom: 14 }}>No assigned jobsites</Text>
+                )}
                 <TouchableOpacity
-                  style={[styles.fieldClockBtn, { backgroundColor: colors.success }]}
-                  onPress={() => router.push("/clock" as any)}
+                  style={[styles.fieldClockBtn, { backgroundColor: colors.success, opacity: (!selfClockJobId || selfClockLoading) ? 0.5 : 1 }]}
+                  onPress={handleSelfClockIn}
+                  disabled={!selfClockJobId || selfClockLoading}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Clock In</Text>
+                  {selfClockLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Clock In</Text>}
                 </TouchableOpacity>
               </>
             )}
@@ -465,13 +631,13 @@ export default function DashboardScreen() {
           </View>
 
           {/* My Jobsites */}
-          {myJobs && myJobs.length > 0 && (
+          {effectiveMyJobs.length > 0 && (
             <>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>My Jobsites</Text>
               </View>
               <View style={{ paddingHorizontal: 20 }}>
-                {myJobs.map((job) => (
+                {effectiveMyJobs.map((job) => (
                   <JobCard key={job.id} job={job} onPress={() => router.push("/jobs" as any)} hideBudget />
                 ))}
               </View>
@@ -524,6 +690,11 @@ export default function DashboardScreen() {
                 {activeEntry ? "Clocked In" : "Not Clocked In"}
               </Text>
             </View>
+            {selfClockSuccess && (
+              <View style={{ backgroundColor: colors.success + "15", borderRadius: 8, padding: 10, marginBottom: 12 }}>
+                <Text style={{ color: colors.success, fontSize: 14, fontWeight: "700", textAlign: "center" }}>✓ {selfClockSuccess}</Text>
+              </View>
+            )}
             {activeEntry ? (
               <>
                 <Text style={styles.fieldTimeText}>{formatDuration(elapsed)}</Text>
@@ -531,21 +702,41 @@ export default function DashboardScreen() {
                   {activeJobForEntry?.name || "Unknown Job"} · Since {formatTime12(activeEntry.clockIn)}
                 </Text>
                 <TouchableOpacity
-                  style={[styles.fieldClockBtn, { backgroundColor: colors.error }]}
-                  onPress={() => router.push("/clock" as any)}
+                  style={[styles.fieldClockBtn, { backgroundColor: colors.error, opacity: selfClockLoading ? 0.7 : 1 }]}
+                  onPress={handleSelfClockOut}
+                  disabled={selfClockLoading}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Clock Out</Text>
+                  {selfClockLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Clock Out</Text>}
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 <Text style={[styles.fieldTimeText, { color: colors.muted + "60" }]}>0h 0m</Text>
-                <Text style={[styles.fieldJobText, { marginBottom: 16 }]}>Ready to start your day</Text>
+                <Text style={[styles.fieldJobText, { marginBottom: 12 }]}>Select a jobsite and clock in</Text>
+                {/* Inline Job Picker */}
+                {effectiveMyJobs.length > 0 ? (
+                  <View style={{ marginBottom: 14 }}>
+                    {effectiveMyJobs.map((job) => (
+                      <TouchableOpacity
+                        key={job.id}
+                        onPress={() => setSelfClockJobId(job.id)}
+                        style={{ flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 10, marginBottom: 6, borderWidth: 1.5, borderColor: selfClockJobId === job.id ? colors.primary : colors.border, backgroundColor: selfClockJobId === job.id ? colors.primary + "15" : colors.surface }}
+                      >
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: selfClockJobId === job.id ? colors.primary : colors.muted, marginRight: 10 }} />
+                        <Text style={{ flex: 1, fontSize: 14, fontWeight: selfClockJobId === job.id ? "700" : "500", color: selfClockJobId === job.id ? colors.primary : colors.foreground }}>{job.name}</Text>
+                        {selfClockJobId === job.id && <Text style={{ color: colors.primary, fontSize: 16 }}>✓</Text>}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={{ color: colors.muted, fontSize: 13, marginBottom: 14 }}>No assigned jobsites</Text>
+                )}
                 <TouchableOpacity
-                  style={[styles.fieldClockBtn, { backgroundColor: colors.success }]}
-                  onPress={() => router.push("/clock" as any)}
+                  style={[styles.fieldClockBtn, { backgroundColor: colors.success, opacity: (!selfClockJobId || selfClockLoading) ? 0.5 : 1 }]}
+                  onPress={handleSelfClockIn}
+                  disabled={!selfClockJobId || selfClockLoading}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Clock In</Text>
+                  {selfClockLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Clock In</Text>}
                 </TouchableOpacity>
               </>
             )}
@@ -572,13 +763,13 @@ export default function DashboardScreen() {
           </View>
 
           {/* My Jobsites */}
-          {myJobs && myJobs.length > 0 && (
+          {effectiveMyJobs.length > 0 && (
             <>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>My Jobsites</Text>
               </View>
               <View style={{ paddingHorizontal: 20 }}>
-                {myJobs.map((job) => (
+                {effectiveMyJobs.map((job) => (
                   <JobCard key={job.id} job={job} onPress={() => router.push("/jobs" as any)} hideBudget />
                 ))}
               </View>

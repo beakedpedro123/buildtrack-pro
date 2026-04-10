@@ -9,6 +9,7 @@ import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useClockState } from "@/lib/clock-state-context";
+import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
   Alert,
@@ -149,7 +150,26 @@ export default function ClockScreen() {
     forceRefresh: clockForceRefresh,
   } = useClockState();
 
+  const [cachedJobs, setCachedJobs] = useState<any[] | null>(null);
+  const [cachedEmployees, setCachedEmployees] = useState<any[] | null>(null);
+
+  // Load cached data on mount (for offline use)
+  useEffect(() => {
+    getCached<any[]>(CACHE_KEYS.ACTIVE_JOBS).then((d) => { if (d) setCachedJobs(d); });
+    if (canClockCrew) {
+      getCached<any[]>(CACHE_KEYS.ALL_EMPLOYEES).then((d) => { if (d) setCachedEmployees(d); });
+    }
+  }, [canClockCrew]);
+
   const { data: jobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 60000 });
+
+  // Cache jobs when fetched from server
+  useEffect(() => {
+    if (jobs && jobs.length > 0) {
+      setCache(CACHE_KEYS.ACTIVE_JOBS, jobs);
+      setCachedJobs(jobs);
+    }
+  }, [jobs]);
 
   const { data: history, refetch: refetchHistory } = trpc.clock.history.useQuery(
     { employeeId: clockTargetId || 0, since: new Date(Date.now() - 7 * 86400000).toISOString() },
@@ -157,13 +177,25 @@ export default function ClockScreen() {
   );
 
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: canClockCrew, staleTime: 30000 });
+
+  // Cache employees when fetched from server
+  useEffect(() => {
+    if (allEmployees && allEmployees.length > 0) {
+      setCache(CACHE_KEYS.ALL_EMPLOYEES, allEmployees);
+      setCachedEmployees(allEmployees);
+    }
+  }, [allEmployees]);
+
+  // Use server data if available, fall back to cache
+  const effectiveJobs = jobs || cachedJobs || [];
+  const effectiveEmployees = allEmployees || cachedEmployees || [];
   const { data: allClockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(
     undefined, { enabled: canClockCrew, refetchInterval: 20000, staleTime: 0 }
   );
 
   const activeEmployees = useMemo(() => {
-    return (allEmployees || []).filter((e: any) => e.isActive);
-  }, [allEmployees]);
+    return effectiveEmployees.filter((e: any) => e.isActive);
+  }, [effectiveEmployees]);
 
   const selectedEmployee = useMemo(() => {
     if (!canClockCrew) return employee;
@@ -455,7 +487,7 @@ export default function ClockScreen() {
 
   const isClockedIn = !!activeEntry;
   const elapsed = activeEntry ? now.getTime() - new Date(activeEntry.clockIn).getTime() : 0;
-  const activeJob = jobs?.find((j) => j.id === activeEntry?.jobId);
+  const activeJob = effectiveJobs.find((j: any) => j.id === activeEntry?.jobId);
 
   const styles = StyleSheet.create({
     header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
@@ -635,7 +667,7 @@ export default function ClockScreen() {
                 Currently on: <Text style={{ fontWeight: "700", color: colors.foreground }}>{activeJob?.name || "Unknown Job"}</Text>
               </Text>
               <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Select New Job</Text>
-              {(jobs || []).filter((j) => j.id !== activeEntry?.jobId).map((job) => (
+              {effectiveJobs.filter((j: any) => j.id !== activeEntry?.jobId).map((job: any) => (
                 <TouchableOpacity
                   key={job.id}
                   style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: transferJobId === job.id ? colors.primary : colors.border, backgroundColor: transferJobId === job.id ? colors.primary + "15" : colors.surface }}
@@ -756,12 +788,12 @@ export default function ClockScreen() {
                         style={{ backgroundColor: colors.surface, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: colors.border, marginBottom: showEditJobPicker ? 4 : 10 }}
                       >
                         <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>
-                          {jobs?.find(j => j.id === editJobId)?.name || "Select Job"} ▼
+                          {effectiveJobs.find((j: any) => j.id === editJobId)?.name || "Select Job"} ▼
                         </Text>
                       </TouchableOpacity>
                       {showEditJobPicker && (
                         <View style={{ marginBottom: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, overflow: "hidden" }}>
-                          {(jobs || []).map(j => (
+                          {effectiveJobs.map((j: any) => (
                             <TouchableOpacity
                               key={j.id}
                               onPress={() => { setEditJobId(j.id); setShowEditJobPicker(false); }}
@@ -858,7 +890,7 @@ export default function ClockScreen() {
             {!isClockedIn && (
               <View style={styles.jobSelector}>
                 <Text style={styles.sectionTitle}>Select Jobsite</Text>
-                {(jobs || []).map((job) => (
+                {effectiveJobs.map((job: any) => (
                   <TouchableOpacity
                     key={job.id}
                     style={[
@@ -876,7 +908,7 @@ export default function ClockScreen() {
                     {selectedJobId === job.id && <Text style={{ color: colors.primary, fontSize: 18 }}>✓</Text>}
                   </TouchableOpacity>
                 ))}
-                {(!jobs || jobs.length === 0) && (
+                {effectiveJobs.length === 0 && (
                   <Text style={{ color: colors.muted, fontSize: 14 }}>No active jobs available.</Text>
                 )}
               </View>
@@ -1019,12 +1051,12 @@ export default function ClockScreen() {
                         style={{ backgroundColor: colors.surface, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: colors.border, marginBottom: showEditJobPicker ? 4 : 10 }}
                       >
                         <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>
-                          {jobs?.find(j => j.id === editJobId)?.name || "Select Job"} ▼
+                          {effectiveJobs.find((j: any) => j.id === editJobId)?.name || "Select Job"} ▼
                         </Text>
                       </TouchableOpacity>
                       {showEditJobPicker && (
                         <View style={{ marginBottom: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, overflow: "hidden" }}>
-                          {(jobs || []).map(j => (
+                          {effectiveJobs.map((j: any) => (
                             <TouchableOpacity
                               key={j.id}
                               onPress={() => { setEditJobId(j.id); setShowEditJobPicker(false); }}

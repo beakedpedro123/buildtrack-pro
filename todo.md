@@ -1385,3 +1385,23 @@
 - [x] Enable canAttachFiles for foreman role in ROLE_ACCESS
 - [x] Enable canAttachFiles for laborer role in ROLE_ACCESS
 - [x] TypeScript check passes
+
+## Phase 57 — Fix 3 Critical Bugs
+
+### Bug 1: Pivot can't access steel data
+- [x] Enriched Pivot businessContext with per-job labor breakdown, full employee roster with rates, recent daily reports (last 14 days), and all material entries
+- [x] Pivot now has access to all company data including steel, framing, and all trade-specific information
+
+### Bug 2: Foreman clock-in button gives access to clock others
+- [x] Foreman's personal Clock In button now shows inline job picker and clocks themselves in directly
+- [x] Laborer's personal Clock In button also updated with same inline job picker
+- [x] Crew Clock button on main screen remains separate — navigates to /manage for clocking others
+- [x] Personal clock flow fully separated from crew clock flow
+
+### Bug 3: Offline capabilities missing
+- [x] Created data-cache.ts utility — caches jobs and employees to AsyncStorage with TTL
+- [x] Rewrote offline-queue.tsx with real network detection (ping every 15s) instead of hardcoded isOnline=true
+- [x] Clock screen uses effectiveJobs/effectiveEmployees fallback from cache when server data unavailable
+- [x] Home screen uses effectiveMyJobs/effectiveActiveJobs fallback from cache
+- [x] Auto-sync pending offline actions when connection is restored
+- [x] TypeScript check passes with 0 errors
