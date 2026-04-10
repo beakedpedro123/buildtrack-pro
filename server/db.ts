@@ -218,13 +218,11 @@ export async function clockIn(data: InsertClockEntry) {
   return result[0].insertId;
 }
 
-export async function clockOut(entryId: number, clockOutTime: Date, lat?: number, lng?: number) {
+export async function clockOut(entryId: number, clockOutTime: Date) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(clockEntries).set({
     clockOut: clockOutTime,
-    clockOutLatitude: lat,
-    clockOutLongitude: lng,
   }).where(eq(clockEntries.id, entryId));
 }
 

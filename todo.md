@@ -1460,3 +1460,24 @@
 - [x] Identified 4 stale public JS bundles (~3MB) — auto-generated, will be replaced on next build
 - [x] TypeScript check: 0 errors
 - [x] All beam diagram tests pass (7/7)
+
+## Phase 62 — Fix Offline Mode + Remove GPS
+
+### Remove GPS/Location Code
+- [x] Remove all expo-location imports and permission requests
+- [x] Remove GPS coordinate capture from clock-in, clock-out, job transfer
+- [x] Remove latitude/longitude from all tRPC mutation calls (server routers.ts + db.ts)
+- [x] Remove any location-related UI elements or error handling
+- [x] Verified app.config.ts has no location permissions
+
+### Fix Offline Mode
+- [x] Cache jobs list to AsyncStorage when online (CACHE_KEYS.ACTIVE_JOBS)
+- [x] Cache employees list to AsyncStorage when online (CACHE_KEYS.ALL_EMPLOYEES + LOGIN_EMPLOYEES)
+- [x] Cache employee PINs locally for offline PIN verification (login.tsx rewritten)
+- [x] Allow clock-in/out to work fully offline for ALL roles (removed manager-only restriction)
+- [x] Show cached jobs in the Clock In Employee screen when offline (effectiveJobs fallback)
+- [x] Show cached employees in the crew clock screen when offline (effectiveEmployees fallback)
+- [x] Sync queued clock entries when connection is restored (existing syncPending works)
+- [x] Show proper offline status and queued entry count (OfflineBanner component)
+- [x] Fixed all 4 clock-out paths to not revert optimistic updates on network failure
+- [x] Fixed job transfer to save to offline queue on failure

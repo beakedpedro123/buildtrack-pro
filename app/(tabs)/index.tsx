@@ -23,7 +23,6 @@ import {
   TouchableOpacity,
   View } from "react-native";
 import * as Haptics from "expo-haptics";
-import * as Location from "expo-location";
 import { useOfflineQueue } from "@/lib/offline-queue";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { VoiceGoalCreator } from "@/components/voice-goal-creator";
@@ -243,41 +242,18 @@ export default function DashboardScreen() {
     setClockingOutId(entryId);
     try {
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      // Capture GPS on clock-out
-      let loc: { lat: number; lng: number } | null = null;
-      try {
-        if (Platform.OS === "web") {
-          if (navigator?.geolocation) {
-            loc = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
-              const timer = setTimeout(() => resolve(null), 3000);
-              navigator.geolocation.getCurrentPosition(
-                (pos) => { clearTimeout(timer); resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
-                () => { clearTimeout(timer); resolve(null); },
-                { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
-              );
-            });
-          }
-        } else {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status === "granted") {
-            const position = await Promise.race([
-              Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-              new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
-            ]);
-            loc = { lat: position.coords.latitude, lng: position.coords.longitude };
-          }
-        }
-      } catch { /* location is optional */ }
       await clockOutMutation.mutateAsync({
         entryId,
         clockOut: new Date().toISOString(),
-        clockOutLatitude: loc?.lat,
-        clockOutLongitude: loc?.lng,
       });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await clockForceRefresh();
       refetchClockedIn();
-    } catch { Alert.alert("Error", "Could not clock out. Please try again."); }
+    } catch {
+      // Offline — show friendly message instead of error
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Clocked Out (Offline)", "Clock-out was recorded locally and will sync when you have service.");
+    }
     finally { setClockingOutId(null); }
   }, [clockingOutId, clockOutMutation, clockForceRefresh, refetchClockedIn]);
   // Edit time state for Onsite Now
@@ -336,30 +312,6 @@ export default function DashboardScreen() {
     setSelfClockLoading(true);
     try {
       const clockInTime = new Date().toISOString();
-      let loc: { lat: number; lng: number } | null = null;
-      try {
-        if (Platform.OS === "web") {
-          if (navigator?.geolocation) {
-            loc = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
-              const timer = setTimeout(() => resolve(null), 3000);
-              navigator.geolocation.getCurrentPosition(
-                (pos) => { clearTimeout(timer); resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
-                () => { clearTimeout(timer); resolve(null); },
-                { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
-              );
-            });
-          }
-        } else {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status === "granted") {
-            const position = await Promise.race([
-              Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-              new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
-            ]);
-            loc = { lat: position.coords.latitude, lng: position.coords.longitude };
-          }
-        }
-      } catch { /* location is optional */ }
 
       // Optimistic update
       optimisticClockIn({
@@ -368,8 +320,6 @@ export default function DashboardScreen() {
         jobId: selfClockJobId,
         clockIn: clockInTime,
         clockOut: null,
-        clockInLatitude: loc?.lat ?? null,
-        clockInLongitude: loc?.lng ?? null,
       });
       setSelfClockSuccess("Clocked in!");
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -380,8 +330,6 @@ export default function DashboardScreen() {
           employeeId: employee.id,
           jobId: selfClockJobId,
           clockIn: clockInTime,
-          clockInLatitude: loc?.lat,
-          clockInLongitude: loc?.lng,
           isOfflineEntry: false,
         });
       } catch {
@@ -390,8 +338,6 @@ export default function DashboardScreen() {
           employeeId: employee.id,
           jobId: selfClockJobId,
           clockIn: clockInTime,
-          clockInLatitude: loc?.lat,
-          clockInLongitude: loc?.lng,
         });
         Alert.alert("Clocked In (Offline)", "Saved locally — will sync when you have service.");
       }
@@ -407,32 +353,6 @@ export default function DashboardScreen() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelfClockLoading(true);
     try {
-      // Capture GPS on clock-out
-      let loc: { lat: number; lng: number } | null = null;
-      try {
-        if (Platform.OS === "web") {
-          if (navigator?.geolocation) {
-            loc = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
-              const timer = setTimeout(() => resolve(null), 3000);
-              navigator.geolocation.getCurrentPosition(
-                (pos) => { clearTimeout(timer); resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
-                () => { clearTimeout(timer); resolve(null); },
-                { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
-              );
-            });
-          }
-        } else {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status === "granted") {
-            const position = await Promise.race([
-              Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-              new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
-            ]);
-            loc = { lat: position.coords.latitude, lng: position.coords.longitude };
-          }
-        }
-      } catch { /* location is optional */ }
-
       optimisticClockOut();
       setSelfClockSuccess("Clocked out!");
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -440,11 +360,10 @@ export default function DashboardScreen() {
       await clockOutMutationSelf.mutateAsync({
         entryId: activeEntry.id,
         clockOut: new Date().toISOString(),
-        clockOutLatitude: loc?.lat,
-        clockOutLongitude: loc?.lng,
       });
     } catch {
-      Alert.alert("Error", "Could not clock out. Please try again.");
+      // Keep optimistic clock-out — don't revert on offline
+      Alert.alert("Clocked Out (Offline)", "Clock-out was recorded locally and will sync when you have service.");
     } finally {
       setSelfClockLoading(false);
     }

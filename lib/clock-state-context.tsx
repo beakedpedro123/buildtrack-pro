@@ -38,8 +38,6 @@ export interface ActiveClockEntry {
   jobId: number;
   clockIn: string;
   clockOut: string | null;
-  clockInLatitude?: number | null;
-  clockInLongitude?: number | null;
 }
 
 interface ClockStateContextValue {

@@ -1,6 +1,8 @@
 import { trpc } from "@/lib/trpc";
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
+import { useOfflineQueue } from "@/lib/offline-queue";
+import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
@@ -46,13 +48,37 @@ function getInitials(name: string) {
 export default function LoginScreen() {
   const colors = useColors();
   const { login } = useAppAuth();
+  const { isOnline } = useOfflineQueue();
   const [step, setStep] = useState<Step>("select");
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [cachedEmployees, setCachedEmployees] = useState<any[] | null>(null);
 
-  const { data: employees, isLoading } = trpc.employees.list.useQuery();
+  const { data: employees, isLoading } = trpc.employees.list.useQuery(undefined, {
+    retry: 1,
+    staleTime: 30000,
+  });
   const verifyPin = trpc.employees.verifyPin.useMutation();
+
+  // Load cached employees on mount for offline use
+  useEffect(() => {
+    getCached<any[]>(CACHE_KEYS.LOGIN_EMPLOYEES).then((d) => {
+      if (d) setCachedEmployees(d);
+    });
+  }, []);
+
+  // Cache employees when fetched from server
+  useEffect(() => {
+    if (employees && employees.length > 0) {
+      setCache(CACHE_KEYS.LOGIN_EMPLOYEES, employees);
+      setCachedEmployees(employees);
+    }
+  }, [employees]);
+
+  // Use server data if available, fall back to cache
+  const effectiveEmployees = employees || cachedEmployees || [];
 
   const handleSelectEmployee = (emp: any) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -81,22 +107,41 @@ export default function LoginScreen() {
   }, [pin]);
 
   const handleVerify = async () => {
-    if (!selectedEmployee) return;
-    try {
-      const result = await verifyPin.mutateAsync({ pin });
-      if (result && result.id === selectedEmployee.id) {
-        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        await login(result as any);
-        router.replace("/(tabs)");
-      } else {
-        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setError("Incorrect PIN. Try again.");
-        setPin("");
+    if (!selectedEmployee || verifying) return;
+    setVerifying(true);
+
+    // Try server verification first
+    if (isOnline) {
+      try {
+        const result = await verifyPin.mutateAsync({ pin });
+        if (result && result.id === selectedEmployee.id) {
+          if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          await login(result as any);
+          router.replace("/(tabs)");
+          return;
+        } else {
+          if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setError("Incorrect PIN. Try again.");
+          setPin("");
+          setVerifying(false);
+          return;
+        }
+      } catch {
+        // Server failed — fall through to offline verification
       }
-    } catch {
-      setError("Incorrect PIN. Try again.");
+    }
+
+    // Offline verification: check PIN against cached employee data
+    if (selectedEmployee.pin && selectedEmployee.pin === pin) {
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await login(selectedEmployee as any);
+      router.replace("/(tabs)");
+    } else {
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(isOnline ? "Incorrect PIN. Try again." : "Incorrect PIN. Try again.");
       setPin("");
     }
+    setVerifying(false);
   };
 
   const styles = StyleSheet.create({
@@ -169,9 +214,17 @@ export default function LoginScreen() {
     errorText: { color: colors.error, fontSize: 14, marginBottom: 12, textAlign: "center" },
     selectedName: { fontSize: 22, fontWeight: "700", color: colors.foreground, marginBottom: 4 },
     selectedRole: { fontSize: 14, color: colors.muted, marginBottom: 24 },
+    offlineBanner: {
+      backgroundColor: colors.warning,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 8,
+    },
   });
 
-  if (isLoading) {
+  if (isLoading && !cachedEmployees) {
     return (
       <SafeAreaView style={[styles.container, { alignItems: "center", justifyContent: "center" }]}>
         <ActivityIndicator color={colors.primary} size="large" />
@@ -186,6 +239,13 @@ export default function LoginScreen() {
         <View style={styles.header}>
           <Text style={styles.logo}>BuildTrack Pro</Text>
         </View>
+        {!isOnline && (
+          <View style={styles.offlineBanner}>
+            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
+              Offline mode — using cached data
+            </Text>
+          </View>
+        )}
         <View style={{ paddingHorizontal: 24 }}>
           <TouchableOpacity style={styles.backBtn} onPress={() => { setStep("select"); setPin(""); setError(""); }}>
             <Text style={styles.backText}>← Back</Text>
@@ -220,7 +280,7 @@ export default function LoginScreen() {
               </View>
             ))}
           </View>
-          {verifyPin.isPending && <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />}
+          {verifying && <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />}
         </View>
       </SafeAreaView>
     );
@@ -232,10 +292,17 @@ export default function LoginScreen() {
         <Text style={styles.logo}>BuildTrack Pro</Text>
         <Text style={styles.subtitle}>Select your name to clock in</Text>
       </View>
+      {!isOnline && (
+        <View style={styles.offlineBanner}>
+          <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
+            Offline mode — using cached data
+          </Text>
+        </View>
+      )}
       <View style={{ paddingHorizontal: 24, flex: 1 }}>
         <Text style={styles.sectionTitle}>Who are you?</Text>
         <FlatList
-          data={employees || []}
+          data={effectiveEmployees}
           keyExtractor={(item) => item.id.toString()}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
@@ -258,7 +325,9 @@ export default function LoginScreen() {
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 48 }}>
               <Text style={{ color: colors.muted, fontSize: 16 }}>No employees found.</Text>
-              <Text style={{ color: colors.muted, fontSize: 13, marginTop: 8 }}>Ask your owner to add employees first.</Text>
+              <Text style={{ color: colors.muted, fontSize: 13, marginTop: 8 }}>
+                {isOnline ? "Ask your owner to add employees first." : "Connect to the internet to load employee data."}
+              </Text>
             </View>
           }
         />

@@ -10,10 +10,6 @@ export interface OfflineClockEntry {
   jobId: number;
   clockIn: string;
   clockOut?: string;
-  clockInLatitude?: number;
-  clockInLongitude?: number;
-  clockOutLatitude?: number;
-  clockOutLongitude?: number;
   notes?: string;
   createdAt: string;
 }
@@ -97,8 +93,6 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
           employeeId: entry.employeeId,
           jobId: entry.jobId,
           clockIn: entry.clockIn,
-          clockInLatitude: entry.clockInLatitude,
-          clockInLongitude: entry.clockInLongitude,
           isOfflineEntry: true,
           localId: entry.localId,
           notes: entry.notes,

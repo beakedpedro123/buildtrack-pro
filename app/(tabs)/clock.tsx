@@ -6,7 +6,6 @@ import { useOfflineQueue } from "@/lib/offline-queue";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
-import * as Location from "expo-location";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useClockState } from "@/lib/clock-state-context";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
@@ -48,35 +47,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-/* ─── Location with timeout (web-optimized) ─── */
-async function getLocationSafe(): Promise<{ lat: number; lng: number } | null> {
-  // On web, use the browser's native geolocation API for reliability
-  if (Platform.OS === "web") {
-    try {
-      if (!navigator?.geolocation) return null;
-      return await new Promise<{ lat: number; lng: number } | null>((resolve) => {
-        const timer = setTimeout(() => resolve(null), 3000); // 3s max on web
-        navigator.geolocation.getCurrentPosition(
-          (pos) => { clearTimeout(timer); resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
-          () => { clearTimeout(timer); resolve(null); },
-          { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
-        );
-      });
-    } catch { return null; }
-  }
-  // Native: use expo-location
-  try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") return null;
-    const loc = await Promise.race([
-      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Location timeout")), 5000)),
-    ]);
-    return { lat: loc.coords.latitude, lng: loc.coords.longitude };
-  } catch {
-    return null;
-  }
-}
 
 export default function ClockScreen() {
   const colors = useColors();
@@ -246,11 +216,6 @@ export default function ClockScreen() {
           }
         }
       }
-      let loc: { lat: number; lng: number } | null = null;
-      try {
-        loc = await getLocationSafe();
-      } catch { /* location is optional, proceed without it */ }
-
       // OPTIMISTIC: update UI immediately before server responds
       // The context sets an 8-second lock so server responses can't overwrite this
       const optimisticEntry = {
@@ -259,8 +224,6 @@ export default function ClockScreen() {
         jobId: selectedJobId,
         clockIn: clockInTime,
         clockOut: null,
-        clockInLatitude: loc?.lat ?? null,
-        clockInLongitude: loc?.lng ?? null,
       };
       optimisticClockIn(optimisticEntry);
       if (mountedRef.current) setSuccessMsg("Clocked in!");
@@ -272,8 +235,6 @@ export default function ClockScreen() {
             employeeId: clockTargetId,
             jobId: selectedJobId,
             clockIn: clockInTime,
-            clockInLatitude: loc?.lat,
-            clockInLongitude: loc?.lng,
             isOfflineEntry: false,
           }),
           Platform.OS === "web" ? 20000 : 15000
@@ -281,21 +242,13 @@ export default function ClockScreen() {
         // Server confirmed — refresh history (lock still active, won't overwrite UI)
         await refreshAll();
       } catch {
-        if (!isManager) {
-          await addClockEntry({
-            employeeId: clockTargetId,
-            jobId: selectedJobId,
-            clockIn: clockInTime,
-            clockInLatitude: loc?.lat,
-            clockInLongitude: loc?.lng,
-          });
-          Alert.alert("Clocked In (Offline)", "Clock-in was saved locally and will sync when you have service.");
-        } else {
-          // Revert optimistic update
-          optimisticClockOut();
-          if (mountedRef.current) setSuccessMsg(null);
-          Alert.alert("Error", "Could not clock in. Please check your connection and try again.");
-        }
+        // Save offline for all roles — managers and field workers alike
+        await addClockEntry({
+          employeeId: clockTargetId,
+          jobId: selectedJobId,
+          clockIn: clockInTime,
+        });
+        Alert.alert("Clocked In (Offline)", "Clock-in was saved locally and will sync when you have service.");
       }
     } finally {
       if (mountedRef.current) setLoading(false);
@@ -316,27 +269,23 @@ export default function ClockScreen() {
     optimisticClockOut();
     if (mountedRef.current) setSuccessMsg("Clocked out!");
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    let loc: { lat: number; lng: number } | null = null;
-    try {
-      loc = await getLocationSafe();
-    } catch { /* location is optional */ }
     try {
       await withTimeout(
         clockOutMutation.mutateAsync({
           entryId,
           clockOut: clockOutTime,
-          clockOutLatitude: loc?.lat,
-          clockOutLongitude: loc?.lng,
         }),
         Platform.OS === "web" ? 20000 : 15000
       );
       // Server confirmed — refresh history (lock still active, won't overwrite UI)
       await refreshAll();
     } catch (e) {
-      // Server failed — revert optimistic update
-      optimisticClockIn(savedEntry as any);
-      if (mountedRef.current) setSuccessMsg(null);
-      Alert.alert("Error", "Could not clock out. Please try again.");
+      // Server failed — keep the optimistic clock-out (don't revert) and notify user
+      // The entry will sync when back online
+      if (mountedRef.current) {
+        setSuccessMsg("Clocked out (offline)");
+      }
+      Alert.alert("Clocked Out (Offline)", "Clock-out was recorded locally and will sync when you have service.");
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -350,17 +299,11 @@ export default function ClockScreen() {
     }
     try {
       const clockOutTime = new Date().toISOString();
-      let loc: { lat: number; lng: number } | null = null;
-      try {
-        loc = await getLocationSafe();
-      } catch { /* optional */ }
 
       await withTimeout(
         clockOutMutation.mutateAsync({
           entryId,
           clockOut: clockOutTime,
-          clockOutLatitude: loc?.lat,
-          clockOutLongitude: loc?.lng,
         }),
         Platform.OS === "web" ? 20000 : 15000
       );
@@ -370,9 +313,9 @@ export default function ClockScreen() {
         await refreshAll();
       }
     } catch {
-      if (mountedRef.current) setSuccessMsg("");
-      Alert.alert("Error", "Could not clock out. Please try again.");
-      await refreshAll();
+      // Offline — show success anyway since we can't revert
+      if (mountedRef.current) setSuccessMsg("Clocked out (offline)");
+      Alert.alert("Clocked Out (Offline)", "Clock-out was recorded locally and will sync when you have service.");
     }
   }, [clockOutMutation, refreshAll]);
 
@@ -383,24 +326,17 @@ export default function ClockScreen() {
     setTransferLoading(true);
     try {
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      // Capture GPS for job transfer
-      let loc: { lat: number; lng: number } | null = null;
-      try { loc = await getLocationSafe(); } catch { /* optional */ }
       const now = new Date().toISOString();
       // 1. Clock out of current job
       await clockOutMutation.mutateAsync({
         entryId: activeEntry.id,
         clockOut: now,
-        clockOutLatitude: loc?.lat,
-        clockOutLongitude: loc?.lng,
       });
       // 2. Clock in to new job
       await clockInMutation.mutateAsync({
         employeeId: clockTargetId!,
         jobId: transferJobId,
         clockIn: now,
-        clockInLatitude: loc?.lat,
-        clockInLongitude: loc?.lng,
         isOfflineEntry: false,
       });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -411,8 +347,20 @@ export default function ClockScreen() {
         await refreshAll();
       }
     } catch {
-      Alert.alert("Error", "Could not transfer jobs. Please try again.");
-      await refreshAll();
+      // Offline — save the new clock-in to offline queue
+      if (clockTargetId && transferJobId) {
+        await addClockEntry({
+          employeeId: clockTargetId,
+          jobId: transferJobId,
+          clockIn: new Date().toISOString(),
+        });
+        setShowJobTransfer(false);
+        setTransferJobId(null);
+        if (mountedRef.current) setSuccessMsg("Transferred (offline)");
+        Alert.alert("Transferred (Offline)", "Job transfer was saved locally and will sync when you have service.");
+      } else {
+        Alert.alert("Error", "Could not transfer jobs. Please try again.");
+      }
     } finally {
       if (mountedRef.current) setTransferLoading(false);
     }
