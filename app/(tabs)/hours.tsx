@@ -3,7 +3,7 @@ import {
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ActivityIndicator,
   FlatList,
   Platform,
@@ -16,28 +16,17 @@ import { ActivityIndicator,
 import { BG_CLOCK as bg_clock } from "@/constants/bg-urls";
 import { formatTime12 } from "@/lib/utils";
 import { useRouter } from "expo-router";
+import {
+  getCurrentPayrollPeriod,
+  getPreviousPeriod,
+  getNextPeriod,
+  getThisWeekRange,
+  getFullPeriodRange,
+  getCurrentWeekInPeriod,
+  type PayrollPeriod,
+} from "@/lib/payroll-periods";
 
-type Period = "week" | "biweek" | "month";
-
-function getDateRange(period: Period): { startDate: string; endDate: string; label: string } {
-  const now = new Date();
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
-  const start = new Date(now);
-  if (period === "week") {
-    start.setDate(now.getDate() - 6);
-    start.setHours(0, 0, 0, 0);
-    return { startDate: start.toISOString(), endDate: end.toISOString(), label: "This Week" };
-  } else if (period === "biweek") {
-    start.setDate(now.getDate() - 13);
-    start.setHours(0, 0, 0, 0);
-    return { startDate: start.toISOString(), endDate: end.toISOString(), label: "Last 2 Weeks" };
-  } else {
-    start.setDate(1);
-    start.setHours(0, 0, 0, 0);
-    return { startDate: start.toISOString(), endDate: end.toISOString(), label: "This Month" };
-  }
-}
+type PeriodView = "week" | "biweek";
 
 function formatDuration(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -49,8 +38,6 @@ function formatDate(dateStr: string | Date) {
   const d = new Date(dateStr);
   return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
-
-// Using formatTime12 from @/lib/utils for 12-hour format
 
 function calcEstimatedPay(totalMinutes: number, hourlyRate: string | null): string {
   if (!hourlyRate) return "—";
@@ -64,8 +51,44 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
   const colors = useColors();
   const router = useRouter();
   const { employee } = useAppAuth();
-  const [period, setPeriod] = useState<Period>("week");
-  const range = getDateRange(period);
+  const [periodView, setPeriodView] = useState<PeriodView>("week");
+  const [periodOffset, setPeriodOffset] = useState(0); // 0 = current, -1 = previous, etc.
+
+  // Calculate the payroll period based on offset
+  const payrollPeriod = useMemo(() => {
+    let period = getCurrentPayrollPeriod();
+    if (periodOffset < 0) {
+      for (let i = 0; i < Math.abs(periodOffset); i++) {
+        period = getPreviousPeriod(period);
+      }
+    } else if (periodOffset > 0) {
+      for (let i = 0; i < periodOffset; i++) {
+        period = getNextPeriod(period);
+      }
+    }
+    return period;
+  }, [periodOffset]);
+
+  // Get the date range based on view selection
+  const range = useMemo(() => {
+    if (periodView === "week") {
+      if (periodOffset === 0) {
+        // Current period: show current week
+        return getThisWeekRange(payrollPeriod);
+      } else {
+        // Past/future period: show week 1 by default
+        const now = new Date();
+        now.setHours(23, 59, 59, 999);
+        return {
+          startDate: payrollPeriod.week1Start.toISOString(),
+          endDate: (now < payrollPeriod.week1End ? now : payrollPeriod.week1End).toISOString(),
+          label: "Week 1",
+        };
+      }
+    } else {
+      return getFullPeriodRange(payrollPeriod);
+    }
+  }, [periodView, payrollPeriod, periodOffset]);
 
   // Only the owner can see their own hourly rate and estimated pay
   const canSeePayRate = employee?.role === "owner" || employee?.role === "office_manager";
@@ -77,6 +100,9 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
       endDate: range.endDate },
     { enabled: !!employee }
   );
+
+  const currentWeek = getCurrentWeekInPeriod(payrollPeriod);
+  const isCurrentPeriod = periodOffset === 0;
 
   const styles = StyleSheet.create({
     periodBtn: {
@@ -110,12 +136,24 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
       marginHorizontal: 16,
       marginBottom: 8,
       borderWidth: 1,
-      borderColor: colors.border } });
+      borderColor: colors.border },
+    navBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    navBtnText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: colors.primary,
+    },
+  });
 
-  const PERIODS: { key: Period; label: string }[] = [
-    { key: "week", label: "This Week" },
+  const PERIOD_VIEWS: { key: PeriodView; label: string }[] = [
+    { key: "week", label: isCurrentPeriod ? `Week ${currentWeek}` : "Week 1" },
     { key: "biweek", label: "2 Weeks" },
-    { key: "month", label: "This Month" },
   ];
 
   const Wrapper = embedded ? View : ScreenContainer;
@@ -123,22 +161,50 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
     <Wrapper style={embedded ? { flex: 1 } : undefined}>
         <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       {/* Header */}
-      <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
         <Text style={{ fontSize: 26, fontWeight: "700", color: colors.foreground }}>My Hours</Text>
         <Text style={{ fontSize: 14, color: colors.muted, marginTop: 2 }}>
           {employee?.name || "Employee"} · {employee?.role}
         </Text>
       </View>
 
-      {/* Period Selector */}
+      {/* Payroll Period Navigation */}
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8 }}>
+        <TouchableOpacity
+          style={styles.navBtn}
+          onPress={() => setPeriodOffset(prev => prev - 1)}
+        >
+          <Text style={styles.navBtnText}>← Previous</Text>
+        </TouchableOpacity>
+        <View style={{ alignItems: "center" }}>
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
+            {payrollPeriod.label}
+          </Text>
+          {isCurrentPeriod && (
+            <Text style={{ fontSize: 11, color: colors.success, fontWeight: "600" }}>Current Payroll</Text>
+          )}
+        </View>
+        {periodOffset < 0 ? (
+          <TouchableOpacity
+            style={styles.navBtn}
+            onPress={() => setPeriodOffset(prev => prev + 1)}
+          >
+            <Text style={styles.navBtnText}>Next →</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 90 }} />
+        )}
+      </View>
+
+      {/* Period View Selector (Week / 2 Weeks) */}
       <View style={{ flexDirection: "row", paddingHorizontal: 16, paddingBottom: 16 }}>
-        {PERIODS.map((p) => (
+        {PERIOD_VIEWS.map((p) => (
           <TouchableOpacity
             key={p.key}
-            style={[styles.periodBtn, period === p.key && styles.periodBtnActive]}
-            onPress={() => setPeriod(p.key)}
+            style={[styles.periodBtn, periodView === p.key && styles.periodBtnActive]}
+            onPress={() => setPeriodView(p.key)}
           >
-            <Text style={[styles.periodBtnText, period === p.key && styles.periodBtnTextActive]}>
+            <Text style={[styles.periodBtnText, periodView === p.key && styles.periodBtnTextActive]}>
               {p.label}
             </Text>
           </TouchableOpacity>
@@ -156,7 +222,7 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
           ListHeaderComponent={
             <View style={styles.summaryCard}>
               <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 4 }}>
-                {range.label} Summary
+                {periodView === "week" ? range.label : `Payroll Period`} Summary
               </Text>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
                 <View>
@@ -227,7 +293,9 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
                 No hours recorded
               </Text>
               <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>
-                Clock in on a jobsite to start tracking your hours.
+                {isCurrentPeriod
+                  ? "Clock in on a jobsite to start tracking your hours."
+                  : "No clock entries found for this payroll period."}
               </Text>
             </View>
           }

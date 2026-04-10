@@ -1557,3 +1557,14 @@
 - [x] Add existingEntryId to OfflineClockEntry for clock-out-only sync
 - [x] Update syncPending to call clock.out when existingEntryId is present
 - [x] Add existingEntryId to all 8 clock-out paths: self, dashboard, crew, quick, job transfer (offline + catch)
+
+## Phase 66 — Fix Timecard Payroll Period Logic
+
+- [x] Fix payroll period calculation: biweekly starting April 6 (Mon) ending April 18 (Sat)
+- [x] Paydays: April 10, April 24, May 8, etc. (every 2 weeks on Thursday)
+- [x] 1 Week view: shows current week within payroll period (Week 1 or Week 2)
+- [x] 2 Weeks view: shows full current payroll period
+- [x] Add Previous/Next payroll navigation buttons to both My Hours and Timecard screens
+- [x] Created shared lib/payroll-periods.ts utility with anchor date April 6, 2026
+- [x] Updated hours.tsx and timecard/[id].tsx to use payroll period logic
+- [x] payroll.tsx already had correct biweekly engine — no changes needed

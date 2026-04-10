@@ -20,25 +20,17 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { formatTime12, formatDateTime12, formatTimeForEdit, parse12HrTime } from "@/lib/utils";
+import {
+  getCurrentPayrollPeriod,
+  getPreviousPeriod,
+  getNextPeriod,
+  getThisWeekRange,
+  getFullPeriodRange,
+  getCurrentWeekInPeriod,
+  type PayrollPeriod,
+} from "@/lib/payroll-periods";
 
-type Period = "week" | "biweek" | "month";
-
-function getDateRange(period: Period) {
-  const now = new Date();
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
-  const start = new Date(now);
-  if (period === "week") {
-    start.setDate(now.getDate() - 6);
-  } else if (period === "biweek") {
-    start.setDate(now.getDate() - 13);
-  } else {
-    start.setDate(1);
-  }
-  start.setHours(0, 0, 0, 0);
-  const labels: Record<Period, string> = { week: "This Week", biweek: "2 Weeks", month: "This Month" };
-  return { startDate: start.toISOString(), endDate: end.toISOString(), label: labels[period] };
-}
+type PeriodView = "week" | "biweek";
 
 function formatDuration(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -71,8 +63,40 @@ export default function TimecardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const employeeId = parseInt(id || "0", 10);
   const { employee: currentUser } = useAppAuth();
-  const [period, setPeriod] = useState<Period>("biweek");
-  const range = getDateRange(period);
+  const [periodView, setPeriodView] = useState<PeriodView>("biweek");
+  const [periodOffset, setPeriodOffset] = useState(0);
+
+  const payrollPeriod = useMemo(() => {
+    let period = getCurrentPayrollPeriod();
+    if (periodOffset < 0) {
+      for (let i = 0; i < Math.abs(periodOffset); i++) {
+        period = getPreviousPeriod(period);
+      }
+    } else if (periodOffset > 0) {
+      for (let i = 0; i < periodOffset; i++) {
+        period = getNextPeriod(period);
+      }
+    }
+    return period;
+  }, [periodOffset]);
+
+  const range = useMemo(() => {
+    if (periodView === "week") {
+      if (periodOffset === 0) {
+        return getThisWeekRange(payrollPeriod);
+      } else {
+        const now = new Date();
+        now.setHours(23, 59, 59, 999);
+        return {
+          startDate: payrollPeriod.week1Start.toISOString(),
+          endDate: (now < payrollPeriod.week1End ? now : payrollPeriod.week1End).toISOString(),
+          label: "Week 1",
+        };
+      }
+    } else {
+      return getFullPeriodRange(payrollPeriod);
+    }
+  }, [periodView, payrollPeriod, periodOffset]);
 
   const isManagement = currentUser?.role === "owner" || currentUser?.role === "office_manager" || currentUser?.role === "logistics";
   const isSelf = currentUser?.id === employeeId;
@@ -301,10 +325,12 @@ export default function TimecardScreen() {
     setDeleteReason("");
   };
 
-  const PERIODS: { key: Period; label: string }[] = [
-    { key: "week", label: "Week" },
+  const currentWeek = getCurrentWeekInPeriod(payrollPeriod);
+  const isCurrentPeriod = periodOffset === 0;
+
+  const PERIOD_VIEWS: { key: PeriodView; label: string }[] = [
+    { key: "week", label: isCurrentPeriod ? `Week ${currentWeek}` : "Week 1" },
     { key: "biweek", label: "2 Weeks" },
-    { key: "month", label: "Month" },
   ];
 
   const empName = data?.employee?.name || "Employee";
@@ -352,15 +378,41 @@ export default function TimecardScreen() {
         </View>
       </View>
 
-      {/* Period Selector */}
+      {/* Payroll Period Navigation */}
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 6 }}>
+        <TouchableOpacity
+          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: colors.border }}
+          onPress={() => setPeriodOffset(prev => prev - 1)}
+        >
+          <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>← Previous</Text>
+        </TouchableOpacity>
+        <View style={{ alignItems: "center" }}>
+          <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>{payrollPeriod.label}</Text>
+          {isCurrentPeriod && (
+            <Text style={{ fontSize: 10, color: colors.success, fontWeight: "600" }}>Current Payroll</Text>
+          )}
+        </View>
+        {periodOffset < 0 ? (
+          <TouchableOpacity
+            style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: colors.border }}
+            onPress={() => setPeriodOffset(prev => prev + 1)}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>Next →</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 80 }} />
+        )}
+      </View>
+
+      {/* Period View Selector */}
       <View style={styles.periodRow}>
-        {PERIODS.map((p) => (
+        {PERIOD_VIEWS.map((p) => (
           <TouchableOpacity
             key={p.key}
-            style={[styles.periodBtn, period === p.key && styles.periodBtnActive]}
-            onPress={() => setPeriod(p.key)}
+            style={[styles.periodBtn, periodView === p.key && styles.periodBtnActive]}
+            onPress={() => setPeriodView(p.key)}
           >
-            <Text style={[styles.periodBtnText, period === p.key && styles.periodBtnTextActive]}>{p.label}</Text>
+            <Text style={[styles.periodBtnText, periodView === p.key && styles.periodBtnTextActive]}>{p.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
