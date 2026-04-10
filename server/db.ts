@@ -281,7 +281,13 @@ export async function getClockedInEmployees() {
     .leftJoin(employees, eq(clockEntries.employeeId, employees.id))
     .leftJoin(jobs, eq(clockEntries.jobId, jobs.id))
     .where(isNull(clockEntries.clockOut));
-  return rows;
+  // Ensure no null names — use fallback for deleted/missing employees
+  return rows.map(row => ({
+    ...row,
+    employeeName: row.employeeName || `Employee #${row.employeeId}`,
+    employeeRole: row.employeeRole || "laborer",
+    jobName: row.jobName || `Job #${row.jobId}`,
+  }));
 }
 
 export async function updateClockEntry(entryId: number, data: { clockIn?: Date; clockOut?: Date; jobId?: number }) {

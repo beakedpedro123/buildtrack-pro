@@ -133,10 +133,22 @@ const clockRouter = router({
     employeeId: z.number(),
     jobId: z.number(),
     clockIn: z.string(),
+    clockOut: z.string().optional(),
     isOfflineEntry: z.boolean().default(false),
     localId: z.string().optional(),
     notes: z.string().optional(),
-  })).mutation(({ input }) => db.clockIn({ ...input, clockIn: new Date(input.clockIn) })),
+  })).mutation(async ({ input }) => {
+    const { clockOut: clockOutStr, ...clockInData } = input;
+    const result = await db.clockIn({ ...clockInData, clockIn: new Date(input.clockIn) });
+    // If this is an offline entry with clockOut, also clock out immediately
+    if (clockOutStr && result) {
+      const entryId = typeof result === 'number' ? result : (result as any).insertId || (result as any).id;
+      if (entryId) {
+        await db.clockOut(entryId, new Date(clockOutStr));
+      }
+    }
+    return result;
+  }),
   out: publicProcedure.input(z.object({
     entryId: z.number(),
     clockOut: z.string(),

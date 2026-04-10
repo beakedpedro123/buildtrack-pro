@@ -1502,3 +1502,31 @@
 - [x] crew handleJobTransfer: offline → queue new clock-in
 - [x] Offline PIN verification uses cached employee PINs
 - [x] Queued entries sync automatically when service returns
+
+## Phase 64 — Critical Offline Bugs (FIXED)
+
+### Corrupted Job Names
+- [x] Job names display as single letters (C, E, H, M, R, S, U) in offline cache — FIXED: cache versioning (v2) in data-cache.ts clears old corrupted data on app update
+- [x] Diagnose data-cache.ts serialization — was caching raw tRPC/superjson wrapper instead of deserialized array
+- [x] Fix cache read/write to preserve full job objects — cache now stores deserialized arrays with version validation
+
+### Offline Clock-In Doesn't Update Home Screen
+- [x] After offline clock-in, home screen shows "Clocked In" immediately — FIXED: optimisticClockIn persists to AsyncStorage, ClockStateContext loads persisted state on mount
+- [x] ClockStateContext smartFetch distinguishes network failure from "no active entry" — won't overwrite optimistic state when offline
+- [x] Timer starts counting immediately after offline clock-in
+
+### Offline Clock-Out Doesn't Work
+- [x] All 6 clock-out paths now queue to offline queue: self clock-out, dashboard clock-out, crew clock-out, quick clock-out, job transfer clock-out, server-failure fallback
+- [x] Queue clock-out in offline queue and update UI optimistically
+- [x] Offline entries with id < 0 handled correctly (no longer blocked)
+
+### Sync Issues
+- [x] Auto-sync when connectivity returns — OfflineQueueProvider pings every 15s, syncs pending entries when online detected
+- [x] After sync, utils.invalidate() refreshes all React Query caches automatically
+- [x] App foreground event also triggers sync check
+- [x] syncPending sends clockOut field in clock.in mutation — server handles both clock-in and complete entries
+
+### "Unknown" Employee Names (Pre-existing Bug)
+- [x] Server getClockedInEmployees() now returns fallback names: "Employee #N" for deleted employees, "Job #N" for deleted jobs
+- [x] Client-side fallback in index.tsx On Site Now section: uses server join data (employeeName, employeeRole, jobName) with allEmployees lookup as secondary fallback
+- [x] Removed dead fetchAndSync code from ClockStateContext (was unused, potential confusion)

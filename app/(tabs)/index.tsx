@@ -245,8 +245,19 @@ export default function DashboardScreen() {
     if (clockingOutId) return;
     setClockingOutId(entryId);
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const clockOutTime = new Date().toISOString();
+    // Find the entry data for offline queuing
+    const entryData = (clockedIn || []).find((e: any) => e.id === entryId);
     if (!isOnline) {
-      // Skip server call when offline
+      // Queue the clock-out for later sync
+      if (entryData) {
+        await addClockEntry({
+          employeeId: entryData.employeeId,
+          jobId: entryData.jobId,
+          clockIn: typeof entryData.clockIn === 'string' ? entryData.clockIn : new Date(entryData.clockIn).toISOString(),
+          clockOut: clockOutTime,
+        });
+      }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setClockingOutId(null);
       return;
@@ -254,17 +265,25 @@ export default function DashboardScreen() {
     try {
       await clockOutMutation.mutateAsync({
         entryId,
-        clockOut: new Date().toISOString(),
+        clockOut: clockOutTime,
       });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await clockForceRefresh();
       refetchClockedIn();
     } catch {
-      // Server failed — keep optimistic update
+      // Server failed — queue offline
+      if (entryData) {
+        await addClockEntry({
+          employeeId: entryData.employeeId,
+          jobId: entryData.jobId,
+          clockIn: typeof entryData.clockIn === 'string' ? entryData.clockIn : new Date(entryData.clockIn).toISOString(),
+          clockOut: clockOutTime,
+        });
+      }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     finally { setClockingOutId(null); }
-  }, [clockingOutId, clockOutMutation, clockForceRefresh, refetchClockedIn, isOnline]);
+  }, [clockingOutId, clockOutMutation, clockForceRefresh, refetchClockedIn, isOnline, clockedIn, addClockEntry]);
   // Edit time state for Onsite Now
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editTimeStr, setEditTimeStr] = useState("");
@@ -368,33 +387,50 @@ export default function DashboardScreen() {
 
   // Direct self clock-out handler
   const handleSelfClockOut = useCallback(async () => {
-    if (!activeEntry || activeEntry.id < 0) return;
+    if (!activeEntry) return;
     if (selfClockLoading) return;
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelfClockLoading(true);
     try {
+      const clockOutTime = new Date().toISOString();
       optimisticClockOut();
       setSelfClockSuccess("Clocked out!");
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => setSelfClockSuccess(null), 4000);
-      if (!isOnline) {
-        // Skip server call when offline
+      if (!isOnline || activeEntry.id < 0) {
+        // Offline or offline-created entry — queue the clock-out
+        await addClockEntry({
+          employeeId: activeEntry.employeeId,
+          jobId: activeEntry.jobId,
+          clockIn: activeEntry.clockIn,
+          clockOut: clockOutTime,
+        });
         setSelfClockSuccess("Clocked out (offline)!");
         setTimeout(() => setSelfClockSuccess(null), 4000);
       } else {
-        await clockOutMutationSelf.mutateAsync({
-          entryId: activeEntry.id,
-          clockOut: new Date().toISOString(),
-        });
+        try {
+          await clockOutMutationSelf.mutateAsync({
+            entryId: activeEntry.id,
+            clockOut: clockOutTime,
+          });
+        } catch {
+          // Server failed — queue offline
+          await addClockEntry({
+            employeeId: activeEntry.employeeId,
+            jobId: activeEntry.jobId,
+            clockIn: activeEntry.clockIn,
+            clockOut: clockOutTime,
+          });
+          setSelfClockSuccess("Clocked out (offline)!");
+          setTimeout(() => setSelfClockSuccess(null), 4000);
+        }
       }
     } catch {
-      // Keep optimistic clock-out — don't revert on failure
-      setSelfClockSuccess("Clocked out (offline)!");
-      setTimeout(() => setSelfClockSuccess(null), 4000);
+      // Keep optimistic clock-out
     } finally {
       setSelfClockLoading(false);
     }
-  }, [activeEntry, selfClockLoading, clockOutMutationSelf, optimisticClockOut]);
+  }, [activeEntry, selfClockLoading, clockOutMutationSelf, optimisticClockOut, isOnline, addClockEntry]);
   const { data: myJobs } = trpc.jobs.forEmployee.useQuery(
     { employeeId: employee?.id || 0 },
     { enabled: !!employee && !isManagement }
