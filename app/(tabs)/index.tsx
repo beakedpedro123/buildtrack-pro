@@ -220,7 +220,8 @@ export default function DashboardScreen() {
     getCached<any[]>(CACHE_KEYS.ACTIVE_JOBS).then((d) => { if (d) setCachedActiveJobs(d); });
   }, []);
 
-  const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
+  // Fetch active jobs for ALL roles — management uses it for dashboard, field roles use it as fallback for self clock-in
+  const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 30000 });
 
   // Cache activeJobs when fetched
   useEffect(() => {
@@ -233,6 +234,9 @@ export default function DashboardScreen() {
     const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 15000, refetchInterval: 30000 });
   // Voice goal creator state
   const [showVoiceGoals, setShowVoiceGoals] = useState(false);
+  // Offline queue (used by clock-in/out handlers)
+  const { addClockEntry, isOnline } = useOfflineQueue();
+
   // Clock-out from dashboard — uses forceRefresh from ClockStateContext for instant UI update
   const { forceRefresh: clockForceRefresh } = useClockState();
   const clockOutMutation = trpc.clock.out.useMutation();
@@ -240,8 +244,14 @@ export default function DashboardScreen() {
   const handleDashboardClockOut = useCallback(async (entryId: number) => {
     if (clockingOutId) return;
     setClockingOutId(entryId);
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!isOnline) {
+      // Skip server call when offline
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setClockingOutId(null);
+      return;
+    }
     try {
-      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await clockOutMutation.mutateAsync({
         entryId,
         clockOut: new Date().toISOString(),
@@ -250,12 +260,11 @@ export default function DashboardScreen() {
       await clockForceRefresh();
       refetchClockedIn();
     } catch {
-      // Offline — show friendly message instead of error
+      // Server failed — keep optimistic update
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Clocked Out (Offline)", "Clock-out was recorded locally and will sync when you have service.");
     }
     finally { setClockingOutId(null); }
-  }, [clockingOutId, clockOutMutation, clockForceRefresh, refetchClockedIn]);
+  }, [clockingOutId, clockOutMutation, clockForceRefresh, refetchClockedIn, isOnline]);
   // Edit time state for Onsite Now
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editTimeStr, setEditTimeStr] = useState("");
@@ -292,7 +301,6 @@ export default function DashboardScreen() {
 
   // Use the shared local-first clock state (instant updates, no stale data)
   const { activeEntry, optimisticClockIn, optimisticClockOut } = useClockState();
-  const { addClockEntry } = useOfflineQueue();
   const clockInMutation = trpc.clock.in.useMutation();
   const clockOutMutationSelf = trpc.clock.out.useMutation();
 
@@ -325,21 +333,33 @@ export default function DashboardScreen() {
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => setSelfClockSuccess(null), 4000);
 
-      try {
-        await clockInMutation.mutateAsync({
-          employeeId: employee.id,
-          jobId: selfClockJobId,
-          clockIn: clockInTime,
-          isOfflineEntry: false,
-        });
-      } catch {
-        // Save offline
+      if (!isOnline) {
+        // Skip server call entirely when offline
         await addClockEntry({
           employeeId: employee.id,
           jobId: selfClockJobId,
           clockIn: clockInTime,
         });
-        Alert.alert("Clocked In (Offline)", "Saved locally — will sync when you have service.");
+        setSelfClockSuccess("Clocked in (offline)!");
+        setTimeout(() => setSelfClockSuccess(null), 4000);
+      } else {
+        try {
+          await clockInMutation.mutateAsync({
+            employeeId: employee.id,
+            jobId: selfClockJobId,
+            clockIn: clockInTime,
+            isOfflineEntry: false,
+          });
+        } catch {
+          // Server failed — save offline
+          await addClockEntry({
+            employeeId: employee.id,
+            jobId: selfClockJobId,
+            clockIn: clockInTime,
+          });
+          setSelfClockSuccess("Clocked in (offline)!");
+          setTimeout(() => setSelfClockSuccess(null), 4000);
+        }
       }
     } finally {
       setSelfClockLoading(false);
@@ -357,13 +377,20 @@ export default function DashboardScreen() {
       setSelfClockSuccess("Clocked out!");
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => setSelfClockSuccess(null), 4000);
-      await clockOutMutationSelf.mutateAsync({
-        entryId: activeEntry.id,
-        clockOut: new Date().toISOString(),
-      });
+      if (!isOnline) {
+        // Skip server call when offline
+        setSelfClockSuccess("Clocked out (offline)!");
+        setTimeout(() => setSelfClockSuccess(null), 4000);
+      } else {
+        await clockOutMutationSelf.mutateAsync({
+          entryId: activeEntry.id,
+          clockOut: new Date().toISOString(),
+        });
+      }
     } catch {
-      // Keep optimistic clock-out — don't revert on offline
-      Alert.alert("Clocked Out (Offline)", "Clock-out was recorded locally and will sync when you have service.");
+      // Keep optimistic clock-out — don't revert on failure
+      setSelfClockSuccess("Clocked out (offline)!");
+      setTimeout(() => setSelfClockSuccess(null), 4000);
     } finally {
       setSelfClockLoading(false);
     }
@@ -381,8 +408,8 @@ export default function DashboardScreen() {
     }
   }, [myJobs]);
 
-  // Use server data if available, fall back to cache
-  const effectiveMyJobs = myJobs || cachedMyJobs || [];
+  // Use server data if available, fall back to cache, then fall back to active jobs
+  const effectiveMyJobs = (myJobs && myJobs.length > 0) ? myJobs : (cachedMyJobs && cachedMyJobs.length > 0) ? cachedMyJobs : (activeJobs || cachedActiveJobs || []);
   const effectiveActiveJobs = activeJobs || cachedActiveJobs || [];
 
   // Auto-select first job if only one available

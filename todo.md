@@ -1481,3 +1481,24 @@
 - [x] Show proper offline status and queued entry count (OfflineBanner component)
 - [x] Fixed all 4 clock-out paths to not revert optimistic updates on network failure
 - [x] Fixed job transfer to save to offline queue on failure
+
+## Phase 63 — Fix Foreman/Laborer Clock-In + Offline Mode
+
+### Foreman Clock-In Bug (Online)
+- [x] Foreman sees "No assigned jobsites" — FIXED: getJobsForEmployee falls back to all active jobs
+- [x] effectiveMyJobs triple fallback: myJobs → cachedMyJobs → activeJobs
+- [x] activeJobs query now enabled for ALL roles (not just management)
+- [x] All 5 roles can clock in with service
+
+### Offline Mode (Complete Fix)
+- [x] Offline-first pattern: check isOnline BEFORE calling server on all 6 clock paths
+- [x] Mutation retry set to 0 so failures are instant (no 15s delay)
+- [x] handleSelfClockIn: offline → addClockEntry directly
+- [x] handleSelfClockOut: offline → skip server, keep optimistic
+- [x] handleDashboardClockOut: offline → skip server
+- [x] crew handleClockIn: offline → addClockEntry directly
+- [x] crew handleClockOut: offline → skip server, keep optimistic
+- [x] crew handleQuickClockOut: offline → skip server
+- [x] crew handleJobTransfer: offline → queue new clock-in
+- [x] Offline PIN verification uses cached employee PINs
+- [x] Queued entries sync automatically when service returns

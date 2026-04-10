@@ -178,7 +178,11 @@ export async function getJobsForEmployee(employeeId: number) {
   if (!db) return [];
   const assignments = await db.select().from(jobAssignments)
     .where(eq(jobAssignments.employeeId, employeeId));
-  if (assignments.length === 0) return [];
+  if (assignments.length === 0) {
+    // No explicit assignments — return ALL active jobs as fallback
+    // This ensures foremen and laborers can always clock in
+    return db.select().from(jobs).where(eq(jobs.status, "active")).orderBy(jobs.name);
+  }
   const jobIds = assignments.map((a) => a.jobId);
   return db.select().from(jobs).where(
     and(or(...jobIds.map((id) => eq(jobs.id, id))), eq(jobs.status, "active"))

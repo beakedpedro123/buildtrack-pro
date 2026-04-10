@@ -94,6 +94,10 @@ export default function RootLayout() {
             // Keep unused query data in cache for 5 minutes
             gcTime: 5 * 60_000,
           },
+          mutations: {
+            // Never retry mutations — fail fast so offline queue catches immediately
+            retry: 0,
+          },
         },
       }),
   );
