@@ -5,12 +5,13 @@
  * can show data even when offline. Data is refreshed whenever a
  * successful server response is received.
  *
- * v2: Added cache versioning to clear corrupted data from older versions.
+ * v4: Aggressive validation — checks EVERY item in job arrays, not just first.
+ *     Force clears all old caches on version bump.
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const CACHE_PREFIX = "buildtrack_cache_";
-const CACHE_VERSION = 3; // Increment this to invalidate all caches (v3: force clear after job name corruption)
+const CACHE_VERSION = 4; // v4: validate ALL items, force clear
 const CACHE_VERSION_KEY = "buildtrack_cache_version";
 
 interface CacheEntry<T> {
@@ -25,7 +26,6 @@ async function ensureCacheVersion(): Promise<void> {
     const stored = await AsyncStorage.getItem(CACHE_VERSION_KEY);
     const storedVersion = stored ? parseInt(stored, 10) : 0;
     if (storedVersion < CACHE_VERSION) {
-      // Clear all cache keys
       const allKeys = await AsyncStorage.getAllKeys();
       const cacheKeys = allKeys.filter((k) => k.startsWith(CACHE_PREFIX));
       if (cacheKeys.length > 0) {
@@ -42,6 +42,18 @@ async function ensureCacheVersion(): Promise<void> {
 let versionChecked = false;
 const versionCheckPromise = ensureCacheVersion().then(() => { versionChecked = true; });
 
+/** Validate that a job array has proper objects with name fields */
+function isValidJobArray(data: any[]): boolean {
+  if (data.length === 0) return false;
+  // Check EVERY item, not just the first
+  for (const item of data) {
+    if (!item || typeof item !== "object") return false;
+    if (!item.name || typeof item.name !== "string" || item.name.length < 2) return false;
+    if (typeof item.id !== "number") return false;
+  }
+  return true;
+}
+
 export async function getCached<T>(key: string): Promise<T | null> {
   try {
     if (!versionChecked) await versionCheckPromise;
@@ -50,13 +62,11 @@ export async function getCached<T>(key: string): Promise<T | null> {
     const entry: CacheEntry<T> = JSON.parse(raw);
     // Reject entries from old cache versions
     if (!entry.version || entry.version < CACHE_VERSION) return null;
-    // Validate data is an array if expected (catch corrupted data)
     if (entry.data === null || entry.data === undefined) return null;
-    // Validate job arrays have proper name fields on read (extra safety)
-    if (Array.isArray(entry.data) && entry.data.length > 0 && (key === CACHE_KEYS.ACTIVE_JOBS || key === CACHE_KEYS.MY_JOBS)) {
-      const first = entry.data[0] as any;
-      if (!first.name || typeof first.name !== 'string' || first.name.length < 2) {
-        // Corrupted cache — remove it
+    // Validate job arrays on read
+    if (Array.isArray(entry.data) && (key === CACHE_KEYS.ACTIVE_JOBS || key === CACHE_KEYS.MY_JOBS)) {
+      if (!isValidJobArray(entry.data)) {
+        // Corrupted — remove it
         await AsyncStorage.removeItem(CACHE_PREFIX + key);
         return null;
       }
@@ -70,22 +80,19 @@ export async function getCached<T>(key: string): Promise<T | null> {
 export async function setCache<T>(key: string, data: T): Promise<void> {
   try {
     if (!versionChecked) await versionCheckPromise;
-    // Don't cache empty/null/undefined data
     if (data === null || data === undefined) return;
-    // Don't cache empty arrays
     if (Array.isArray(data) && data.length === 0) return;
-    // Validate job arrays have proper name fields (prevent caching corrupted data)
-    if (Array.isArray(data) && data.length > 0 && (key === CACHE_KEYS.ACTIVE_JOBS || key === CACHE_KEYS.MY_JOBS)) {
-      const first = data[0] as any;
-      if (!first.name || typeof first.name !== 'string' || first.name.length < 2) {
-        // Data looks corrupted — don't cache it
+    // Validate job arrays before caching
+    if (Array.isArray(data) && (key === CACHE_KEYS.ACTIVE_JOBS || key === CACHE_KEYS.MY_JOBS)) {
+      if (!isValidJobArray(data)) {
+        // Don't cache corrupted data
         return;
       }
     }
     const entry: CacheEntry<T> = { data, timestamp: Date.now(), version: CACHE_VERSION };
     await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
   } catch {
-    // Silently fail — caching is best-effort
+    // Silently fail
   }
 }
 
@@ -101,7 +108,17 @@ export async function isCacheFresh(key: string, ttlMs = 24 * 60 * 60 * 1000): Pr
   }
 }
 
-// Cache keys
+/** Force clear all caches — use when data is known to be corrupted */
+export async function clearAllCaches(): Promise<void> {
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const cacheKeys = allKeys.filter((k) => k.startsWith(CACHE_PREFIX));
+    if (cacheKeys.length > 0) {
+      await AsyncStorage.multiRemove(cacheKeys);
+    }
+  } catch {}
+}
+
 export const CACHE_KEYS = {
   ACTIVE_JOBS: "active_jobs",
   ALL_EMPLOYEES: "all_employees",

@@ -52,7 +52,7 @@ export default function ClockScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
-  const { addClockEntry, pendingCount, isOnline } = useOfflineQueue();
+  const { addClockEntry } = useOfflineQueue();
   const [now, setNow] = useState(new Date());
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -231,36 +231,27 @@ export default function ClockScreen() {
       if (mountedRef.current) setSuccessMsg("Clocked in!");
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      if (!isOnline) {
-        // Skip server call entirely when we know we're offline
+      // ALWAYS try server first, fall back to offline only on failure
+      try {
+        await withTimeout(
+          clockInMutation.mutateAsync({
+            employeeId: clockTargetId,
+            jobId: selectedJobId,
+            clockIn: clockInTime,
+            isOfflineEntry: false,
+          }),
+          Platform.OS === "web" ? 20000 : 15000
+        );
+        // Server confirmed — refresh history
+        await refreshAll();
+      } catch {
+        // Server failed — save to offline queue for later sync
         await addClockEntry({
           employeeId: clockTargetId,
           jobId: selectedJobId,
           clockIn: clockInTime,
         });
-        if (mountedRef.current) setSuccessMsg("Clocked in (offline)!");
-      } else {
-        try {
-          await withTimeout(
-            clockInMutation.mutateAsync({
-              employeeId: clockTargetId,
-              jobId: selectedJobId,
-              clockIn: clockInTime,
-              isOfflineEntry: false,
-            }),
-            Platform.OS === "web" ? 20000 : 15000
-          );
-          // Server confirmed — refresh history (lock still active, won't overwrite UI)
-          await refreshAll();
-        } catch {
-          // Server failed — save offline for all roles
-          await addClockEntry({
-            employeeId: clockTargetId,
-            jobId: selectedJobId,
-            clockIn: clockInTime,
-          });
-          if (mountedRef.current) setSuccessMsg("Clocked in (offline)!");
-        }
+        if (mountedRef.current) setSuccessMsg("Clocked in (saved for sync)!");
       }
     } finally {
       if (mountedRef.current) setLoading(false);
@@ -281,19 +272,18 @@ export default function ClockScreen() {
     optimisticClockOut();
     if (mountedRef.current) setSuccessMsg("Clocked out!");
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (!isOnline || entryId < 0) {
-      // Offline or offline-created entry — queue the clock-out
+    if (entryId < 0) {
+      // Offline-created entry — queue the complete entry for sync
       await addClockEntry({
         employeeId: savedEntry.employeeId,
         jobId: savedEntry.jobId,
         clockIn: typeof savedEntry.clockIn === 'string' ? savedEntry.clockIn : new Date(savedEntry.clockIn).toISOString(),
         clockOut: clockOutTime,
-        existingEntryId: entryId > 0 ? entryId : undefined,
       });
-      if (mountedRef.current) setSuccessMsg("Clocked out (offline)");
       if (mountedRef.current) setLoading(false);
       return;
     }
+    // ALWAYS try server first, fall back to offline only on failure
     try {
       await withTimeout(
         clockOutMutation.mutateAsync({
@@ -302,24 +292,21 @@ export default function ClockScreen() {
         }),
         Platform.OS === "web" ? 20000 : 15000
       );
-      // Server confirmed — refresh history (lock still active, won't overwrite UI)
       await refreshAll();
-    } catch (e) {
-      // Server failed — queue offline with existingEntryId so sync closes the right entry
+    } catch {
+      // Server failed — queue with existingEntryId so sync closes the right entry
       await addClockEntry({
         employeeId: savedEntry.employeeId,
         jobId: savedEntry.jobId,
         clockIn: typeof savedEntry.clockIn === 'string' ? savedEntry.clockIn : new Date(savedEntry.clockIn).toISOString(),
         clockOut: clockOutTime,
-        existingEntryId: entryId > 0 ? entryId : undefined,
+        existingEntryId: entryId,
       });
-      if (mountedRef.current) {
-        setSuccessMsg("Clocked out (offline)");
-      }
+      if (mountedRef.current) setSuccessMsg("Clocked out (saved for sync)");
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [activeEntry, loading, clockOutMutation, refreshAll, optimisticClockOut, optimisticClockIn, isOnline, addClockEntry]);
+  }, [activeEntry, loading, clockOutMutation, refreshAll, optimisticClockOut, optimisticClockIn, addClockEntry]);
 
   const handleQuickClockOut = useCallback(async (entryId: number) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -327,20 +314,7 @@ export default function ClockScreen() {
     const clockOutTime = new Date().toISOString();
     // Find entry data for offline queuing
     const entryData = (allClockedIn || []).find((e: any) => e.id === entryId);
-    if (!isOnline) {
-      // Queue the clock-out for later sync
-      if (entryData) {
-        await addClockEntry({
-          employeeId: entryData.employeeId,
-          jobId: entryData.jobId,
-          clockIn: typeof entryData.clockIn === 'string' ? entryData.clockIn : new Date(entryData.clockIn).toISOString(),
-          clockOut: clockOutTime,
-          existingEntryId: entryId > 0 ? entryId : undefined,
-        });
-      }
-      if (mountedRef.current) setSuccessMsg("Clocked out (offline)");
-      return;
-    }
+    // ALWAYS try server first, fall back to offline only on failure
     try {
       await withTimeout(
         clockOutMutation.mutateAsync({
@@ -352,7 +326,7 @@ export default function ClockScreen() {
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (mountedRef.current) await refreshAll();
     } catch {
-      // Server failed — queue offline with existingEntryId
+      // Server failed — queue with existingEntryId so sync closes the right entry
       if (entryData) {
         await addClockEntry({
           employeeId: entryData.employeeId,
@@ -362,9 +336,9 @@ export default function ClockScreen() {
           existingEntryId: entryId > 0 ? entryId : undefined,
         });
       }
-      if (mountedRef.current) setSuccessMsg("Clocked out (offline)");
+      if (mountedRef.current) setSuccessMsg("Clocked out (saved for sync)");
     }
-  }, [clockOutMutation, refreshAll, isOnline, allClockedIn, addClockEntry]);
+  }, [clockOutMutation, refreshAll, allClockedIn, addClockEntry]);
 
   /* ─── Mid-day job transfer: clock out of current job, clock in to new job ─── */
   const handleJobTransfer = useCallback(async () => {
@@ -375,53 +349,30 @@ export default function ClockScreen() {
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const now = new Date().toISOString();
 
-      if (!isOnline) {
-        // Offline: queue clock-out of current job + clock-in to new job
-        if (clockTargetId) {
-          // Queue the clock-out for the current entry
-          await addClockEntry({
-            employeeId: activeEntry.employeeId,
-            jobId: activeEntry.jobId,
-            clockIn: typeof activeEntry.clockIn === 'string' ? activeEntry.clockIn : new Date(activeEntry.clockIn).toISOString(),
-            clockOut: now,
-            existingEntryId: activeEntry.id > 0 ? activeEntry.id : undefined,
-          });
-          // Queue the clock-in for the new job
-          await addClockEntry({
-            employeeId: clockTargetId,
-            jobId: transferJobId,
-            clockIn: now,
-          });
-        }
-        setShowJobTransfer(false);
-        setTransferJobId(null);
-        if (mountedRef.current) setSuccessMsg("Transferred (offline)");
-      } else {
-        // 1. Clock out of current job
-        await clockOutMutation.mutateAsync({
-          entryId: activeEntry.id,
-          clockOut: now,
-        });
-        // 2. Clock in to new job
-        await clockInMutation.mutateAsync({
-          employeeId: clockTargetId!,
-          jobId: transferJobId,
-          clockIn: now,
-          isOfflineEntry: false,
-        });
-        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setShowJobTransfer(false);
-        setTransferJobId(null);
-        if (mountedRef.current) {
-          setSuccessMsg("Transferred to new job!");
-          await refreshAll();
-        }
+      // ALWAYS try server first, fall back to offline only on failure
+      // 1. Clock out of current job
+      await clockOutMutation.mutateAsync({
+        entryId: activeEntry.id,
+        clockOut: now,
+      });
+      // 2. Clock in to new job
+      await clockInMutation.mutateAsync({
+        employeeId: clockTargetId!,
+        jobId: transferJobId,
+        clockIn: now,
+        isOfflineEntry: false,
+      });
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowJobTransfer(false);
+      setTransferJobId(null);
+      if (mountedRef.current) {
+        setSuccessMsg("Transferred to new job!");
+        await refreshAll();
       }
     } catch {
       // Server failed — queue both clock-out and new clock-in
       if (clockTargetId && transferJobId) {
         const fallbackNow = new Date().toISOString();
-        // Queue clock-out of current job
         await addClockEntry({
           employeeId: activeEntry.employeeId,
           jobId: activeEntry.jobId,
@@ -429,7 +380,6 @@ export default function ClockScreen() {
           clockOut: fallbackNow,
           existingEntryId: activeEntry.id > 0 ? activeEntry.id : undefined,
         });
-        // Queue clock-in to new job
         await addClockEntry({
           employeeId: clockTargetId,
           jobId: transferJobId,
@@ -437,14 +387,14 @@ export default function ClockScreen() {
         });
         setShowJobTransfer(false);
         setTransferJobId(null);
-        if (mountedRef.current) setSuccessMsg("Transferred (offline)");
+        if (mountedRef.current) setSuccessMsg("Transferred (saved for sync)");
       } else {
         Alert.alert("Error", "Could not transfer jobs. Please try again.");
       }
     } finally {
       if (mountedRef.current) setTransferLoading(false);
     }
-  }, [activeEntry, transferJobId, transferLoading, clockOutMutation, clockInMutation, clockTargetId, refreshAll, isOnline, addClockEntry]);
+  }, [activeEntry, transferJobId, transferLoading, clockOutMutation, clockInMutation, clockTargetId, refreshAll, addClockEntry]);
 
   /* ─── ClockShark-style: Edit clock-in, clock-out, and job ─── */
   const startEditEntry = (entry: any) => {

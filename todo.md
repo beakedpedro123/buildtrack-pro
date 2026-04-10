@@ -1568,3 +1568,12 @@
 - [x] Created shared lib/payroll-periods.ts utility with anchor date April 6, 2026
 - [x] Updated hours.tsx and timecard/[id].tsx to use payroll period logic
 - [x] payroll.tsx already had correct biweekly engine — no changes needed
+
+## Phase 67 — Major Overhaul: Fix Clock System + Job Names (FIXED)
+
+- [x] Fix job name corruption: cache v4 force-clears ALL old data, validates EVERY item in arrays, rejects names < 2 chars
+- [x] Fix offline detection: removed ALL isOnline checks from clock-in/out — now ALWAYS tries server first, falls back to offline queue only on actual failure
+- [x] Fix timer display: formatDuration now returns "0h 0m" for negative values (prevents -1h -1m)
+- [x] Remove offline queue interference: isOnline no longer used in clock handlers (index.tsx + clock.tsx)
+- [x] Clean up OfflineBanner: only shows when pendingCount > 0, no more false "offline" banner with 5G
+- [x] All 8 clock paths updated: self clock-in/out, dashboard clock-out, crew clock-in/out, quick clock-out, job transfer — all try server first
