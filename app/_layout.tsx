@@ -25,6 +25,7 @@ import { trpc, createTRPCClient } from "@/lib/trpc";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
 import { PivotChat } from "@/components/pivot-chat";
 import { LanguageProvider } from "@/lib/language-context";
+import { setGlobalQueryClient } from "@/lib/query-client-ref";
 
 // Set up notification handler at module level (before any component mounts)
 if (Platform.OS !== "web") {
@@ -81,8 +82,8 @@ export default function RootLayout() {
 
   // Create clients once and reuse them
   const [queryClient] = useState(
-    () =>
-      new QueryClient({
+    () => {
+      const qc = new QueryClient({
         defaultOptions: {
           queries: {
             // Disable automatic refetching on window focus for mobile
@@ -99,7 +100,10 @@ export default function RootLayout() {
             retry: 0,
           },
         },
-      }),
+      });
+      setGlobalQueryClient(qc);
+      return qc;
+    },
   );
   const [trpcClient] = useState(() => createTRPCClient());
 

@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getGlobalQueryClient } from "@/lib/query-client-ref";
 import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from "react";
 import { Platform } from "react-native";
 import { trpc } from "./trpc";
@@ -129,6 +130,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshedRef.current = false; // Reset for next login
     setEmployee(null);
     await AsyncStorage.removeItem(STORAGE_KEY);
+    // Clear all React Query cache so next login gets fresh data
+    const qc = getGlobalQueryClient();
+    if (qc) {
+      qc.clear();
+    }
     // Cancel meeting reminder on logout
     if (Platform.OS !== "web") {
       cancelFridayMeetingReminder().catch(() => {});

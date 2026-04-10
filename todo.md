@@ -1577,3 +1577,13 @@
 - [x] Remove offline queue interference: isOnline no longer used in clock handlers (index.tsx + clock.tsx)
 - [x] Clean up OfflineBanner: only shows when pendingCount > 0, no more false "offline" banner with 5G
 - [x] All 8 clock paths updated: self clock-in/out, dashboard clock-out, crew clock-in/out, quick clock-out, job transfer — all try server first
+
+## Phase 68 — Final Fix: Clock-Out Sync + Job Names + Timer
+
+- [x] Fix: stale dashboard data — clear React Query cache on logout via globalQueryClient.clear()
+- [x] Fix: created lib/query-client-ref.ts to avoid circular imports
+- [x] Fix: allClockedIn query now staleTime=0, refetchInterval=15s, refetchOnMount/WindowFocus=always
+- [x] Fix: job names — added String() wrapper, normalization with fallback to `Job #N`, flexShrink layout fix
+- [x] Fix: applied same effectiveJobs normalization to clock.tsx
+- [x] Verified: server clock.out mutation works correctly — updates clockOut field by entryId
+- [x] Verified: syncPending calls clock.out when existingEntryId is present

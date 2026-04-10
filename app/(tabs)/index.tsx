@@ -232,7 +232,7 @@ export default function DashboardScreen() {
     }
   }, [activeJobs]);
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
-    const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 15000, refetchInterval: 30000 });
+    const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 0, refetchInterval: 15000, refetchOnMount: "always", refetchOnWindowFocus: "always" });
   // Voice goal creator state
   const [showVoiceGoals, setShowVoiceGoals] = useState(false);
   // Offline queue (used by clock-in/out handlers — only as fallback when server fails)
@@ -426,8 +426,9 @@ export default function DashboardScreen() {
   // Use server data if available, fall back to cache, then fall back to active jobs
   // Safety: filter out any entries with missing/corrupted names
   const rawMyJobs = (myJobs && myJobs.length > 0) ? myJobs : (cachedMyJobs && cachedMyJobs.length > 0) ? cachedMyJobs : (activeJobs || cachedActiveJobs || []);
-  const effectiveMyJobs = (rawMyJobs as any[]).filter((j: any) => j && j.name && typeof j.name === 'string' && j.name.length >= 2);
-  const effectiveActiveJobs = ((activeJobs || cachedActiveJobs || []) as any[]).filter((j: any) => j && j.name && typeof j.name === 'string' && j.name.length >= 2);
+  // Normalize: ensure every job has a string name, coerce if needed
+  const effectiveMyJobs = (rawMyJobs as any[]).filter((j: any) => j && j.id).map((j: any) => ({ ...j, name: String(j.name || j.jobName || `Job #${j.id}`) })).filter((j: any) => j.name.length >= 2);
+  const effectiveActiveJobs = ((activeJobs || cachedActiveJobs || []) as any[]).filter((j: any) => j && j.id).map((j: any) => ({ ...j, name: String(j.name || j.jobName || `Job #${j.id}`) })).filter((j: any) => j.name.length >= 2);
 
   // Auto-select first job if only one available
   useEffect(() => {
@@ -615,11 +616,11 @@ export default function DashboardScreen() {
                       <TouchableOpacity
                         key={job.id}
                         onPress={() => setSelfClockJobId(job.id)}
-                        style={{ flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 10, marginBottom: 6, borderWidth: 1.5, borderColor: selfClockJobId === job.id ? colors.primary : colors.border, backgroundColor: selfClockJobId === job.id ? colors.primary + "15" : colors.surface }}
+                        style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, marginBottom: 6, borderWidth: 1.5, borderColor: selfClockJobId === job.id ? colors.primary : colors.border, backgroundColor: selfClockJobId === job.id ? colors.primary + "15" : colors.surface }}
                       >
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: selfClockJobId === job.id ? colors.primary : colors.muted, marginRight: 10 }} />
-                        <Text style={{ flex: 1, fontSize: 14, fontWeight: selfClockJobId === job.id ? "700" : "500", color: selfClockJobId === job.id ? colors.primary : colors.foreground }}>{job.name}</Text>
-                        {selfClockJobId === job.id && <Text style={{ color: colors.primary, fontSize: 16 }}>✓</Text>}
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: selfClockJobId === job.id ? colors.primary : colors.muted, marginRight: 12, flexShrink: 0 }} />
+                        <Text style={{ flex: 1, flexShrink: 1, fontSize: 15, lineHeight: 20, fontWeight: selfClockJobId === job.id ? "700" : "500", color: selfClockJobId === job.id ? colors.primary : colors.foreground }} numberOfLines={1}>{String(job.name)}</Text>
+                        {selfClockJobId === job.id && <Text style={{ color: colors.primary, fontSize: 16, marginLeft: 8, flexShrink: 0 }}>✓</Text>}
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -743,11 +744,11 @@ export default function DashboardScreen() {
                       <TouchableOpacity
                         key={job.id}
                         onPress={() => setSelfClockJobId(job.id)}
-                        style={{ flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 10, marginBottom: 6, borderWidth: 1.5, borderColor: selfClockJobId === job.id ? colors.primary : colors.border, backgroundColor: selfClockJobId === job.id ? colors.primary + "15" : colors.surface }}
+                        style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, marginBottom: 6, borderWidth: 1.5, borderColor: selfClockJobId === job.id ? colors.primary : colors.border, backgroundColor: selfClockJobId === job.id ? colors.primary + "15" : colors.surface }}
                       >
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: selfClockJobId === job.id ? colors.primary : colors.muted, marginRight: 10 }} />
-                        <Text style={{ flex: 1, fontSize: 14, fontWeight: selfClockJobId === job.id ? "700" : "500", color: selfClockJobId === job.id ? colors.primary : colors.foreground }}>{job.name}</Text>
-                        {selfClockJobId === job.id && <Text style={{ color: colors.primary, fontSize: 16 }}>✓</Text>}
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: selfClockJobId === job.id ? colors.primary : colors.muted, marginRight: 12, flexShrink: 0 }} />
+                        <Text style={{ flex: 1, flexShrink: 1, fontSize: 15, lineHeight: 20, fontWeight: selfClockJobId === job.id ? "700" : "500", color: selfClockJobId === job.id ? colors.primary : colors.foreground }} numberOfLines={1}>{String(job.name)}</Text>
+                        {selfClockJobId === job.id && <Text style={{ color: colors.primary, fontSize: 16, marginLeft: 8, flexShrink: 0 }}>✓</Text>}
                       </TouchableOpacity>
                     ))}
                   </View>

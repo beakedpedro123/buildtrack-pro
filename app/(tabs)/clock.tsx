@@ -157,12 +157,12 @@ export default function ClockScreen() {
   }, [allEmployees]);
 
   // Use server data if available, fall back to cache
-  // Safety: filter out any entries with missing/corrupted names
+  // Safety: normalize job names — ensure every job has a string name
   const rawJobs = jobs || cachedJobs || [];
-  const effectiveJobs = (rawJobs as any[]).filter((j: any) => j && j.name && typeof j.name === 'string' && j.name.length >= 2);
+  const effectiveJobs = (rawJobs as any[]).filter((j: any) => j && j.id).map((j: any) => ({ ...j, name: String(j.name || j.jobName || `Job #${j.id}`) })).filter((j: any) => j.name.length >= 2);
   const effectiveEmployees = allEmployees || cachedEmployees || [];
   const { data: allClockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(
-    undefined, { enabled: canClockCrew, refetchInterval: 20000, staleTime: 0 }
+    undefined, { enabled: canClockCrew, refetchInterval: 15000, staleTime: 0, refetchOnMount: "always", refetchOnWindowFocus: "always" }
   );
 
   const activeEmployees = useMemo(() => {
@@ -661,7 +661,7 @@ export default function ClockScreen() {
                   style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: transferJobId === job.id ? colors.primary : colors.border, backgroundColor: transferJobId === job.id ? colors.primary + "15" : colors.surface }}
                   onPress={() => setTransferJobId(job.id)}
                 >
-                  <Text style={{ fontSize: 14, fontWeight: "600", flex: 1, color: transferJobId === job.id ? colors.primary : colors.foreground }}>{job.name}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "600", flex: 1, color: transferJobId === job.id ? colors.primary : colors.foreground }}>{String(job.name)}</Text>
                   {job.address && <Text style={{ fontSize: 12, color: colors.muted }}>{job.address}</Text>}
                   {transferJobId === job.id && <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 18, marginLeft: 8 }}>✓</Text>}
                 </TouchableOpacity>
@@ -788,7 +788,7 @@ export default function ClockScreen() {
                               style={{ paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: editJobId === j.id ? colors.primary + "15" : "transparent" }}
                             >
                               <Text style={{ fontSize: 13, fontWeight: editJobId === j.id ? "700" : "500", color: editJobId === j.id ? colors.primary : colors.foreground }}>
-                                {editJobId === j.id ? "✓ " : ""}{j.name}
+                                {editJobId === j.id ? "✓ " : ""}{String(j.name)}
                               </Text>
                             </TouchableOpacity>
                           ))}
@@ -891,7 +891,7 @@ export default function ClockScreen() {
                   >
                     <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: selectedJobId === job.id ? colors.primary : colors.muted, marginRight: 10 }} />
                     <Text style={[styles.jobOptionText, { color: selectedJobId === job.id ? colors.primary : colors.foreground }]}>
-                      {job.name}
+                      {String(job.name)}
                     </Text>
                     {selectedJobId === job.id && <Text style={{ color: colors.primary, fontSize: 18 }}>✓</Text>}
                   </TouchableOpacity>
@@ -1051,7 +1051,7 @@ export default function ClockScreen() {
                               style={{ paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: editJobId === j.id ? colors.primary + "15" : "transparent" }}
                             >
                               <Text style={{ fontSize: 13, fontWeight: editJobId === j.id ? "700" : "500", color: editJobId === j.id ? colors.primary : colors.foreground }}>
-                                {editJobId === j.id ? "✓ " : ""}{j.name}
+                                {editJobId === j.id ? "✓ " : ""}{String(j.name)}
                               </Text>
                             </TouchableOpacity>
                           ))}
