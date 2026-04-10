@@ -2,7 +2,8 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 // Load all knowledge base files at startup
-const dataDir = join(import.meta.dirname || __dirname, "data");
+// Use process.cwd() + "server/data" for reliable resolution in both dev (tsx) and production (esbuild)
+const dataDir = join(process.cwd(), "server", "data");
 
 let steelProfiles: any = {};
 let simpsonHardware: any = {};

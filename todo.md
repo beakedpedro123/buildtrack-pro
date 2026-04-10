@@ -1426,3 +1426,11 @@
 - [x] Beam diagram endpoint serves at /api/beam-diagram?designation=W18x50
 - [x] Updated system prompt for all roles (owner, foreman, laborer) to include diagram in responses
 - [x] GPS coordinates now captured on ALL clock-out paths (self clock-out, dashboard clock-out, job transfer)
+
+## Phase 60 — Fix Pivot Steel Profile Lookup Bug
+
+- [x] lookupSteelProfile returns "not found" for valid designations like W14x48
+- [x] ROOT CAUSE: import.meta.dirname is undefined in tsx runtime, so data dir resolved to just "data" instead of "server/data"
+- [x] FIX: Changed to process.cwd() + "server/data" for reliable resolution in both dev and production
+- [x] Verified: lookupSteelProfile now correctly returns all W-shape data (936 total shapes loaded)
+- [ ] Test steel lookup end-to-end via Pivot chat on deployed version
