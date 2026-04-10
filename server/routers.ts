@@ -1027,15 +1027,8 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
         const totalWeekCost = laborByJob.reduce((s: number, j: any) => s + (j.totalCost || 0), 0);
         const kpis = await db.getAllKpis();
 
-        // Fetch recent daily reports and materials for richer context
+        // Fetch recent daily reports for richer context
         const recentReports = await db.getRecentReports(15);
-        const recentMaterials: any[] = [];
-        for (const job of activeJobs.slice(0, 10)) {
-          const mats = await db.getMaterialsForJob(job.id);
-          if (mats.length > 0) {
-            recentMaterials.push({ jobName: job.name, materials: mats.slice(0, 10) });
-          }
-        }
 
         // Build per-job labor breakdown
         const laborBreakdown = laborByJob.slice(0, 10).map((j: any) =>
@@ -1048,12 +1041,6 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
           return `  - ${r.reportDate ? new Date(r.reportDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" }) : "Unknown date"} | ${job?.name || "Job #" + r.jobId} | ${r.notes ? r.notes.substring(0, 80) : "No notes"}`;
         }).join("\n");
 
-        // Build materials summary
-        const materialsSummary = recentMaterials.map((jm: any) =>
-          `  ${jm.jobName}:\n` + jm.materials.map((m: any) =>
-            `    - ${m.materialName}: ${m.quantity} ${m.unit} @ $${m.unitCost || "?"}/unit (${m.supplier || "no supplier"})`
-          ).join("\n")
-        ).join("\n");
 
         // Build employee roster with roles and rates
         const employeeRoster = activeEmployees.slice(0, 30).map((e: any) =>
@@ -1076,8 +1063,6 @@ ${employeeRoster || "  No active employees."}
 ### Recent Daily Reports
 ${reportsSummary || "  No recent reports."}
 
-### Materials Used on Active Jobs
-${materialsSummary || "  No material entries recorded yet."}
 `;
       } catch {
         businessContext = "(Business data temporarily unavailable)";
@@ -1117,7 +1102,8 @@ You are not just a tool — you are each employee's PERSONAL assistant who grows
 
 ## Web Search Capability
 You have the ability to search the web for real-time information. When a user asks about:
-- Current material prices, lumber costs, steel prices in Utah
+- Current lumber prices in Utah (framing lumber, engineered wood products)
+- AISC steel beam reference data (W-shapes, dimensions, weights, section properties) for steel erection work
 - Weather conditions
 - Building codes, OSHA regulations
 - General knowledge questions you're not sure about
@@ -1328,7 +1314,7 @@ Current page: ${input.context?.currentPage || "unknown"} — tailor your respons
 
 Always be specific, use real numbers from the live data above, and proactively surface insights. If labor costs are high, mention it. If a job looks over budget, flag it. If safety talks are behind schedule, bring it up.
 
-When discussing pricing, note that Utah lumber and steel prices fluctuate — always suggest verifying current quotes.
+When discussing pricing, note that Utah lumber prices fluctuate — always suggest verifying current quotes. For steel, provide beam specifications and properties from the AISC reference table, not purchase pricing (the company erects steel, they don't purchase it).
 
 If an attachment is provided, analyze it thoroughly and reference specific details from it in your response.`;
     } else if (isForeman) {

@@ -42,19 +42,16 @@ export function lookupSteelProfile(designation: string): string {
       const shapeDesig = shape.designation.toUpperCase().replace(/\s+/g, "").replace("X", "x");
       if (shapeDesig === d || shapeDesig.replace("W", "") === d.replace("W", "")) {
         return `**${shape.designation}** (W-Shape — Wide Flange)\n` +
-          `- Weight: ${shape.weight_lb_ft} lbs/ft\n` +
-          `- Depth (d): ${shape.d_in} in\n` +
-          `- Flange Width (bf): ${shape.bf_in} in\n` +
-          `- Flange Thickness (tf): ${shape.tf_in} in\n` +
-          `- Web Thickness (tw): ${shape.tw_in} in\n` +
-          `- Area: ${shape.A_in2} in²\n` +
-          `- Moment of Inertia Ix: ${shape.Ix_in4} in⁴\n` +
-          `- Moment of Inertia Iy: ${shape.Iy_in4} in⁴\n` +
-          `- Section Modulus Sx: ${shape.Sx_in3} in³\n` +
-          `- Section Modulus Sy: ${shape.Sy_in3} in³\n` +
-          `- Radius of Gyration rx: ${shape.rx_in} in\n` +
-          `- Radius of Gyration ry: ${shape.ry_in} in\n` +
-          `- Plastic Modulus Zx: ${shape.Zx_in3} in³\n` +
+          `- Weight: ${shape.weight} lbs/ft\n` +
+          `- Depth (d): ${shape.depth} in\n` +
+          `- Flange Width (bf): ${shape.width} in\n` +
+          `- Flange Thickness (tf): ${shape.tf} in\n` +
+          `- Web Thickness (tw): ${shape.tw} in\n` +
+          `- Area: ${shape.area} in²\n` +
+          `- Moment of Inertia Ix: ${shape.Ix} in⁴\n` +
+          `- Moment of Inertia Iy: ${shape.Iy} in⁴\n` +
+          `- Section Modulus Sx: ${shape.Sx} in³\n` +
+          `- Section Modulus Sy: ${shape.Sy} in³\n` +
           `Source: AISC Steel Construction Manual, 16th Edition`;
       }
     }

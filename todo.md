@@ -1405,3 +1405,12 @@
 - [x] Home screen uses effectiveMyJobs/effectiveActiveJobs fallback from cache
 - [x] Auto-sync pending offline actions when connection is restored
 - [x] TypeScript check passes with 0 errors
+
+## Phase 58 — Fix Pivot Steel Data Access
+
+- [x] Removed steel purchase/material data from Pivot's businessContext (Pedro erects steel, doesn't buy it)
+- [x] Fixed lookupSteelProfile W-shape field name mismatch (weight_lb_ft→weight, d_in→depth, bf_in→width, etc.)
+- [x] Pivot can now correctly answer "what's a W18x45?" using the AISC JSON data with real field names
+- [x] Updated system prompt to clarify steel erection vs steel purchasing
+- [x] Pivot can still identify beams from photos via vision + construction_lookup tool
+- [x] TypeScript check passes with 0 errors
