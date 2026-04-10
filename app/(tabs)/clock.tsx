@@ -383,14 +383,24 @@ export default function ClockScreen() {
     setTransferLoading(true);
     try {
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // Capture GPS for job transfer
+      let loc: { lat: number; lng: number } | null = null;
+      try { loc = await getLocationSafe(); } catch { /* optional */ }
       const now = new Date().toISOString();
       // 1. Clock out of current job
-      await clockOutMutation.mutateAsync({ entryId: activeEntry.id, clockOut: now });
+      await clockOutMutation.mutateAsync({
+        entryId: activeEntry.id,
+        clockOut: now,
+        clockOutLatitude: loc?.lat,
+        clockOutLongitude: loc?.lng,
+      });
       // 2. Clock in to new job
       await clockInMutation.mutateAsync({
         employeeId: clockTargetId!,
         jobId: transferJobId,
         clockIn: now,
+        clockInLatitude: loc?.lat,
+        clockInLongitude: loc?.lng,
         isOfflineEntry: false,
       });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

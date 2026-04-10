@@ -476,7 +476,11 @@ export function PivotChat() {
       }
       // Add the image
       const altText = match[1];
-      const imageUrl = match[2];
+      let imageUrl = match[2];
+      // Resolve relative URLs (e.g., /api/beam-diagram) to absolute using API base
+      if (imageUrl.startsWith("/api/")) {
+        imageUrl = `${getApiBaseUrl()}${imageUrl}`;
+      }
       parts.push(
         <TouchableOpacity key={partKey++} onPress={() => Linking.openURL(imageUrl)} activeOpacity={0.8}>
           <Image

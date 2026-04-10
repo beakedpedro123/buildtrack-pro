@@ -142,6 +142,33 @@ async function startServer() {
     }
   });
 
+  // Steel beam cross-section diagram endpoint
+  app.get("/api/beam-diagram", async (req: Request, res: Response) => {
+    try {
+      const designation = (req.query.designation as string || "").trim();
+      if (!designation) {
+        res.status(400).json({ error: "designation query param required (e.g., W18x45)" });
+        return;
+      }
+      const { generateBeamDiagramForDesignation } = await import("../beam-diagram");
+      const fs = await import("fs");
+      const path = await import("path");
+      const profilesPath = path.join(process.cwd(), "server", "data", "aisc-steel-profiles.json");
+      const profiles = JSON.parse(fs.readFileSync(profilesPath, "utf-8"));
+      const svg = generateBeamDiagramForDesignation(designation, profiles);
+      if (!svg) {
+        res.status(404).json({ error: `Beam ${designation} not found in AISC database` });
+        return;
+      }
+      res.setHeader("Content-Type", "image/svg+xml");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.send(svg);
+    } catch (err: any) {
+      console.error("Beam diagram error:", err);
+      res.status(500).json({ error: "Failed to generate diagram", details: err?.message });
+    }
+  });
+
   app.use(
     "/api/trpc",
     createExpressMiddleware({

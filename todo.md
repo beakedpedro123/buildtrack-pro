@@ -1377,8 +1377,8 @@
 
 ## Phase 55 — GPS Logging Bug
 
-- [ ] GPS permission is requested but location is never actually logged on clock-in/clock-out
-- [ ] Store GPS coordinates with each clock entry for job site verification
+- [x] GPS permission is requested and location IS now logged on clock-in/clock-out (all paths)
+- [x] Store GPS coordinates with each clock entry for job site verification
 
 ## Phase 56 — Enable File Attachments for Foreman & Laborer
 
@@ -1414,3 +1414,15 @@
 - [x] Updated system prompt to clarify steel erection vs steel purchasing
 - [x] Pivot can still identify beams from photos via vision + construction_lookup tool
 - [x] TypeScript check passes with 0 errors
+
+## Phase 59 — Steel Beam Cross-Section Diagrams in Pivot
+
+- [x] Build server-side SVG generator for W-beam cross-section diagrams with labeled dimensions
+- [x] Include: flange width (bf), depth (d), web thickness (tw), flange thickness (tf), area, weight/ft
+- [x] Wire diagram generation into Pivot's construction_lookup tool for steel_profile lookups
+- [x] Ensure diagram is returned as an image in Pivot's chat response via absolute URL
+- [x] Support all 244 W-shapes in the AISC database
+- [x] Fixed SVG XML encoding (font-family style attributes)
+- [x] Beam diagram endpoint serves at /api/beam-diagram?designation=W18x50
+- [x] Updated system prompt for all roles (owner, foreman, laborer) to include diagram in responses
+- [x] GPS coordinates now captured on ALL clock-out paths (self clock-out, dashboard clock-out, job transfer)

@@ -1236,6 +1236,13 @@ When asked about ANY steel beam, section, or structural profile:
 3. If the user asks "what W-beam for a 20ft span with 2000 lb load?" — calculate the required section modulus, then look up profiles that meet it
 4. Common Utah custom home beam sizes: W8x10, W8x18, W10x22, W10x33, W12x26, W12x40, W14x26, W14x48, W16x31, W18x35, W21x44, W24x55
 5. For ridge beams, hip beams, and garage door headers — always specify the design load before recommending a size
+6. BEAM CROSS-SECTION DIAGRAM — MANDATORY:
+   - The tool result will include a full absolute URL to a professional SVG cross-section diagram
+   - You MUST include this diagram in your response as a markdown image: ![Designation Cross-Section](FULL_URL)
+   - Place the diagram image FIRST in your response, BEFORE the text data, so the user sees the visual immediately
+   - The diagram shows the I-beam shape with labeled dimensions: depth (d), flange width (bf), web thickness (tw), flange thickness (tf), area, and weight per foot
+   - This is like the AISC reference app — workers can see exact beam dimensions at a glance
+   - NEVER skip the diagram — it's the most useful part of the response for field workers
 
 ## Utah Custom Home Construction Knowledge
 You have comprehensive knowledge of Utah building requirements for custom homes:
@@ -1337,6 +1344,15 @@ ${calculationBlock}
 - Explain how to use BuildTrack Pro features
 - Perform construction calculations (lumber takeoffs, material estimates, labor projections)
 - Voice-to-goals: when the foreman speaks their goals to you, summarize them clearly and use the create_goal tool to push them directly to the Goals tab after confirmation
+- Look up AISC steel beam data (W-shapes) — use construction_lookup with type="steel_profile" for any beam question
+
+## Steel Beam Lookup — ALWAYS Use the Database
+When asked about ANY steel beam (e.g., "what's a W18x50?", "W12x26 specs"):
+1. ALWAYS use the construction_lookup tool with type="steel_profile" and the designation
+2. The tool returns full AISC data PLUS a cross-section diagram URL
+3. You MUST include the diagram as a markdown image FIRST: ![Designation Cross-Section](FULL_URL)
+4. Then list the key specs: depth, flange width, web thickness, flange thickness, weight, area, Ix, Sx
+5. NEVER skip the diagram — it's the most useful part for field workers
 
 ## Voice Goal Creation
 When the foreman describes goals by voice or text, you MUST:
@@ -1367,6 +1383,15 @@ ${goalsContext}
 - Help with basic calculations (measurements, material counts, board feet, stud counts)
 - Voice-to-goals: when you describe goals by voice, Pivot will summarize and push them to the Goals tab
 - Search the web for construction info, material prices, and safety guidelines
+- Look up AISC steel beam data (W-shapes) — use construction_lookup with type="steel_profile" for any beam question
+
+## Steel Beam Lookup
+When asked about ANY steel beam (e.g., "what's a W18x50?"):
+1. Use the construction_lookup tool with type="steel_profile" and the designation
+2. The tool returns AISC data PLUS a cross-section diagram URL
+3. Include the diagram as a markdown image FIRST: ![Designation Cross-Section](FULL_URL)
+4. Then list the key specs: depth, flange width, web thickness, weight, area
+5. NEVER skip the diagram — it helps you see the beam dimensions at a glance
 
 ## Voice Goal Creation
 When the laborer describes goals by voice or text, you MUST:
@@ -1670,6 +1695,13 @@ Keep responses short, practical, and encouraging. You're here to help them succe
           const lengthFt = args.length_ft || 0;
           if (lookupType === "steel_profile") {
             toolResult = lookupSteelProfile(query);
+            // Append beam diagram URL so Pivot can share it with the user
+            if (toolResult && !toolResult.startsWith("No ") && !toolResult.startsWith("Could not")) {
+              // Use the production base URL for absolute diagram URLs that render on mobile
+              const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL || "https://buildtrack-dnjxcthz.manus.space";
+              const diagramUrl = `${apiBase.replace(/\/$/, "")}/api/beam-diagram?designation=${encodeURIComponent(query)}`;
+              toolResult += `\n\n📐 BEAM CROSS-SECTION DIAGRAM URL: ${diagramUrl}\nYou MUST include this diagram in your response as a markdown image BEFORE the text data:\n![${query} Cross-Section](${diagramUrl})\nThis shows the I-beam cross-section with all labeled dimensions (depth, flange width, web thickness, flange thickness, area, weight).`;
+            }
           } else if (lookupType === "steel_weight" && lengthFt > 0) {
             toolResult = calculateSteelWeight(query, lengthFt);
           } else if (lookupType === "simpson_hardware") {

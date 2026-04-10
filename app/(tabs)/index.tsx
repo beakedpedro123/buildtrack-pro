@@ -243,9 +243,38 @@ export default function DashboardScreen() {
     setClockingOutId(entryId);
     try {
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await clockOutMutation.mutateAsync({ entryId, clockOut: new Date().toISOString() });
+      // Capture GPS on clock-out
+      let loc: { lat: number; lng: number } | null = null;
+      try {
+        if (Platform.OS === "web") {
+          if (navigator?.geolocation) {
+            loc = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
+              const timer = setTimeout(() => resolve(null), 3000);
+              navigator.geolocation.getCurrentPosition(
+                (pos) => { clearTimeout(timer); resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
+                () => { clearTimeout(timer); resolve(null); },
+                { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+              );
+            });
+          }
+        } else {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === "granted") {
+            const position = await Promise.race([
+              Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+            ]);
+            loc = { lat: position.coords.latitude, lng: position.coords.longitude };
+          }
+        }
+      } catch { /* location is optional */ }
+      await clockOutMutation.mutateAsync({
+        entryId,
+        clockOut: new Date().toISOString(),
+        clockOutLatitude: loc?.lat,
+        clockOutLongitude: loc?.lng,
+      });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Force refresh through the shared state context (invalidates + refetches all clock queries)
       await clockForceRefresh();
       refetchClockedIn();
     } catch { Alert.alert("Error", "Could not clock out. Please try again."); }
@@ -378,11 +407,42 @@ export default function DashboardScreen() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelfClockLoading(true);
     try {
+      // Capture GPS on clock-out
+      let loc: { lat: number; lng: number } | null = null;
+      try {
+        if (Platform.OS === "web") {
+          if (navigator?.geolocation) {
+            loc = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
+              const timer = setTimeout(() => resolve(null), 3000);
+              navigator.geolocation.getCurrentPosition(
+                (pos) => { clearTimeout(timer); resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
+                () => { clearTimeout(timer); resolve(null); },
+                { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+              );
+            });
+          }
+        } else {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === "granted") {
+            const position = await Promise.race([
+              Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+            ]);
+            loc = { lat: position.coords.latitude, lng: position.coords.longitude };
+          }
+        }
+      } catch { /* location is optional */ }
+
       optimisticClockOut();
       setSelfClockSuccess("Clocked out!");
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => setSelfClockSuccess(null), 4000);
-      await clockOutMutationSelf.mutateAsync({ entryId: activeEntry.id, clockOut: new Date().toISOString() });
+      await clockOutMutationSelf.mutateAsync({
+        entryId: activeEntry.id,
+        clockOut: new Date().toISOString(),
+        clockOutLatitude: loc?.lat,
+        clockOutLongitude: loc?.lng,
+      });
     } catch {
       Alert.alert("Error", "Could not clock out. Please try again.");
     } finally {
