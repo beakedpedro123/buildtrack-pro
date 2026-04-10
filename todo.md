@@ -1530,3 +1530,30 @@
 - [x] Server getClockedInEmployees() now returns fallback names: "Employee #N" for deleted employees, "Job #N" for deleted jobs
 - [x] Client-side fallback in index.tsx On Site Now section: uses server join data (employeeName, employeeRole, jobName) with allEmployees lookup as secondary fallback
 - [x] Removed dead fetchAndSync code from ClockStateContext (was unused, potential confusion)
+
+## Phase 65 — Critical Bug Fixes (User Report Apr 9)
+
+### Job Names Not Showing on Foreman Home Screen
+- [ ] Job selector radio buttons show empty text — job names missing
+- [ ] Diagnose: check how jobs are fetched and rendered in foreman/laborer home screen
+- [ ] Fix job name rendering in the job selector list
+
+### Offline Clock-Out Not Syncing to Server
+- [ ] Ricardo clocked out offline, app showed "Clocked out (offline)" but server still shows him clocked in
+- [ ] Diagnose: check syncPending — does it handle clock-out entries correctly?
+- [ ] The offline queue stores entries with clockOut field, but sync may not be processing them as clock-outs
+- [ ] Fix: ensure queued entries with clockOut actually close the server-side clock entry
+
+### Updated Analysis (User Clarification)
+- [ ] Job names blank on FRESH login — not a cache issue, happens for ALL profiles with service
+- [ ] Clock-out said "offline" even with 5G service — connectivity check may be failing
+- [ ] Need to fix connectivity check so it doesn't falsely report offline
+- [ ] Need to ensure clock-out goes directly to server when online
+
+## Phase 65 — Critical Bug Fixes
+
+- [x] Fix job names blank on home screen job selector (all profiles) — cache v3, validation on read/write, safety filter on effectiveMyJobs
+- [x] Fix offline clock-out sync: close original entry instead of creating duplicate
+- [x] Add existingEntryId to OfflineClockEntry for clock-out-only sync
+- [x] Update syncPending to call clock.out when existingEntryId is present
+- [x] Add existingEntryId to all 8 clock-out paths: self, dashboard, crew, quick, job transfer (offline + catch)

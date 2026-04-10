@@ -157,7 +157,9 @@ export default function ClockScreen() {
   }, [allEmployees]);
 
   // Use server data if available, fall back to cache
-  const effectiveJobs = jobs || cachedJobs || [];
+  // Safety: filter out any entries with missing/corrupted names
+  const rawJobs = jobs || cachedJobs || [];
+  const effectiveJobs = (rawJobs as any[]).filter((j: any) => j && j.name && typeof j.name === 'string' && j.name.length >= 2);
   const effectiveEmployees = allEmployees || cachedEmployees || [];
   const { data: allClockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(
     undefined, { enabled: canClockCrew, refetchInterval: 20000, staleTime: 0 }
@@ -286,6 +288,7 @@ export default function ClockScreen() {
         jobId: savedEntry.jobId,
         clockIn: typeof savedEntry.clockIn === 'string' ? savedEntry.clockIn : new Date(savedEntry.clockIn).toISOString(),
         clockOut: clockOutTime,
+        existingEntryId: entryId > 0 ? entryId : undefined,
       });
       if (mountedRef.current) setSuccessMsg("Clocked out (offline)");
       if (mountedRef.current) setLoading(false);
@@ -302,12 +305,13 @@ export default function ClockScreen() {
       // Server confirmed — refresh history (lock still active, won't overwrite UI)
       await refreshAll();
     } catch (e) {
-      // Server failed — queue offline and keep the optimistic clock-out
+      // Server failed — queue offline with existingEntryId so sync closes the right entry
       await addClockEntry({
         employeeId: savedEntry.employeeId,
         jobId: savedEntry.jobId,
         clockIn: typeof savedEntry.clockIn === 'string' ? savedEntry.clockIn : new Date(savedEntry.clockIn).toISOString(),
         clockOut: clockOutTime,
+        existingEntryId: entryId > 0 ? entryId : undefined,
       });
       if (mountedRef.current) {
         setSuccessMsg("Clocked out (offline)");
@@ -331,6 +335,7 @@ export default function ClockScreen() {
           jobId: entryData.jobId,
           clockIn: typeof entryData.clockIn === 'string' ? entryData.clockIn : new Date(entryData.clockIn).toISOString(),
           clockOut: clockOutTime,
+          existingEntryId: entryId > 0 ? entryId : undefined,
         });
       }
       if (mountedRef.current) setSuccessMsg("Clocked out (offline)");
@@ -347,13 +352,14 @@ export default function ClockScreen() {
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (mountedRef.current) await refreshAll();
     } catch {
-      // Server failed — queue offline
+      // Server failed — queue offline with existingEntryId
       if (entryData) {
         await addClockEntry({
           employeeId: entryData.employeeId,
           jobId: entryData.jobId,
           clockIn: typeof entryData.clockIn === 'string' ? entryData.clockIn : new Date(entryData.clockIn).toISOString(),
           clockOut: clockOutTime,
+          existingEntryId: entryId > 0 ? entryId : undefined,
         });
       }
       if (mountedRef.current) setSuccessMsg("Clocked out (offline)");
@@ -378,6 +384,7 @@ export default function ClockScreen() {
             jobId: activeEntry.jobId,
             clockIn: typeof activeEntry.clockIn === 'string' ? activeEntry.clockIn : new Date(activeEntry.clockIn).toISOString(),
             clockOut: now,
+            existingEntryId: activeEntry.id > 0 ? activeEntry.id : undefined,
           });
           // Queue the clock-in for the new job
           await addClockEntry({
@@ -420,6 +427,7 @@ export default function ClockScreen() {
           jobId: activeEntry.jobId,
           clockIn: typeof activeEntry.clockIn === 'string' ? activeEntry.clockIn : new Date(activeEntry.clockIn).toISOString(),
           clockOut: fallbackNow,
+          existingEntryId: activeEntry.id > 0 ? activeEntry.id : undefined,
         });
         // Queue clock-in to new job
         await addClockEntry({

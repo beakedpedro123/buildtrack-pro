@@ -12,6 +12,9 @@ export interface OfflineClockEntry {
   clockOut?: string;
   notes?: string;
   createdAt: string;
+  /** When set, this entry represents a clock-OUT of an existing server entry.
+   *  syncPending will call clock.out instead of clock.in for these entries. */
+  existingEntryId?: number;
 }
 
 interface OfflineQueueContextType {
@@ -98,17 +101,25 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     const remaining: OfflineClockEntry[] = [];
     for (const entry of currentQueue) {
       try {
-        // Send the full entry including clockOut if present
-        // The server clock.in mutation handles both clock-in and complete entries
-        await utils.client.clock.in.mutate({
-          employeeId: entry.employeeId,
-          jobId: entry.jobId,
-          clockIn: entry.clockIn,
-          clockOut: entry.clockOut || undefined,
-          isOfflineEntry: true,
-          localId: entry.localId,
-          notes: entry.notes,
-        });
+        if (entry.existingEntryId && entry.existingEntryId > 0 && entry.clockOut) {
+          // This is a clock-OUT of an existing server entry
+          // Call clock.out to close the ORIGINAL entry on the server
+          await utils.client.clock.out.mutate({
+            entryId: entry.existingEntryId,
+            clockOut: entry.clockOut,
+          });
+        } else {
+          // This is a new clock-in (or a complete clock-in + clock-out)
+          await utils.client.clock.in.mutate({
+            employeeId: entry.employeeId,
+            jobId: entry.jobId,
+            clockIn: entry.clockIn,
+            clockOut: entry.clockOut || undefined,
+            isOfflineEntry: true,
+            localId: entry.localId,
+            notes: entry.notes,
+          });
+        }
       } catch {
         remaining.push(entry);
       }

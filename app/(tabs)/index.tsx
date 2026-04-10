@@ -256,6 +256,8 @@ export default function DashboardScreen() {
           jobId: entryData.jobId,
           clockIn: typeof entryData.clockIn === 'string' ? entryData.clockIn : new Date(entryData.clockIn).toISOString(),
           clockOut: clockOutTime,
+          // Tell sync to call clock.out on the original server entry
+          existingEntryId: entryId > 0 ? entryId : undefined,
         });
       }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -271,13 +273,14 @@ export default function DashboardScreen() {
       await clockForceRefresh();
       refetchClockedIn();
     } catch {
-      // Server failed — queue offline
+      // Server failed — queue offline with existingEntryId
       if (entryData) {
         await addClockEntry({
           employeeId: entryData.employeeId,
           jobId: entryData.jobId,
           clockIn: typeof entryData.clockIn === 'string' ? entryData.clockIn : new Date(entryData.clockIn).toISOString(),
           clockOut: clockOutTime,
+          existingEntryId: entryId > 0 ? entryId : undefined,
         });
       }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -404,6 +407,8 @@ export default function DashboardScreen() {
           jobId: activeEntry.jobId,
           clockIn: activeEntry.clockIn,
           clockOut: clockOutTime,
+          // If this is a server entry (id > 0), tell sync to call clock.out instead of clock.in
+          existingEntryId: activeEntry.id > 0 ? activeEntry.id : undefined,
         });
         setSelfClockSuccess("Clocked out (offline)!");
         setTimeout(() => setSelfClockSuccess(null), 4000);
@@ -414,12 +419,13 @@ export default function DashboardScreen() {
             clockOut: clockOutTime,
           });
         } catch {
-          // Server failed — queue offline
+          // Server failed — queue offline with existingEntryId so sync closes the right entry
           await addClockEntry({
             employeeId: activeEntry.employeeId,
             jobId: activeEntry.jobId,
             clockIn: activeEntry.clockIn,
             clockOut: clockOutTime,
+            existingEntryId: activeEntry.id > 0 ? activeEntry.id : undefined,
           });
           setSelfClockSuccess("Clocked out (offline)!");
           setTimeout(() => setSelfClockSuccess(null), 4000);
@@ -445,8 +451,10 @@ export default function DashboardScreen() {
   }, [myJobs]);
 
   // Use server data if available, fall back to cache, then fall back to active jobs
-  const effectiveMyJobs = (myJobs && myJobs.length > 0) ? myJobs : (cachedMyJobs && cachedMyJobs.length > 0) ? cachedMyJobs : (activeJobs || cachedActiveJobs || []);
-  const effectiveActiveJobs = activeJobs || cachedActiveJobs || [];
+  // Safety: filter out any entries with missing/corrupted names
+  const rawMyJobs = (myJobs && myJobs.length > 0) ? myJobs : (cachedMyJobs && cachedMyJobs.length > 0) ? cachedMyJobs : (activeJobs || cachedActiveJobs || []);
+  const effectiveMyJobs = (rawMyJobs as any[]).filter((j: any) => j && j.name && typeof j.name === 'string' && j.name.length >= 2);
+  const effectiveActiveJobs = ((activeJobs || cachedActiveJobs || []) as any[]).filter((j: any) => j && j.name && typeof j.name === 'string' && j.name.length >= 2);
 
   // Auto-select first job if only one available
   useEffect(() => {

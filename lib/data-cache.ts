@@ -10,7 +10,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const CACHE_PREFIX = "buildtrack_cache_";
-const CACHE_VERSION = 2; // Increment this to invalidate all caches
+const CACHE_VERSION = 3; // Increment this to invalidate all caches (v3: force clear after job name corruption)
 const CACHE_VERSION_KEY = "buildtrack_cache_version";
 
 interface CacheEntry<T> {
@@ -52,6 +52,15 @@ export async function getCached<T>(key: string): Promise<T | null> {
     if (!entry.version || entry.version < CACHE_VERSION) return null;
     // Validate data is an array if expected (catch corrupted data)
     if (entry.data === null || entry.data === undefined) return null;
+    // Validate job arrays have proper name fields on read (extra safety)
+    if (Array.isArray(entry.data) && entry.data.length > 0 && (key === CACHE_KEYS.ACTIVE_JOBS || key === CACHE_KEYS.MY_JOBS)) {
+      const first = entry.data[0] as any;
+      if (!first.name || typeof first.name !== 'string' || first.name.length < 2) {
+        // Corrupted cache — remove it
+        await AsyncStorage.removeItem(CACHE_PREFIX + key);
+        return null;
+      }
+    }
     return entry.data;
   } catch {
     return null;
@@ -65,6 +74,14 @@ export async function setCache<T>(key: string, data: T): Promise<void> {
     if (data === null || data === undefined) return;
     // Don't cache empty arrays
     if (Array.isArray(data) && data.length === 0) return;
+    // Validate job arrays have proper name fields (prevent caching corrupted data)
+    if (Array.isArray(data) && data.length > 0 && (key === CACHE_KEYS.ACTIVE_JOBS || key === CACHE_KEYS.MY_JOBS)) {
+      const first = data[0] as any;
+      if (!first.name || typeof first.name !== 'string' || first.name.length < 2) {
+        // Data looks corrupted — don't cache it
+        return;
+      }
+    }
     const entry: CacheEntry<T> = { data, timestamp: Date.now(), version: CACHE_VERSION };
     await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
   } catch {
