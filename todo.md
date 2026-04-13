@@ -1595,3 +1595,19 @@
 - [x] JobPicker uses its own AsyncStorage cache (separate from data-cache.ts) with strict validation
 - [x] Applied to both foreman and laborer views
 - [x] Simple tappable buttons with job name as inline text — no flex tricks, no shrinking
+
+## Phase 70 — Fix Missing Employee Names in Database
+
+- [x] Look up employees #270005 and #270002 in database — confirmed these are ghost IDs (not real employees)
+- [x] Identified 7 ghost employee IDs total: 90001, 240001, 270001, 270002, 270003, 270005, 270006
+- [x] Deleted all 29 ghost clock entries — real employees already have correct hours
+- [x] Verified: all 15 currently clocked-in employees now show real names
+
+## Phase 71 — Fix Pivot Date/Timezone Issues
+
+- [x] Investigate Pivot system prompt for date injection — no date was injected at all!
+- [x] Fix timezone handling — added explicit Mountain Time date/time block to ALL system prompts (management, foreman, laborer)
+- [x] Fix goals created by Pivot getting wrong dates — added year validation + auto-correction in create_goal handler
+- [x] Fix weekOf calculation to use Mountain Time (noon UTC) instead of server EDT midnight
+- [x] Updated create_goal tool description to include current year dynamically
+- [x] Fix any existing goals with bad dates — corrected goal #630001 deadline from 2024 to 2026

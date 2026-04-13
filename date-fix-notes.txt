@@ -1,0 +1,24 @@
+DATE/TIMEZONE ISSUES FOUND:
+
+1. Server timezone is America/New_York (EDT, UTC-4) but Pedro is in Mountain Time (MDT, UTC-6)
+2. new Date() returns EDT time. setHours(0,0,0,0) sets midnight EDT = 10PM Sunday MDT
+3. weekOf dates are inconsistent:
+   - Some goals have weekOf 2026-04-06T04:00:00Z (midnight EDT = correct Monday in UTC)
+   - Some goals have weekOf 2026-04-06T10:00:00Z (6AM EDT = midnight MDT... but stored as UTC)
+   - Some goals have weekOf 2026-04-13T04:00:00Z (midnight EDT Monday)
+   - Some goals have weekOf 2026-04-13T10:00:00Z (6AM EDT = midnight MDT)
+4. Goal ID 630001 has deadline 2024-04-08T21:00:00Z - WRONG YEAR (2024 instead of 2026)
+   This is the "Discuss clock-out issue with foreman" goal created on 2026-04-08
+   The LLM generated a 2024 date because it didn't know the current year!
+
+5. No explicit "today's date" is injected into Pivot's system prompt for ALL roles
+   - Management gets businessContext with "as of 4/13/2026" but that's buried in data
+   - Foreman and laborer get NO date information at all
+   - The LLM has to guess the current date/year
+
+FIXES NEEDED:
+A. Add explicit date/time block at the TOP of every system prompt with Mountain Time
+B. Fix weekOf calculation to use Mountain Time (America/Denver)
+C. Fix deadline in create_goal tool description to include current year example
+D. Add date validation in create_goal handler to reject dates before current year
+E. Fix the one bad goal (630001) deadline from 2024 to 2026

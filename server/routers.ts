@@ -1077,6 +1077,15 @@ ${reportsSummary || "  No recent reports."}
       }
     }
 
+    // ── Current date/time in Mountain Time (Utah) ────────────────────────────
+    const mtnNow = new Date();
+    const mtnDateStr = mtnNow.toLocaleDateString("en-US", { timeZone: "America/Denver", weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    const mtnTimeStr = mtnNow.toLocaleTimeString("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "2-digit", hour12: true });
+    const mtnShortDate = mtnNow.toLocaleDateString("en-US", { timeZone: "America/Denver", year: "numeric", month: "2-digit", day: "2-digit" });
+    // Get the actual year in Mountain Time for deadline validation
+    const mtnYear = parseInt(mtnNow.toLocaleDateString("en-US", { timeZone: "America/Denver", year: "numeric" }));
+    const dateTimeBlock = `\n## CURRENT DATE & TIME (Mountain Time — Utah)\n**Today is ${mtnDateStr}**\n**Current time: ${mtnTimeStr} MDT**\n**Year: ${mtnYear}**\nALL dates you reference or generate MUST use the year ${mtnYear}. When the user says "Friday" they mean the upcoming Friday in ${mtnYear}. When setting deadlines, ALWAYS use ${mtnYear} as the year. NEVER use 2024 or 2025.\n`;
+
     // ── Detect casual greetings ──────────────────────────────────────────────
     const isGreeting = /^(sup|hey|hi|hello|yo|what'?s? ?up|morning|afternoon|evening|howdy|hola|que onda|what'?s good|buenos|buenas)/i.test(lastUserMsgLower) || (lastUserMsgLower.includes("pivot") && lastUserMsgLower.length < 40);
 
@@ -1179,6 +1188,7 @@ Always show your math clearly and explain each step.
 Carranza Custom Construction specializes in framing and steel erection, with additional work in carpentry, soffits, and finished fascia. They operate in Utah.
 
 You are talking to: ${employee.name} (${employee.role === "office_manager" ? "Office Manager" : employee.role === "logistics" ? "Logistics Manager" : "Owner"})
+${dateTimeBlock}
 ${personalityBlock}
 ${languageBlock}
 ${greetingInstruction}
@@ -1346,6 +1356,7 @@ When discussing pricing, note that Utah lumber prices fluctuate — always sugge
 If an attachment is provided, analyze it thoroughly and reference specific details from it in your response.`;
     } else if (isForeman) {
       systemPrompt = `You are Pivot, the field assistant for Carranza Custom Construction. You're talking to ${employee.name}, a foreman.
+${dateTimeBlock}
 ${personalityBlock}
 ${languageBlock}
 ${greetingInstruction}
@@ -1387,6 +1398,7 @@ Keep responses practical, direct, and field-ready. No fluff.`;
     } else {
       // Laborer
       systemPrompt = `You are Pivot, the team assistant for Carranza Custom Construction. You're talking to ${employee.name}, a laborer.
+${dateTimeBlock}
 ${personalityBlock}
 ${languageBlock}
 ${greetingInstruction}
@@ -1539,7 +1551,7 @@ Keep responses short, practical, and encouraging. You're here to help them succe
               description: { type: "string", description: "Optional longer description with details." },
               assignedToName: { type: "string", description: "The name of the employee to assign this goal to. Use their first name or full name as known." },
               priority: { type: "string", enum: ["low", "medium", "high"], description: "Priority level. Default to medium if not specified." },
-              deadline: { type: "string", description: "ISO date string for the deadline (e.g. '2026-04-11T17:00:00'). Calculate from context like 'by Friday' or 'end of week'." },
+              deadline: { type: "string", description: `ISO date string for the deadline. MUST use the current year ${mtnYear}. Example: '${mtnYear}-04-18T17:00:00'. Calculate from context like 'by Friday' or 'end of week'. Use America/Denver (Mountain Time) for all times. NEVER use year 2024 or 2025.` },
             },
             required: ["title"],
           },
@@ -1800,13 +1812,28 @@ Keep responses short, practical, and encouraging. You're here to help them succe
               }
             }
 
-            // Calculate weekOf (Monday of current week)
-            const now = new Date();
-            const weekStart = new Date(now);
-            const day = weekStart.getDay();
-            const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
-            weekStart.setDate(diff);
-            weekStart.setHours(0, 0, 0, 0);
+            // Calculate weekOf (Monday of current week in Mountain Time)
+            // Use Intl to get the correct Mountain Time date components
+            const mtnFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Denver', year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+            const mtnParts = mtnFormatter.formatToParts(new Date());
+            const mtnYr = parseInt(mtnParts.find(p => p.type === 'year')!.value);
+            const mtnMo = parseInt(mtnParts.find(p => p.type === 'month')!.value) - 1;
+            const mtnDy = parseInt(mtnParts.find(p => p.type === 'day')!.value);
+            // Create a date representing today in Mountain Time (use noon UTC so it's always the correct day in any US timezone)
+            const todayMtn = new Date(Date.UTC(mtnYr, mtnMo, mtnDy, 12, 0, 0));
+            const dayOfWeek = todayMtn.getUTCDay();
+            const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+            const weekStart = new Date(Date.UTC(mtnYr, mtnMo, mtnDy + mondayOffset, 12, 0, 0));
+
+            // Validate and fix deadline year
+            let parsedDeadline: Date | undefined;
+            if (deadline) {
+              parsedDeadline = new Date(deadline);
+              // If the LLM hallucinated a past year, fix it to current year
+              if (parsedDeadline.getFullYear() < mtnYear) {
+                parsedDeadline.setFullYear(mtnYear);
+              }
+            }
 
             const goalId = await db.createWeeklyGoal({
               title,
@@ -1814,7 +1841,7 @@ Keep responses short, practical, and encouraging. You're here to help them succe
               assignedTo,
               weekOf: weekStart,
               priority: priority as "low" | "medium" | "high",
-              deadline: deadline ? new Date(deadline) : undefined,
+              deadline: parsedDeadline,
               createdBy: input.employeeId,
             });
 
