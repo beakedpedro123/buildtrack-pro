@@ -1,0 +1,15 @@
+VIDEO ANALYSIS FINDINGS:
+
+ISSUES IDENTIFIED:
+1. Goals assigned to "Everyone" only show up for Alberto, not the whole crew
+2. Pivot tries to create goals for "Everyone" but the assignment doesn't work
+3. Individual assignment to Ricardo Ocampo created DUPLICATE goals ("Conduct morning safety meeting and game plan meeting" x2)
+4. User wants daily repeating goals
+5. Management team doesn't have the "record goals" button on main screen (foremen do)
+6. Pivot needs to be able to reliably create goals for everyone AND specific people
+
+KEY BUGS TO FIX:
+A. "Everyone" goal assignment - goals with no assignedTo or assignedTo=null should show for ALL users
+B. Duplicate goal creation - Pivot created the same goal twice for Ricardo
+C. Need "repeat daily" goal feature
+D. Management needs Pivot to create goals since they don't have the foreman goal button

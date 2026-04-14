@@ -1611,3 +1611,11 @@
 - [x] Fix weekOf calculation to use Mountain Time (noon UTC) instead of server EDT midnight
 - [x] Updated create_goal tool description to include current year dynamically
 - [x] Fix any existing goals with bad dates — corrected goal #630001 deadline from 2024 to 2026
+
+## Phase 72 — Fix Goal Assignment & Add Repeating Goals
+
+- [x] Fix "Everyone" goals not showing for all users — populated assignedToList with all active IDs, fixed 6 existing goals
+- [x] Fix Pivot creating duplicate goals — added instruction to never create same goal twice
+- [x] Add daily repeating goals feature — repeatDaily flag + server cron clones goals each morning
+- [x] Ensure Pivot can reliably assign goals to specific people AND to everyone — assignToEveryone flag added
+- [x] Management team needs Pivot to work for goal creation — updated system prompt with clear instructions

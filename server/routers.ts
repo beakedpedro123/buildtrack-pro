@@ -1220,6 +1220,11 @@ You have REAL tools to take actions in the app. Use them immediately when asked 
 **Payroll Summary** — use get_payroll_summary to pull real numbers from the current pay period.
 **Remember Corrections** — use remember_correction whenever the user corrects you. Store it immediately.
 **Goal Creation** — use create_goal tool to push goals directly to the Goals tab. Don't just format text — actually create them.
+- To assign to EVERYONE: set assignToEveryone=true. This makes the goal visible to ALL employees.
+- To assign to a specific person: use assignedToName with their name.
+- For daily recurring goals (like 'clock in by 7:30'): set repeatDaily=true. The system will auto-create a fresh copy each morning.
+- NEVER create the same goal twice in one request. Each call to create_goal creates one goal — do NOT call it multiple times for the same goal.
+- When the user says 'for everyone' or 'for the crew' or 'for all', ALWAYS set assignToEveryone=true.
 **Punch List** — use create_punch_list_item or create_punch_items_bulk to add items to job punch lists.
 
 **Meeting Scheduling** — when asked to schedule a meeting:
@@ -1543,15 +1548,17 @@ Keep responses short, practical, and encouraging. You're here to help them succe
         type: "function" as const,
         function: {
           name: "create_goal",
-          description: "Create a new weekly goal in BuildTrack Pro. Use when the user asks you to create, add, set, or push a goal for someone. You MUST use this tool instead of just showing formatted text — actually create the goal in the database.",
+          description: "Create a new weekly goal in BuildTrack Pro. Use when the user asks you to create, add, set, or push a goal for someone. You MUST use this tool instead of just showing formatted text — actually create the goal in the database. IMPORTANT: When the user says 'for everyone' or 'for the whole crew' or 'for all', set assignToEveryone=true. When assigning to a specific person, use assignedToName. When the user wants a goal to repeat every day (like 'clock in by 7:30 daily'), set repeatDaily=true.",
           parameters: {
             type: "object",
             properties: {
               title: { type: "string", description: "The goal title. Be specific and actionable (e.g. 'Finish framing back of garage by Friday')." },
               description: { type: "string", description: "Optional longer description with details." },
-              assignedToName: { type: "string", description: "The name of the employee to assign this goal to. Use their first name or full name as known." },
+              assignedToName: { type: "string", description: "The name of the employee to assign this goal to. Use their first name or full name as known. Leave empty if assignToEveryone is true." },
+              assignToEveryone: { type: "boolean", description: "Set to true when the goal should be visible to ALL employees (the whole crew). When true, the goal will be assigned to every active employee. Default false." },
               priority: { type: "string", enum: ["low", "medium", "high"], description: "Priority level. Default to medium if not specified." },
               deadline: { type: "string", description: `ISO date string for the deadline. MUST use the current year ${mtnYear}. Example: '${mtnYear}-04-18T17:00:00'. Calculate from context like 'by Friday' or 'end of week'. Use America/Denver (Mountain Time) for all times. NEVER use year 2024 or 2025.` },
+              repeatDaily: { type: "boolean", description: "Set to true if this goal should repeat every day (auto-created each morning). Good for recurring tasks like 'clock in by 7:30' or 'conduct safety meeting'. Default false." },
             },
             required: ["title"],
           },
@@ -1794,32 +1801,41 @@ Keep responses short, practical, and encouraging. You're here to help them succe
             const title = args.title || "";
             const description = args.description || "";
             const assignedToName = args.assignedToName || "";
+            const assignToEveryone = args.assignToEveryone === true;
             const priority = args.priority || "medium";
             const deadline = args.deadline || "";
+            const repeatDaily = args.repeatDaily === true;
 
-            // Find assigned employee by name
+            // Get all active employees for "everyone" assignment
+            const allEmps = await db.getAllEmployees();
+            const activeEmps = allEmps.filter((e: any) => e.isActive);
+
+            // Find assigned employee by name OR assign to everyone
             let assignedTo: number | undefined;
+            let assignedToList: string | undefined;
             let assignedName = "everyone";
-            if (assignedToName) {
-              const allEmps = await db.getAllEmployees();
+            if (assignToEveryone || (!assignedToName && !assignedToName.trim())) {
+              // Assign to ALL active employees so everyone can see it
+              assignedToList = activeEmps.map((e: any) => e.id).join(",");
+              assignedName = "everyone (" + activeEmps.length + " employees)";
+            } else if (assignedToName) {
               const match = allEmps.find((e: any) => 
                 e.name.toLowerCase().includes(assignedToName.toLowerCase()) ||
                 assignedToName.toLowerCase().includes(e.name.split(' ')[0].toLowerCase())
               );
               if (match) {
                 assignedTo = match.id;
+                assignedToList = String(match.id);
                 assignedName = match.name;
               }
             }
 
             // Calculate weekOf (Monday of current week in Mountain Time)
-            // Use Intl to get the correct Mountain Time date components
             const mtnFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Denver', year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
             const mtnParts = mtnFormatter.formatToParts(new Date());
             const mtnYr = parseInt(mtnParts.find(p => p.type === 'year')!.value);
             const mtnMo = parseInt(mtnParts.find(p => p.type === 'month')!.value) - 1;
             const mtnDy = parseInt(mtnParts.find(p => p.type === 'day')!.value);
-            // Create a date representing today in Mountain Time (use noon UTC so it's always the correct day in any US timezone)
             const todayMtn = new Date(Date.UTC(mtnYr, mtnMo, mtnDy, 12, 0, 0));
             const dayOfWeek = todayMtn.getUTCDay();
             const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -1829,7 +1845,6 @@ Keep responses short, practical, and encouraging. You're here to help them succe
             let parsedDeadline: Date | undefined;
             if (deadline) {
               parsedDeadline = new Date(deadline);
-              // If the LLM hallucinated a past year, fix it to current year
               if (parsedDeadline.getFullYear() < mtnYear) {
                 parsedDeadline.setFullYear(mtnYear);
               }
@@ -1837,15 +1852,16 @@ Keep responses short, practical, and encouraging. You're here to help them succe
 
             const goalId = await db.createWeeklyGoal({
               title,
-              description: description || undefined,
+              description: (description || "") + (repeatDaily ? " [REPEAT DAILY]" : ""),
               assignedTo,
+              assignedToList,
               weekOf: weekStart,
               priority: priority as "low" | "medium" | "high",
               deadline: parsedDeadline,
               createdBy: input.employeeId,
             });
 
-            toolResult = `Goal created successfully! ID: ${goalId}\nTitle: ${title}\nAssigned to: ${assignedName}\nPriority: ${priority}\n${deadline ? `Deadline: ${new Date(deadline).toLocaleDateString("en-US", { timeZone: "America/Denver" })}` : "No deadline set"}\n\nTell the user the goal was created and they can see it in the Goals tab.`;
+            toolResult = `Goal created successfully! ID: ${goalId}\nTitle: ${title}\nAssigned to: ${assignedName}\nPriority: ${priority}\n${repeatDaily ? "Repeats: DAILY (will auto-create each morning)\n" : ""}${deadline ? `Deadline: ${new Date(deadline).toLocaleDateString("en-US", { timeZone: "America/Denver" })}` : "No deadline set"}\n\nTell the user the goal was created and they can see it in the Goals tab.${assignToEveryone ? " This goal is visible to ALL employees." : ""}`;
           } catch (goalErr) {
             toolResult = `Failed to create goal: ${goalErr instanceof Error ? goalErr.message : "unknown error"}`;
           }

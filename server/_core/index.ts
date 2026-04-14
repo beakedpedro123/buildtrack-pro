@@ -233,6 +233,72 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`[api] server listening on port ${port}`);
   });
+
+  // ── Daily Repeating Goals Cron ──────────────────────────────────────────────
+  // Every day at 6:00 AM Mountain Time, clone goals marked [REPEAT DAILY]
+  async function cloneRepeatingGoals() {
+    try {
+      const { getDb } = await import("../db");
+      const dbConn = await getDb();
+      if (!dbConn) return;
+
+      // Get Mountain Time date
+      const mtnFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Denver', year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+      const mtnParts = mtnFormatter.formatToParts(new Date());
+      const mtnYr = parseInt(mtnParts.find(p => p.type === 'year')!.value);
+      const mtnMo = parseInt(mtnParts.find(p => p.type === 'month')!.value) - 1;
+      const mtnDy = parseInt(mtnParts.find(p => p.type === 'day')!.value);
+      const todayMtn = new Date(Date.UTC(mtnYr, mtnMo, mtnDy, 12, 0, 0));
+      const dayOfWeek = todayMtn.getUTCDay();
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const weekStart = new Date(Date.UTC(mtnYr, mtnMo, mtnDy + mondayOffset, 12, 0, 0));
+
+      // Find the most recent version of each repeating goal (by title)
+      const mysql = await import("mysql2/promise");
+      const conn = await (mysql as any).createConnection(process.env.DATABASE_URL);
+      // Get distinct repeating goal titles, then fetch the latest one for each
+      const [repeatTitles] = await conn.query(
+        'SELECT DISTINCT title FROM weeklyGoals WHERE description LIKE "%[REPEAT DAILY]%" AND status != "cancelled"'
+      );
+      const repeatGoals: any[] = [];
+      for (const row of (repeatTitles as any[])) {
+        const [latest] = await conn.query(
+          'SELECT * FROM weeklyGoals WHERE title = ? AND description LIKE "%[REPEAT DAILY]%" ORDER BY createdAt DESC LIMIT 1',
+          [row.title]
+        );
+        if ((latest as any[]).length > 0) repeatGoals.push((latest as any[])[0]);
+      }
+
+      let cloned = 0;
+      for (const goal of (repeatGoals as any[])) {
+        // Check if we already created this goal today
+        const todayStart = new Date(Date.UTC(mtnYr, mtnMo, mtnDy, 0, 0, 0));
+        const todayEnd = new Date(Date.UTC(mtnYr, mtnMo, mtnDy, 23, 59, 59));
+        const [existing] = await conn.query(
+          'SELECT id FROM weeklyGoals WHERE title = ? AND createdAt BETWEEN ? AND ? LIMIT 1',
+          [goal.title, todayStart, todayEnd]
+        );
+        if ((existing as any[]).length > 0) continue; // Already created today
+
+        // Clone the goal for today
+        await conn.query(
+          'INSERT INTO weeklyGoals (title, description, assignedTo, assignedToList, weekOf, status, priority, deadline, createdBy) VALUES (?, ?, ?, ?, ?, "pending", ?, NULL, ?)',
+          [goal.title, goal.description, goal.assignedTo, goal.assignedToList, weekStart, goal.priority, goal.createdBy]
+        );
+        cloned++;
+      }
+
+      await conn.end();
+      if (cloned > 0) console.log(`[cron] Cloned ${cloned} repeating goals for ${mtnYr}-${mtnMo + 1}-${mtnDy}`);
+    } catch (err) {
+      console.error('[cron] Failed to clone repeating goals:', err);
+    }
+  }
+
+  // Run the cron check every 30 minutes (it's idempotent - won't create duplicates)
+  setInterval(cloneRepeatingGoals, 30 * 60 * 1000);
+  // Also run once on startup after a short delay
+  setTimeout(cloneRepeatingGoals, 10000);
 }
 
 startServer().catch(console.error);
