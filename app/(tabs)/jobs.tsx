@@ -409,7 +409,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
           renderItem={({ item }) => (
-            <JobCard job={item} onPress={() => { setSelectedJob(item); setActiveTab("overview"); }} hideBudget={!canSeeBudget} />
+            <JobCard job={item} spentAmount={item.spentAmount || 0} onPress={() => { setSelectedJob(item); setActiveTab("overview"); }} hideBudget={!canSeeBudget} />
           )}
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 60 }}>

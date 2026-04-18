@@ -131,7 +131,20 @@ export default function ClockScreen() {
     }
   }, [canClockCrew]);
 
-  const { data: jobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 60000 });
+  const { data: jobs, isError: jobsError, refetch: refetchJobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 60000, retry: 3, retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000) });
+
+  // Auto-retry jobs fetch if it fails — retry up to 5 times with exponential backoff
+  const jobsRetryRef = useRef(0);
+  useEffect(() => {
+    if (jobsError && jobsRetryRef.current < 5) {
+      const timer = setTimeout(() => {
+        jobsRetryRef.current += 1;
+        refetchJobs();
+      }, 3000 * (jobsRetryRef.current + 1));
+      return () => clearTimeout(timer);
+    }
+    if (jobs && jobs.length > 0) jobsRetryRef.current = 0;
+  }, [jobsError, jobs, refetchJobs]);
 
   // Cache jobs when fetched from server
   useEffect(() => {

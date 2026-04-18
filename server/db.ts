@@ -213,10 +213,33 @@ export async function removeJobAssignment(jobId: number, employeeId: number) {
 export async function clockIn(data: InsertClockEntry) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  // 1. Dedup by localId (offline sync)
   if (data.localId) {
     const existing = await db.select().from(clockEntries)
       .where(eq(clockEntries.localId, data.localId)).limit(1);
     if (existing.length > 0) return existing[0].id;
+  }
+  // 2. Validate employeeId exists (prevent ghost entries)
+  const emp = await db.select({ id: employees.id }).from(employees)
+    .where(eq(employees.id, data.employeeId)).limit(1);
+  if (emp.length === 0) {
+    console.warn(`[clockIn] Rejected ghost employeeId=${data.employeeId} — not in employees table`);
+    throw new Error(`Employee ID ${data.employeeId} does not exist`);
+  }
+  // 3. Dedup by time proximity — reject if same employee+job within 5 minutes
+  const clockInTime = data.clockIn instanceof Date ? data.clockIn : new Date(data.clockIn as any);
+  const fiveMinBefore = new Date(clockInTime.getTime() - 5 * 60000);
+  const fiveMinAfter = new Date(clockInTime.getTime() + 5 * 60000);
+  const dupe = await db.select({ id: clockEntries.id }).from(clockEntries)
+    .where(and(
+      eq(clockEntries.employeeId, data.employeeId),
+      eq(clockEntries.jobId, data.jobId),
+      gte(clockEntries.clockIn, fiveMinBefore),
+      lte(clockEntries.clockIn, fiveMinAfter)
+    )).limit(1);
+  if (dupe.length > 0) {
+    console.warn(`[clockIn] Rejected duplicate: emp=${data.employeeId} job=${data.jobId} within 5min of entry ${dupe[0].id}`);
+    return dupe[0].id; // Return existing entry ID instead of creating duplicate
   }
   const result = await db.insert(clockEntries).values(data);
   return result[0].insertId;
@@ -508,6 +531,18 @@ export async function deleteWeeklyGoal(id: number) {
 }
 
 // ─── Payroll / Hours helpers ───────────────────────────────────────────────
+
+export async function getAllClockEntries() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(clockEntries);
+}
+
+export async function getAllExpenses() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(expenses);
+}
 
 export async function getClockEntriesForPayroll(startDate: Date, endDate: Date) {
   const db = await getDb();

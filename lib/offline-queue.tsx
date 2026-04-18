@@ -35,22 +35,46 @@ const QUEUE_KEY = "buildtrack_offline_queue";
 const PING_INTERVAL = 15_000;
 
 async function checkConnectivity(): Promise<boolean> {
+  // Multi-strategy connectivity check to reduce false "offline" readings
+  // Strategy 1: Check the actual API server
   try {
     const base = getApiBaseUrl();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(`${base}/api/trpc`, {
-      method: "HEAD",
+    const timer = setTimeout(() => controller.abort(), 8000); // Increased timeout for slow connections
+    const res = await fetch(`${base}/api/health`, {
+      method: "GET",
       signal: controller.signal,
+      cache: "no-store",
     });
     clearTimeout(timer);
+    if (res.ok) return true;
+  } catch {
+    // API unreachable — try fallback
+  }
+  // Strategy 2: Check navigator.onLine (fast, but can be inaccurate)
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return false; // Device reports no network at all
+  }
+  // Strategy 3: Try a lightweight HEAD to the API base (different endpoint)
+  try {
+    const base = getApiBaseUrl();
+    const controller2 = new AbortController();
+    const timer2 = setTimeout(() => controller2.abort(), 6000);
+    const res2 = await fetch(`${base}/api/trpc`, {
+      method: "HEAD",
+      signal: controller2.signal,
+    });
+    clearTimeout(timer2);
     return true;
   } catch {
-    if (Platform.OS === "web" && typeof navigator !== "undefined") {
-      return navigator.onLine;
-    }
-    return false;
+    // Both strategies failed
   }
+  // If navigator says online but server is unreachable, still report online
+  // so the app doesn't block the user — the actual API calls will handle errors
+  if (typeof navigator !== "undefined" && navigator.onLine) {
+    return true; // Device has network, server might be temporarily slow
+  }
+  return false;
 }
 
 export function OfflineQueueProvider({ children }: { children: React.ReactNode }) {

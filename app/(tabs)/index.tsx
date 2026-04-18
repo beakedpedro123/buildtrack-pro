@@ -198,6 +198,7 @@ export default function DashboardScreen() {
   const [now, setNow] = useState(new Date());
   const [laborPeriod, setLaborPeriod] = useState<LaborPeriod>("week");
   const [showActiveJobs, setShowActiveJobs] = useState(false);
+  const [showByEmployee, setShowByEmployee] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60000);
@@ -1102,34 +1103,46 @@ export default function DashboardScreen() {
             </>
           )}
 
-          {/* Per-Employee Breakdown */}
+          {/* Per-Employee Breakdown (collapsible) */}
           {byEmployee && byEmployee.length > 0 && (
             <>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, paddingHorizontal: 20, marginBottom: 8 }}>
-                By Employee ({periodLabel})
-              </Text>
-              <View style={{ marginBottom: 16 }}>
-                {byEmployee.slice(0, 8).map((emp) => (
-                  <TouchableOpacity key={emp.employeeId} style={styles.laborEmpRow} onPress={() => router.push(`/timecard/${emp.employeeId}` as any)} activeOpacity={0.6}>
-                    <View style={[styles.laborEmpAvatar, { backgroundColor: getRoleColor(emp.role) }]}>
-                      <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{getInitials(emp.employeeName)}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{emp.employeeName}</Text>
-                      <Text style={{ fontSize: 10, color: colors.muted }}>{emp.role.charAt(0).toUpperCase() + emp.role.slice(1)}</Text>
-                    </View>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <View>
-                        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, textAlign: "right" }}>{formatHours(emp.totalMinutes)}</Text>
-                        {canSeeDollars && (
-                          <Text style={{ fontSize: 10, color: colors.muted, textAlign: "right" }}>{formatCurrency(emp.totalCost)}</Text>
-                        )}
+              <TouchableOpacity
+                style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, marginBottom: 8 }}
+                onPress={() => {
+                  setShowByEmployee(!showByEmployee);
+                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
+                  By Employee ({periodLabel})
+                </Text>
+                <Text style={{ fontSize: 16, color: colors.muted }}>{showByEmployee ? "▲" : "▼"}</Text>
+              </TouchableOpacity>
+              {showByEmployee && (
+                <View style={{ marginBottom: 16 }}>
+                  {byEmployee.slice(0, 8).map((emp) => (
+                    <TouchableOpacity key={emp.employeeId} style={styles.laborEmpRow} onPress={() => router.push(`/timecard/${emp.employeeId}` as any)} activeOpacity={0.6}>
+                      <View style={[styles.laborEmpAvatar, { backgroundColor: getRoleColor(emp.role) }]}>
+                        <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{getInitials(emp.employeeName)}</Text>
                       </View>
-                      <Text style={{ fontSize: 14, color: colors.primary }}>›</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{emp.employeeName}</Text>
+                        <Text style={{ fontSize: 10, color: colors.muted }}>{emp.role.charAt(0).toUpperCase() + emp.role.slice(1)}</Text>
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <View>
+                          <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, textAlign: "right" }}>{formatHours(emp.totalMinutes)}</Text>
+                          {canSeeDollars && (
+                            <Text style={{ fontSize: 10, color: colors.muted, textAlign: "right" }}>{formatCurrency(emp.totalCost)}</Text>
+                          )}
+                        </View>
+                        <Text style={{ fontSize: 14, color: colors.primary }}>›</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </>
           )}
         </>
@@ -1154,7 +1167,7 @@ export default function DashboardScreen() {
         {showActiveJobs && (
           <View style={{ paddingHorizontal: 20 }}>
             {(activeJobs || []).slice(0, 5).map((job) => (
-              <JobCard key={job.id} job={job} onPress={() => router.push("/jobs" as any)} />
+              <JobCard key={job.id} job={job} spentAmount={(job as any).spentAmount || 0} onPress={() => router.push("/jobs" as any)} />
             ))}
           </View>
         )}

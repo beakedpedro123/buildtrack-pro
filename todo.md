@@ -1619,3 +1619,29 @@
 - [x] Add daily repeating goals feature — repeatDaily flag + server cron clones goals each morning
 - [x] Ensure Pivot can reliably assign goals to specific people AND to everyone — assignToEveryone flag added
 - [x] Management team needs Pivot to work for goal creation — updated system prompt with clear instructions
+
+## Phase 73 — Fix Office Manager Salary Back to $2,500 Biweekly
+
+- [x] Check current salary for Pablo Carranza and Lupe Mejia in database — was $1,250.00
+- [x] Update salary to $2,500 biweekly — both updated in database
+- [x] Verify payroll report shows correct $2,500 for a full pay period — confirmed via API
+
+## Phase 74 — Fix "No Active Jobs Available" on Clock Screen
+
+- [ ] Investigate why jobs list returns empty for Carlos, Jose, Isidrio
+- [ ] Check jobs table status values and clock screen filtering logic
+- [ ] Fix the issue so all employees see active jobs
+- [ ] Verify for every employee account
+
+## Phase 74 — Fix 5 Critical Clock/Payroll Issues
+
+- [ ] 1. Add retry mechanism for jobs.listActive query
+- [ ] 2. Improve offline detection accuracy (false offline when has service)
+- [ ] 3. Match and eliminate "Unknown" entries in payroll — find ghost employee IDs
+- [ ] 4. Prevent duplicate clock entries from offline sync (server-side dedup)
+- [ ] 5. Fix time adjustment/manual entry timezone bug (3:03 AM instead of correct time)
+
+## Phase 74b — Jobs Budget Display + Collapsible Employee Section
+
+- [x] Fix Jobs tab showing $0 budget on job cards — server now returns spentAmount (labor + expenses) with jobs.list and jobs.listActive
+- [x] Make 'By Employee (This Week)' section collapsible on home screen — tap header to expand/collapse with haptic feedback

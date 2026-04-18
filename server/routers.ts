@@ -83,8 +83,54 @@ const employeeRouter = router({
 });
 
 const jobsRouter = router({
-  list: publicProcedure.query(() => db.getAllJobs()),
-  listActive: publicProcedure.query(() => db.getActiveJobs()),
+  list: publicProcedure.query(async () => {
+    const allJobs = await db.getAllJobs();
+    // Fetch labor costs for all jobs in one pass
+    const allEntries = await db.getAllClockEntries();
+    const allEmployees = await db.getAllEmployees();
+    const empMap = new Map(allEmployees.map((e: any) => [e.id, e]));
+    const allExpenses = await db.getAllExpenses();
+    // Aggregate labor + expenses per job
+    const laborByJob: Record<number, number> = {};
+    for (const entry of allEntries) {
+      if (!entry.clockOut) continue;
+      const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+      const emp = empMap.get(entry.employeeId);
+      const cost = emp?.hourlyRate ? (mins / 60) * parseFloat(emp.hourlyRate) : 0;
+      laborByJob[entry.jobId] = (laborByJob[entry.jobId] || 0) + cost;
+    }
+    const expenseByJob: Record<number, number> = {};
+    for (const exp of allExpenses) {
+      expenseByJob[exp.jobId] = (expenseByJob[exp.jobId] || 0) + parseFloat(exp.amount || "0");
+    }
+    return allJobs.map((job: any) => ({
+      ...job,
+      spentAmount: Math.round(((laborByJob[job.id] || 0) + (expenseByJob[job.id] || 0)) * 100) / 100,
+    }));
+  }),
+  listActive: publicProcedure.query(async () => {
+    const activeJobs = await db.getActiveJobs();
+    const allEntries = await db.getAllClockEntries();
+    const allEmployees = await db.getAllEmployees();
+    const empMap = new Map(allEmployees.map((e: any) => [e.id, e]));
+    const allExpenses = await db.getAllExpenses();
+    const laborByJob: Record<number, number> = {};
+    for (const entry of allEntries) {
+      if (!entry.clockOut) continue;
+      const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+      const emp = empMap.get(entry.employeeId);
+      const cost = emp?.hourlyRate ? (mins / 60) * parseFloat(emp.hourlyRate) : 0;
+      laborByJob[entry.jobId] = (laborByJob[entry.jobId] || 0) + cost;
+    }
+    const expenseByJob: Record<number, number> = {};
+    for (const exp of allExpenses) {
+      expenseByJob[exp.jobId] = (expenseByJob[exp.jobId] || 0) + parseFloat(exp.amount || "0");
+    }
+    return activeJobs.map((job: any) => ({
+      ...job,
+      spentAmount: Math.round(((laborByJob[job.id] || 0) + (expenseByJob[job.id] || 0)) * 100) / 100,
+    }));
+  }),
   getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getJobById(input.id)),
   forEmployee: publicProcedure.input(z.object({ employeeId: z.number() })).query(({ input }) => db.getJobsForEmployee(input.employeeId)),
   create: publicProcedure.input(z.object({
@@ -175,15 +221,30 @@ const clockRouter = router({
     jobId: z.number().optional(),
     adjustedBy: z.number(),
     reason: z.string().min(1),
+    timezoneOffset: z.number().optional(), // Client's timezone offset in minutes
   })).mutation(async ({ input }) => {
     await assertRole(input.adjustedBy, ["owner", "office_manager", "logistics", "foreman"], "adjust time entries");
+    let clockIn = input.clockIn ? new Date(input.clockIn) : undefined;
+    let clockOut = input.clockOut ? new Date(input.clockOut) : undefined;
+    // Apply same timezone correction as addManualEntry
+    const MTN_OFFSET = 360;
+    const clientOffset = input.timezoneOffset ?? null;
+    if (clientOffset !== null && clientOffset !== MTN_OFFSET && clientOffset !== 420) {
+      const diffMs = (clientOffset - MTN_OFFSET) * 60000;
+      if (clockIn) clockIn = new Date(clockIn.getTime() + diffMs);
+      if (clockOut) clockOut = new Date(clockOut.getTime() + diffMs);
+    } else if (clientOffset === null) {
+      if (clockIn) {
+        const hourUTC = clockIn.getUTCHours();
+        if (hourUTC >= 0 && hourUTC < 6) {
+          if (clockIn) clockIn = new Date(clockIn.getTime() + MTN_OFFSET * 60000);
+          if (clockOut) clockOut = new Date(clockOut.getTime() + MTN_OFFSET * 60000);
+        }
+      }
+    }
     return db.updateClockEntryWithAdjustment(
       input.entryId,
-      {
-        clockIn: input.clockIn ? new Date(input.clockIn) : undefined,
-        clockOut: input.clockOut ? new Date(input.clockOut) : undefined,
-        jobId: input.jobId,
-      },
+      { clockIn, clockOut, jobId: input.jobId },
       input.adjustedBy,
       input.reason
     );
@@ -207,13 +268,39 @@ const clockRouter = router({
     clockOut: z.string(),
     addedBy: z.number(),
     reason: z.string().min(1),
+    timezoneOffset: z.number().optional(), // Client's timezone offset in minutes (e.g., 360 for MDT)
   })).mutation(async ({ input }) => {
     await assertRole(input.addedBy, ["owner", "office_manager", "logistics"], "add manual time entries");
+    let clockIn = new Date(input.clockIn);
+    let clockOut = new Date(input.clockOut);
+    // Server-side timezone correction: if the client sends a timezone offset,
+    // validate that the times make sense for Mountain Time (UTC-6 or UTC-7).
+    // If the times look like they were created in UTC instead of local time,
+    // apply the Mountain Time offset (MDT = -360 min, MST = -420 min).
+    const MTN_OFFSET = 360; // MDT in minutes
+    const clientOffset = input.timezoneOffset ?? null;
+    if (clientOffset !== null && clientOffset !== MTN_OFFSET && clientOffset !== 420) {
+      // Client is NOT in Mountain Time — adjust times to Mountain Time
+      // The client sent times based on their local TZ, but we want Mountain Time
+      const diffMs = (clientOffset - MTN_OFFSET) * 60000;
+      clockIn = new Date(clockIn.getTime() + diffMs);
+      clockOut = new Date(clockOut.getTime() + diffMs);
+    } else if (clientOffset === null) {
+      // No offset sent — check if times are suspiciously early (UTC interpretation)
+      // A manual entry at 1-5 AM UTC for a construction worker likely means
+      // the client's timezone was wrong (sent local time as UTC)
+      const hourUTC = clockIn.getUTCHours();
+      if (hourUTC >= 0 && hourUTC < 6) {
+        // Likely a UTC-interpreted local time — shift by +6 hours (MDT)
+        clockIn = new Date(clockIn.getTime() + MTN_OFFSET * 60000);
+        clockOut = new Date(clockOut.getTime() + MTN_OFFSET * 60000);
+      }
+    }
     return db.addManualClockEntry({
       employeeId: input.employeeId,
       jobId: input.jobId,
-      clockIn: new Date(input.clockIn),
-      clockOut: new Date(input.clockOut),
+      clockIn,
+      clockOut,
       addedBy: input.addedBy,
       reason: input.reason,
     });

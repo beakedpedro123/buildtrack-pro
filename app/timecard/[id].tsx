@@ -253,7 +253,7 @@ export default function TimecardScreen() {
       updates.jobId = editJobId;
     }
 
-    adjustMutation.mutate(updates);
+    adjustMutation.mutate({ ...updates, timezoneOffset: new Date().getTimezoneOffset() });
   };
 
   const handleAddManualEntry = () => {
@@ -300,6 +300,7 @@ export default function TimecardScreen() {
       clockOut: clockOutTime.toISOString(),
       addedBy: currentUser!.id,
       reason: addReason.trim(),
+      timezoneOffset: new Date().getTimezoneOffset(), // Send client TZ offset (positive = west of UTC, e.g., 360 for MDT)
     });
   };
 
