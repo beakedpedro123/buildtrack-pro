@@ -1203,7 +1203,7 @@ ${reportsSummary || "  No recent reports."}
         // This data includes financials, goals, overheads, equipment plans, labor benchmarks
         const kbResponse = await fetch("http://localhost:4000/api/admin/pivot-context", {
           headers: {
-            "Authorization": `Bearer ${require("jsonwebtoken").sign({ id: "super_admin", email: "pedro@buildtrackpro.com", role: "super_admin", companyId: null }, process.env.JWT_SECRET || "buildtrack-saas-secret-change-me", { expiresIn: "1h" })}`
+            "Authorization": `Bearer ${require("jsonwebtoken").sign({ id: "super_admin", email: "pedro@buildtrackpro.com", role: "super_admin", companyId: null }, process.env.SAAS_JWT_SECRET || process.env.JWT_SECRET || "LDqsmH8cTYdG3goTfC4f6V", { expiresIn: "1h" })}`
           }
         });
         if (kbResponse.ok) {

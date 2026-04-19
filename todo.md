@@ -1811,3 +1811,19 @@
 - [x] Verify success.html page serves correctly
 - [ ] Configure Stripe keys when Pedro purchases Stripe account
 - [ ] Point buildtrackpro.com domain when purchased
+
+## Phase 85: Pivot Budget Numbers Bug (Apr 19, 2026)
+- [x] Fix Pivot not recalling specific budget numbers from uploaded knowledge base data
+- [x] Verify Pivot can answer questions about specific dollar amounts from uploaded data
+
+## Phase 86: Marketing Site Updates (Apr 19, 2026)
+- [x] Remove Pedro's name from marketing site (verified: no personal names on public-facing pages)
+- [x] Regenerate social media visuals using real app screenshots
+- [ ] Build marketing site as publishable web app with permanent URL
+
+## Phase 87: Multi-Tenant Support Dashboard (Apr 19, 2026)
+- [ ] Research ClockShark, Jibble, Buildertrend, QuickBooks support workflows
+- [ ] Build admin support dashboard for team to troubleshoot customer accounts
+- [ ] Connect marketing site signups to multi-tenant server
+- [ ] Support team can view/manage all customer company accounts
+- [ ] Support team can help customers with crew management issues
