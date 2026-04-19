@@ -1739,3 +1739,29 @@
 - [ ] Create short Spanish marketing video for small contractors
 - [ ] Write updated multi-tenant build plan with GPS toggle, trade adaptability, updated pricing
 - [ ] Remove paystubs feature from plan (Pedro no longer wants it)
+
+
+## BuildTrack Pro SaaS Platform (Separate Project)
+
+- [ ] Initialize standalone SaaS project (marketing site + multi-tenant server)
+- [ ] Build multi-tenant database schema (companies, users, subscriptions, tenant isolation)
+- [ ] Build marketing landing page with BuildTrack Pro dark+gold branding
+- [ ] Integrate Stripe billing (products, checkout, webhooks, subscription management)
+- [ ] Build company signup flow (Stripe payment → auto-provision tenant)
+- [ ] Connect marketing site to multi-tenant server for seamless onboarding
+
+## Private Pivot Knowledge Base
+
+- [ ] Create private Pivot knowledge base for Pedro's financial data (owner-only)
+- [ ] Wire Pivot AI to reference knowledge base for personalized goals and job costing
+- [ ] Ensure no employee/customer can see Pedro's private financial data
+
+## Hourly Job Type Feature
+- [x] Add job billing type (hourly vs fixed budget) to job schema
+- [x] Update job creation/edit UI to support hourly jobs (no budget field, toggleable rate: $45/$50/$55/$60 per person)
+- [x] Auto-calculate revenue for hourly jobs (workers x hours x hourly rate)
+- [x] Update job detail screen to show hourly revenue instead of budget progress for hourly jobs
+- [x] Update job cards to show hourly rate badge and revenue for hourly jobs
+- [x] Add billing settings section to job detail (toggle billing type + rate selector)
+- [x] Wire Pivot AI with hourly billing intelligence (revenue, margin, rate comparison)
+- [x] Add job billing types to Pivot's business context data

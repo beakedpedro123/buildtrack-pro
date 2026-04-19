@@ -16,20 +16,25 @@ export interface JobCardProps {
     clientName?: string | null;
     status: string;
     totalBudget?: string | null;
+    billingType?: string | null;
+    hourlyRate?: string | null;
   };
   crewCount?: number;
   spentAmount?: number;
+  laborHours?: number;
   onPress?: () => void;
   /** When true, hides all budget/dollar figures (for laborer and foreman roles) */
   hideBudget?: boolean;
 }
 
-export function JobCard({ job, crewCount, spentAmount, onPress, hideBudget = false }: JobCardProps) {
+export function JobCard({ job, crewCount, spentAmount, laborHours, onPress, hideBudget = false }: JobCardProps) {
   const colors = useColors();
+  const isHourly = job.billingType === "hourly";
   const budget = parseFloat(job.totalBudget || "0");
   const spent = spentAmount || 0;
   const pct = budget > 0 ? Math.min(spent / budget, 1) : 0;
   const barColor = pct < 0.6 ? colors.success : pct < 0.85 ? colors.warning : colors.error;
+  const hourlyRevenue = isHourly && laborHours ? laborHours * parseFloat(job.hourlyRate || "55") : 0;
 
   return (
     <TouchableOpacity
@@ -57,7 +62,21 @@ export function JobCard({ job, crewCount, spentAmount, onPress, hideBudget = fal
             {job.address}
           </Text>
         ) : null}
-        {budget > 0 && !hideBudget && (
+        {isHourly && !hideBudget && (
+          <View style={styles.budgetRow}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View style={{ backgroundColor: "#D4A843" + "20", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#D4A843" }}>${job.hourlyRate || "55"}/hr</Text>
+              </View>
+              {laborHours !== undefined && laborHours > 0 && (
+                <Text style={[styles.budgetText, { color: colors.muted }]}>
+                  Revenue: ${hourlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+        {!isHourly && budget > 0 && !hideBudget && (
           <View style={styles.budgetRow}>
             <View style={[styles.budgetBar, { backgroundColor: colors.border }]}>
               <View style={[styles.budgetFill, { width: `${pct * 100}%`, backgroundColor: barColor }]} />

@@ -92,12 +92,14 @@ const jobsRouter = router({
     const allExpenses = await db.getAllExpenses();
     // Aggregate labor + expenses per job
     const laborByJob: Record<number, number> = {};
+    const hoursByJob: Record<number, number> = {};
     for (const entry of allEntries) {
       if (!entry.clockOut) continue;
       const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
       const emp = empMap.get(entry.employeeId);
       const cost = emp?.hourlyRate ? (mins / 60) * parseFloat(emp.hourlyRate) : 0;
       laborByJob[entry.jobId] = (laborByJob[entry.jobId] || 0) + cost;
+      hoursByJob[entry.jobId] = (hoursByJob[entry.jobId] || 0) + Math.round((mins / 60) * 10) / 10;
     }
     const expenseByJob: Record<number, number> = {};
     for (const exp of allExpenses) {
@@ -106,6 +108,7 @@ const jobsRouter = router({
     return allJobs.map((job: any) => ({
       ...job,
       spentAmount: Math.round(((laborByJob[job.id] || 0) + (expenseByJob[job.id] || 0)) * 100) / 100,
+      laborHours: hoursByJob[job.id] || 0,
     }));
   }),
   listActive: publicProcedure.query(async () => {
@@ -115,12 +118,14 @@ const jobsRouter = router({
     const empMap = new Map(allEmployees.map((e: any) => [e.id, e]));
     const allExpenses = await db.getAllExpenses();
     const laborByJob: Record<number, number> = {};
+    const hoursByJob: Record<number, number> = {};
     for (const entry of allEntries) {
       if (!entry.clockOut) continue;
       const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
       const emp = empMap.get(entry.employeeId);
       const cost = emp?.hourlyRate ? (mins / 60) * parseFloat(emp.hourlyRate) : 0;
       laborByJob[entry.jobId] = (laborByJob[entry.jobId] || 0) + cost;
+      hoursByJob[entry.jobId] = (hoursByJob[entry.jobId] || 0) + Math.round((mins / 60) * 10) / 10;
     }
     const expenseByJob: Record<number, number> = {};
     for (const exp of allExpenses) {
@@ -129,6 +134,7 @@ const jobsRouter = router({
     return activeJobs.map((job: any) => ({
       ...job,
       spentAmount: Math.round(((laborByJob[job.id] || 0) + (expenseByJob[job.id] || 0)) * 100) / 100,
+      laborHours: hoursByJob[job.id] || 0,
     }));
   }),
   getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getJobById(input.id)),
@@ -139,6 +145,8 @@ const jobsRouter = router({
     clientName: z.string().optional(),
     clientPhone: z.string().optional(),
     totalBudget: z.string().optional(),
+    billingType: z.enum(["fixed", "hourly"]).default("fixed"),
+    hourlyRate: z.string().optional(),
     notes: z.string().optional(),
     latitude: z.number().optional(),
     longitude: z.number().optional(),
@@ -159,6 +167,8 @@ const jobsRouter = router({
     clientName: z.string().optional(),
     status: z.enum(["active", "paused", "completed", "cancelled"]).optional(),
     totalBudget: z.string().optional(),
+    billingType: z.enum(["fixed", "hourly"]).optional(),
+    hourlyRate: z.string().optional(),
     notes: z.string().optional(),
     endDate: z.string().optional(),
     taxRate: z.string().optional(),
@@ -1153,12 +1163,22 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
           `  - ${e.name} (${e.role}) ${e.hourlyRate ? "$" + e.hourlyRate + "/hr" : ""}`
         ).join("\n");
 
+        // Build per-job billing info for hourly revenue awareness
+        const jobBillingInfo = activeJobs.map((j: any) => {
+          const billing = j.billingType === "hourly" ? `HOURLY @ $${j.hourlyRate || "55"}/hr` : (j.totalBudget ? `Fixed $${parseFloat(j.totalBudget).toLocaleString()}` : "No budget set");
+          return `  - ${j.name}: ${billing}`;
+        }).join("\n");
+
         businessContext = `\n## Live Business Data (as of ${now.toLocaleDateString("en-US", { timeZone: "America/Denver" })})
 - Active Jobs: ${activeJobs.length} (${activeJobs.map((j: any) => j.name).join(", ")})
 - Active Employees: ${activeEmployees.length}
 - Labor Cost This Week: $${totalWeekCost.toFixed(2)}
 - Jobs with labor this week: ${laborByJob.length}
 ${kpis.length > 0 ? `- KPIs tracked: ${kpis.map((k: any) => `${k.name} (${k.category}): ${k.currentValue || "no data"} / target ${k.targetValue || "not set"}`).join("; ")}` : ""}
+
+### Job Billing Types
+${jobBillingInfo || "  No active jobs."}
+Note: Hourly jobs bill at the job's hourly rate per person per hour. Revenue = total hours logged × hourly rate. Gross margin = revenue - labor cost. Pedro can toggle rates between $45, $50, $55, $60 per hour.
 
 ### Per-Job Labor Breakdown (This Week)
 ${laborBreakdown || "  No labor data this week."}
@@ -1309,6 +1329,15 @@ ${calculationBlock}
 - Help plan future integrations (QuickBooks sync, material ordering, etc.)
 - Analyze uploaded documents: PDFs, Word docs, Excel spreadsheets, images, and URLs
 - Perform advanced construction calculations (lumber takeoffs, steel, labor projections, material estimates)
+
+## Hourly Job Billing Intelligence
+Jobs can be either "Fixed Budget" or "Hourly" billing type.
+- **Hourly jobs** bill at a per-person per-hour rate. Available rates: $45, $50, $55, $60/hr.
+- Revenue = total hours logged × job hourly rate. Gross margin = revenue - labor cost (what Pedro pays his crew).
+- Snow removal and change orders are typically billed at $55/hr.
+- When Pedro asks about profitability on hourly jobs, calculate: revenue, labor cost, overhead (tax + workers comp + liability), and net margin.
+- If Pedro asks to compare rates, show the impact: e.g., at 100 hours, $45/hr = $4,500 vs $55/hr = $5,500 — that's $1,000 difference.
+- Proactively flag if an hourly job's labor cost is approaching or exceeding revenue (negative margin).
 
 ## App Actions You Can Execute Directly
 You have REAL tools to take actions in the app. Use them immediately when asked — don't just describe what to do.

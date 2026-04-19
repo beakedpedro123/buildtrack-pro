@@ -69,6 +69,8 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const [jobTaxRate, setJobTaxRate] = useState("");
   const [jobWorkersComp, setJobWorkersComp] = useState("");
   const [jobLiabilityIns, setJobLiabilityIns] = useState("");
+  const [jobBillingType, setJobBillingType] = useState<"fixed" | "hourly">("fixed");
+  const [jobHourlyRate, setJobHourlyRate] = useState("55");
 
   // Expense form
   const [expDesc, setExpDesc] = useState("");
@@ -112,7 +114,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const addExpense = trpc.budget.addExpense.useMutation({ onSuccess: () => { utils.budget.getExpenses.invalidate(); utils.budget.getCategories.invalidate(); setShowAddExpense(false); resetExpForm(); } });
   const addBudgetCat = trpc.budget.createCategory.useMutation({ onSuccess: () => { utils.budget.getCategories.invalidate(); setShowAddBudget(false); setBudgetName(""); setBudgetAmount(""); } });
 
-  const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); setJobTaxRate(""); setJobWorkersComp(""); setJobLiabilityIns(""); };
+  const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); setJobTaxRate(""); setJobWorkersComp(""); setJobLiabilityIns(""); setJobBillingType("fixed"); setJobHourlyRate("55"); };
   const resetExpForm = () => { setExpDesc(""); setExpAmount(""); setExpCategoryId(null); };
 
   const filteredJobs = (allJobs || []).filter((j) => {
@@ -152,7 +154,9 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
         name: jobName.trim(),
         address: jobAddress || undefined,
         clientName: jobClient || undefined,
-        totalBudget: jobBudget || undefined,
+        billingType: jobBillingType,
+        totalBudget: jobBillingType === "fixed" ? (jobBudget || undefined) : undefined,
+        hourlyRate: jobBillingType === "hourly" ? jobHourlyRate : undefined,
         notes: jobNotes || undefined,
         taxRate: jobTaxRate || undefined,
         workersCompRate: jobWorkersComp || undefined,
@@ -409,7 +413,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
           renderItem={({ item }) => (
-            <JobCard job={item} spentAmount={item.spentAmount || 0} onPress={() => { setSelectedJob(item); setActiveTab("overview"); }} hideBudget={!canSeeBudget} />
+            <JobCard job={item} spentAmount={item.spentAmount || 0} laborHours={item.laborHours || 0} onPress={() => { setSelectedJob(item); setActiveTab("overview"); }} hideBudget={!canSeeBudget} />
           )}
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 60 }}>
@@ -505,7 +509,8 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                     { label: "Client", value: selectedJob.clientName },
                     ...(canSeeBudget ? [
                       { label: "Client Phone", value: selectedJob.clientPhone },
-                      { label: "Total Budget", value: selectedJob.totalBudget ? `$${parseFloat(selectedJob.totalBudget).toLocaleString()}` : null },
+                      { label: "Billing", value: selectedJob.billingType === "hourly" ? `Hourly @ $${selectedJob.hourlyRate || "55"}/hr` : "Fixed Budget" },
+                      ...(selectedJob.billingType !== "hourly" ? [{ label: "Total Budget", value: selectedJob.totalBudget ? `$${parseFloat(selectedJob.totalBudget).toLocaleString()}` : null }] : []),
                     ] : []),
                     { label: "Notes", value: selectedJob.notes },
                   ].filter((r) => r.value).map((row) => (
@@ -514,6 +519,71 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                       <Text style={{ fontSize: 14, color: colors.foreground, flex: 1 }}>{row.value}</Text>
                     </View>
                   ))}
+
+                  {/* Hourly Revenue Card — for hourly jobs only */}
+                  {selectedJob.billingType === "hourly" && canSeeBudget && (
+                    <View style={{ marginTop: 16, backgroundColor: "#D4A843" + "15", borderRadius: 12, padding: 16, borderWidth: 1.5, borderColor: "#D4A843" + "40" }}>
+                      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 4 }}>Hourly Revenue</Text>
+                      <Text style={{ fontSize: 28, fontWeight: "800", color: "#D4A843" }}>
+                        ${(laborHours * parseFloat(selectedJob.hourlyRate || "55")).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>
+                        {laborHours}h logged × ${selectedJob.hourlyRate || "55"}/hr per person
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Editable Billing Type & Rate — management only, for existing jobs */}
+                  {canManage && (
+                    <View style={{ marginTop: 16, backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 10 }}>Billing Settings</Text>
+                      <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
+                        {(["fixed", "hourly"] as const).map((bt) => (
+                          <TouchableOpacity
+                            key={bt}
+                            style={{
+                              flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 2,
+                              borderColor: selectedJob.billingType === bt ? colors.primary : colors.border,
+                              backgroundColor: selectedJob.billingType === bt ? colors.primary + "15" : "transparent",
+                              alignItems: "center",
+                            }}
+                            onPress={() => {
+                              updateJob.mutate({ id: selectedJob.id, billingType: bt });
+                              setSelectedJob({ ...selectedJob, billingType: bt });
+                            }}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: selectedJob.billingType === bt ? colors.primary : colors.muted }}>
+                              {bt === "fixed" ? "Fixed" : "Hourly"}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      {selectedJob.billingType === "hourly" && (
+                        <View>
+                          <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }}>Rate per person/hour</Text>
+                          <View style={{ flexDirection: "row", gap: 6 }}>
+                            {["45", "50", "55", "60"].map((rate) => (
+                              <TouchableOpacity
+                                key={rate}
+                                style={{
+                                  flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 2,
+                                  borderColor: (selectedJob.hourlyRate || "55") === rate ? colors.primary : colors.border,
+                                  backgroundColor: (selectedJob.hourlyRate || "55") === rate ? colors.primary + "15" : "transparent",
+                                  alignItems: "center",
+                                }}
+                                onPress={() => {
+                                  updateJob.mutate({ id: selectedJob.id, hourlyRate: rate });
+                                  setSelectedJob({ ...selectedJob, hourlyRate: rate });
+                                }}
+                              >
+                                <Text style={{ fontSize: 14, fontWeight: "800", color: (selectedJob.hourlyRate || "55") === rate ? colors.primary : colors.foreground }}>${rate}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  )}
 
                   {/* Editable Overhead Rates — management only */}
                   {canManage && (
@@ -595,38 +665,66 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
               {/* Budget Tab — management only */}
               {activeTab === "budget" && canSeeBudget && (
                 <View style={styles.section}>
-                  {/* Budget Alert Banner */}
-                  {budgetAlertLevel !== "ok" && totalBudget > 0 && (
-                    <View style={{ backgroundColor: budgetAlertColors[budgetAlertLevel].bg, borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: budgetAlertColors[budgetAlertLevel].border, marginBottom: 14 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
-                        <Text style={{ fontSize: 16, marginRight: 8 }}>{budgetAlertLevel === "critical" ? "\u26A0\uFE0F" : budgetAlertLevel === "danger" ? "\u26A0\uFE0F" : "\u26A0\uFE0F"}</Text>
-                        <Text style={{ fontSize: 14, fontWeight: "800", color: budgetAlertColors[budgetAlertLevel].text }}>
-                          {budgetAlertLevel === "critical" ? "OVER BUDGET" : budgetAlertLevel === "danger" ? "BUDGET DANGER" : "BUDGET WARNING"}
-                        </Text>
-                        <Text style={{ fontSize: 14, fontWeight: "800", color: budgetAlertColors[budgetAlertLevel].border, marginLeft: "auto" }}>
-                          {Math.round(budgetPctRaw)}%
-                        </Text>
-                      </View>
-                      <Text style={{ fontSize: 12, color: budgetAlertColors[budgetAlertLevel].text, marginLeft: 24 }}>
-                        {budgetAlertMessages[budgetAlertLevel]}
+                  {/* For hourly jobs: show revenue overview instead of budget progress */}
+                  {selectedJob.billingType === "hourly" ? (
+                    <View style={{ backgroundColor: "#D4A843" + "10", borderRadius: 12, padding: 16, borderWidth: 1.5, borderColor: "#D4A843" + "30", marginBottom: 20 }}>
+                      <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 4 }}>Hourly Revenue</Text>
+                      <Text style={{ fontSize: 32, fontWeight: "800", color: "#D4A843", marginBottom: 6 }}>
+                        ${(laborHours * parseFloat(selectedJob.hourlyRate || "55")).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </Text>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                        <Text style={{ fontSize: 13, color: colors.muted }}>{laborHours}h logged</Text>
+                        <Text style={{ fontSize: 13, color: colors.muted }}>@ ${selectedJob.hourlyRate || "55"}/hr per person</Text>
+                      </View>
+                      <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: "#D4A843" + "30", paddingTop: 10, flexDirection: "row", justifyContent: "space-between" }}>
+                        <View>
+                          <Text style={{ fontSize: 12, color: colors.muted }}>Labor Cost</Text>
+                          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>${laborSpent.toLocaleString()}</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text style={{ fontSize: 12, color: colors.muted }}>Gross Margin</Text>
+                          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.success }}>
+                            ${Math.max(0, (laborHours * parseFloat(selectedJob.hourlyRate || "55")) - laborSpent).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </Text>
+                        </View>
+                      </View>
                     </View>
-                  )}
+                  ) : (
+                    <>
+                      {/* Budget Alert Banner */}
+                      {budgetAlertLevel !== "ok" && totalBudget > 0 && (
+                        <View style={{ backgroundColor: budgetAlertColors[budgetAlertLevel].bg, borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: budgetAlertColors[budgetAlertLevel].border, marginBottom: 14 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                            <Text style={{ fontSize: 16, marginRight: 8 }}>{budgetAlertLevel === "critical" ? "\u26A0\uFE0F" : budgetAlertLevel === "danger" ? "\u26A0\uFE0F" : "\u26A0\uFE0F"}</Text>
+                            <Text style={{ fontSize: 14, fontWeight: "800", color: budgetAlertColors[budgetAlertLevel].text }}>
+                              {budgetAlertLevel === "critical" ? "OVER BUDGET" : budgetAlertLevel === "danger" ? "BUDGET DANGER" : "BUDGET WARNING"}
+                            </Text>
+                            <Text style={{ fontSize: 14, fontWeight: "800", color: budgetAlertColors[budgetAlertLevel].border, marginLeft: "auto" }}>
+                              {Math.round(budgetPctRaw)}%
+                            </Text>
+                          </View>
+                          <Text style={{ fontSize: 12, color: budgetAlertColors[budgetAlertLevel].text, marginLeft: 24 }}>
+                            {budgetAlertMessages[budgetAlertLevel]}
+                          </Text>
+                        </View>
+                      )}
 
-                  {/* Budget Overview */}
-                  <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 20 }}>
-                    <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 4 }}>Total Budget</Text>
-                    <Text style={{ fontSize: 28, fontWeight: "800", color: colors.foreground, marginBottom: 8 }}>
-                      ${totalBudget.toLocaleString()}
-                    </Text>
-                    <View style={{ height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: "hidden", marginBottom: 6 }}>
-                      <View style={{ height: "100%", width: `${budgetPct * 100}%`, backgroundColor: budgetBarColor, borderRadius: 4 }} />
-                    </View>
-                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                      <Text style={{ fontSize: 13, color: colors.muted }}>Spent: ${totalSpent.toLocaleString()}</Text>
-                      <Text style={{ fontSize: 13, color: colors.muted }}>Remaining: ${Math.max(0, totalBudget - totalSpent).toLocaleString()}</Text>
-                    </View>
-                  </View>
+                      {/* Budget Overview */}
+                      <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 20 }}>
+                        <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 4 }}>Total Budget</Text>
+                        <Text style={{ fontSize: 28, fontWeight: "800", color: colors.foreground, marginBottom: 8 }}>
+                          ${totalBudget.toLocaleString()}
+                        </Text>
+                        <View style={{ height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: "hidden", marginBottom: 6 }}>
+                          <View style={{ height: "100%", width: `${budgetPct * 100}%`, backgroundColor: budgetBarColor, borderRadius: 4 }} />
+                        </View>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                          <Text style={{ fontSize: 13, color: colors.muted }}>Spent: ${totalSpent.toLocaleString()}</Text>
+                          <Text style={{ fontSize: 13, color: colors.muted }}>Remaining: ${Math.max(0, totalBudget - totalSpent).toLocaleString()}</Text>
+                        </View>
+                      </View>
+                    </>
+                  )}
 
                   {/* Labor Cost */}
                   <View style={{ backgroundColor: colors.primary + "10", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.primary + "30", marginBottom: 20 }}>
@@ -904,8 +1002,63 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
               <TextInput style={styles.input} placeholder="123 Main St, City, State" placeholderTextColor={colors.muted} value={jobAddress} onChangeText={setJobAddress} />
               <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Client Name</Text>
               <TextInput style={styles.input} placeholder="Client name" placeholderTextColor={colors.muted} value={jobClient} onChangeText={setJobClient} />
-              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Total Budget ($)</Text>
-              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={colors.muted} value={jobBudget} onChangeText={setJobBudget} keyboardType="decimal-pad" />
+
+              {/* Billing Type Toggle */}
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Billing Type</Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
+                {(["fixed", "hourly"] as const).map((bt) => (
+                  <TouchableOpacity
+                    key={bt}
+                    style={{
+                      flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 2,
+                      borderColor: jobBillingType === bt ? colors.primary : colors.border,
+                      backgroundColor: jobBillingType === bt ? colors.primary + "15" : colors.surface,
+                      alignItems: "center",
+                    }}
+                    onPress={() => setJobBillingType(bt)}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: jobBillingType === bt ? colors.primary : colors.muted }}>
+                      {bt === "fixed" ? "Fixed Budget" : "Hourly"}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                      {bt === "fixed" ? "Set total budget" : "Per-person per-hour"}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Fixed Budget field — only shown for fixed billing */}
+              {jobBillingType === "fixed" && (
+                <>
+                  <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Total Budget ($)</Text>
+                  <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={colors.muted} value={jobBudget} onChangeText={setJobBudget} keyboardType="decimal-pad" />
+                </>
+              )}
+
+              {/* Hourly Rate selector — only shown for hourly billing */}
+              {jobBillingType === "hourly" && (
+                <>
+                  <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Billing Rate (per person/hour)</Text>
+                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
+                    {["45", "50", "55", "60"].map((rate) => (
+                      <TouchableOpacity
+                        key={rate}
+                        style={{
+                          flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 2,
+                          borderColor: jobHourlyRate === rate ? colors.primary : colors.border,
+                          backgroundColor: jobHourlyRate === rate ? colors.primary + "15" : colors.surface,
+                          alignItems: "center",
+                        }}
+                        onPress={() => setJobHourlyRate(rate)}
+                      >
+                        <Text style={{ fontSize: 16, fontWeight: "800", color: jobHourlyRate === rate ? colors.primary : colors.foreground }}>${rate}</Text>
+                        <Text style={{ fontSize: 10, color: colors.muted }}>/hr</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
+
               <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Notes</Text>
               <TextInput style={[styles.input, { height: 80, textAlignVertical: "top" }]} placeholder="Any notes about this job..." placeholderTextColor={colors.muted} value={jobNotes} onChangeText={setJobNotes} multiline />
 

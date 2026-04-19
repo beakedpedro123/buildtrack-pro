@@ -56,6 +56,8 @@ export const jobs = mysqlTable("jobs", {
     .notNull(),
   startDate: timestamp("startDate"),
   endDate: timestamp("endDate"),
+  billingType: mysqlEnum("billingType", ["fixed", "hourly"]).default("fixed").notNull(),
+  hourlyRate: decimal("hourlyRate", { precision: 8, scale: 2 }).default("55"),
   totalBudget: decimal("totalBudget", { precision: 12, scale: 2 }).default("0"),
   notes: text("notes"),
   latitude: float("latitude"),
