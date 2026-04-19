@@ -1765,3 +1765,14 @@
 - [x] Add billing settings section to job detail (toggle billing type + rate selector)
 - [x] Wire Pivot AI with hourly billing intelligence (revenue, margin, rate comparison)
 - [x] Add job billing types to Pivot's business context data
+
+## Marketing Short Videos (40-second social media shorts)
+- [x] Capture clean slide screenshots from EN and ES presentations
+- [x] Write 40-second voiceover scripts (English + Spanish)
+- [x] Generate AI voiceover audio for both languages
+- [x] Build English 40-second video (slides + app screenshots + Pedro's footage + voiceover)
+- [x] Build Spanish 40-second video (slides + app screenshots + Pedro's footage + voiceover)
+
+## Bug Fixes (Apr 19, 2026)
+- [x] Fix employee report download error — "Cannot read property 'openURL' of undefined" when employee tries to generate hours report
+- [x] Fix salary employees showing full pay on job budget in report upper section — should show allocated portion per job, not entire salary

@@ -251,16 +251,19 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
     }
   }
 
+  const activeJobCount = activeJobs.length;
   const totalPayroll = timecards.reduce((sum, tc) => {
     if (tc.payType === "salary") {
-      return sum + (tc.salaryAmount ? parseFloat(tc.salaryAmount) : 0);
+      const fullSalary = tc.salaryAmount ? parseFloat(tc.salaryAmount) : 0;
+      // When filtering by job, only count the allocated portion of salary
+      return sum + (filterJobId && activeJobCount > 0 ? fullSalary / activeJobCount : fullSalary);
     }
     const rate = tc.hourlyRate ? parseFloat(tc.hourlyRate) : 0;
     return sum + (tc.totalMinutes / 60) * rate;
   }, 0);
   const totalHours = timecards.reduce((sum, tc) => sum + tc.totalMinutes, 0);
 
-  return { timecards, jobCosts, totalPayroll, totalHours, activeJobs, jobMap };
+  return { timecards, jobCosts, totalPayroll, totalHours, activeJobs, jobMap, activeJobCount, isFiltered: !!filterJobId };
 }
 
 // ─── Page header with logo ──────────────────────────────────────────────
@@ -303,7 +306,9 @@ function renderPayrollSummary(
   pageWidth: number,
   gold: string,
   startY: number,
-  billingRate?: number
+  billingRate?: number,
+  activeJobCount?: number,
+  isFiltered?: boolean
 ): number {
   const textColor = "#333333";
   const mutedColor = "#666666";
@@ -364,7 +369,9 @@ function renderPayrollSummary(
     if (y > 700) { doc.addPage(); y = 40; }
     const isSalary = tc.payType === "salary";
     const rate = tc.hourlyRate ? parseFloat(tc.hourlyRate) : 0;
-    const pay = isSalary ? (tc.salaryAmount ? parseFloat(tc.salaryAmount) : 0) : (tc.totalMinutes / 60) * rate;
+    const fullSalary = tc.salaryAmount ? parseFloat(tc.salaryAmount) : 0;
+    // When filtering by job, show allocated portion of salary, not full amount
+    const pay = isSalary ? (isFiltered && activeJobCount && activeJobCount > 0 ? fullSalary / activeJobCount : fullSalary) : (tc.totalMinutes / 60) * rate;
     doc.fontSize(9).fillColor(textColor);
     cx = 40;
     // FIX: Use lineBreak: false and ellipsis to prevent name overflow
@@ -686,7 +693,7 @@ export async function generateDetailedPayrollPDF(
   billingRate?: number,
   filterJobId?: number
 ): Promise<Buffer> {
-  const { timecards, jobCosts, totalPayroll, totalHours, activeJobs } = await buildReportData(startDate, endDate, filterJobId);
+  const { timecards, jobCosts, totalPayroll, totalHours, activeJobs, activeJobCount, isFiltered } = await buildReportData(startDate, endDate, filterJobId);
 
   // If filtering by job, get the job name
   let filterJobName: string | undefined;
@@ -716,7 +723,7 @@ export async function generateDetailedPayrollPDF(
 
   // Render sections based on reportType
   if (reportType === "full" || reportType === "payroll") {
-    y = renderPayrollSummary(doc, timecards, totalPayroll, totalHours, pageWidth, gold, y, billingRate);
+    y = renderPayrollSummary(doc, timecards, totalPayroll, totalHours, pageWidth, gold, y, billingRate, activeJobCount, isFiltered);
   }
 
   if (reportType === "full" || reportType === "jobcost") {

@@ -9,6 +9,7 @@ import {
   Alert,
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   ScrollView,
@@ -496,7 +497,6 @@ export default function TimecardScreen() {
                     if (Platform.OS === "web") {
                       (window as any).open(url, "_blank");
                     } else {
-                      const Linking = (await import("expo-linking")).default;
                       await Linking.openURL(url);
                     }
                   } catch (err: any) {
