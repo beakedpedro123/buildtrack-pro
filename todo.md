@@ -1727,3 +1727,15 @@
 ### Build Instructions
 - [ ] Write comprehensive build instructions for multi-tenant conversion
 - [ ] Get Pedro's approval before starting build
+
+## Phase 82 — Marketing, Time Fix, Offline Fix, Multi-Tenant Plan Update
+- [ ] Fix time adjustment UI: add date picker (select exact day) + hour/minute picker with AM/PM
+- [ ] Fix offline caching — screen recording shows nothing loading offline
+- [ ] GPS included in app but toggle-able per company (on/off in company settings)
+- [ ] Build marketing/signup website for buildtrackpro.com with screenshots and pricing
+- [ ] Create English marketing presentation for business owners
+- [ ] Create Spanish marketing presentation for business owners
+- [ ] Create short English marketing video for small contractors
+- [ ] Create short Spanish marketing video for small contractors
+- [ ] Write updated multi-tenant build plan with GPS toggle, trade adaptability, updated pricing
+- [ ] Remove paystubs feature from plan (Pedro no longer wants it)

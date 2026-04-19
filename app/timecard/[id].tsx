@@ -174,6 +174,7 @@ export default function TimecardScreen() {
   const [editClockInAmpm, setEditClockInAmpm] = useState("AM");
   const [editClockOut, setEditClockOut] = useState("");
   const [editClockOutAmpm, setEditClockOutAmpm] = useState("PM");
+  const [editDate, setEditDate] = useState(""); // YYYY-MM-DD for the entry date
   const [editJobId, setEditJobId] = useState(0);
   const [editReason, setEditReason] = useState("");
   const [showJobPicker, setShowJobPicker] = useState(false);
@@ -208,6 +209,12 @@ export default function TimecardScreen() {
       jobId: entry.jobId,
       jobName: entry.jobName,
     });
+    // Set the date from the clock-in timestamp
+    const entryDate = new Date(entry.clockIn);
+    const yyyy = entryDate.getFullYear();
+    const mm = String(entryDate.getMonth() + 1).padStart(2, "0");
+    const dd = String(entryDate.getDate()).padStart(2, "0");
+    setEditDate(`${yyyy}-${mm}-${dd}`);
     const inEdit = formatTimeForEdit(entry.clockIn);
     setEditClockIn(inEdit.time);
     setEditClockInAmpm(inEdit.ampm);
@@ -237,7 +244,14 @@ export default function TimecardScreen() {
       Alert.alert("Reason Required", "Please provide a reason for this adjustment.");
       return;
     }
-    const refDate = new Date(editModal.clockIn);
+    // Use the selected date (editDate) to build the reference date for time parsing
+    const dateParts = editDate.split("-");
+    let refDate: Date;
+    if (dateParts.length === 3) {
+      refDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]), 12, 0, 0);
+    } else {
+      refDate = new Date(editModal.clockIn);
+    }
     const updates: any = { entryId: editModal.entryId, adjustedBy: currentUser!.id, reason: editReason.trim() };
 
     if (editClockIn) {
@@ -245,8 +259,7 @@ export default function TimecardScreen() {
       if (newIn) updates.clockIn = newIn.toISOString();
     }
     if (editClockOut) {
-      const refOut = editModal.clockOut ? new Date(editModal.clockOut) : refDate;
-      const newOut = parseTimeInput12(editClockOut, editClockOutAmpm, refOut);
+      const newOut = parseTimeInput12(editClockOut, editClockOutAmpm, refDate);
       if (newOut) updates.clockOut = newOut.toISOString();
     }
     if (editJobId !== editModal.jobId) {
@@ -624,6 +637,49 @@ export default function TimecardScreen() {
               <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 16 }}>
                 Adjust Time Entry
               </Text>
+
+              {/* Date Picker */}
+              <Text style={styles.modalLabel}>Date</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    const d = editDate.split("-");
+                    if (d.length === 3) {
+                      const cur = new Date(parseInt(d[0]), parseInt(d[1]) - 1, parseInt(d[2]));
+                      cur.setDate(cur.getDate() - 1);
+                      setEditDate(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,"0")}-${String(cur.getDate()).padStart(2,"0")}`);
+                    }
+                  }}
+                  style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{"\u25C0"}</Text>
+                </TouchableOpacity>
+                <View style={{ flex: 1, alignItems: "center" }}>
+                  <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "600" }}>
+                    {editDate ? (() => {
+                      const p = editDate.split("-");
+                      if (p.length === 3) {
+                        const dt = new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
+                        return dt.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+                      }
+                      return editDate;
+                    })() : "Select date"}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    const d = editDate.split("-");
+                    if (d.length === 3) {
+                      const cur = new Date(parseInt(d[0]), parseInt(d[1]) - 1, parseInt(d[2]));
+                      cur.setDate(cur.getDate() + 1);
+                      setEditDate(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,"0")}-${String(cur.getDate()).padStart(2,"0")}`);
+                    }
+                  }}
+                  style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{"\u25B6"}</Text>
+                </TouchableOpacity>
+              </View>
 
               {/* Clock In */}
               <Text style={styles.modalLabel}>Clock In Time</Text>

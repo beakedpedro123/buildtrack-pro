@@ -216,11 +216,13 @@ export default function DashboardScreen() {
 
   const [cachedMyJobs, setCachedMyJobs] = useState<any[] | null>(null);
   const [cachedActiveJobs, setCachedActiveJobs] = useState<any[] | null>(null);
+  const [cachedEmployees, setCachedEmployees] = useState<any[] | null>(null);
 
   // Load cached data on mount (for offline use)
   useEffect(() => {
     getCached<any[]>(CACHE_KEYS.MY_JOBS).then((d) => { if (d) setCachedMyJobs(d); });
     getCached<any[]>(CACHE_KEYS.ACTIVE_JOBS).then((d) => { if (d) setCachedActiveJobs(d); });
+    getCached<any[]>(CACHE_KEYS.ALL_EMPLOYEES).then((d) => { if (d) setCachedEmployees(d); });
   }, []);
 
   // Fetch active jobs for ALL roles — management uses it for dashboard, field roles use it as fallback for self clock-in
@@ -234,6 +236,13 @@ export default function DashboardScreen() {
     }
   }, [activeJobs]);
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
+  // Cache employees when fetched
+  useEffect(() => {
+    if (allEmployees && allEmployees.length > 0) {
+      setCache(CACHE_KEYS.ALL_EMPLOYEES, allEmployees);
+      setCachedEmployees(allEmployees);
+    }
+  }, [allEmployees]);
     const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 0, refetchInterval: 15000, refetchOnMount: "always", refetchOnWindowFocus: "always" });
   // Voice goal creator state
   const [showVoiceGoals, setShowVoiceGoals] = useState(false);
@@ -828,7 +837,7 @@ export default function DashboardScreen() {
         {/* Management KPIs */}
         <View style={styles.kpiRow}>
           <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{(activeJobs || []).length}</Text>
+            <Text style={styles.kpiValue}>{(activeJobs || cachedActiveJobs || []).length}</Text>
             <Text style={styles.kpiLabel}>Active Jobs</Text>
           </View>
           <View style={styles.kpiCard}>
@@ -836,7 +845,7 @@ export default function DashboardScreen() {
             <Text style={styles.kpiLabel}>On Site Now</Text>
           </View>
           <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{(allEmployees || []).filter((e) => e.isActive).length}</Text>
+            <Text style={styles.kpiValue}>{(allEmployees || cachedEmployees || []).filter((e: any) => e.isActive).length}</Text>
             <Text style={styles.kpiLabel}>Employees</Text>
           </View>
         </View>
@@ -1156,7 +1165,7 @@ export default function DashboardScreen() {
           }}
           activeOpacity={0.7}
         >
-          <Text style={styles.sectionTitle}>Active Jobs ({(activeJobs || []).length})</Text>
+          <Text style={styles.sectionTitle}>Active Jobs ({(activeJobs || cachedActiveJobs || []).length})</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <TouchableOpacity onPress={() => router.push("/jobs" as any)}>
               <Text style={styles.seeAll}>See All</Text>
@@ -1166,7 +1175,7 @@ export default function DashboardScreen() {
         </TouchableOpacity>
         {showActiveJobs && (
           <View style={{ paddingHorizontal: 20 }}>
-            {(activeJobs || []).slice(0, 5).map((job) => (
+            {(activeJobs || cachedActiveJobs || []).slice(0, 5).map((job: any) => (
               <JobCard key={job.id} job={job} spentAmount={(job as any).spentAmount || 0} onPress={() => router.push("/jobs" as any)} />
             ))}
           </View>
