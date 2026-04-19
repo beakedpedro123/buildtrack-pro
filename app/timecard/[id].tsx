@@ -4,6 +4,7 @@ import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useMemo } from "react";
+import { getApiBaseUrl } from "@/constants/oauth";
 import {
   ActivityIndicator,
   Alert,
@@ -491,7 +492,6 @@ export default function TimecardScreen() {
                 onPress={async () => {
                   try {
                     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    const { getApiBaseUrl } = await import("@/constants/oauth");
                     const apiBase = getApiBaseUrl();
                     const url = `${apiBase}/api/timecard-pdf?employeeId=${employeeId}&startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}`;
                     if (Platform.OS === "web") {

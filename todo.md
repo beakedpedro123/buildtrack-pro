@@ -1776,3 +1776,16 @@
 ## Bug Fixes (Apr 19, 2026)
 - [x] Fix employee report download error — "Cannot read property 'openURL' of undefined" when employee tries to generate hours report
 - [x] Fix salary employees showing full pay on job budget in report upper section — should show allocated portion per job, not entire salary
+
+## Phase 83: Deep Audit + Report Download Fix + Free Trial Flow (Apr 19, 2026)
+- [x] Fix employee report download — still broken on TestFlight (openURL error persists after previous fix) — root cause: dynamic import of oauth module triggered expo-linking load which shadowed react-native Linking; fixed with static import
+- [x] Research competitor apps (Jibble, ExakTime, Busybusy, ClockShark, Connecteam) for feature comparison
+- [x] Full function-by-function audit of every screen in the app
+- [x] Write comprehensive audit report with competitor insights and improvement suggestions
+- [x] Design free 14-day trial flow for SaaS server (signup → trial → purchase → auto-upgrade)
+- [x] Design subscription sync so trial users seamlessly upgrade when they pay
+- [x] Build trial signup API (POST /api/trial) — creates company + owner + 14-day Pro trial
+- [x] Build trial status API (GET /api/trial/status) — shows days remaining, expiration
+- [x] Build trial upgrade API (POST /api/trial/upgrade) — redirects to Stripe checkout
+- [x] Update marketing site signup form with proper fields (first/last name, company, email, password)
+- [x] Wire Stripe webhook to auto-detect trial upgrades and convert to paid
