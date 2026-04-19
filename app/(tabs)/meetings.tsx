@@ -33,6 +33,7 @@ import { ActivityIndicator,
   View, ImageBackground } from "react-native";
 
 import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
+import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 type MainTab = "management" | "safety";
@@ -166,7 +167,18 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
 
   // ─── Management meeting queries ──────────────────────────────────────────
   const { data: meetings, isLoading: mgmtLoading, refetch: refetchMgmt } = trpc.meetings.list.useQuery();
-  const selectedMeeting = meetings?.find((m) => m.id === selectedMeetingId) || null;
+
+  // Offline caching for meetings
+  const [cachedMeetings, setCachedMeetings] = useState<any[] | null>(null);
+  useEffect(() => {
+    getCached<any[]>(CACHE_KEYS.MEETINGS).then((d) => { if (d) setCachedMeetings(d); });
+  }, []);
+  useEffect(() => {
+    if (meetings && meetings.length > 0) { setCache(CACHE_KEYS.MEETINGS, meetings).catch(() => {}); setCachedMeetings(meetings); }
+  }, [meetings]);
+
+  const effectiveMeetings = meetings || cachedMeetings || [];
+  const selectedMeeting = effectiveMeetings.find((m: any) => m.id === selectedMeetingId) || null;
 
   const createMeeting = trpc.meetings.create.useMutation({
     onSuccess: (data) => {
@@ -1040,7 +1052,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
             </View>
           ) : (
             <FlatList
-              data={meetings || []}
+              data={effectiveMeetings}
               keyExtractor={(item) => item.id.toString()}
               renderItem={({ item }) => (
                 <TouchableOpacity

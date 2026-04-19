@@ -98,12 +98,10 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
 
   const [cachedReports, setCachedReports] = useState<any[] | null>(null);
   useEffect(() => {
-    if (reportsQuery.isError && !recentReports) {
-      getCached<any[]>(CACHE_KEYS.RECENT_REPORTS).then((cached) => {
-        if (cached) setCachedReports(cached);
-      });
-    }
-  }, [reportsQuery.isError, recentReports]);
+    getCached<any[]>(CACHE_KEYS.RECENT_REPORTS).then((cached) => {
+      if (cached) setCachedReports(cached);
+    });
+  }, []);
 
   const displayReports = recentReports || cachedReports;
 

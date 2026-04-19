@@ -696,11 +696,17 @@ export default function GoalsScreen() {
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { staleTime: 30000 });
 
   // Offline cache for goals
+  const [cachedGoals, setCachedGoals] = useState<any[] | null>(null);
+  useEffect(() => {
+    getCached<any[]>(CACHE_KEYS.GOALS).then((d) => { if (d) setCachedGoals(d); });
+  }, []);
   useEffect(() => {
     if (goals && goals.length > 0) {
       setCache(CACHE_KEYS.GOALS, goals).catch(() => {});
+      setCachedGoals(goals);
     }
   }, [goals]);
+  const effectiveGoals = goals || cachedGoals || [];
 
   const employeeMap = useMemo(() => {
     const map: Record<number, string> = {};
@@ -746,8 +752,10 @@ export default function GoalsScreen() {
 
   // Filter goals
   const filteredGoals = useMemo(() => {
-    if (!goals) return [];
-    let filtered = [...goals];
+    if (!goals && effectiveGoals.length === 0) return [];
+    const goalsData = goals || effectiveGoals;
+    if (!goalsData || goalsData.length === 0) return [];
+    let filtered = [...goalsData];
     // isGoalForMe: returns true ONLY if the goal is explicitly assigned to this employee
     // Goals with no assignee are management-only and must never show to field staff
     const isGoalForMe = (g: any) => {

@@ -1195,6 +1195,36 @@ ${reportsSummary || "  No recent reports."}
       }
     }
 
+    // ── Owner Private Knowledge Base (from SaaS server) ──────────────────────
+    let knowledgeBaseContext = "";
+    if (isOwner) {
+      try {
+        // Fetch Pedro's private knowledge base from the SaaS server
+        // This data includes financials, goals, overheads, equipment plans, labor benchmarks
+        const kbResponse = await fetch("http://localhost:4000/api/admin/pivot-context", {
+          headers: {
+            "Authorization": `Bearer ${require("jsonwebtoken").sign({ id: "super_admin", email: "pedro@buildtrackpro.com", role: "super_admin", companyId: null }, process.env.JWT_SECRET || "buildtrack-saas-secret-change-me", { expiresIn: "1h" })}`
+          }
+        });
+        if (kbResponse.ok) {
+          const kbData = await kbResponse.json();
+          const ctx = kbData.context || {};
+          const sections: string[] = [];
+          for (const [category, entries] of Object.entries(ctx)) {
+            const catName = category.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+            const items = Object.entries(entries as Record<string, string>)
+              .map(([k, v]) => `  - ${k}: ${v}`).join("\n");
+            sections.push(`### ${catName}\n${items}`);
+          }
+          if (sections.length > 0) {
+            knowledgeBaseContext = `\n## Pedro's Private Financial Knowledge Base (OWNER-ONLY — NEVER share with employees)\nThis is Pedro's private business intelligence. Use it to give specific, numbers-backed advice.\n${sections.join("\n\n")}\n`;
+          }
+        }
+      } catch {
+        // Knowledge base unavailable — continue without it
+      }
+    }
+
     // ── Current date/time in Mountain Time (Utah) ────────────────────────────
     const mtnNow = new Date();
     const mtnDateStr = mtnNow.toLocaleDateString("en-US", { timeZone: "America/Denver", weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -1313,6 +1343,7 @@ ${greetingInstruction}
 ${memoryContext}
 ${recentHistory}
 ${isOwner ? ownerPatternsContext : ""}
+${isOwner ? knowledgeBaseContext : ""}
 ${businessContext}
 ${goalsContext}
 ${allGoalsContext}

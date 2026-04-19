@@ -4,7 +4,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
   Alert,
@@ -24,6 +24,7 @@ import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
+import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#E8500A",
@@ -102,6 +103,20 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
   const { data: employees, isLoading } = trpc.employees.list.useQuery(undefined, { staleTime: 30000 });
   const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { staleTime: 15000, refetchInterval: 30000 });
   const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 30000 });
+
+  // Offline caching
+  const [cachedEmployees, setCachedEmployees] = useState<any[] | null>(null);
+  const [cachedJobs, setCachedJobs] = useState<any[] | null>(null);
+  useEffect(() => {
+    getCached<any[]>(CACHE_KEYS.ALL_EMPLOYEES).then((d) => { if (d) setCachedEmployees(d); });
+    getCached<any[]>(CACHE_KEYS.ACTIVE_JOBS).then((d) => { if (d) setCachedJobs(d); });
+  }, []);
+  useEffect(() => {
+    if (employees && employees.length > 0) { setCache(CACHE_KEYS.ALL_EMPLOYEES, employees).catch(() => {}); setCachedEmployees(employees); }
+  }, [employees]);
+  useEffect(() => {
+    if (activeJobs && activeJobs.length > 0) { setCache(CACHE_KEYS.ACTIVE_JOBS, activeJobs).catch(() => {}); setCachedJobs(activeJobs); }
+  }, [activeJobs]);
 
   // Clock mutations for inline clock-in/out
   const clockInMutation = trpc.clock.in.useMutation();
@@ -202,7 +217,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
 
   const notClockedInEmployees = useMemo(() => {
     const clockedInIds = new Set((clockedIn || []).map((e: any) => e.employeeId));
-    return (employees || []).filter((e) => e.isActive && !clockedInIds.has(e.id));
+    return (employees || cachedEmployees || []).filter((e: any) => e.isActive && !clockedInIds.has(e.id));
   }, [employees, clockedIn]);
 
   const createEmployee = trpc.employees.create.useMutation({
@@ -298,7 +313,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
     );
   };
 
-  const filteredEmployees = (employees || []).filter((emp) => {
+  const filteredEmployees = (employees || cachedEmployees || []).filter((emp: any) => {
     if (filterRole !== "all" && emp.role !== filterRole) return false;
     return emp.isActive;
   });
@@ -350,7 +365,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
         <View>
           <Text style={styles.title}>Team</Text>
           <Text style={{ fontSize: 13, color: colors.muted }}>
-            {(employees || []).filter((e) => e.isActive).length} active · {clockedInIds.size} on site
+            {(employees || cachedEmployees || []).filter((e: any) => e.isActive).length} active · {clockedInIds.size} on site
           </Text>
         </View>
         {canManageTeam && (

@@ -1730,7 +1730,7 @@
 
 ## Phase 82 — Marketing, Time Fix, Offline Fix, Multi-Tenant Plan Update
 - [ ] Fix time adjustment UI: add date picker (select exact day) + hour/minute picker with AM/PM
-- [ ] Fix offline caching — screen recording shows nothing loading offline
+- [x] Fix offline caching — screen recording shows nothing loading offline
 - [ ] GPS included in app but toggle-able per company (on/off in company settings)
 - [ ] Build marketing/signup website for buildtrackpro.com with screenshots and pricing
 - [ ] Create English marketing presentation for business owners
@@ -1743,18 +1743,18 @@
 
 ## BuildTrack Pro SaaS Platform (Separate Project)
 
-- [ ] Initialize standalone SaaS project (marketing site + multi-tenant server)
-- [ ] Build multi-tenant database schema (companies, users, subscriptions, tenant isolation)
-- [ ] Build marketing landing page with BuildTrack Pro dark+gold branding
-- [ ] Integrate Stripe billing (products, checkout, webhooks, subscription management)
-- [ ] Build company signup flow (Stripe payment → auto-provision tenant)
-- [ ] Connect marketing site to multi-tenant server for seamless onboarding
+- [x] Initialize standalone SaaS project (marketing site + multi-tenant server)
+- [x] Build multi-tenant database schema (companies, users, subscriptions, tenant isolation)
+- [x] Build marketing landing page with BuildTrack Pro dark+gold branding
+- [x] Integrate Stripe billing (products, checkout, webhooks, subscription management)
+- [x] Build company signup flow (Stripe payment → auto-provision tenant)
+- [x] Connect marketing site to multi-tenant server for seamless onboarding
 
 ## Private Pivot Knowledge Base
 
-- [ ] Create private Pivot knowledge base for Pedro's financial data (owner-only)
-- [ ] Wire Pivot AI to reference knowledge base for personalized goals and job costing
-- [ ] Ensure no employee/customer can see Pedro's private financial data
+- [x] Create private Pivot knowledge base for Pedro's financial data (owner-only)
+- [x] Wire Pivot AI to reference knowledge base for personalized goals and job costing
+- [x] Ensure no employee/customer can see Pedro's private financial data
 
 ## Hourly Job Type Feature
 - [x] Add job billing type (hourly vs fixed budget) to job schema

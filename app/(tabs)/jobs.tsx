@@ -7,7 +7,7 @@ import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import * as Print from "expo-print";
 import { shareAsync } from "expo-sharing";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
   Alert,
@@ -24,6 +24,7 @@ import { ActivityIndicator,
   View, ImageBackground } from "react-native";
 
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
+import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 
 const STATUS_LABELS: Record<string, string> = {
   active: "Active",
@@ -87,7 +88,19 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const canSeeBudget = role === "owner" || role === "office_manager";
   const canUpdateStatus = canManage || role === "foreman";
 
-  const { data: allJobs, isLoading } = trpc.jobs.list.useQuery(undefined, { staleTime: 30000 });
+  const { data: allJobs, isLoading, isError: jobsError } = trpc.jobs.list.useQuery(undefined, { staleTime: 30000 });
+
+  // Offline caching for jobs
+  const [cachedJobs, setCachedJobs] = useState<any[] | null>(null);
+  useEffect(() => {
+    getCached<any[]>(CACHE_KEYS.ALL_JOBS).then((d) => { if (d) setCachedJobs(d); });
+  }, []);
+  useEffect(() => {
+    if (allJobs && allJobs.length > 0) {
+      setCache(CACHE_KEYS.ALL_JOBS, allJobs).catch(() => {});
+      setCachedJobs(allJobs);
+    }
+  }, [allJobs]);
   const { data: jobReports } = trpc.reports.forJob.useQuery(
     { jobId: selectedJob?.id || 0 },
     { enabled: !!selectedJob }
@@ -117,7 +130,8 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); setJobTaxRate(""); setJobWorkersComp(""); setJobLiabilityIns(""); setJobBillingType("fixed"); setJobHourlyRate("55"); };
   const resetExpForm = () => { setExpDesc(""); setExpAmount(""); setExpCategoryId(null); };
 
-  const filteredJobs = (allJobs || []).filter((j) => {
+  const effectiveJobs = allJobs || cachedJobs || [];
+  const filteredJobs = effectiveJobs.filter((j: any) => {
     if (filter === "active") return j.status === "active";
     if (filter === "completed") return j.status === "completed" || j.status === "cancelled";
     return true;
