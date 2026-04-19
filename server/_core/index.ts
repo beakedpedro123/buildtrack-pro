@@ -11,7 +11,6 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { registerMarketingRoutes } from "../marketing-routes";
 
 // ESM compatibility: derive __dirname from import.meta.url
 // Works in both tsx (dev) and esbuild ESM output (production)
@@ -69,7 +68,6 @@ async function startServer() {
 
   registerStorageProxy(app);
   registerOAuthRoutes(app);
-  registerMarketingRoutes(app);
 
   // File upload endpoint for audio recordings, photos, and PDFs
   // Uses multer for reliable multipart parsing (handles iOS/Android FormData correctly)
@@ -239,21 +237,6 @@ async function startServer() {
     }
   });
 
-  // ===== Marketing Website =====
-  // Serve the static marketing site at /api/marketing/
-  const marketingDir = path.join(publicDir, "marketing");
-  if (fs.existsSync(path.join(marketingDir, "index.html"))) {
-    console.log(`[server] Marketing site found at: ${marketingDir}`);
-    app.use("/api/marketing", express.static(marketingDir));
-    app.get("/api/marketing/*", (_req: Request, res: Response) => {
-      res.sendFile(path.join(marketingDir, "index.html"));
-    });
-  }
-
-  // Redirect root to marketing site (public-facing landing page)
-  app.get("/", (_req: Request, res: Response) => {
-    res.redirect(301, "/api/marketing/");
-  });
   app.get("/api", (_req: Request, res: Response) => {
     res.redirect(301, "/api/web/");
   });
