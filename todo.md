@@ -1789,3 +1789,8 @@
 - [x] Build trial upgrade API (POST /api/trial/upgrade) — redirects to Stripe checkout
 - [x] Update marketing site signup form with proper fields (first/last name, company, email, password)
 - [x] Wire Stripe webhook to auto-detect trial upgrades and convert to paid
+
+## Phase 84: Job Selector UI Improvement (Apr 19, 2026)
+- [x] Redesign job site selector on home screen — collapsible accordion, polished dark+gold styling
+- [x] Make job list compact by default, expand on tap
+- [x] Better visual hierarchy and seamless look
