@@ -237,9 +237,20 @@ async function startServer() {
     }
   });
 
-  // Redirect root to PWA
+  // ===== Marketing Website =====
+  // Serve the static marketing site at /api/marketing/
+  const marketingDir = path.join(publicDir, "marketing");
+  if (fs.existsSync(path.join(marketingDir, "index.html"))) {
+    console.log(`[server] Marketing site found at: ${marketingDir}`);
+    app.use("/api/marketing", express.static(marketingDir));
+    app.get("/api/marketing/*", (_req: Request, res: Response) => {
+      res.sendFile(path.join(marketingDir, "index.html"));
+    });
+  }
+
+  // Redirect root to marketing site (public-facing landing page)
   app.get("/", (_req: Request, res: Response) => {
-    res.redirect(301, "/api/web/");
+    res.redirect(301, "/api/marketing/");
   });
   app.get("/api", (_req: Request, res: Response) => {
     res.redirect(301, "/api/web/");
