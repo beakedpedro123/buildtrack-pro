@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to BuildTrack Pro!</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0A0E17;
+            --bg-secondary: #111827;
+            --bg-card: #1A2035;
+            --accent-gold: #D4A843;
+            --accent-orange: #F27A1A;
+            --text-primary: #FFFFFF;
+            --text-secondary: #94A3B8;
+            --success: #22C55E;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .success-container {
+            text-align: center;
+            max-width: 600px;
+            padding: 3rem 2rem;
+        }
+        .success-icon {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(34, 197, 94, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 2rem;
+            font-size: 3rem;
+        }
+        .success-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        .success-title span { color: var(--accent-gold); }
+        .success-text {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            line-height: 1.8;
+            margin-bottom: 2rem;
+        }
+        .success-steps {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: left;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(212, 168, 67, 0.15);
+        }
+        .success-steps h3 {
+            color: var(--accent-gold);
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+        }
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .step:last-child { margin-bottom: 0; }
+        .step-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--accent-gold);
+            color: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+        .step-text {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .step-text strong { color: var(--text-primary); }
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, var(--accent-gold), var(--accent-orange));
+            color: #000;
+            font-weight: 700;
+            font-size: 1rem;
+            border-radius: 12px;
+            text-decoration: none;
+            transition: transform 0.2s;
+        }
+        .btn-primary:hover { transform: translateY(-2px); }
+        .logo-section {
+            margin-bottom: 2rem;
+        }
+        .logo-section img {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="success-container">
+        <div class="logo-section">
+            <img src="assets/logo.png" alt="BuildTrack Pro">
+        </div>
+        <div class="success-icon">&#x2705;</div>
+        <h1 class="success-title">Welcome to <span>BuildTrack Pro</span>!</h1>
+        <p class="success-text">
+            Your subscription is active and your company account has been created. 
+            You're ready to start tracking your workforce like a pro.
+        </p>
+        <div class="success-steps">
+            <h3>What happens next:</h3>
+            <div class="step">
+                <div class="step-num">1</div>
+                <div class="step-text"><strong>Check your email</strong> — We've sent your login credentials and setup instructions.</div>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <div class="step-text"><strong>Download the app</strong> — Available on iOS App Store and Google Play Store.</div>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <div class="step-text"><strong>Add your crew</strong> — Invite your employees and set up your first job site.</div>
+            </div>
+            <div class="step">
+                <div class="step-num">4</div>
+                <div class="step-text"><strong>Meet Pivot</strong> — Your AI assistant is ready to help with estimates, reports, and goals.</div>
+            </div>
+        </div>
+        <a href="/" class="btn-primary">Back to BuildTrack Pro &rarr;</a>
+    </div>
+</body>
+</html>

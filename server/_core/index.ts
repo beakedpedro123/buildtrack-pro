@@ -11,6 +11,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { registerMarketingRoutes } from "../marketing-routes";
 
 // ESM compatibility: derive __dirname from import.meta.url
 // Works in both tsx (dev) and esbuild ESM output (production)
@@ -68,6 +69,7 @@ async function startServer() {
 
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  registerMarketingRoutes(app);
 
   // File upload endpoint for audio recordings, photos, and PDFs
   // Uses multer for reliable multipart parsing (handles iOS/Android FormData correctly)

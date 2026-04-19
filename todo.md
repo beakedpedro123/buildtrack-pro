@@ -1794,3 +1794,20 @@
 - [x] Redesign job site selector on home screen — collapsible accordion, polished dark+gold styling
 - [x] Make job list compact by default, expand on tap
 - [x] Better visual hierarchy and seamless look
+
+## Marketing Website Integration (Web App)
+
+- [x] Copy all marketing assets (images, mockups, HTML) into public/marketing/
+- [x] Update marketing HTML API paths for /api/marketing-* prefix
+- [x] Create marketing-db.ts (SQLite multi-tenant database for signups/subscriptions)
+- [x] Create marketing-stripe.ts (Stripe checkout, billing portal, webhooks)
+- [x] Create marketing-routes.ts (all SaaS API endpoints)
+- [x] Register marketing routes in server/_core/index.ts
+- [x] Install dependencies (better-sqlite3, bcryptjs, jsonwebtoken, uuid, stripe, cookie-parser)
+- [x] Verify marketing site renders at /api/marketing/ with all sections
+- [x] Verify trial signup API creates accounts with 14-day trial
+- [x] Verify lead capture API works
+- [x] Verify root URL redirects to marketing site
+- [x] Verify success.html page serves correctly
+- [ ] Configure Stripe keys when Pedro purchases Stripe account
+- [ ] Point buildtrackpro.com domain when purchased
