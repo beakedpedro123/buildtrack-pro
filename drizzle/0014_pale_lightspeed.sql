@@ -1,0 +1,1 @@
+ALTER TABLE `weeklyGoals` ADD `repeatDaily` boolean DEFAULT false NOT NULL;

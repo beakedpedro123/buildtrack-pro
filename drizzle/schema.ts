@@ -206,6 +206,7 @@ export const weeklyGoals = mysqlTable("weeklyGoals", {
   deadline: timestamp("deadline"),
   createdBy: int("createdBy").notNull(),
   completedAt: timestamp("completedAt"),
+  repeatDaily: boolean("repeatDaily").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

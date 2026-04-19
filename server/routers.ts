@@ -532,11 +532,13 @@ const goalsRouter = router({
     priority: z.enum(["low", "medium", "high"]).default("medium"),
     deadline: z.string().optional(),
     createdBy: z.number(),
+    repeatDaily: z.boolean().optional(),
   })).mutation(async ({ input }) => {
     const id = await db.createWeeklyGoal({
       ...input,
       weekOf: new Date(input.weekOf),
       deadline: input.deadline ? new Date(input.deadline) : undefined,
+      repeatDaily: input.repeatDaily || false,
     });
     return { id };
   }),
@@ -550,6 +552,7 @@ const goalsRouter = router({
     assignedToList: z.string().optional(),
     deadline: z.string().nullable().optional(),
     completedAt: z.string().optional(),
+    repeatDaily: z.boolean().optional(),
   })).mutation(async ({ input }) => {
     const { id, completedAt, deadline, ...rest } = input;
     await db.updateWeeklyGoal(id, {

@@ -678,6 +678,7 @@ export default function GoalsScreen() {
   const [newGoalPriority, setNewGoalPriority] = useState<Priority>("medium");
   const [newGoalAssignees, setNewGoalAssignees] = useState<number[]>([]);
   const [newGoalDeadline, setNewGoalDeadline] = useState<string>("");
+  const [newGoalRepeatDaily, setNewGoalRepeatDaily] = useState(false);
   const [filterAssignee, setFilterAssignee] = useState<number | "all">("all");
 
   const weekDate = new Date();
@@ -733,6 +734,7 @@ export default function GoalsScreen() {
     setNewGoalPriority("medium");
     setNewGoalAssignees([]);
     setNewGoalDeadline("");
+    setNewGoalRepeatDaily(false);
   };
 
   // Roles
@@ -830,6 +832,7 @@ export default function GoalsScreen() {
       setNewGoalAssignees([]);
     }
     setNewGoalDeadline(goal.deadline || "");
+    setNewGoalRepeatDaily(!!goal.repeatDaily);
     setShowEditGoal(true);
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
@@ -843,7 +846,8 @@ export default function GoalsScreen() {
       priority: newGoalPriority,
       assignedTo: newGoalAssignees.length === 1 ? newGoalAssignees[0] : undefined,
       assignedToList: newGoalAssignees.length > 0 ? newGoalAssignees.join(",") : undefined,
-      deadline: newGoalDeadline || null });
+      deadline: newGoalDeadline || null,
+      repeatDaily: newGoalRepeatDaily });
     resetForm();
   };
 
@@ -860,7 +864,8 @@ export default function GoalsScreen() {
       createdBy: employee?.id || 0,
       assignedTo: newGoalAssignees.length === 1 ? newGoalAssignees[0] : undefined,
       assignedToList: newGoalAssignees.length > 0 ? newGoalAssignees.join(",") : undefined,
-      deadline: newGoalDeadline || undefined });
+      deadline: newGoalDeadline || undefined,
+      repeatDaily: newGoalRepeatDaily });
   };
 
   const PRIORITIES: Priority[] = ["low", "medium", "high"];
@@ -976,6 +981,47 @@ export default function GoalsScreen() {
           Due: {new Date(newGoalDeadline).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} at {new Date(newGoalDeadline).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </Text>
       ) : null}
+
+      {/* Repeat Daily Toggle */}
+      <TouchableOpacity
+        onPress={() => {
+          setNewGoalRepeatDaily(!newGoalRepeatDaily);
+          if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }}
+        style={{
+          flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+          backgroundColor: newGoalRepeatDaily ? colors.primary + "15" : colors.surface,
+          borderRadius: 12, padding: 14, marginTop: 16, marginBottom: 8,
+          borderWidth: newGoalRepeatDaily ? 1.5 : 1,
+          borderColor: newGoalRepeatDaily ? colors.primary : colors.border,
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+          <Text style={{ fontSize: 20 }}>{newGoalRepeatDaily ? "🔁" : "📅"}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: newGoalRepeatDaily ? colors.primary : colors.foreground }}>Repeat Daily</Text>
+            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+              {newGoalRepeatDaily ? "This goal will auto-create every morning" : "One-time goal for this week"}
+            </Text>
+          </View>
+        </View>
+        <View style={{
+          width: 48, height: 28, borderRadius: 14,
+          backgroundColor: newGoalRepeatDaily ? colors.primary : colors.border,
+          justifyContent: "center",
+          paddingHorizontal: 2,
+        }}>
+          <View style={{
+            width: 24, height: 24, borderRadius: 12,
+            backgroundColor: "#fff",
+            alignSelf: newGoalRepeatDaily ? "flex-end" : "flex-start",
+            ...(Platform.OS === "ios" ? {
+              shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.2, shadowRadius: 2,
+            } : { elevation: 2 }),
+          }} />
+        </View>
+      </TouchableOpacity>
 
       <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8, marginBottom: 16 }}>
         Week: {formatWeekLabel(weekDate)}

@@ -1694,3 +1694,36 @@
 - [x] Per-job report download — download PDF report for a specific individual job
 - [x] Billing rate selector ($45/$50/$55/$60) for hourly/no-budget jobs in PDF reports
 - [x] Office manager salary ($2,500) split evenly across ALL active jobs in reports
+
+## Phase 81 — Multi-Trade Expansion & Multi-Tenant Planning (Pedro April 18)
+
+### Goals UI
+- [x] Add repeat on/off toggle when creating a goal in the goals tab
+
+### Competitor Research
+- [ ] Research Jibble features and pricing for multi-trade coverage
+- [ ] Research ExakTime features and pricing
+- [ ] Research FingerCheck features and pricing
+- [ ] Identify features from each competitor to incorporate
+
+### Multi-Trade Adaptive System
+- [ ] Design AI-driven trade detection and adaptation (excavators, concrete, drywall, landscaping, plumbing, electrical)
+- [ ] Adaptive report templates per trade
+- [ ] Adaptive checklists and safety items per trade
+- [ ] Adaptive terminology per trade
+
+### GPS Add-On
+- [ ] Design GPS as optional paid feature (not included in base plans)
+
+### Admin Web App (Separate from BuildTrack Pro)
+- [ ] Design separate admin web app for subscription management and troubleshooting
+- [ ] Secretary can manage billing, view subscriber metrics, troubleshoot
+
+### Updated Pricing
+- [ ] Starter: $49/mo, 8 employees, +$6/user
+- [ ] Pro: $99/mo, 18 employees, +$5/user
+- [ ] Premium: $199/mo, 100 employees, +$4/user
+
+### Build Instructions
+- [ ] Write comprehensive build instructions for multi-tenant conversion
+- [ ] Get Pedro's approval before starting build
