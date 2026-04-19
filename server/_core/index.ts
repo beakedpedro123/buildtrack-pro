@@ -117,7 +117,7 @@ async function startServer() {
   // Detailed payroll PDF download endpoint
   app.get("/api/payroll-pdf", async (req: Request, res: Response) => {
     try {
-      const { startDate, endDate, reportType } = req.query;
+      const { startDate, endDate, reportType, billingRate, jobId } = req.query;
       if (!startDate || !endDate) {
         res.status(400).json({ error: "startDate and endDate query params required" });
         return;
@@ -125,19 +125,49 @@ async function startServer() {
       const { generateDetailedPayrollPDF } = await import("../payroll-pdf");
       const validTypes = ["full", "payroll", "jobcost", "employee"];
       const rType = validTypes.includes(reportType as string) ? (reportType as any) : "full";
+      const rate = billingRate ? parseFloat(billingRate as string) : undefined;
+      const jId = jobId ? parseInt(jobId as string) : undefined;
       const pdfBuffer = await generateDetailedPayrollPDF(
         new Date(startDate as string),
         new Date(endDate as string),
-        rType
+        rType,
+        rate,
+        jId
       );
       const typeLabel = rType === "full" ? "payroll" : rType;
-      const filename = `${typeLabel}_${(startDate as string).slice(0, 10)}_to_${(endDate as string).slice(0, 10)}.pdf`;
+      const jobSuffix = jId ? `_job${jId}` : "";
+      const filename = `${typeLabel}${jobSuffix}_${(startDate as string).slice(0, 10)}_to_${(endDate as string).slice(0, 10)}.pdf`;
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       res.setHeader("Content-Length", pdfBuffer.length);
       res.send(pdfBuffer);
     } catch (err: any) {
       console.error("Payroll PDF error:", err);
+      res.status(500).json({ error: "Failed to generate PDF", details: err?.message });
+    }
+  });
+
+  // Individual employee timecard PDF
+  app.get("/api/timecard-pdf", async (req: Request, res: Response) => {
+    try {
+      const { employeeId, startDate, endDate } = req.query;
+      if (!employeeId || !startDate || !endDate) {
+        res.status(400).json({ error: "employeeId, startDate, and endDate query params required" });
+        return;
+      }
+      const { generateEmployeeTimecardPDF } = await import("../payroll-pdf");
+      const pdfBuffer = await generateEmployeeTimecardPDF(
+        parseInt(employeeId as string),
+        new Date(startDate as string),
+        new Date(endDate as string)
+      );
+      const filename = `timecard_emp${employeeId}_${(startDate as string).slice(0, 10)}_to_${(endDate as string).slice(0, 10)}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", pdfBuffer.length);
+      res.send(pdfBuffer);
+    } catch (err: any) {
+      console.error("Timecard PDF error:", err);
       res.status(500).json({ error: "Failed to generate PDF", details: err?.message });
     }
   });

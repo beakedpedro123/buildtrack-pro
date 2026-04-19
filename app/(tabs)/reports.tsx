@@ -27,6 +27,7 @@ import { ActivityIndicator,
   View, ImageBackground } from "react-native";
 
 import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
+import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 
 const WORK_CHECKLIST = [
   "Wall Framing",
@@ -84,10 +85,34 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
   photosRef.current = photos;
 
   const { data: jobs } = trpc.jobs.listActive.useQuery();
-  const { data: recentReports } = trpc.reports.recent.useQuery({ limit: 20 }, { staleTime: 30000 });
+  const reportsQuery = trpc.reports.recent.useQuery({ limit: 20 }, { staleTime: 30000 });
+  const recentReports = reportsQuery.data;
   const { data: allJobs } = trpc.jobs.list.useQuery();
 
+  // Offline cache: write on success, read on error
+  useEffect(() => {
+    if (recentReports && recentReports.length > 0) {
+      setCache(CACHE_KEYS.RECENT_REPORTS, recentReports).catch(() => {});
+    }
+  }, [recentReports]);
+
+  const [cachedReports, setCachedReports] = useState<any[] | null>(null);
+  useEffect(() => {
+    if (reportsQuery.isError && !recentReports) {
+      getCached<any[]>(CACHE_KEYS.RECENT_REPORTS).then((cached) => {
+        if (cached) setCachedReports(cached);
+      });
+    }
+  }, [reportsQuery.isError, recentReports]);
+
+  const displayReports = recentReports || cachedReports;
+
   const createReport = trpc.reports.create.useMutation();
+  const markSeenMutation = trpc.reports.markSeen.useMutation({
+    onSuccess: () => {
+      utils.reports.recent.invalidate();
+    },
+  });
   const getPhotosQuery = trpc.reports.getPhotos.useQuery(
     { reportId: expandedReport || 0 },
     { enabled: !!expandedReport }
@@ -379,7 +404,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
 
       <FlatList
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
-        data={recentReports || []}
+        data={displayReports || []}
         keyExtractor={(item) => item.id.toString()}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 24 }}
@@ -435,6 +460,64 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
                     <View style={{ paddingVertical: 12, alignItems: "center" }}>
                       <ActivityIndicator size="small" color={colors.primary} />
                       <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>Loading photos...</Text>
+                    </View>
+                  )}
+
+                  {/* Seen by Owner Toggle */}
+                  {employee?.role === "owner" && (
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        backgroundColor: item.seenByOwner ? colors.success + "15" : colors.surface,
+                        borderRadius: 10,
+                        padding: 12,
+                        marginTop: 12,
+                        borderWidth: 1,
+                        borderColor: item.seenByOwner ? colors.success : colors.border,
+                      }}
+                      onPress={async () => {
+                        try {
+                          if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          await markSeenMutation.mutateAsync({
+                            reportId: item.id,
+                            seen: !item.seenByOwner,
+                            requestingId: employee.id,
+                          });
+                        } catch (err: any) {
+                          Alert.alert("Error", err?.message || "Failed to update");
+                        }
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <Text style={{ fontSize: 20 }}>{item.seenByOwner ? "\u2705" : "\u2B1C"}</Text>
+                        <View>
+                          <Text style={{ fontSize: 14, fontWeight: "700", color: item.seenByOwner ? colors.success : colors.foreground }}>
+                            {item.seenByOwner ? "Reviewed" : "Mark as Reviewed"}
+                          </Text>
+                          {item.seenAt && item.seenByOwner && (
+                            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                              Seen {new Date(item.seenAt).toLocaleDateString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  {/* Seen indicator for non-owner employees */}
+                  {employee?.role !== "owner" && item.seenByOwner && (
+                    <View style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                      marginTop: 12,
+                      paddingTop: 10,
+                      borderTopWidth: 1,
+                      borderTopColor: colors.border,
+                    }}>
+                      <Text style={{ fontSize: 14 }}>\u2705</Text>
+                      <Text style={{ fontSize: 12, color: colors.success, fontWeight: "600" }}>Reviewed by Owner</Text>
                     </View>
                   )}
                 </View>

@@ -465,6 +465,36 @@ export default function TimecardScreen() {
                   {data?.days?.length || 0} days worked · {data?.days?.reduce((s: number, d: any) => s + d.entries.length, 0) || 0} shifts
                 </Text>
               </View>
+              {/* Download Individual Timecard */}
+              <TouchableOpacity
+                style={{
+                  backgroundColor: "#D4AF37",
+                  borderRadius: 10,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                  marginTop: 10,
+                }}
+                onPress={async () => {
+                  try {
+                    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    const { getApiBaseUrl } = await import("@/constants/oauth");
+                    const apiBase = getApiBaseUrl();
+                    const url = `${apiBase}/api/timecard-pdf?employeeId=${employeeId}&startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}`;
+                    if (Platform.OS === "web") {
+                      (window as any).open(url, "_blank");
+                    } else {
+                      const Linking = (await import("expo-linking")).default;
+                      await Linking.openURL(url);
+                    }
+                  } catch (err: any) {
+                    Alert.alert("Error", `Failed to download: ${err?.message || "Unknown error"}`);
+                  }
+                }}
+              >
+                <Text style={{ color: "#000", fontWeight: "700", fontSize: 14 }}>
+                  📄 Download Timecard PDF
+                </Text>
+              </TouchableOpacity>
             </View>
           }
           renderItem={({ item: day }) => (

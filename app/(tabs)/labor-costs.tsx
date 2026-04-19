@@ -4,10 +4,11 @@ import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { ActivityIndicator,
   FlatList,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -79,6 +80,13 @@ export default function LaborCostsScreen() {
   );
 
   const isLoading = loadingJobs || loadingTrend || loadingEmp;
+  const utils = trpc.useUtils();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await utils.laborDashboard.invalidate(); } catch {}
+    setRefreshing(false);
+  }, [utils]);
 
   // Compute summary stats
   const totalCost = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalCost, 0), [byJob]);
@@ -196,7 +204,7 @@ export default function LaborCostsScreen() {
       {isLoading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
           {/* Summary Cards */}
           <View style={styles.summaryRow}>
             <View style={styles.summaryCard}>

@@ -1645,3 +1645,52 @@
 
 - [x] Fix Jobs tab showing $0 budget on job cards — server now returns spentAmount (labor + expenses) with jobs.list and jobs.listActive
 - [x] Make 'By Employee (This Week)' section collapsible on home screen — tap header to expand/collapse with haptic feedback
+
+## Phase 80 — Pedro's April 18 Feature Requests
+
+### Report PDF Fixes
+- [x] Fix stacked/overlapping employee names in JOB COST SUMMARY PDF column
+- [x] Eliminate blank pages at end of generated PDF reports
+- [x] Add company logo to PDF report pages
+- [x] Fix page number mismatch in PDF footer
+
+### Hourly Job Billing
+- [x] For jobs with no budget (hourly jobs): show total hours per employee per job
+- [x] Add rate selector ($45/$50/$55/$60 per hour) for hourly job billing
+- [x] Office manager salary ($2,500) spread evenly across all active jobs in reports
+
+### Employee Features
+- [x] Allow employees to download individual timecards
+- [x] Add PIN change screen accessible from Profile for all users (already existed)
+
+### Report Management
+- [x] Add "Seen by Owner" checkbox on reports so employees know Pedro reviewed them
+
+### Offline Data
+- [x] Expand offline caching to cover reports, goals, jobs (not just clock entries)
+
+### Data Integrity (from audit)
+- [x] Diagnose and reconnect orphaned clock entries from employee ID changes (DB clean)
+- [x] Salary allocation handled in PDF generator (no separate tables needed)
+- [x] Match and eliminate "Unknown" ghost employee entries in payroll (DB clean)
+
+### Pivot AI Upgrades
+- [x] Pivot can push daily repeating goals
+- [x] Pivot enforces mandatory clock-in/clock-out goals
+- [x] Pivot generates reports by voice command
+- [x] Pivot creates clock-ins by voice command
+- [x] Pivot creates punch list items by voice command
+- [x] Pivot interacts with all app functions (goals, clock, reports, payroll)
+
+### Code Quality
+- [x] Full code audit — removed 3 unused components, cleaned 40+ console.logs
+- [x] Optimize performance — added pull-to-refresh to labor-costs, verified all screens
+- [x] Ensure all data syncs and refreshes properly — 95 invalidation calls verified
+
+### Future: Document Upload
+- [ ] (Question answered) Support uploading paystubs, workers comp, liability docs to database for budget tracking
+
+### Per-Job Reports (Pedro April 18 update)
+- [x] Per-job report download — download PDF report for a specific individual job
+- [x] Billing rate selector ($45/$50/$55/$60) for hourly/no-budget jobs in PDF reports
+- [x] Office manager salary ($2,500) split evenly across ALL active jobs in reports

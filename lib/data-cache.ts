@@ -125,4 +125,10 @@ export const CACHE_KEYS = {
   MY_JOBS: "my_jobs",
   CLOCKED_IN: "all_clocked_in",
   LOGIN_EMPLOYEES: "login_employees",
+  RECENT_REPORTS: "recent_reports",
+  GOALS: "goals",
+  MEETINGS: "meetings",
+  ALL_JOBS: "all_jobs",
+  KPI_METRICS: "kpi_metrics",
+  PUNCH_LIST: "punch_list",
 } as const;

@@ -4,7 +4,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
   Alert,
@@ -20,6 +20,7 @@ import { ActivityIndicator,
   View, ImageBackground } from "react-native";
 
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
+import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 
 type Priority = "low" | "medium" | "high";
 type GoalStatus = "pending" | "in_progress" | "completed" | "cancelled";
@@ -692,6 +693,13 @@ export default function GoalsScreen() {
     { enabled: !!employee?.id && !!employee?.role, staleTime: 0 }
   );
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { staleTime: 30000 });
+
+  // Offline cache for goals
+  useEffect(() => {
+    if (goals && goals.length > 0) {
+      setCache(CACHE_KEYS.GOALS, goals).catch(() => {});
+    }
+  }, [goals]);
 
   const employeeMap = useMemo(() => {
     const map: Record<number, string> = {};

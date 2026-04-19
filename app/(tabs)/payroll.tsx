@@ -215,6 +215,10 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
   const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [reportType, setReportType] = useState<"full" | "payroll" | "jobcost" | "employee">("full");
   const [showReportPicker, setShowReportPicker] = useState(false);
+  const [billingRate, setBillingRate] = useState<number | null>(null);
+  const [showBillingPicker, setShowBillingPicker] = useState(false);
+  const [filterJobId, setFilterJobId] = useState<number | null>(null);
+  const [showJobPicker, setShowJobPicker] = useState(false);
 
   // Custom date range state
   const today = new Date();
@@ -258,6 +262,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
   const { data, isLoading, refetch } = trpc.payroll.getReport.useQuery({
     startDate: range.startDate,
     endDate: range.endDate });
+  const { data: jobsData } = trpc.jobs.listActive.useQuery();
 
   const styles = StyleSheet.create({
     periodBtn: {
@@ -311,12 +316,12 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
     setDownloadingPDF(true);
     try {
       const apiBase = getApiBaseUrl();
-      const url = `${apiBase}/api/payroll-pdf?startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}&reportType=${reportType}`;
+      let url = `${apiBase}/api/payroll-pdf?startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}&reportType=${reportType}`;
+      if (billingRate) url += `&billingRate=${billingRate}`;
+      if (filterJobId) url += `&jobId=${filterJobId}`;
       if (Platform.OS === "web") {
-        // Web: open in new tab to trigger download
         window.open(url, "_blank");
       } else {
-        // Native: open URL in browser to download
         await Linking.openURL(url);
       }
     } catch (err: any) {
@@ -471,12 +476,69 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                   <Text style={{ fontSize: 14, color: colors.primary }}>▼</Text>
                 </TouchableOpacity>
 
+                {/* Billing Rate Selector */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: billingRate ? "#D4AF3715" : colors.surface,
+                    borderRadius: 12,
+                    padding: 14,
+                    borderWidth: 1,
+                    borderColor: billingRate ? "#D4AF37" : colors.border,
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 8,
+                  }}
+                  onPress={() => setShowBillingPicker(true)}
+                >
+                  <View>
+                    <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "600" }}>Hourly Billing Rate</Text>
+                    <Text style={{ fontSize: 15, color: billingRate ? "#D4AF37" : colors.foreground, fontWeight: "700", marginTop: 2 }}>
+                      {billingRate ? `$${billingRate}/hr` : "None (internal payroll only)"}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }}>
+                      {billingRate ? "Applies to hourly/no-budget jobs" : "Select to add billing rate for contractors"}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 14, color: colors.primary }}>▼</Text>
+                </TouchableOpacity>
+
+                {/* Job Filter Selector */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: filterJobId ? colors.primary + "15" : colors.surface,
+                    borderRadius: 12,
+                    padding: 14,
+                    borderWidth: 1,
+                    borderColor: filterJobId ? colors.primary : colors.border,
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 8,
+                  }}
+                  onPress={() => setShowJobPicker(true)}
+                >
+                  <View>
+                    <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "600" }}>Filter by Job</Text>
+                    <Text style={{ fontSize: 15, color: colors.foreground, fontWeight: "700", marginTop: 2 }}>
+                      {filterJobId
+                        ? (jobsData || []).find((j: any) => j.id === filterJobId)?.name || `Job #${filterJobId}`
+                        : "All Jobs"}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }}>
+                      {filterJobId ? "Report for this job only" : "Download report for all jobs or select one"}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 14, color: colors.primary }}>▼</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity style={styles.pdfBtn} onPress={handleDownloadPDF} disabled={downloadingPDF}>
                   {downloadingPDF ? (
                     <ActivityIndicator size="small" color="#000" />
                   ) : (
                     <Text style={{ color: "#000", fontWeight: "700", fontSize: 15 }}>
-                      📄 Download {REPORT_TYPES.find(r => r.key === reportType)?.label || "Report"}
+                      📄 Download {filterJobId ? "Job Report" : (REPORT_TYPES.find(r => r.key === reportType)?.label || "Report")}
+                      {billingRate ? ` @ $${billingRate}/hr` : ""}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -680,6 +742,158 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                 borderColor: colors.border,
               }}
               onPress={() => setShowReportPicker(false)}
+            >
+              <Text style={{ color: colors.foreground, fontWeight: "600" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Billing Rate Picker Modal */}
+      <Modal visible={showBillingPicker} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 }}>
+            <View style={{ alignItems: "center", marginBottom: 16 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, marginBottom: 6 }}>
+              Hourly Billing Rate
+            </Text>
+            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 20 }}>
+              Select the rate to charge contractors for hourly/no-budget jobs
+            </Text>
+
+            {[null, 45, 50, 55, 60].map((rate) => (
+              <TouchableOpacity
+                key={rate ?? "none"}
+                style={{
+                  backgroundColor: billingRate === rate ? "#D4AF3720" : colors.surface,
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 8,
+                  borderWidth: 1,
+                  borderColor: billingRate === rate ? "#D4AF37" : colors.border,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+                onPress={() => {
+                  setBillingRate(rate);
+                  setShowBillingPicker(false);
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: rate ? "#D4AF37" : colors.foreground }}>
+                    {rate ? `$${rate}/hr` : "None"}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                    {rate ? `Charge contractors $${rate} per man hour` : "Internal payroll only — no billing rate"}
+                  </Text>
+                </View>
+                {billingRate === rate && (
+                  <Text style={{ fontSize: 20, color: "#D4AF37", marginLeft: 12 }}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: colors.surface,
+                borderRadius: 12,
+                paddingVertical: 14,
+                alignItems: "center",
+                marginTop: 8,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+              onPress={() => setShowBillingPicker(false)}
+            >
+              <Text style={{ color: colors.foreground, fontWeight: "600" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Job Filter Picker Modal */}
+      <Modal visible={showJobPicker} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: "70%" }}>
+            <View style={{ alignItems: "center", marginBottom: 16 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, marginBottom: 6 }}>
+              Filter by Job
+            </Text>
+            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 20 }}>
+              Download a report for a specific job or all jobs
+            </Text>
+
+            <ScrollView style={{ maxHeight: 400 }}>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: !filterJobId ? colors.primary + "15" : colors.surface,
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 8,
+                  borderWidth: 1,
+                  borderColor: !filterJobId ? colors.primary : colors.border,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+                onPress={() => {
+                  setFilterJobId(null);
+                  setShowJobPicker(false);
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>All Jobs</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Full report across all job sites</Text>
+                </View>
+                {!filterJobId && <Text style={{ fontSize: 20, color: colors.primary, marginLeft: 12 }}>✓</Text>}
+              </TouchableOpacity>
+
+              {(jobsData || []).map((job: any) => (
+                <TouchableOpacity
+                  key={job.id}
+                  style={{
+                    backgroundColor: filterJobId === job.id ? colors.primary + "15" : colors.surface,
+                    borderRadius: 12,
+                    padding: 16,
+                    marginBottom: 8,
+                    borderWidth: 1,
+                    borderColor: filterJobId === job.id ? colors.primary : colors.border,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                  onPress={() => {
+                    setFilterJobId(job.id);
+                    setShowJobPicker(false);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>{job.name}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                      {job.totalBudget && parseFloat(job.totalBudget) > 0 ? `Budget: $${parseFloat(job.totalBudget).toLocaleString()}` : "Hourly Job (no budget)"}
+                    </Text>
+                  </View>
+                  {filterJobId === job.id && <Text style={{ fontSize: 20, color: colors.primary, marginLeft: 12 }}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: colors.surface,
+                borderRadius: 12,
+                paddingVertical: 14,
+                alignItems: "center",
+                marginTop: 8,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+              onPress={() => setShowJobPicker(false)}
             >
               <Text style={{ color: colors.foreground, fontWeight: "600" }}>Cancel</Text>
             </TouchableOpacity>

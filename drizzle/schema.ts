@@ -105,6 +105,8 @@ export const dailyReports = mysqlTable("dailyReports", {
   notes: text("notes"),
   weatherCondition: varchar("weatherCondition", { length: 64 }),
   crewCount: int("crewCount").default(0),
+  seenByOwner: boolean("seenByOwner").default(false).notNull(),
+  seenAt: timestamp("seenAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

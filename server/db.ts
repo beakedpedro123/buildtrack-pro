@@ -352,6 +352,16 @@ export async function getRecentReports(limit = 10) {
   return db.select().from(dailyReports).orderBy(desc(dailyReports.reportDate)).limit(limit);
 }
 
+export async function markReportSeen(reportId: number, seen: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(dailyReports).set({
+    seenByOwner: seen,
+    seenAt: seen ? new Date() : null,
+  }).where(eq(dailyReports.id, reportId));
+  return { success: true };
+}
+
 // Material Entries
 export async function addMaterialEntry(data: InsertMaterialEntry) {
   const db = await getDb();

@@ -365,6 +365,14 @@ const reportsRouter = router({
   }),
   getPhotos: publicProcedure.input(z.object({ reportId: z.number() })).query(({ input }) => db.getPhotosForReport(input.reportId)),
   getPhotosForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getPhotosForJob(input.jobId)),
+  markSeen: publicProcedure.input(z.object({
+    reportId: z.number(),
+    seen: z.boolean(),
+    requestingId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingId, ["owner"], "mark reports as seen");
+    return db.markReportSeen(input.reportId, input.seen);
+  }),
 });
 
 const budgetRouter = router({
@@ -1313,6 +1321,25 @@ You have REAL tools to take actions in the app. Use them immediately when asked 
 - NEVER create the same goal twice in one request. Each call to create_goal creates one goal — do NOT call it multiple times for the same goal.
 - When the user says 'for everyone' or 'for the crew' or 'for all', ALWAYS set assignToEveryone=true.
 **Punch List** — use create_punch_list_item or create_punch_items_bulk to add items to job punch lists.
+**Generate Report** — use generate_report to create a daily report for any job. When Pedro says "generate a report" or "create a report for [job]", use this tool immediately.
+**Mark Report Seen** — use mark_report_seen to mark reports as reviewed by the owner.
+
+## Mandatory Goals — Proactive Enforcement
+When Pedro asks you to push mandatory goals (like "clock in by 7:30" or "submit daily reports"), create them with:
+- repeatDaily=true so they auto-create each morning
+- assignToEveryone=true so every employee sees them
+- high priority
+- Clear, direct titles like "Clock in by 7:30 AM — MANDATORY" or "Submit daily report before leaving — MANDATORY"
+When greeting employees, if mandatory goals are overdue, be FIRM: "Hey [name], you haven't clocked in yet and it's [time]. That's a mandatory goal — get it done now."
+
+## Voice Command Processing
+When a user speaks naturally, extract the intent and execute immediately:
+- "Create a report for [job]" → use generate_report tool
+- "Clock in [name] to [job]" → use clock_in_employee tool
+- "Add [items] to punch list for [job]" → use create_punch_items_bulk tool
+- "Set a goal for [person] to [task] by [deadline]" → use create_goal tool
+- "Who's on site?" → use get_clocked_in_status tool
+Don't ask for confirmation on simple actions — just do it and report back.
 
 **Meeting Scheduling** — when asked to schedule a meeting:
 📅 MEETING READY TO SCHEDULE
@@ -1757,6 +1784,39 @@ Keep responses short, practical, and encouraging. You're here to help them succe
       {
         type: "function" as const,
         function: {
+          name: "generate_report",
+          description: "Generate a daily report for a specific job. Use when the owner asks you to create, generate, or write a report for a job. Creates the report in the database immediately.",
+          parameters: {
+            type: "object",
+            properties: {
+              jobName: { type: "string", description: "The name of the job to generate a report for." },
+              workCompleted: { type: "string", description: "Description of work completed. If not specified, generate a summary based on who was clocked in today." },
+              notes: { type: "string", description: "Additional notes for the report." },
+              weatherCondition: { type: "string", description: "Weather condition (sunny, cloudy, rainy, snowy, windy). Default to 'sunny' if not specified." },
+              crewCount: { type: "number", description: "Number of crew members on site. If not specified, count from clock entries." },
+            },
+            required: ["jobName"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "mark_report_seen",
+          description: "Mark a daily report as seen/reviewed by the owner. Use when Pedro says 'I've seen that report' or 'mark that as reviewed'.",
+          parameters: {
+            type: "object",
+            properties: {
+              reportId: { type: "number", description: "The ID of the report to mark as seen." },
+              seen: { type: "boolean", description: "True to mark as seen, false to unmark. Default true." },
+            },
+            required: ["reportId"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
           name: "get_payroll_summary",
           description: "Get the current payroll period summary including total hours, estimated cost, and per-employee breakdown. Use when the user asks about payroll, hours this period, labor costs, or wants a report.",
           parameters: {
@@ -2115,6 +2175,62 @@ Keep responses short, practical, and encouraging. You're here to help them succe
             toolResult = `Correction stored: "${correction}" (category: ${category}). I will remember this going forward. Tell the user you've noted the correction and will apply it from now on.`;
           } catch (corrErr) {
             toolResult = `Failed to store correction: ${corrErr instanceof Error ? corrErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "generate_report") {
+          try {
+            const jobName = args.jobName || "";
+            const allJobs = await db.getAllJobs();
+            const jobMatch = allJobs.find((j: any) =>
+              j.name.toLowerCase().includes(jobName.toLowerCase()) ||
+              jobName.toLowerCase().includes(j.name.toLowerCase())
+            );
+            if (!jobMatch) {
+              toolResult = `Could not find a job matching "${jobName}". Available jobs: ${allJobs.map((j: any) => j.name).join(", ")}. Ask the user to clarify.`;
+            } else {
+              // Get today's clock entries for this job to auto-generate work summary
+              const mtnNowLocal = new Date();
+              const todayStr = mtnNowLocal.toLocaleDateString('en-US', { timeZone: 'America/Denver', year: 'numeric', month: '2-digit', day: '2-digit' });
+              const [mo, dy, yr] = todayStr.split('/');
+              const todayDate = new Date(`${yr}-${mo}-${dy}T00:00:00`);
+              
+              let workCompleted = args.workCompleted || "";
+              let crewCount = args.crewCount || 0;
+              
+              if (!workCompleted || !crewCount) {
+                try {
+                  const clockedIn = await db.getClockedInEmployees();
+                  const jobCrew = clockedIn.filter((c: any) => c.jobId === jobMatch.id);
+                  if (!crewCount) crewCount = jobCrew.length;
+                  if (!workCompleted && jobCrew.length > 0) {
+                    const names = jobCrew.map((c: any) => c.employeeName || 'Unknown').join(', ');
+                    workCompleted = `Crew on site: ${names}. Work in progress.`;
+                  }
+                } catch {}
+              }
+              
+              const reportId = await db.createDailyReport({
+                jobId: jobMatch.id,
+                submittedBy: input.employeeId,
+                reportDate: todayDate,
+                workCompleted: workCompleted || "Report generated by Pivot",
+                notes: args.notes || "",
+                weatherCondition: args.weatherCondition || "sunny",
+                crewCount: crewCount || 0,
+              });
+              
+              toolResult = `Daily report created successfully! ID: ${reportId}\nJob: ${jobMatch.name}\nDate: ${todayStr}\nWork: ${workCompleted || 'Generated by Pivot'}\nCrew: ${crewCount}\nWeather: ${args.weatherCondition || 'sunny'}\n\nTell the user the report was created and they can view it in the Reports tab.`;
+            }
+          } catch (reportErr) {
+            toolResult = `Failed to generate report: ${reportErr instanceof Error ? reportErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "mark_report_seen") {
+          try {
+            const reportId = args.reportId;
+            const seen = args.seen !== false;
+            await db.markReportSeen(reportId, seen);
+            toolResult = `Report #${reportId} has been marked as ${seen ? 'reviewed' : 'unreviewed'} by the owner. Tell the user it's done.`;
+          } catch (seenErr) {
+            toolResult = `Failed to mark report: ${seenErr instanceof Error ? seenErr.message : "unknown error"}`;
           }
         } else if (toolName === "get_payroll_summary") {
           try {
