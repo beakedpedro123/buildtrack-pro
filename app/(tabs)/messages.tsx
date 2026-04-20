@@ -1,4 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { CACHE_KEYS } from "@/lib/data-cache";
 import {
   ActivityIndicator,
   FlatList,
@@ -19,7 +21,8 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
-import { Platform } from "react-native";
+import { Platform, Alert } from "react-native";
+import { useOfflineQueue } from "@/lib/offline-queue";
 
 type TabKey = "inbox" | "sent";
 
@@ -42,11 +45,18 @@ export default function MessagesScreen() {
   const [attachmentName, setAttachmentName] = useState("");
   const [sending, setSending] = useState(false);
 
-  // Queries
-  const inbox = trpc.messages.inbox.useQuery({ employeeId: empId }, { enabled: empId > 0 });
-  const sent = trpc.messages.sent.useQuery({ employeeId: empId }, { enabled: empId > 0 });
+  // Queries with offline caching
+  const inboxQ = trpc.messages.inbox.useQuery({ employeeId: empId }, { enabled: empId > 0 });
+  const sentQ = trpc.messages.sent.useQuery({ employeeId: empId }, { enabled: empId > 0 });
   const unread = trpc.messages.unreadCount.useQuery({ employeeId: empId }, { enabled: empId > 0 });
-  const allEmployees = trpc.employees.list.useQuery();
+  const allEmployeesQ = trpc.employees.list.useQuery();
+  const { data: inboxData, isLoading: inboxLoading } = useOfflineCache(CACHE_KEYS.MESSAGES + "_inbox", inboxQ.data, inboxQ.isLoading);
+  const { data: sentData, isLoading: sentLoading } = useOfflineCache(CACHE_KEYS.MESSAGES + "_sent", sentQ.data, sentQ.isLoading);
+  const { data: allEmpData } = useOfflineCache(CACHE_KEYS.ALL_EMPLOYEES, allEmployeesQ.data, allEmployeesQ.isLoading);
+  // Wrap in compatible shape
+  const inbox = { ...inboxQ, data: inboxData, isLoading: inboxLoading, refetch: inboxQ.refetch };
+  const sent = { ...sentQ, data: sentData, isLoading: sentLoading, refetch: sentQ.refetch };
+  const allEmployees = { ...allEmployeesQ, data: allEmpData };
   const markRead = trpc.messages.markRead.useMutation({
     onSuccess: () => { inbox.refetch(); unread.refetch(); },
   });
@@ -72,22 +82,33 @@ export default function MessagesScreen() {
     setSending(false);
   };
 
+  const { addMutation, isOnline } = useOfflineQueue();
+
   const handleSend = async () => {
     if (!subject.trim() || !body.trim()) return;
     if (!isCompanyWide && selectedRecipients.length === 0) return;
     setSending(true);
+    const payload = {
+      senderId: empId,
+      subject: subject.trim(),
+      body: body.trim(),
+      type: msgType,
+      priority,
+      isCompanyWide,
+      recipientIds: isCompanyWide ? undefined : selectedRecipients,
+      attachmentName: attachmentName || undefined,
+    };
     try {
-      await sendMsg.mutateAsync({
-        senderId: empId,
-        subject: subject.trim(),
-        body: body.trim(),
-        type: msgType,
-        priority,
-        isCompanyWide,
-        recipientIds: isCompanyWide ? undefined : selectedRecipients,
-        attachmentName: attachmentName || undefined,
-      });
+      await sendMsg.mutateAsync(payload);
     } catch {
+      // If send fails (likely offline), queue for later sync
+      if (!isOnline) {
+        await addMutation("message.send", payload);
+        resetCompose();
+        setShowCompose(false);
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Queued", "Message saved and will be sent when you're back online.");
+      }
       setSending(false);
     }
   };

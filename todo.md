@@ -1916,3 +1916,24 @@
 - [x] Make Active Jobs section collapsible (already was)
 - [x] Make Weekly Trend section collapsible (already was)
 - [x] Make hourly job profit section collapsible on home screen
+
+### Phase 92: Comprehensive Offline-First & Publish-Ready
+- [x] Research ClockShark/Jibble offline patterns
+- [x] Audit all screens for missing offline cache
+- [x] Build robust offline cache layer with AsyncStorage persistence
+- [x] Build offline mutation queue (clock in/out, messages, expenses, etc.)
+- [x] Build sync engine that replays queued mutations when back online
+- [x] Add offline caching to: Charts, Messages, Hours, Payroll, Labor Costs, KPIs, Safety, Team, Meetings, Goals, Profile, Jobs, Reports
+- [x] Add offline status banner (shows when offline, syncing indicator when reconnecting)
+- [x] Ensure clock in/out works fully offline with queue
+- [x] Ensure messages can be composed offline and sent when online
+- [x] Ensure expense entries can be created offline
+- [x] Ensure goal updates work offline
+- [x] Test all screens render with cached data when offline
+- [x] Fix build script for iOS/Android publish
+- [x] Final end-to-end audit of all offline functionality
+- [x] Created reusable useOfflineCache hook (stale-while-revalidate pattern)
+- [x] Added CACHE_KEYS for all 14 new data types
+- [x] Offline mutation queue supports: message.send, goals.update, changeOrders.create, budgetAuditLog.create, budget.addExpense
+- [x] OfflineBanner component shows "Offline — showing cached data" when no internet
+- [x] 0 TypeScript errors, 304 tests passing

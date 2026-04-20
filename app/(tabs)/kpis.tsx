@@ -5,6 +5,8 @@ import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import { useState, useCallback } from "react";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { CACHE_KEYS } from "@/lib/data-cache";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
   Alert,
@@ -70,11 +72,13 @@ export default function KPIsScreen() {
   const [updateValue, setUpdateValue] = useState("");
   const [updateNotes, setUpdateNotes] = useState("");
 
-  const { data: kpis, isLoading } = trpc.kpi.list.useQuery(undefined, { staleTime: 30000 });
-  const { data: history } = trpc.kpi.getHistory.useQuery(
+  const kpiListQ = trpc.kpi.list.useQuery(undefined, { staleTime: 30000 });
+  const kpiHistoryQ = trpc.kpi.getHistory.useQuery(
     { kpiId: selectedKpi?.id || 0, limit: 10 },
     { enabled: !!selectedKpi }
   );
+  const { data: kpis, isLoading } = useOfflineCache(CACHE_KEYS.KPI_METRICS, kpiListQ.data, kpiListQ.isLoading);
+  const { data: history } = useOfflineCache(`${CACHE_KEYS.KPI_METRICS}_history_${selectedKpi?.id}`, kpiHistoryQ.data, kpiHistoryQ.isLoading);
 
   const createKpi = trpc.kpi.create.useMutation({
     onSuccess: () => {

@@ -6,6 +6,8 @@ import { trpc } from "@/lib/trpc";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { useRouter } from "expo-router";
 import { useState, useCallback } from "react";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { CACHE_KEYS } from "@/lib/data-cache";
 import { ActivityIndicator,
   Alert,
   FlatList,
@@ -259,10 +261,13 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
     try { await utils.invalidate(); } catch {}
     setRefreshing(false);
   }, [utils]);
-  const { data, isLoading, refetch } = trpc.payroll.getReport.useQuery({
+  const reportQ = trpc.payroll.getReport.useQuery({
     startDate: range.startDate,
     endDate: range.endDate });
-  const { data: jobsData } = trpc.jobs.listActive.useQuery();
+  const jobsQ = trpc.jobs.listActive.useQuery();
+  const { data, isLoading } = useOfflineCache(`${CACHE_KEYS.PAYROLL_DATA}_${range.startDate}_${range.endDate}`, reportQ.data, reportQ.isLoading);
+  const { data: jobsData } = useOfflineCache(CACHE_KEYS.ACTIVE_JOBS, jobsQ.data, jobsQ.isLoading);
+  const refetch = reportQ.refetch;
 
   const styles = StyleSheet.create({
     periodBtn: {

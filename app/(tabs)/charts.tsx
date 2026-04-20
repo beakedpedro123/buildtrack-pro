@@ -5,6 +5,8 @@ import * as Haptics from "expo-haptics";
 import * as Print from "expo-print";
 import { shareAsync } from "expo-sharing";
 import { useState, useCallback, useMemo, useRef } from "react";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { CACHE_KEYS } from "@/lib/data-cache";
 import {
   ActivityIndicator,
   Alert,
@@ -430,16 +432,29 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
     { startDate: dateParams.startDate, endDate: dateParams.endDate },
     { staleTime: 60000, enabled: hasDateFilter }
   );
-  const profitQuery = hasDateFilter ? profitQueryFiltered : profitQueryUnfiltered;
+  const profitQueryRaw = hasDateFilter ? profitQueryFiltered : profitQueryUnfiltered;
 
-  const taxQuery = trpc.financialCharts.taxBreakdown.useQuery(undefined, { staleTime: 60000 });
+  const taxQueryRaw = trpc.financialCharts.taxBreakdown.useQuery(undefined, { staleTime: 60000 });
 
   const laborQueryUnfiltered = trpc.financialCharts.monthlyLaborTrend.useQuery({ months: 6 }, { staleTime: 60000, enabled: !hasDateFilter });
   const laborQueryFiltered = trpc.financialCharts.monthlyLaborTrendFiltered.useQuery(
     { startDate: dateParams.startDate, endDate: dateParams.endDate },
     { staleTime: 60000, enabled: hasDateFilter }
   );
-  const laborQuery = hasDateFilter ? laborQueryFiltered : laborQueryUnfiltered;
+  const laborQueryRaw = hasDateFilter ? laborQueryFiltered : laborQueryUnfiltered;
+
+  // Offline caching wrappers
+  const profitCacheKey = hasDateFilter ? `${CACHE_KEYS.CHART_PROFITABILITY}_${dateParams.startDate}` : CACHE_KEYS.CHART_PROFITABILITY;
+  const { data: profitCached, isLoading: profitCachedLoading } = useOfflineCache(profitCacheKey, profitQueryRaw.data, profitQueryRaw.isLoading);
+  const profitQuery = { ...profitQueryRaw, data: profitCached, isLoading: profitCachedLoading };
+
+  const { data: taxCached, isLoading: taxCachedLoading } = useOfflineCache(CACHE_KEYS.CHART_TAX_BREAKDOWN, taxQueryRaw.data, taxQueryRaw.isLoading);
+  const taxQuery = { ...taxQueryRaw, data: taxCached, isLoading: taxCachedLoading };
+
+  const laborCacheKey = hasDateFilter ? `${CACHE_KEYS.CHART_LABOR_TRENDS}_${dateParams.startDate}` : CACHE_KEYS.CHART_LABOR_TRENDS;
+  const { data: laborCached, isLoading: laborCachedLoading } = useOfflineCache(laborCacheKey, laborQueryRaw.data, laborQueryRaw.isLoading);
+  const laborQuery = { ...laborQueryRaw, data: laborCached, isLoading: laborCachedLoading };
+
   // budgetBurnDown requires a jobId — we'll use profitability data for the all-jobs burndown view instead
   const burndownFromProfit = profitQuery.data;
 

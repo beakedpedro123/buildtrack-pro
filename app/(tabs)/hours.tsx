@@ -4,6 +4,8 @@ import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import { useState, useMemo } from "react";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { CACHE_KEYS } from "@/lib/data-cache";
 import { ActivityIndicator,
   FlatList,
   Platform,
@@ -93,13 +95,16 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
   // Only the owner can see their own hourly rate and estimated pay
   const canSeePayRate = employee?.role === "owner" || employee?.role === "office_manager";
 
-  const { data, isLoading, refetch } = trpc.payroll.getMyHours.useQuery(
+  const hoursQ = trpc.payroll.getMyHours.useQuery(
     {
       employeeId: employee?.id || 0,
       startDate: range.startDate,
       endDate: range.endDate },
     { enabled: !!employee }
   );
+  const cacheKey = `${CACHE_KEYS.HOURS_ENTRIES}_${employee?.id}_${range.startDate}_${range.endDate}`;
+  const { data, isLoading } = useOfflineCache(cacheKey, hoursQ.data, hoursQ.isLoading);
+  const refetch = hoursQ.refetch;
 
   const currentWeek = getCurrentWeekInPeriod(payrollPeriod);
   const isCurrentPeriod = periodOffset === 0;

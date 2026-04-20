@@ -5,6 +5,8 @@ import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import { useMemo, useState, useCallback } from "react";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { CACHE_KEYS } from "@/lib/data-cache";
 import { ActivityIndicator,
   FlatList,
   Platform,
@@ -66,18 +68,21 @@ export default function LaborCostsScreen() {
   const [period, setPeriod] = useState<Period>("week");
   const { startDate, endDate, label: periodLabel } = useMemo(() => getDateRange(period), [period]);
 
-  const { data: byJob, isLoading: loadingJobs } = trpc.laborDashboard.byJob.useQuery(
+  const byJobQ = trpc.laborDashboard.byJob.useQuery(
     { startDate, endDate },
     { enabled: canAccess }
   );
-  const { data: weeklyTrend, isLoading: loadingTrend } = trpc.laborDashboard.weeklyTrend.useQuery(
+  const weeklyTrendQ = trpc.laborDashboard.weeklyTrend.useQuery(
     { weeks: 8 },
     { enabled: canAccess }
   );
-  const { data: byEmployee, isLoading: loadingEmp } = trpc.laborDashboard.byEmployee.useQuery(
+  const byEmployeeQ = trpc.laborDashboard.byEmployee.useQuery(
     { startDate, endDate },
     { enabled: canAccess }
   );
+  const { data: byJob, isLoading: loadingJobs } = useOfflineCache(`${CACHE_KEYS.LABOR_BY_JOB}_${startDate}`, byJobQ.data, byJobQ.isLoading);
+  const { data: weeklyTrend, isLoading: loadingTrend } = useOfflineCache(CACHE_KEYS.CHART_LABOR_TRENDS, weeklyTrendQ.data, weeklyTrendQ.isLoading);
+  const { data: byEmployee, isLoading: loadingEmp } = useOfflineCache(`${CACHE_KEYS.LABOR_BY_EMPLOYEE}_${startDate}`, byEmployeeQ.data, byEmployeeQ.isLoading);
 
   const isLoading = loadingJobs || loadingTrend || loadingEmp;
   const utils = trpc.useUtils();

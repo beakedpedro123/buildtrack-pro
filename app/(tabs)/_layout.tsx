@@ -4,6 +4,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { Redirect, Tabs } from "expo-router";
 import { ActivityIndicator, Platform, View } from "react-native";
+import { OfflineBanner } from "@/components/offline-banner";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { trpc } from "@/lib/trpc";
 
@@ -46,6 +47,8 @@ export default function TabLayout() {
   const unreadMsgCount = unreadQuery.data ?? 0;
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <OfflineBanner />
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
@@ -169,5 +172,6 @@ export default function TabLayout() {
         options={{ href: null, title: "Charts" }}
       />
     </Tabs>
+    </View>
   );
 }

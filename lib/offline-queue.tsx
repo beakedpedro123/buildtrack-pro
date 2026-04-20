@@ -4,6 +4,7 @@ import { AppState, Platform } from "react-native";
 import { trpc } from "./trpc";
 import { getApiBaseUrl } from "@/constants/oauth";
 
+/* ───────── Clock-specific offline entry ───────── */
 export interface OfflineClockEntry {
   localId: string;
   employeeId: number;
@@ -12,35 +13,55 @@ export interface OfflineClockEntry {
   clockOut?: string;
   notes?: string;
   createdAt: string;
-  /** When set, this entry represents a clock-OUT of an existing server entry.
-   *  syncPending will call clock.out instead of clock.in for these entries. */
   existingEntryId?: number;
 }
 
+/* ───────── Generic offline mutation entry ───────── */
+export type MutationType =
+  | "message.send"
+  | "goals.update"
+  | "changeOrders.create"
+  | "budgetAuditLog.create"
+  | "budget.addExpense";
+
+export interface OfflineMutation {
+  localId: string;
+  type: MutationType;
+  payload: any;
+  createdAt: string;
+  retries: number;
+}
+
+/* ───────── Context type ───────── */
 interface OfflineQueueContextType {
   pendingCount: number;
   isOnline: boolean;
   addClockEntry: (entry: Omit<OfflineClockEntry, "localId" | "createdAt">) => Promise<string>;
+  addMutation: (type: MutationType, payload: any) => Promise<string>;
   syncPending: () => Promise<void>;
+  lastSyncTime: number | null;
 }
 
 const OfflineQueueContext = createContext<OfflineQueueContextType>({
   pendingCount: 0,
   isOnline: true,
   addClockEntry: async () => "",
+  addMutation: async () => "",
   syncPending: async () => {},
+  lastSyncTime: null,
 });
 
-const QUEUE_KEY = "buildtrack_offline_queue";
+const CLOCK_QUEUE_KEY = "buildtrack_offline_queue";
+const MUTATION_QUEUE_KEY = "buildtrack_mutation_queue";
+const LAST_SYNC_KEY = "buildtrack_last_sync";
 const PING_INTERVAL = 15_000;
+const MAX_RETRIES = 5;
 
 async function checkConnectivity(): Promise<boolean> {
-  // Multi-strategy connectivity check to reduce false "offline" readings
-  // Strategy 1: Check the actual API server
   try {
     const base = getApiBaseUrl();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000); // Increased timeout for slow connections
+    const timer = setTimeout(() => controller.abort(), 8000);
     const res = await fetch(`${base}/api/health`, {
       method: "GET",
       signal: controller.signal,
@@ -48,92 +69,137 @@ async function checkConnectivity(): Promise<boolean> {
     });
     clearTimeout(timer);
     if (res.ok) return true;
-  } catch {
-    // API unreachable — try fallback
-  }
-  // Strategy 2: Check navigator.onLine (fast, but can be inaccurate)
+  } catch {}
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
-    return false; // Device reports no network at all
+    return false;
   }
-  // Strategy 3: Try a lightweight HEAD to the API base (different endpoint)
   try {
     const base = getApiBaseUrl();
     const controller2 = new AbortController();
     const timer2 = setTimeout(() => controller2.abort(), 6000);
-    const res2 = await fetch(`${base}/api/trpc`, {
-      method: "HEAD",
-      signal: controller2.signal,
-    });
+    await fetch(`${base}/api/trpc`, { method: "HEAD", signal: controller2.signal });
     clearTimeout(timer2);
     return true;
-  } catch {
-    // Both strategies failed
-  }
-  // If navigator says online but server is unreachable, still report online
-  // so the app doesn't block the user — the actual API calls will handle errors
+  } catch {}
   if (typeof navigator !== "undefined" && navigator.onLine) {
-    return true; // Device has network, server might be temporarily slow
+    return true;
   }
   return false;
 }
 
 export function OfflineQueueProvider({ children }: { children: React.ReactNode }) {
-  const [queue, setQueue] = useState<OfflineClockEntry[]>([]);
+  const [clockQueue, setClockQueue] = useState<OfflineClockEntry[]>([]);
+  const [mutationQueue, setMutationQueue] = useState<OfflineMutation[]>([]);
   const [isOnline, setIsOnline] = useState(true);
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
   const wasOfflineRef = useRef(false);
   const syncingRef = useRef(false);
-  const queueRef = useRef<OfflineClockEntry[]>([]);
+  const clockQueueRef = useRef<OfflineClockEntry[]>([]);
+  const mutationQueueRef = useRef<OfflineMutation[]>([]);
   const utils = trpc.useUtils();
 
-  // Keep ref in sync with state
-  useEffect(() => { queueRef.current = queue; }, [queue]);
+  useEffect(() => { clockQueueRef.current = clockQueue; }, [clockQueue]);
+  useEffect(() => { mutationQueueRef.current = mutationQueue; }, [mutationQueue]);
 
-  // Load queue from storage on mount
+  // Load queues from storage on mount
   useEffect(() => {
-    AsyncStorage.getItem(QUEUE_KEY).then((raw) => {
+    AsyncStorage.getItem(CLOCK_QUEUE_KEY).then((raw) => {
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
-          setQueue(parsed);
-          queueRef.current = parsed;
+          setClockQueue(parsed);
+          clockQueueRef.current = parsed;
         } catch {}
       }
     });
+    AsyncStorage.getItem(MUTATION_QUEUE_KEY).then((raw) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          setMutationQueue(parsed);
+          mutationQueueRef.current = parsed;
+        } catch {}
+      }
+    });
+    AsyncStorage.getItem(LAST_SYNC_KEY).then((raw) => {
+      if (raw) setLastSyncTime(parseInt(raw, 10));
+    });
   }, []);
 
-  const saveQueue = useCallback(async (entries: OfflineClockEntry[]) => {
-    setQueue(entries);
-    queueRef.current = entries;
-    await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(entries));
+  const saveClockQueue = useCallback(async (entries: OfflineClockEntry[]) => {
+    setClockQueue(entries);
+    clockQueueRef.current = entries;
+    await AsyncStorage.setItem(CLOCK_QUEUE_KEY, JSON.stringify(entries));
+  }, []);
+
+  const saveMutationQueue = useCallback(async (entries: OfflineMutation[]) => {
+    setMutationQueue(entries);
+    mutationQueueRef.current = entries;
+    await AsyncStorage.setItem(MUTATION_QUEUE_KEY, JSON.stringify(entries));
   }, []);
 
   const addClockEntry = useCallback(async (entry: Omit<OfflineClockEntry, "localId" | "createdAt">) => {
     const localId = `offline_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const newEntry: OfflineClockEntry = { ...entry, localId, createdAt: new Date().toISOString() };
-    const current = queueRef.current;
-    const updated = [...current, newEntry];
-    await saveQueue(updated);
+    const updated = [...clockQueueRef.current, newEntry];
+    await saveClockQueue(updated);
     return localId;
-  }, [saveQueue]);
+  }, [saveClockQueue]);
 
+  const addMutation = useCallback(async (type: MutationType, payload: any) => {
+    const localId = `mut_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const newEntry: OfflineMutation = { localId, type, payload, createdAt: new Date().toISOString(), retries: 0 };
+    const updated = [...mutationQueueRef.current, newEntry];
+    await saveMutationQueue(updated);
+    return localId;
+  }, [saveMutationQueue]);
+
+  /* ───────── Execute a single generic mutation ───────── */
+  const executeMutation = useCallback(async (entry: OfflineMutation): Promise<boolean> => {
+    try {
+      switch (entry.type) {
+        case "message.send":
+          await utils.client.messages.send.mutate(entry.payload);
+          break;
+        case "goals.update":
+          await utils.client.goals.update.mutate(entry.payload);
+          break;
+        case "changeOrders.create":
+          await utils.client.changeOrders.create.mutate(entry.payload);
+          break;
+        case "budgetAuditLog.create":
+          await utils.client.financialCharts.createAuditEntry.mutate(entry.payload);
+          break;
+        case "budget.addExpense":
+          await utils.client.budget.addExpense.mutate(entry.payload);
+          break;
+        default:
+          return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }, [utils]);
+
+  /* ───────── Sync all pending entries ───────── */
   const syncPending = useCallback(async () => {
-    const currentQueue = queueRef.current;
-    if (currentQueue.length === 0) return;
+    const currentClock = clockQueueRef.current;
+    const currentMutations = mutationQueueRef.current;
+    if (currentClock.length === 0 && currentMutations.length === 0) return;
     if (syncingRef.current) return;
     syncingRef.current = true;
 
-    const remaining: OfflineClockEntry[] = [];
-    for (const entry of currentQueue) {
+    // Sync clock entries
+    const remainingClock: OfflineClockEntry[] = [];
+    for (const entry of currentClock) {
       try {
         if (entry.existingEntryId && entry.existingEntryId > 0 && entry.clockOut) {
-          // This is a clock-OUT of an existing server entry
-          // Call clock.out to close the ORIGINAL entry on the server
           await utils.client.clock.out.mutate({
             entryId: entry.existingEntryId,
             clockOut: entry.clockOut,
           });
         } else {
-          // This is a new clock-in (or a complete clock-in + clock-out)
           await utils.client.clock.in.mutate({
             employeeId: entry.employeeId,
             jobId: entry.jobId,
@@ -145,51 +211,61 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
           });
         }
       } catch {
-        remaining.push(entry);
+        remainingClock.push(entry);
       }
     }
-    await saveQueue(remaining);
+    await saveClockQueue(remainingClock);
+
+    // Sync generic mutations
+    const remainingMutations: OfflineMutation[] = [];
+    for (const entry of currentMutations) {
+      const success = await executeMutation(entry);
+      if (!success) {
+        if (entry.retries < MAX_RETRIES) {
+          remainingMutations.push({ ...entry, retries: entry.retries + 1 });
+        }
+        // Drop entries that exceeded MAX_RETRIES
+      }
+    }
+    await saveMutationQueue(remainingMutations);
+
     syncingRef.current = false;
 
+    // Record sync time
+    const now = Date.now();
+    setLastSyncTime(now);
+    await AsyncStorage.setItem(LAST_SYNC_KEY, String(now));
+
     // After sync, invalidate queries to refresh UI
-    if (remaining.length < currentQueue.length) {
+    const synced = (currentClock.length - remainingClock.length) + (currentMutations.length - remainingMutations.length);
+    if (synced > 0) {
       utils.invalidate();
     }
-  }, [saveQueue, utils]);
+  }, [saveClockQueue, saveMutationQueue, executeMutation, utils]);
 
   // Periodic connectivity check
   useEffect(() => {
     let mounted = true;
-
     const check = async () => {
       const online = await checkConnectivity();
       if (!mounted) return;
-
       const previouslyOffline = wasOfflineRef.current;
       setIsOnline(online);
-
       if (online) {
         wasOfflineRef.current = false;
         if (previouslyOffline) {
-          // Just came back online — sync pending entries
           await syncPending();
           utils.invalidate();
-        } else if (queueRef.current.length > 0) {
-          // Online but have pending entries (maybe from app restart)
+        } else if (clockQueueRef.current.length > 0 || mutationQueueRef.current.length > 0) {
           await syncPending();
         }
       } else {
         wasOfflineRef.current = true;
       }
     };
-
     check();
     const interval = setInterval(check, PING_INTERVAL);
-
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
+    return () => { mounted = false; clearInterval(interval); };
   }, [syncPending, utils]);
 
   // Also check on app foreground
@@ -209,8 +285,17 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     return () => sub.remove();
   }, [syncPending, utils]);
 
+  const totalPending = clockQueue.length + mutationQueue.length;
+
   return (
-    <OfflineQueueContext.Provider value={{ pendingCount: queue.length, isOnline, addClockEntry, syncPending }}>
+    <OfflineQueueContext.Provider value={{
+      pendingCount: totalPending,
+      isOnline,
+      addClockEntry,
+      addMutation,
+      syncPending,
+      lastSyncTime,
+    }}>
       {children}
     </OfflineQueueContext.Provider>
   );

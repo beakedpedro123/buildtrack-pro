@@ -8,6 +8,8 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { useState, useCallback, useMemo } from "react";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { CACHE_KEYS } from "@/lib/data-cache";
 import { ActivityIndicator,
   Alert,
   FlatList,
@@ -86,17 +88,21 @@ export default function SafetyScreen() {
   const canManageTopics = isOwner || isLogistics; // Office Manager excluded from safety
   const canDocument = isForeman || canManageTopics;
 
-  const { data: jobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 30000 });
-  const { data: topics } = trpc.safetyTopics.list.useQuery({ activeOnly: true });
-  const { data: allMeetings } = trpc.safetyMeetings.list.useQuery({ limit: 50 });
+  const jobsQ = trpc.jobs.listActive.useQuery(undefined, { staleTime: 30000 });
+  const topicsQ = trpc.safetyTopics.list.useQuery({ activeOnly: true });
+  const allMeetingsQ = trpc.safetyMeetings.list.useQuery({ limit: 50 });
+  const { data: jobs } = useOfflineCache(CACHE_KEYS.ACTIVE_JOBS, jobsQ.data, jobsQ.isLoading);
+  const { data: topics } = useOfflineCache(CACHE_KEYS.SAFETY_TALKS, topicsQ.data, topicsQ.isLoading);
+  const { data: allMeetings } = useOfflineCache(CACHE_KEYS.MEETINGS, allMeetingsQ.data, allMeetingsQ.isLoading);
 
   // Weekly compliance
   const now = new Date();
   const weekStart = getWeekStart(now);
   const weekEnd = getWeekEnd(now);
-  const { data: weekMeetings } = trpc.safetyMeetings.forWeek.useQuery({
+  const weekMeetingsQ = trpc.safetyMeetings.forWeek.useQuery({
     startDate: weekStart.toISOString(),
     endDate: weekEnd.toISOString() });
+  const { data: weekMeetings } = useOfflineCache(`${CACHE_KEYS.MEETINGS}_week`, weekMeetingsQ.data, weekMeetingsQ.isLoading);
 
   const weeklyStats = useMemo(() => {
     if (!weekMeetings) return { safetyCount: 0, goalsCount: 0, safetyTarget: 3, goalsTarget: 5 };
