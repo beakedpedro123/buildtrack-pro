@@ -1951,3 +1951,10 @@
 - [x] Messages now show download button with file icon for received attachments
 - [x] Supports images, PDFs, Word docs, Excel, CSV, text files
 - [x] Compass modal shows figure-8 calibration overlay when magnetometer readings are inconsistent
+
+### Phase 95: Fix Offline Banner False Positive
+- [x] Fix offline banner showing "Offline — showing cached data" when device is actually online (5G/WiFi)
+- [x] Root cause: banner used relative URL `/api/health` which fails on native (no base URL); now uses getApiBaseUrl() like offline-queue
+- [x] Added failure threshold (2 consecutive fails) to prevent flicker
+- [x] Defaults to online state to avoid false positives on startup
+- [x] Delayed first check by 3s to let app initialize
