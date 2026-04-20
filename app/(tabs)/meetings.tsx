@@ -1046,7 +1046,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
             </KeyboardAvoidingView>
           </Modal>
 
-          {mgmtLoading ? (
+          {mgmtLoading && !cachedMeetings ? (
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
               <ActivityIndicator size="large" color={colors.primary} />
             </View>

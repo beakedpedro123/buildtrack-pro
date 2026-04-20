@@ -8,7 +8,32 @@ const t = initTRPC.context<TrpcContext>().create({
 });
 
 export const router = t.router;
-export const publicProcedure = t.procedure;
+
+// Global timeout middleware — prevents queries from hanging forever when DB is down
+const withTimeout = t.middleware(async (opts) => {
+  const { next } = opts;
+  const TIMEOUT_MS = 15000; // 15 second timeout for all procedures
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Request timed out — database may be temporarily unavailable. Please try again.",
+    })), TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([next(), timeoutPromise]);
+  } catch (error: any) {
+    // Catch TiDB-specific errors and convert to a clean error message
+    if (error?.message?.includes("timed out") || error?.message?.includes("TiDB") || error?.code === "ER_UNKNOWN_ERROR") {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Database temporarily unavailable. The app will use cached data.",
+      });
+    }
+    throw error;
+  }
+});
+
+export const publicProcedure = t.procedure.use(withTimeout);
 
 const requireUser = t.middleware(async (opts) => {
   const { ctx, next } = opts;
@@ -25,9 +50,9 @@ const requireUser = t.middleware(async (opts) => {
   });
 });
 
-export const protectedProcedure = t.procedure.use(requireUser);
+export const protectedProcedure = t.procedure.use(withTimeout).use(requireUser);
 
-export const adminProcedure = t.procedure.use(
+export const adminProcedure = t.procedure.use(withTimeout).use(
   t.middleware(async (opts) => {
     const { ctx, next } = opts;
 

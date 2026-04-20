@@ -450,7 +450,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
         ))}
       </View>
 
-      {isLoading ? (
+      {isLoading && !cachedJobs ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList

@@ -395,7 +395,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
         ))}
       </ScrollView>
 
-      {isLoading ? (
+      {isLoading && !cachedEmployees ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList

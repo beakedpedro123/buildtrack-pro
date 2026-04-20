@@ -55,24 +55,96 @@ import {
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: ReturnType<typeof mysql.createPool> | null = null;
+let _lastConnectAttempt = 0;
+let _retryCount = 0;
+const RETRY_INTERVAL_MS = 10000; // 10 seconds between retries
+const MAX_RETRY_BACKOFF_MS = 60000; // Max 60 seconds between retries
+
+function createPool() {
+  if (!process.env.DATABASE_URL) return null;
+  try {
+    const pool = mysql.createPool({
+      uri: process.env.DATABASE_URL,
+      timezone: "Z",
+      connectTimeout: 10000, // 10s connection timeout
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 30000,
+    });
+    return pool;
+  } catch (error) {
+    console.warn("[Database] Failed to create pool:", error);
+    return null;
+  }
+}
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  // If we have a DB instance, verify it's still alive
+  if (_db && _pool) {
     try {
-      // Use timezone: "Z" to ensure mysql2 serializes/deserializes Date objects
-      // as UTC regardless of the server's local timezone. This prevents the
-      // 4-hour offset bug between sandbox (EDT) and deployed (UTC) environments.
-      const pool = mysql.createPool({
-        uri: process.env.DATABASE_URL,
-        timezone: "Z",
-      });
-      _db = drizzle({ client: pool });
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      // Quick ping to check connection health
+      const promisePool = _pool.promise();
+      await Promise.race([
+        promisePool.query("SELECT 1"),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("ping timeout")), 5000)),
+      ]);
+      _retryCount = 0; // Reset retry count on success
+      return _db;
+    } catch {
+      console.warn("[Database] Connection lost, will recreate pool...");
+      try { _pool.end(); } catch {}
       _db = null;
+      _pool = null;
     }
   }
-  return _db;
+
+  // Rate-limit reconnection attempts with exponential backoff
+  const now = Date.now();
+  const backoff = Math.min(RETRY_INTERVAL_MS * Math.pow(1.5, _retryCount), MAX_RETRY_BACKOFF_MS);
+  if (now - _lastConnectAttempt < backoff) {
+    return null; // Too soon to retry
+  }
+  _lastConnectAttempt = now;
+
+  if (!process.env.DATABASE_URL) return null;
+
+  try {
+    _pool = createPool();
+    if (!_pool) {
+      _retryCount++;
+      return null;
+    }
+    // Verify the pool actually works before returning
+    const promisePool = _pool.promise();
+    await Promise.race([
+      promisePool.query("SELECT 1"),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("connect timeout")), 10000)),
+    ]);
+    _db = drizzle({ client: _pool });
+    _retryCount = 0;
+    console.log("[Database] Connected successfully");
+    return _db;
+  } catch (error: any) {
+    console.warn(`[Database] Connection attempt failed (retry #${_retryCount + 1}):`, error?.message || error);
+    try { _pool?.end(); } catch {}
+    _db = null;
+    _pool = null;
+    _retryCount++;
+    return null;
+  }
+}
+
+// Force reset the connection pool (call when you detect persistent errors)
+export function resetDbPool() {
+  try { _pool?.end(); } catch {}
+  _db = null;
+  _pool = null;
+  _retryCount = 0;
+  _lastConnectAttempt = 0;
+  console.log("[Database] Pool reset, will reconnect on next query");
 }
 
 // Users

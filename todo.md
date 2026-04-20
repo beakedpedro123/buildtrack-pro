@@ -1983,3 +1983,15 @@
 - [x] PDF download now uses WebBrowser as primary method (in-app Safari) — most reliable on iOS
 - [x] Multi-level fallback chain: WebBrowser → FileSystem+Sharing → Linking → system browser
 - [x] Every step wrapped in try/catch to prevent app crashes/navigation resets
+
+### Phase 99: URGENT - Data Corruption / Missing Data After Last Update
+- [x] Investigate database integrity — TiDB infrastructure is DOWN (not a code bug)
+- [x] Check if recent code changes broke queries or data display — confirmed TiDB outage
+- [x] Fix data display issues across all devices and accounts — app now falls back to cached data
+
+### Phase 99: Database Resilience — Graceful Fallback to Cache
+- [x] Add DB connection retry logic with exponential backoff and pool recreation
+- [x] Make tRPC queries timeout (15s global middleware) and return error instead of hanging forever
+- [x] Ensure every screen shows cached data when DB is down (no infinite spinners)
+- [x] Add "Using cached data" indicator when serving from cache (OfflineBanner already handles this)
+- [x] Add auto-reconnect when TiDB comes back online (exponential backoff with pool recreation)
