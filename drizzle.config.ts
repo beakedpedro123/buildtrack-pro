@@ -1,12 +1,14 @@
 import { defineConfig } from "drizzle-kit";
 
-// Use PG_DATABASE_URL if set, otherwise fall back to local PostgreSQL
-const connectionString = process.env.PG_DATABASE_URL || "postgresql://buildtrack:buildtrack123@localhost:5432/buildtrack";
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL is required to run drizzle commands");
+}
 
 export default defineConfig({
   schema: "./drizzle/schema.ts",
   out: "./drizzle",
-  dialect: "postgresql",
+  dialect: "mysql",
   dbCredentials: {
     url: connectionString,
   },

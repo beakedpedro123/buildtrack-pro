@@ -1,159 +1,138 @@
 import {
   boolean,
-  integer,
-  numeric,
-  pgEnum,
-  pgTable,
-  real,
-  serial,
+  decimal,
+  int,
+  mysqlEnum,
+  mysqlTable,
   text,
   timestamp,
   varchar,
-} from "drizzle-orm/pg-core";
-
-// ─── Enums ────────────────────────────────────────────────────────────────────
-export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
-export const employeeRoleEnum = pgEnum("employee_role", ["owner", "office_manager", "secretary", "logistics", "foreman", "laborer"]);
-export const payTypeEnum = pgEnum("pay_type", ["hourly", "salary"]);
-export const inviteStatusEnum = pgEnum("invite_status", ["pending", "accepted"]);
-export const jobStatusEnum = pgEnum("job_status", ["active", "paused", "completed", "cancelled"]);
-export const jobAssignmentRoleEnum = pgEnum("job_assignment_role", ["foreman", "laborer"]);
-export const billingTypeEnum = pgEnum("billing_type", ["fixed", "hourly"]);
-export const syncTypeEnum = pgEnum("sync_type", ["expenses", "labor", "full"]);
-export const syncStatusEnum = pgEnum("sync_status", ["pending", "success", "failed"]);
-export const meetingStatusEnum = pgEnum("meeting_status", ["scheduled", "recording", "processing", "completed", "cancelled"]);
-export const goalStatusEnum = pgEnum("goal_status", ["pending", "in_progress", "completed", "cancelled"]);
-export const goalPriorityEnum = pgEnum("goal_priority", ["low", "medium", "high"]);
-export const kpiCategoryEnum = pgEnum("kpi_category", ["revenue", "labor", "jobs", "safety", "schedule", "custom"]);
-export const kpiPeriodEnum = pgEnum("kpi_period", ["weekly", "monthly", "quarterly", "yearly"]);
-export const meetingTypeEnum = pgEnum("meeting_type_enum", ["safety_toolbox", "daily_goals"]);
-export const punchListStatusEnum = pgEnum("punch_list_status", ["pending", "completed"]);
-export const punchListPriorityEnum = pgEnum("punch_list_priority", ["low", "medium", "high"]);
-export const messageTypeEnum = pgEnum("message_type", ["note", "message", "alert", "plan_set"]);
-export const messagePriorityEnum = pgEnum("message_priority", ["normal", "urgent"]);
-export const attachmentTypeEnum = pgEnum("attachment_type", ["image", "pdf", "document"]);
-export const changeOrderTypeEnum = pgEnum("change_order_type", ["add", "deduct"]);
-export const changeOrderStatusEnum = pgEnum("change_order_status", ["pending", "approved", "rejected"]);
+  float,
+} from "drizzle-orm/mysql-core";
 
 // ─── Users (Manus OAuth) ───────────────────────────────────────────────────
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
+export const users = mysqlTable("users", {
+  id: int("id").autoincrement().primaryKey(),
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: userRoleEnum("role").default("user").notNull(),
+  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
 
 // ─── Employees ─────────────────────────────────────────────────────────────
-export const employees = pgTable("employees", {
-  id: serial("id").primaryKey(),
+export const employees = mysqlTable("employees", {
+  id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 128 }).notNull(),
-  role: employeeRoleEnum("role").default("laborer").notNull(),
+  role: mysqlEnum("role", ["owner", "office_manager", "secretary", "logistics", "foreman", "laborer"])
+    .default("laborer")
+    .notNull(),
   pin: varchar("pin", { length: 64 }).notNull(),
   phone: varchar("phone", { length: 20 }),
   email: varchar("email", { length: 320 }),
   isActive: boolean("isActive").default(true).notNull(),
-  hourlyRate: numeric("hourlyRate", { precision: 8, scale: 2 }),
-  payType: payTypeEnum("payType").default("hourly").notNull(),
-  salaryAmount: numeric("salaryAmount", { precision: 12, scale: 2 }),
-  salaryProjects: text("salaryProjects"),
+  hourlyRate: decimal("hourlyRate", { precision: 8, scale: 2 }),
+  payType: mysqlEnum("payType", ["hourly", "salary"]).default("hourly").notNull(),
+  salaryAmount: decimal("salaryAmount", { precision: 12, scale: 2 }),
+  salaryProjects: text("salaryProjects"),  // JSON array of up to 6 job IDs for salary distribution
   inviteToken: varchar("inviteToken", { length: 64 }),
-  inviteStatus: inviteStatusEnum("inviteStatus").default("accepted"),
+  inviteStatus: mysqlEnum("inviteStatus", ["pending", "accepted"]).default("accepted"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 // ─── Jobs / Jobsites ───────────────────────────────────────────────────────
-export const jobs = pgTable("jobs", {
-  id: serial("id").primaryKey(),
+export const jobs = mysqlTable("jobs", {
+  id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   address: text("address"),
   clientName: varchar("clientName", { length: 128 }),
   clientPhone: varchar("clientPhone", { length: 20 }),
-  status: jobStatusEnum("status").default("active").notNull(),
+  status: mysqlEnum("status", ["active", "paused", "completed", "cancelled"])
+    .default("active")
+    .notNull(),
   startDate: timestamp("startDate"),
   endDate: timestamp("endDate"),
-  billingType: billingTypeEnum("billingType").default("fixed").notNull(),
-  hourlyRate: numeric("hourlyRate", { precision: 8, scale: 2 }).default("55"),
-  totalBudget: numeric("totalBudget", { precision: 12, scale: 2 }).default("0"),
+  billingType: mysqlEnum("billingType", ["fixed", "hourly"]).default("fixed").notNull(),
+  hourlyRate: decimal("hourlyRate", { precision: 8, scale: 2 }).default("55"),
+  totalBudget: decimal("totalBudget", { precision: 12, scale: 2 }).default("0"),
   notes: text("notes"),
-  latitude: real("latitude"),
-  longitude: real("longitude"),
-  taxRate: numeric("taxRate", { precision: 5, scale: 2 }).default("0"),
-  workersCompRate: numeric("workersCompRate", { precision: 5, scale: 2 }).default("0"),
-  liabilityInsRate: numeric("liabilityInsRate", { precision: 5, scale: 2 }).default("0"),
-  createdBy: integer("createdBy").notNull(),
+  latitude: float("latitude"),
+  longitude: float("longitude"),
+  taxRate: decimal("taxRate", { precision: 5, scale: 2 }).default("0"),
+  workersCompRate: decimal("workersCompRate", { precision: 5, scale: 2 }).default("0"),
+  liabilityInsRate: decimal("liabilityInsRate", { precision: 5, scale: 2 }).default("0"),
+  createdBy: int("createdBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 // ─── Job Assignments ───────────────────────────────────────────────────────
-export const jobAssignments = pgTable("jobAssignments", {
-  id: serial("id").primaryKey(),
-  jobId: integer("jobId").notNull(),
-  employeeId: integer("employeeId").notNull(),
-  role: jobAssignmentRoleEnum("role").default("laborer").notNull(),
+export const jobAssignments = mysqlTable("jobAssignments", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
+  employeeId: int("employeeId").notNull(),
+  role: mysqlEnum("role", ["foreman", "laborer"]).default("laborer").notNull(),
   assignedAt: timestamp("assignedAt").defaultNow().notNull(),
 });
 
 // ─── Clock Entries ─────────────────────────────────────────────────────────
-export const clockEntries = pgTable("clockEntries", {
-  id: serial("id").primaryKey(),
-  employeeId: integer("employeeId").notNull(),
-  jobId: integer("jobId").notNull(),
+export const clockEntries = mysqlTable("clockEntries", {
+  id: int("id").autoincrement().primaryKey(),
+  employeeId: int("employeeId").notNull(),
+  jobId: int("jobId").notNull(),
   clockIn: timestamp("clockIn").notNull(),
   clockOut: timestamp("clockOut"),
-  clockInLatitude: real("clockInLatitude"),
-  clockInLongitude: real("clockInLongitude"),
-  clockOutLatitude: real("clockOutLatitude"),
-  clockOutLongitude: real("clockOutLongitude"),
+  clockInLatitude: float("clockInLatitude"),
+  clockInLongitude: float("clockInLongitude"),
+  clockOutLatitude: float("clockOutLatitude"),
+  clockOutLongitude: float("clockOutLongitude"),
   isOfflineEntry: boolean("isOfflineEntry").default(false).notNull(),
   localId: varchar("localId", { length: 64 }),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 // ─── Daily Reports ─────────────────────────────────────────────────────────
-export const dailyReports = pgTable("dailyReports", {
-  id: serial("id").primaryKey(),
-  jobId: integer("jobId").notNull(),
-  submittedBy: integer("submittedBy").notNull(),
+export const dailyReports = mysqlTable("dailyReports", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
+  submittedBy: int("submittedBy").notNull(),
   reportDate: timestamp("reportDate").notNull(),
   workCompleted: text("workCompleted"),
   notes: text("notes"),
   weatherCondition: varchar("weatherCondition", { length: 64 }),
-  crewCount: integer("crewCount").default(0),
+  crewCount: int("crewCount").default(0),
   seenByOwner: boolean("seenByOwner").default(false).notNull(),
   seenAt: timestamp("seenAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 // ─── Materials Used ────────────────────────────────────────────────────────
-export const materialEntries = pgTable("materialEntries", {
-  id: serial("id").primaryKey(),
-  reportId: integer("reportId").notNull(),
-  jobId: integer("jobId").notNull(),
+export const materialEntries = mysqlTable("materialEntries", {
+  id: int("id").autoincrement().primaryKey(),
+  reportId: int("reportId").notNull(),
+  jobId: int("jobId").notNull(),
   materialName: varchar("materialName", { length: 255 }).notNull(),
-  quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
+  quantity: decimal("quantity", { precision: 10, scale: 2 }).notNull(),
   unit: varchar("unit", { length: 32 }).default("units"),
-  unitCost: numeric("unitCost", { precision: 10, scale: 2 }),
-  totalCost: numeric("totalCost", { precision: 12, scale: 2 }),
+  unitCost: decimal("unitCost", { precision: 10, scale: 2 }),
+  totalCost: decimal("totalCost", { precision: 12, scale: 2 }),
   supplier: varchar("supplier", { length: 128 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 // ─── Report Photos ─────────────────────────────────────────────────────────
-export const reportPhotos = pgTable("reportPhotos", {
-  id: serial("id").primaryKey(),
-  reportId: integer("reportId").notNull(),
-  jobId: integer("jobId").notNull(),
-  uploadedBy: integer("uploadedBy").notNull(),
+export const reportPhotos = mysqlTable("reportPhotos", {
+  id: int("id").autoincrement().primaryKey(),
+  reportId: int("reportId").notNull(),
+  jobId: int("jobId").notNull(),
+  uploadedBy: int("uploadedBy").notNull(),
   url: text("url").notNull(),
   thumbnailUrl: text("thumbnailUrl"),
   caption: text("caption"),
@@ -161,185 +140,184 @@ export const reportPhotos = pgTable("reportPhotos", {
 });
 
 // ─── Budget Categories ─────────────────────────────────────────────────────
-export const budgetCategories = pgTable("budgetCategories", {
-  id: serial("id").primaryKey(),
-  jobId: integer("jobId").notNull(),
+export const budgetCategories = mysqlTable("budgetCategories", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
   name: varchar("name", { length: 128 }).notNull(),
-  budgetedAmount: numeric("budgetedAmount", { precision: 12, scale: 2 }).notNull(),
-  spentAmount: numeric("spentAmount", { precision: 12, scale: 2 }).default("0"),
+  budgetedAmount: decimal("budgetedAmount", { precision: 12, scale: 2 }).notNull(),
+  spentAmount: decimal("spentAmount", { precision: 12, scale: 2 }).default("0"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 // ─── Expenses ──────────────────────────────────────────────────────────────
-export const expenses = pgTable("expenses", {
-  id: serial("id").primaryKey(),
-  jobId: integer("jobId").notNull(),
-  categoryId: integer("categoryId"),
+export const expenses = mysqlTable("expenses", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
+  categoryId: int("categoryId"),
   description: varchar("description", { length: 255 }).notNull(),
-  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   expenseDate: timestamp("expenseDate").notNull(),
   receiptUrl: text("receiptUrl"),
-  submittedBy: integer("submittedBy").notNull(),
+  submittedBy: int("submittedBy").notNull(),
   qbSynced: boolean("qbSynced").default(false).notNull(),
   qbSyncedAt: timestamp("qbSyncedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 // ─── QuickBooks Sync Log ───────────────────────────────────────────────────
-export const qbSyncLog = pgTable("qbSyncLog", {
-  id: serial("id").primaryKey(),
-  syncType: syncTypeEnum("syncType").notNull(),
-  status: syncStatusEnum("status").default("pending").notNull(),
-  itemsSynced: integer("itemsSynced").default(0),
+export const qbSyncLog = mysqlTable("qbSyncLog", {
+  id: int("id").autoincrement().primaryKey(),
+  syncType: mysqlEnum("syncType", ["expenses", "labor", "full"]).notNull(),
+  status: mysqlEnum("status", ["pending", "success", "failed"]).default("pending").notNull(),
+  itemsSynced: int("itemsSynced").default(0),
   errorMessage: text("errorMessage"),
-  triggeredBy: integer("triggeredBy").notNull(),
+  triggeredBy: int("triggeredBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   completedAt: timestamp("completedAt"),
 });
 
 // ─── Meetings ─────────────────────────────────────────────────────────────
-export const meetings = pgTable("meetings", {
-  id: serial("id").primaryKey(),
+export const meetings = mysqlTable("meetings", {
+  id: int("id").autoincrement().primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
   scheduledFor: timestamp("scheduledFor"),
   startedAt: timestamp("startedAt"),
   endedAt: timestamp("endedAt"),
-  status: meetingStatusEnum("status").default("scheduled").notNull(),
+  status: mysqlEnum("status", ["scheduled", "recording", "processing", "completed", "cancelled"]).default("scheduled").notNull(),
   audioUrl: text("audioUrl"),
   transcript: text("transcript"),
   summary: text("summary"),
-  attendees: text("attendees"),
-  createdBy: integer("createdBy").notNull(),
+  attendees: text("attendees"), // JSON array of employee IDs
+  createdBy: int("createdBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 // ─── Weekly Goals ──────────────────────────────────────────────────────────
-export const weeklyGoals = pgTable("weeklyGoals", {
-  id: serial("id").primaryKey(),
-  meetingId: integer("meetingId"),
+export const weeklyGoals = mysqlTable("weeklyGoals", {
+  id: int("id").autoincrement().primaryKey(),
+  meetingId: int("meetingId"),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
-  assignedTo: integer("assignedTo"),
+  assignedTo: int("assignedTo"),
   assignedToList: varchar("assignedToList", { length: 255 }),
   weekOf: timestamp("weekOf").notNull(),
-  status: goalStatusEnum("status").default("pending").notNull(),
-  priority: goalPriorityEnum("priority").default("medium").notNull(),
+  status: mysqlEnum("status", ["pending", "in_progress", "completed", "cancelled"]).default("pending").notNull(),
+  priority: mysqlEnum("priority", ["low", "medium", "high"]).default("medium").notNull(),
   deadline: timestamp("deadline"),
-  createdBy: integer("createdBy").notNull(),
+  createdBy: int("createdBy").notNull(),
   completedAt: timestamp("completedAt"),
   repeatDaily: boolean("repeatDaily").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 // ─── QuickBooks Estimates ────────────────────────────────────────────────────
-export const qbEstimates = pgTable("qbEstimates", {
-  id: serial("id").primaryKey(),
-  jobId: integer("jobId").notNull(),
+export const qbEstimates = mysqlTable("qbEstimates", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
   qbEstimateId: varchar("qbEstimateId", { length: 64 }),
   qbEstimateNumber: varchar("qbEstimateNumber", { length: 64 }),
   clientName: varchar("clientName", { length: 128 }),
-  totalAmount: numeric("totalAmount", { precision: 12, scale: 2 }).notNull(),
+  totalAmount: decimal("totalAmount", { precision: 12, scale: 2 }).notNull(),
   status: varchar("status", { length: 32 }).default("pending"),
-  lineItems: text("lineItems"),
+  lineItems: text("lineItems"), // JSON array of line items
   issueDate: timestamp("issueDate"),
   expiryDate: timestamp("expiryDate"),
   notes: text("notes"),
   syncedAt: timestamp("syncedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 // ─── KPI Metrics ──────────────────────────────────────────────────────────────
-export const kpiMetrics = pgTable("kpiMetrics", {
-  id: serial("id").primaryKey(),
+export const kpiMetrics = mysqlTable("kpiMetrics", {
+  id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 128 }).notNull(),
-  category: kpiCategoryEnum("category").default("custom").notNull(),
-  unit: varchar("unit", { length: 32 }).default(""),
-  targetValue: numeric("targetValue", { precision: 12, scale: 2 }),
-  currentValue: numeric("currentValue", { precision: 12, scale: 2 }).default("0"),
+  category: mysqlEnum("category", ["revenue", "labor", "jobs", "safety", "schedule", "custom"]).default("custom").notNull(),
+  unit: varchar("unit", { length: 32 }).default(""),  // e.g. "$", "%", "hrs", "jobs"
+  targetValue: decimal("targetValue", { precision: 12, scale: 2 }),
+  currentValue: decimal("currentValue", { precision: 12, scale: 2 }).default("0"),
   description: text("description"),
-  period: kpiPeriodEnum("period").default("monthly").notNull(),
-  weekOf: timestamp("weekOf"),
+  period: mysqlEnum("period", ["weekly", "monthly", "quarterly", "yearly"]).default("monthly").notNull(),
+  weekOf: timestamp("weekOf"),  // for weekly KPIs
   isActive: boolean("isActive").default(true).notNull(),
-  createdBy: integer("createdBy").notNull(),
-  updatedBy: integer("updatedBy"),
+  createdBy: int("createdBy").notNull(),
+  updatedBy: int("updatedBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 // ─── KPI History ──────────────────────────────────────────────────────────────
-export const kpiHistory = pgTable("kpiHistory", {
-  id: serial("id").primaryKey(),
-  kpiId: integer("kpiId").notNull(),
-  value: numeric("value", { precision: 12, scale: 2 }).notNull(),
+export const kpiHistory = mysqlTable("kpiHistory", {
+  id: int("id").autoincrement().primaryKey(),
+  kpiId: int("kpiId").notNull(),
+  value: decimal("value", { precision: 12, scale: 2 }).notNull(),
   notes: text("notes"),
-  recordedBy: integer("recordedBy").notNull(),
+  recordedBy: int("recordedBy").notNull(),
   recordedAt: timestamp("recordedAt").defaultNow().notNull(),
 });
-
-// ─── Safety Topics ────────────────────────────────────────────────────────────
-export const safetyTopics = pgTable("safetyTopics", {
-  id: serial("id").primaryKey(),
+// ─── Safety Topics (posted by management for foreman) ────────────────────────────────────────────────────────
+export const safetyTopics = mysqlTable("safetyTopics", {
+  id: int("id").autoincrement().primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
   content: text("content"),
   category: varchar("category", { length: 64 }).default("general"),
   isActive: boolean("isActive").default(true).notNull(),
-  createdBy: integer("createdBy").notNull(),
+  createdBy: int("createdBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-// ─── Safety Meetings ──────────────────────────────────────────────────────────
-export const safetyMeetings = pgTable("safetyMeetings", {
-  id: serial("id").primaryKey(),
-  topicId: integer("topicId"),
-  jobId: integer("jobId").notNull(),
-  meetingType: meetingTypeEnum("meetingType").default("safety_toolbox").notNull(),
+// ─── Safety Meetings (documented by foreman) ──────────────────────────────────────────────────────────
+export const safetyMeetings = mysqlTable("safetyMeetings", {
+  id: int("id").autoincrement().primaryKey(),
+  topicId: int("topicId"),
+  jobId: int("jobId").notNull(),
+  meetingType: mysqlEnum("meetingType", ["safety_toolbox", "daily_goals"]).default("safety_toolbox").notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   notes: text("notes"),
-  attendees: text("attendees"),
-  attendeeCount: integer("attendeeCount").default(0),
+  attendees: text("attendees"), // JSON array of employee names/IDs
+  attendeeCount: int("attendeeCount").default(0),
   photoUrl: text("photoUrl"),
-  conductedBy: integer("conductedBy").notNull(),
+  conductedBy: int("conductedBy").notNull(),
   conductedAt: timestamp("conductedAt").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
-// ─── Pivot Memory ────────────────────────────────────────────────────────────
-export const pivotMemory = pgTable("pivotMemory", {
-  id: serial("id").primaryKey(),
-  employeeId: integer("employeeId").notNull(),
+// ─── Pivot Memory (conversation history & preferences) ────────────────────────
+export const pivotMemory = mysqlTable("pivotMemory", {
+  id: int("id").autoincrement().primaryKey(),
+  employeeId: int("employeeId").notNull(),
   preferredLanguage: varchar("preferredLanguage", { length: 10 }).default("en").notNull(),
-  conversationSummary: text("conversationSummary"),
-  preferences: text("preferences"),
-  ownerPatterns: text("ownerPatterns"),
-  personalProfile: text("personalProfile"),
-  communicationStyle: text("communicationStyle"),
-  growthLog: text("growthLog"),
-  interactionCount: integer("interactionCount").default(0).notNull(),
+  conversationSummary: text("conversationSummary"), // AI-generated summary of past conversations
+  preferences: text("preferences"), // JSON: topics of interest, communication style, patterns
+  ownerPatterns: text("ownerPatterns"), // JSON: owner-only decision patterns Pivot has learned
+  personalProfile: text("personalProfile"), // JSON: personal interests, family, hobbies, life details Pivot has learned
+  communicationStyle: text("communicationStyle"), // JSON: how this person communicates, humor, formality, topics they care about
+  growthLog: text("growthLog"), // JSON: milestones in Pivot's relationship with this employee
+  interactionCount: int("interactionCount").default(0).notNull(),
   lastInteraction: timestamp("lastInteraction").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-export const pivotConversations = pgTable("pivotConversations", {
-  id: serial("id").primaryKey(),
-  employeeId: integer("employeeId").notNull(),
-  role: varchar("role", { length: 20 }).notNull(),
+export const pivotConversations = mysqlTable("pivotConversations", {
+  id: int("id").autoincrement().primaryKey(),
+  employeeId: int("employeeId").notNull(),
+  role: varchar("role", { length: 20 }).notNull(), // "user" or "assistant"
   content: text("content").notNull(),
   language: varchar("language", { length: 10 }).default("en").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
-// ─── Time Adjustments ────────────────────────────────────────────────────────
-export const timeAdjustments = pgTable("timeAdjustments", {
-  id: serial("id").primaryKey(),
-  clockEntryId: integer("clockEntryId").notNull(),
-  adjustedBy: integer("adjustedBy").notNull(),
+
+// Time Adjustments (audit log for clock entry edits)
+export const timeAdjustments = mysqlTable("timeAdjustments", {
+  id: int("id").autoincrement().primaryKey(),
+  clockEntryId: int("clockEntryId").notNull(),
+  adjustedBy: int("adjustedBy").notNull(),
   fieldChanged: varchar("fieldChanged", { length: 32 }).notNull(),
   oldValue: text("oldValue"),
   newValue: text("newValue"),
@@ -348,73 +326,60 @@ export const timeAdjustments = pgTable("timeAdjustments", {
 });
 
 // ─── Punch List Items ──────────────────────────────────────────────────────────
-export const punchListItems = pgTable("punch_list_items", {
-  id: serial("id").primaryKey(),
-  jobId: integer("jobId").notNull(),
+export const punchListItems = mysqlTable("punch_list_items", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
   area: varchar("area", { length: 128 }),
   title: varchar("title", { length: 500 }).notNull(),
   description: text("description"),
-  status: punchListStatusEnum("status").default("pending").notNull(),
-  priority: punchListPriorityEnum("priority").default("medium").notNull(),
-  assignedTo: integer("assignedTo"),
-  completedBy: integer("completedBy"),
+  status: mysqlEnum("status", ["pending", "completed"]).default("pending").notNull(),
+  priority: mysqlEnum("priority", ["low", "medium", "high"]).default("medium").notNull(),
+  assignedTo: int("assignedTo"),
+  completedBy: int("completedBy"),
   completedAt: timestamp("completedAt"),
-  createdBy: integer("createdBy").notNull(),
-  sortOrder: integer("sortOrder").default(0),
+  createdBy: int("createdBy").notNull(),
+  sortOrder: int("sortOrder").default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 // ─── Messages / Notes ──────────────────────────────────────────────────────
-export const messages = pgTable("messages", {
-  id: serial("id").primaryKey(),
-  senderId: integer("senderId").notNull(),
+export const messages = mysqlTable("messages", {
+  id: int("id").autoincrement().primaryKey(),
+  senderId: int("senderId").notNull(),
   subject: varchar("subject", { length: 255 }).notNull(),
   body: text("body").notNull(),
-  type: messageTypeEnum("type").default("message").notNull(),
-  priority: messagePriorityEnum("priority").default("normal").notNull(),
+  type: mysqlEnum("type", ["note", "message", "alert", "plan_set"]).default("message").notNull(),
+  priority: mysqlEnum("priority", ["normal", "urgent"]).default("normal").notNull(),
   attachmentUrl: text("attachmentUrl"),
-  attachmentType: attachmentTypeEnum("attachmentType"),
+  attachmentType: mysqlEnum("attachmentType", ["image", "pdf", "document"]),
   attachmentName: varchar("attachmentName", { length: 255 }),
   isCompanyWide: boolean("isCompanyWide").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-export const messageRecipients = pgTable("message_recipients", {
-  id: serial("id").primaryKey(),
-  messageId: integer("messageId").notNull(),
-  recipientId: integer("recipientId").notNull(),
+export const messageRecipients = mysqlTable("message_recipients", {
+  id: int("id").autoincrement().primaryKey(),
+  messageId: int("messageId").notNull(),
+  recipientId: int("recipientId").notNull(),
   isRead: boolean("isRead").default(false).notNull(),
   readAt: timestamp("readAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 // ─── Change Orders ──────────────────────────────────────────────────────────
-export const changeOrders = pgTable("change_orders", {
-  id: serial("id").primaryKey(),
-  jobId: integer("jobId").notNull(),
+export const changeOrders = mysqlTable("change_orders", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
   description: varchar("description", { length: 500 }).notNull(),
-  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
-  orderType: changeOrderTypeEnum("orderType").default("add").notNull(),
-  status: changeOrderStatusEnum("status").default("approved").notNull(),
-  createdBy: integer("createdBy").notNull(),
-  approvedBy: integer("approvedBy"),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  orderType: mysqlEnum("orderType", ["add", "deduct"]).default("add").notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("approved").notNull(),
+  createdBy: int("createdBy").notNull(),
+  approvedBy: int("approvedBy"),
   orderDate: timestamp("orderDate").defaultNow().notNull(),
   notes: text("notes"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
-
-// ─── Budget Audit Log ─────────────────────────────────────────────────────
-export const budgetAuditLog = pgTable("budget_audit_log", {
-  id: serial("id").primaryKey(),
-  jobId: integer("jobId").notNull(),
-  employeeId: integer("employeeId").notNull(),
-  action: varchar("action", { length: 64 }).notNull(),
-  previousValue: numeric("previousValue", { precision: 12, scale: 2 }),
-  newValue: numeric("newValue", { precision: 12, scale: 2 }),
-  description: text("description"),
-  changeOrderId: integer("changeOrderId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -493,6 +458,20 @@ export type InsertMessageRecipient = typeof messageRecipients.$inferInsert;
 
 export type ChangeOrder = typeof changeOrders.$inferSelect;
 export type InsertChangeOrder = typeof changeOrders.$inferInsert;
+
+
+// ─── Budget Audit Log ─────────────────────────────────────────────────────
+export const budgetAuditLog = mysqlTable("budget_audit_log", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
+  employeeId: int("employeeId").notNull(),
+  action: varchar("action", { length: 64 }).notNull(), // 'budget_edit' | 'change_order_add' | 'change_order_delete'
+  previousValue: decimal("previousValue", { precision: 12, scale: 2 }),
+  newValue: decimal("newValue", { precision: 12, scale: 2 }),
+  description: text("description"),
+  changeOrderId: int("changeOrderId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
 
 export type BudgetAuditLog = typeof budgetAuditLog.$inferSelect;
 export type InsertBudgetAuditLog = typeof budgetAuditLog.$inferInsert;

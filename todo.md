@@ -2009,3 +2009,10 @@
 - [x] Import ALL data into PostgreSQL — ZERO data lost
 - [x] Verify database connection and full app functionality — API serving all data correctly
 - [x] TypeScript: 0 errors, Tests: 304 passed, 6 skipped
+
+### Phase 99d: Fix Production Database — Published App Shows Zeros
+- [x] TiDB came back online — all original data intact (22 employees, 12 jobs, 225 clock entries, etc.)
+- [x] Reverted PostgreSQL migration back to MySQL/TiDB since _core/index.ts requires MySQL
+- [x] Restored MySQL schema, db.ts, drizzle.config.ts, relations.ts, migration files from pre-PG commit
+- [x] Verified API serving all data correctly (22 employees, 12 jobs)
+- [x] TypeScript: 0 errors, Tests: 304 passed
