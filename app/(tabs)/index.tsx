@@ -28,6 +28,7 @@ import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { VoiceGoalCreator } from "@/components/voice-goal-creator";
 import { JobPicker } from "@/components/ui/job-picker";
 import { ConstructionCalculator } from "@/components/construction-calculator";
+import { CompassModal } from "@/components/compass-modal";
 
 const companyLogo = require("@/assets/images/company-logo.png");
 import { BG_HOME as bgHome } from "@/constants/bg-urls";
@@ -249,6 +250,7 @@ export default function DashboardScreen() {
   const [showCostByJob, setShowCostByJob] = useState(false);
   const [showHourlyProfit, setShowHourlyProfit] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
+  const [showCompass, setShowCompass] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60000);
@@ -603,13 +605,7 @@ export default function DashboardScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
-                onPress={() => {
-                  if (Platform.OS !== "web") {
-                    Linking.openURL("compass://").catch(() => {
-                      Linking.openURL("https://www.google.com/maps").catch(() => {});
-                    });
-                  }
-                }}
+                onPress={() => setShowCompass(true)}
               >
                 <Text style={{ fontSize: 24, marginRight: 12 }}>🧭</Text>
                 <View>
@@ -628,6 +624,7 @@ export default function DashboardScreen() {
       </ImageBackground>
       <VoiceGoalCreator visible={showVoiceGoals} onClose={() => setShowVoiceGoals(false)} />
       <ConstructionCalculator visible={showCalculator} onClose={() => setShowCalculator(false)} />
+      <CompassModal visible={showCompass} onClose={() => setShowCompass(false)} />
       </ScreenContainer>
     );
   }
@@ -737,13 +734,7 @@ export default function DashboardScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
-                onPress={() => {
-                  if (Platform.OS !== "web") {
-                    Linking.openURL("compass://").catch(() => {
-                      Linking.openURL("https://www.google.com/maps").catch(() => {});
-                    });
-                  }
-                }}
+                onPress={() => setShowCompass(true)}
               >
                 <Text style={{ fontSize: 24, marginRight: 12 }}>🧭</Text>
                 <View>
@@ -762,6 +753,7 @@ export default function DashboardScreen() {
       </ImageBackground>
       <VoiceGoalCreator visible={showVoiceGoals} onClose={() => setShowVoiceGoals(false)} />
       <ConstructionCalculator visible={showCalculator} onClose={() => setShowCalculator(false)} />
+      <CompassModal visible={showCompass} onClose={() => setShowCompass(false)} />
       </ScreenContainer>
     );
   }
@@ -1234,6 +1226,7 @@ export default function DashboardScreen() {
       </ScrollView>
     </ImageBackground>
     <ConstructionCalculator visible={showCalculator} onClose={() => setShowCalculator(false)} />
+    <CompassModal visible={showCompass} onClose={() => setShowCompass(false)} />
     </ScreenContainer>
   );
 }

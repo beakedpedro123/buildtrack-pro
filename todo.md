@@ -1937,3 +1937,7 @@
 - [x] Offline mutation queue supports: message.send, goals.update, changeOrders.create, budgetAuditLog.create, budget.addExpense
 - [x] OfflineBanner component shows "Offline — showing cached data" when no internet
 - [x] 0 TypeScript errors, 304 tests passing
+
+### Phase 93: Clock Screen Job Selector & Compass Fix
+- [x] Redesign job selector: full-width, collapsible, readable full job names, no radio circles/squares
+- [x] Replace compass button (currently opens Google Maps) with actual built-in compass using device magnetometer

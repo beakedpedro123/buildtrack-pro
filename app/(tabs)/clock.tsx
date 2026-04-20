@@ -55,6 +55,7 @@ export default function ClockScreen() {
   const { addClockEntry } = useOfflineQueue();
   const [now, setNow] = useState(new Date());
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [jobsExpanded, setJobsExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const mountedRef = useRef(true);
@@ -887,30 +888,54 @@ export default function ClockScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Job Selector (only when clocked out) */}
+            {/* Job Selector (only when clocked out) — collapsible full-width list */}
             {!isClockedIn && (
               <View style={styles.jobSelector}>
                 <Text style={styles.sectionTitle}>Select Jobsite</Text>
-                {effectiveJobs.map((job: any) => (
-                  <TouchableOpacity
-                    key={job.id}
-                    style={[
-                      styles.jobOption,
-                      {
-                        borderColor: selectedJobId === job.id ? colors.primary : colors.border,
-                        backgroundColor: selectedJobId === job.id ? colors.primary + "15" : colors.surface },
-                    ]}
-                    onPress={() => setSelectedJobId(job.id)}
-                  >
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: selectedJobId === job.id ? colors.primary : colors.muted, marginRight: 10 }} />
-                    <Text style={[styles.jobOptionText, { color: selectedJobId === job.id ? colors.primary : colors.foreground }]}>
-                      {String(job.name)}
-                    </Text>
-                    {selectedJobId === job.id && <Text style={{ color: colors.primary, fontSize: 18 }}>✓</Text>}
-                  </TouchableOpacity>
-                ))}
+                <TouchableOpacity
+                  onPress={() => setJobsExpanded(!jobsExpanded)}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: "row", alignItems: "center",
+                    paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12,
+                    backgroundColor: selectedJobId ? colors.primary + "12" : colors.surface,
+                    borderWidth: 1.5, borderColor: selectedJobId ? colors.primary : colors.border,
+                  }}
+                >
+                  <Text style={{ flex: 1, fontSize: 15, fontWeight: selectedJobId ? "700" : "500", color: selectedJobId ? colors.primary : colors.muted }}>
+                    {selectedJobId ? (effectiveJobs.find((j: any) => j.id === selectedJobId)?.name || "Selected") : "Select a jobsite"}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colors.muted, marginLeft: 8, fontWeight: "600" }}>{effectiveJobs.length} sites</Text>
+                  <Text style={{ fontSize: 14, color: colors.muted, marginLeft: 8 }}>{jobsExpanded ? "▲" : "▼"}</Text>
+                </TouchableOpacity>
+                {jobsExpanded && (
+                  <View style={{ marginTop: 6, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
+                    {effectiveJobs.map((job: any, index: number) => {
+                      const isSelected = selectedJobId === job.id;
+                      const isLast = index === effectiveJobs.length - 1;
+                      return (
+                        <TouchableOpacity
+                          key={job.id}
+                          onPress={() => { setSelectedJobId(job.id); setJobsExpanded(false); }}
+                          activeOpacity={0.6}
+                          style={{
+                            flexDirection: "row", alignItems: "center",
+                            paddingVertical: 14, paddingHorizontal: 16,
+                            backgroundColor: isSelected ? colors.primary + "15" : "transparent",
+                            borderBottomWidth: isLast ? 0 : 0.5, borderBottomColor: colors.border,
+                          }}
+                        >
+                          <Text style={{ flex: 1, fontSize: 15, fontWeight: isSelected ? "700" : "500", color: isSelected ? colors.primary : colors.foreground, lineHeight: 22 }}>
+                            {String(job.name)}
+                          </Text>
+                          {isSelected && <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "700", marginLeft: 8 }}>✓</Text>}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
                 {effectiveJobs.length === 0 && (
-                  <Text style={{ color: colors.muted, fontSize: 14 }}>No active jobs available.</Text>
+                  <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>No active jobs available.</Text>
                 )}
               </View>
             )}

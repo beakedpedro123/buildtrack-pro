@@ -33,8 +33,8 @@ interface JobPickerProps {
 }
 
 /**
- * Collapsible job picker — shows a compact pill that expands into a job list.
- * Polished dark+gold styling, smooth animations.
+ * Collapsible job picker — full-width, clean list with readable names.
+ * No radio circles/squares. Tapping a job highlights it and collapses.
  */
 export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerProps) {
   const colors = useColors();
@@ -149,7 +149,7 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
     );
   }
 
-  // If only 1 job, just show it as a static pill (no dropdown needed)
+  // If only 1 job, just show it as a static row (no dropdown needed)
   if (jobs.length === 1) {
     return (
       <View style={{ marginBottom: 14 }}>
@@ -157,7 +157,7 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
           style={{
             flexDirection: "row",
             alignItems: "center",
-            paddingVertical: 12,
+            paddingVertical: 14,
             paddingHorizontal: 16,
             borderRadius: 12,
             backgroundColor: colors.primary + "18",
@@ -165,11 +165,10 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
             borderColor: colors.primary,
           }}
         >
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, marginRight: 10 }} />
           <Text style={{ flex: 1, fontSize: 15, fontWeight: "700", color: colors.primary }}>
             {jobs[0].name}
           </Text>
-          <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>✓</Text>
+          <Text style={{ fontSize: 13, color: colors.primary, fontWeight: "700" }}>✓</Text>
         </View>
       </View>
     );
@@ -186,21 +185,12 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
           alignItems: "center",
           paddingVertical: 14,
           paddingHorizontal: 16,
-          borderRadius: 14,
+          borderRadius: 12,
           backgroundColor: selectedJob ? colors.primary + "12" : colors.surface,
           borderWidth: 1.5,
           borderColor: selectedJob ? colors.primary : colors.border,
         }}
       >
-        <View
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: 4,
-            backgroundColor: selectedJob ? colors.primary : colors.muted,
-            marginRight: 10,
-          }}
-        />
         <Text
           style={{
             flex: 1,
@@ -208,7 +198,6 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
             fontWeight: selectedJob ? "700" : "500",
             color: selectedJob ? colors.primary : colors.muted,
           }}
-          numberOfLines={1}
         >
           {selectedJob ? selectedJob.name : "Select a jobsite"}
         </Text>
@@ -216,21 +205,21 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
           style={{
             fontSize: 12,
             color: colors.muted,
-            marginLeft: 4,
-            fontWeight: "500",
+            marginLeft: 8,
+            fontWeight: "600",
           }}
         >
           {jobs.length} sites
         </Text>
         <Animated.Text
           style={{
-            fontSize: 16,
+            fontSize: 14,
             color: colors.muted,
             marginLeft: 8,
             transform: [{ rotate: chevronRotation }],
           }}
         >
-          ▼
+          ▲
         </Animated.Text>
       </TouchableOpacity>
 
@@ -239,7 +228,7 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
         <View
           style={{
             marginTop: 6,
-            borderRadius: 14,
+            borderRadius: 12,
             backgroundColor: colors.surface,
             borderWidth: 1,
             borderColor: colors.border,
@@ -257,42 +246,27 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
-                  paddingVertical: 13,
+                  paddingVertical: 14,
                   paddingHorizontal: 16,
                   backgroundColor: isSelected ? colors.primary + "15" : "transparent",
                   borderBottomWidth: isLast ? 0 : 0.5,
                   borderBottomColor: colors.border,
                 }}
               >
-                <View
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 11,
-                    borderWidth: 2,
-                    borderColor: isSelected ? colors.primary : colors.border,
-                    backgroundColor: isSelected ? colors.primary : "transparent",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginRight: 12,
-                  }}
-                >
-                  {isSelected && (
-                    <Text style={{ color: "#fff", fontSize: 11, fontWeight: "800" }}>✓</Text>
-                  )}
-                </View>
                 <Text
                   style={{
                     flex: 1,
                     fontSize: 15,
                     fontWeight: isSelected ? "700" : "500",
                     color: isSelected ? colors.primary : colors.foreground,
-                    lineHeight: 20,
+                    lineHeight: 22,
                   }}
-                  numberOfLines={2}
                 >
                   {job.name}
                 </Text>
+                {isSelected && (
+                  <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "700", marginLeft: 8 }}>✓</Text>
+                )}
               </TouchableOpacity>
             );
           })}
