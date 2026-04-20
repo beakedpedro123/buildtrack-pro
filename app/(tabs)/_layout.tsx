@@ -33,18 +33,11 @@ export default function TabLayout() {
   const isLogistics = role === "logistics";
 
   // ─── Role Access Matrix ───────────────────────────────────────────────
-  // Owner/Office Manager/Logistics: Home, Jobs & Reports, Goals, Manage (Team+Clock+Meetings+Payroll+Hours), Profile
-  // Foreman: Home, Jobs & Reports, Goals, Manage (Team for crew clock-in/out + My Hours), Profile
-  // Laborer: Home, Jobs & Reports, Goals, My Hours, Profile
-  const isManagement = isOwner || isOfficeMgr || isLogistics;
-  const isForeman = role === "foreman";
-  // Foreman gets Manage tab for crew clock-in/out access
-  const hasManageTab = isManagement || isForeman;
-
-  // Unread message count for badge
-  const empId = (employee as any)?.id ?? 0;
-  const unreadQuery = trpc.messages.unreadCount.useQuery({ employeeId: empId }, { enabled: empId > 0, refetchInterval: 30000 });
-  const unreadMsgCount = unreadQuery.data ?? 0;
+  // Owner/Office Manager/Logistics: Home, Jobs, Goals, Manage, Profile (with Messages)
+  // Foreman: Home, Jobs, Goals, Manage, Profile (with Messages)
+  // Laborer: Home, Jobs, Goals, Manage, Profile (with Messages)
+  // All roles now get Manage tab — laborers see My Hours there
+  // Messages are embedded in Profile tab for all roles
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -91,37 +84,16 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ─── Consolidated "Manage" tab for management roles ─── */}
+      {/* ─── Manage tab — all roles get this now ─── */}
       <Tabs.Screen
         name="manage"
         options={{
           title: "Manage",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="square.grid.2x2.fill" color={color} />,
-          href: hasManageTab ? undefined : null,
         }}
       />
 
-      {/* ─── My Hours tab for field roles (Foreman/Laborer) ─── */}
-      <Tabs.Screen
-        name="hours"
-        options={{
-          title: "My Hours",
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="timer" color={color} />,
-          href: !isManagement ? undefined : null, // Laborer only; foreman uses Manage tab
-        }}
-      />
-
-      {/* ─── Messages tab for all roles ─── */}
-      <Tabs.Screen
-        name="messages"
-        options={{
-          title: "Messages",
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="envelope.fill" color={color} />,
-          tabBarBadge: unreadMsgCount > 0 ? unreadMsgCount : undefined,
-          tabBarBadgeStyle: { backgroundColor: "#D4AF37", color: "#000", fontSize: 10, fontWeight: "700", minWidth: 18, height: 18 },
-        }}
-      />
-
+      {/* ─── Profile tab (now includes Messages) ─── */}
       <Tabs.Screen
         name="profile"
         options={{
@@ -130,7 +102,15 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ─── Hidden tabs (accessed via Manage sub-tabs or embedded) ─── */}
+      {/* ─── Hidden tabs (accessed via sub-navigation or embedded) ─── */}
+      <Tabs.Screen
+        name="hours"
+        options={{ href: null, title: "My Hours" }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{ href: null, title: "Messages" }}
+      />
       <Tabs.Screen
         name="jobs"
         options={{ href: null, title: "Jobs" }}

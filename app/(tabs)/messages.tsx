@@ -34,7 +34,7 @@ interface AttachmentInfo {
   mimeType: string;
 }
 
-export default function MessagesScreen() {
+export default function MessagesScreen({ embedded }: { embedded?: boolean } = {}) {
   const colors = useColors();
   const { employee } = useAppAuth();
   const empId = employee?.id ?? 0;
@@ -380,8 +380,11 @@ export default function MessagesScreen() {
     [expandedId, activeTab, colors, senderName, downloadingId]
   );
 
+  const Wrapper = embedded ? View : ScreenContainer;
+  const wrapperProps = embedded ? { style: { flex: 1 } } : { className: "flex-1" };
+
   return (
-    <ScreenContainer className="flex-1">
+    <Wrapper {...(wrapperProps as any)}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Messages</Text>
@@ -618,7 +621,7 @@ export default function MessagesScreen() {
           </ScrollView>
         </View>
       </Modal>
-    </ScreenContainer>
+    </Wrapper>
   );
 }
 

@@ -1958,3 +1958,12 @@
 - [x] Added failure threshold (2 consecutive fails) to prevent flicker
 - [x] Defaults to online state to avoid false positives on startup
 - [x] Delayed first check by 3s to let app initialize
+
+### Phase 96: Merge Messages into Profile + Remove My Hours Tab
+- [x] Remove Messages tab from bottom tab bar
+- [x] Remove My Hours tab from bottom tab bar
+- [x] Add Messages section (inbox/sent) to Profile screen for all account types
+- [x] Ensure tab bar goes from 7 icons to 5 (Home, Jobs, Goals, Manage, Profile)
+- [x] Profile tab now has sub-tabs: My Profile | Messages (with unread badge count)
+- [x] All roles get Manage tab (laborers see My Hours there)
+- [x] Messages screen supports embedded mode for Profile integration

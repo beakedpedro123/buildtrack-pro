@@ -19,6 +19,7 @@ import { ActivityIndicator,
 
 import { BG_MORE as bg_more } from "@/constants/bg-urls";
 import { useLanguage, type AppLanguage } from "@/lib/language-context";
+import MessagesScreen from "./messages";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
@@ -43,11 +44,14 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
+type ProfileTab = "profile" | "messages";
+
 export default function ProfileScreen() {
   const colors = useColors();
   const { employee, logout } = useAppAuth();
   const utils = trpc.useUtils();
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<ProfileTab>("profile");
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try { await utils.invalidate(); } catch {}
@@ -62,6 +66,11 @@ export default function ProfileScreen() {
   const [confirmPin, setConfirmPin] = useState("");
   const [saving, setSaving] = useState(false);
   const { language, setLanguage } = useLanguage();
+
+  // Unread message count for badge
+  const empId = (employee as any)?.id ?? 0;
+  const unreadQuery = trpc.messages.unreadCount.useQuery({ employeeId: empId }, { enabled: empId > 0, refetchInterval: 30000 });
+  const unreadMsgCount = unreadQuery.data ?? 0;
 
   const updateEmployee = trpc.employees.update.useMutation({
     onSuccess: () => {
@@ -128,7 +137,6 @@ export default function ProfileScreen() {
       await updateEmployee.mutateAsync({
         id: employee.id,
         name: newName.trim(),
-        // No requestingEmployeeId needed — employees can update their own name
       });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Name Updated", `Your name has been changed to "${newName.trim()}".`);
@@ -169,13 +177,77 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleTabPress = (tab: ProfileTab) => {
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveTab(tab);
+  };
+
+  // If showing messages, render the messages screen embedded
+  if (activeTab === "messages") {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        {/* Sub-tab bar */}
+        <ScreenContainer edges={["top"]} className="flex-0">
+          <View style={tabStyles.subTabBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={tabStyles.subTabScroll}>
+              <TouchableOpacity
+                onPress={() => handleTabPress("profile")}
+                style={[tabStyles.subTab, { backgroundColor: "transparent", borderColor: colors.border }]}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 14 }}>👤</Text>
+                <Text style={[tabStyles.subTabText, { color: colors.muted }]}>My Profile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleTabPress("messages")}
+                style={[tabStyles.subTab, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 14 }}>✉️</Text>
+                <Text style={[tabStyles.subTabText, { color: "#000", fontWeight: "700" }]}>
+                  Messages{unreadMsgCount > 0 ? ` (${unreadMsgCount})` : ""}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </ScreenContainer>
+        <MessagesScreen embedded />
+      </View>
+    );
+  }
+
   return (
     <ScreenContainer>
         <ImageBackground source={bg_more} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
+
+          {/* Sub-tab bar */}
+          <View style={tabStyles.subTabBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={tabStyles.subTabScroll}>
+              <TouchableOpacity
+                onPress={() => handleTabPress("profile")}
+                style={[tabStyles.subTab, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 14 }}>👤</Text>
+                <Text style={[tabStyles.subTabText, { color: "#000", fontWeight: "700" }]}>My Profile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleTabPress("messages")}
+                style={[tabStyles.subTab, { backgroundColor: "transparent", borderColor: colors.border }]}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 14 }}>✉️</Text>
+                <Text style={[tabStyles.subTabText, { color: colors.muted }]}>
+                  Messages{unreadMsgCount > 0 ? ` (${unreadMsgCount})` : ""}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+
           {/* Header */}
-          <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20 }}>
+          <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}>
             <Text style={{ fontSize: 26, fontWeight: "700", color: colors.foreground }}>My Profile</Text>
           </View>
 
@@ -287,7 +359,7 @@ export default function ProfileScreen() {
             <View style={{ flexDirection: "row", padding: 16, gap: 10 }}>
               {(["en", "es"] as AppLanguage[]).map((lang) => {
                 const isActive = language === lang;
-                const label = lang === "en" ? "English" : "Espa\u00f1ol";
+                const label = lang === "en" ? "English" : "Español";
                 const flag = lang === "en" ? "\ud83c\uddfa\ud83c\uddf8" : "\ud83c\uddf2\ud83c\uddfd";
                 return (
                   <TouchableOpacity
@@ -361,3 +433,27 @@ export default function ProfileScreen() {
     </ScreenContainer>
   );
 }
+
+const tabStyles = StyleSheet.create({
+  subTabBar: {
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  subTabScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  subTab: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 6,
+  },
+  subTabText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+});
