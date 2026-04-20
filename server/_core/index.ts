@@ -116,6 +116,49 @@ async function startServer() {
     res.json({ ok: true, timestamp: Date.now() });
   });
 
+  // File download proxy — fetches from S3 storage and streams to client with proper Content-Disposition
+  app.get("/api/download", async (req: Request, res: Response) => {
+    try {
+      const fileUrl = req.query.url as string;
+      const fileName = (req.query.name as string) || "attachment";
+      if (!fileUrl) {
+        res.status(400).json({ error: "url query param required" });
+        return;
+      }
+      // Fetch the file from S3
+      const upstream = await fetch(fileUrl);
+      if (!upstream.ok) {
+        res.status(upstream.status).json({ error: `Upstream fetch failed: ${upstream.status}` });
+        return;
+      }
+      const contentType = upstream.headers.get("content-type") || "application/octet-stream";
+      const contentLength = upstream.headers.get("content-length");
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+      if (contentLength) res.setHeader("Content-Length", contentLength);
+      // Stream the body
+      const body = upstream.body;
+      if (body) {
+        const reader = (body as any).getReader();
+        const pump = async () => {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            res.write(Buffer.from(value));
+          }
+          res.end();
+        };
+        await pump();
+      } else {
+        const buf = Buffer.from(await upstream.arrayBuffer());
+        res.send(buf);
+      }
+    } catch (err) {
+      console.error("Download proxy error:", err);
+      res.status(500).json({ error: "Download failed" });
+    }
+  });
+
   // Detailed payroll PDF download endpoint
   app.get("/api/payroll-pdf", async (req: Request, res: Response) => {
     try {

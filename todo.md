@@ -1967,3 +1967,10 @@
 - [x] Profile tab now has sub-tabs: My Profile | Messages (with unread badge count)
 - [x] All roles get Manage tab (laborers see My Hours there)
 - [x] Messages screen supports embedded mode for Profile integration
+
+### Phase 97: Fix PDF Download Crash on iOS
+- [x] Fix PDF download in messages — tapping download button causes white screen flash and returns without downloading
+- [x] Added /api/download server proxy endpoint that fetches from S3 and streams with proper Content-Disposition headers
+- [x] Rewrote file-download.ts: uses proxy URL for reliable iOS downloads, multi-level fallbacks (share sheet → WebBrowser → Linking)
+- [x] PDFs now fall back to in-app WebBrowser if share sheet fails
+- [x] Proper error messages when download fails (suggests re-send if URL expired)
