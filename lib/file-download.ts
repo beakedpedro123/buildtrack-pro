@@ -1,25 +1,33 @@
 /**
  * File download helper — downloads files from URLs and opens them.
- * Uses the server's /api/download proxy for reliable downloads on iOS.
- * Falls back to WebBrowser for PDFs if sharing fails.
+ * 
+ * Strategy (native iOS/Android):
+ *   1. For PDFs: open directly in WebBrowser (in-app Safari/Chrome) — most reliable
+ *   2. For other files: try expo-file-system download + expo-sharing share sheet
+ *   3. Fallback: open URL in system browser via Linking
+ * 
+ * Every step is wrapped in try/catch to prevent app crashes.
  */
 import { Platform, Linking, Alert } from "react-native";
 import { getApiBaseUrl } from "@/constants/oauth";
 
 /**
  * Build a proxied download URL through our server.
- * This avoids CORS issues and ensures proper Content-Disposition headers.
+ * This ensures proper Content-Disposition headers for the client.
  */
 function getProxyDownloadUrl(originalUrl: string, fileName: string): string {
-  const base = getApiBaseUrl();
-  const params = new URLSearchParams({ url: originalUrl, name: fileName });
-  return `${base}/api/download?${params.toString()}`;
+  try {
+    const base = getApiBaseUrl();
+    if (!base) return originalUrl;
+    const params = new URLSearchParams({ url: originalUrl, name: fileName });
+    return `${base}/api/download?${params.toString()}`;
+  } catch {
+    return originalUrl;
+  }
 }
 
 /**
  * Download and open a file from a URL.
- * - On native: downloads via server proxy to local cache, then opens via share sheet
- * - On web: opens in a new tab or triggers browser download
  */
 export async function downloadAndOpenFile(
   url: string,
@@ -31,135 +39,150 @@ export async function downloadAndOpenFile(
     return;
   }
 
+  const ext = fileName.split(".").pop()?.toLowerCase() || "";
+  const isPdf = ext === "pdf";
+
+  // ─── WEB ───
   if (Platform.OS === "web") {
-    // On web, use the proxy URL to trigger a proper download
     try {
       const proxyUrl = getProxyDownloadUrl(url, fileName);
       window.open(proxyUrl, "_blank");
     } catch {
-      // Fallback: try direct URL
-      try {
-        window.open(url, "_blank");
-      } catch {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        a.target = "_blank";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+      try { window.open(url, "_blank"); } catch {
+        try {
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = fileName;
+          a.target = "_blank";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } catch { /* exhausted web fallbacks */ }
       }
     }
     return;
   }
 
-  // On native (iOS/Android) — use the proxy URL for reliable downloads
-  try {
-    const FileSystem = await import("expo-file-system/legacy");
-    const Sharing = await import("expo-sharing");
+  // ─── NATIVE (iOS / Android) ───
 
-    // Sanitize filename for filesystem
-    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const localUri = FileSystem.cacheDirectory + safeName;
-
-    // Use the proxy URL for more reliable downloads (proper headers)
-    const proxyUrl = getProxyDownloadUrl(url, fileName);
-
-    const downloadResult = await FileSystem.downloadAsync(proxyUrl, localUri);
-
-    if (downloadResult.status !== 200) {
-      // Try direct URL as fallback
-      console.warn(`Proxy download failed (${downloadResult.status}), trying direct URL...`);
-      const directResult = await FileSystem.downloadAsync(url, localUri);
-      if (directResult.status !== 200) {
-        throw new Error(`Download failed with status ${directResult.status}`);
-      }
-      // Use direct result
-      await openDownloadedFile(directResult.uri, fileName, mimeType, Sharing, Linking);
-      return;
-    }
-
-    await openDownloadedFile(downloadResult.uri, fileName, mimeType, Sharing, Linking);
-  } catch (error: any) {
-    console.error("File download error:", error);
-
-    // Final fallback: try opening the URL in the system browser
+  // Strategy 1: For PDFs, open directly in WebBrowser (most reliable on iOS)
+  if (isPdf) {
     try {
-      // For PDFs, try opening in WebBrowser (in-app browser)
-      const ext = fileName.split(".").pop()?.toLowerCase() || "";
-      if (ext === "pdf") {
+      const WebBrowser = await import("expo-web-browser");
+      // Try proxy URL first (proper Content-Type headers)
+      const proxyUrl = getProxyDownloadUrl(url, fileName);
+      await WebBrowser.openBrowserAsync(proxyUrl, {
+        presentationStyle: (WebBrowser as any).WebBrowserPresentationStyle?.FULL_SCREEN,
+      });
+      return;
+    } catch (e1) {
+      console.warn("WebBrowser proxy failed for PDF:", e1);
+      // Try direct URL in WebBrowser
+      try {
         const WebBrowser = await import("expo-web-browser");
         await WebBrowser.openBrowserAsync(url, {
           presentationStyle: (WebBrowser as any).WebBrowserPresentationStyle?.FULL_SCREEN,
         });
         return;
+      } catch (e2) {
+        console.warn("WebBrowser direct failed for PDF:", e2);
+        // Fall through to file system approach
       }
-      // For other files, try Linking
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert("Download Error", `Could not download "${fileName}". The file URL may have expired. Please ask the sender to re-send the file.`);
-      }
-    } catch {
-      Alert.alert("Download Error", `Could not download "${fileName}". Please try again later.`);
     }
   }
-}
 
-/**
- * Open a downloaded file via the share sheet or fallback methods.
- */
-async function openDownloadedFile(
-  uri: string,
-  fileName: string,
-  mimeType: string | undefined,
-  Sharing: typeof import("expo-sharing"),
-  LinkingModule: typeof Linking
-): Promise<void> {
-  const resolvedMime = mimeType || getMimeFromFileName(fileName);
-  const ext = fileName.split(".").pop()?.toLowerCase() || "";
-
-  // Try sharing first (most reliable on iOS)
+  // Strategy 2: Download to local cache + share sheet
   try {
-    const canShare = await Sharing.isAvailableAsync();
-    if (canShare) {
-      await Sharing.shareAsync(uri, {
-        mimeType: resolvedMime,
-        dialogTitle: `Open ${fileName}`,
-        UTI: getUTI(fileName),
-      });
-      return;
-    }
-  } catch (shareError: any) {
-    console.warn("Share failed:", shareError);
-  }
+    const FileSystem = await import("expo-file-system/legacy");
+    const Sharing = await import("expo-sharing");
 
-  // Fallback for PDFs: open in WebBrowser
-  if (ext === "pdf") {
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const localUri = (FileSystem.cacheDirectory || "") + safeName;
+
+    if (!FileSystem.cacheDirectory) {
+      throw new Error("cacheDirectory not available");
+    }
+
+    // Try proxy URL first
+    let downloadUri: string | null = null;
     try {
-      const WebBrowser = await import("expo-web-browser");
-      await WebBrowser.openBrowserAsync(uri, {
-        presentationStyle: (WebBrowser as any).WebBrowserPresentationStyle?.FULL_SCREEN,
-      });
-      return;
+      const proxyUrl = getProxyDownloadUrl(url, fileName);
+      const result = await FileSystem.downloadAsync(proxyUrl, localUri);
+      if (result.status === 200) {
+        downloadUri = result.uri;
+      }
     } catch {
-      // Continue to next fallback
+      // proxy failed, try direct
     }
+
+    // Fallback to direct URL
+    if (!downloadUri) {
+      try {
+        const result = await FileSystem.downloadAsync(url, localUri);
+        if (result.status === 200) {
+          downloadUri = result.uri;
+        }
+      } catch {
+        // direct also failed
+      }
+    }
+
+    if (downloadUri) {
+      // Try sharing
+      try {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(downloadUri, {
+            mimeType: mimeType || getMimeFromFileName(fileName),
+            dialogTitle: `Open ${fileName}`,
+            UTI: getUTI(fileName),
+          });
+          return;
+        }
+      } catch (shareErr) {
+        console.warn("Sharing failed:", shareErr);
+      }
+
+      // If sharing failed but we have the file, try WebBrowser for PDFs
+      if (isPdf) {
+        try {
+          const WebBrowser = await import("expo-web-browser");
+          await WebBrowser.openBrowserAsync(downloadUri);
+          return;
+        } catch { /* continue */ }
+      }
+
+      // Try Linking
+      try {
+        await Linking.openURL(downloadUri);
+        return;
+      } catch { /* continue */ }
+    }
+  } catch (fsError) {
+    console.warn("FileSystem download approach failed:", fsError);
   }
 
-  // Fallback: try opening with Linking
+  // Strategy 3: Last resort — open URL in system browser
   try {
-    const canOpen = await LinkingModule.canOpenURL(uri);
+    const canOpen = await Linking.canOpenURL(url);
     if (canOpen) {
-      await LinkingModule.openURL(uri);
+      await Linking.openURL(url);
       return;
     }
-  } catch {
-    // Continue to alert
-  }
+  } catch { /* continue */ }
 
-  Alert.alert("File Downloaded", `"${fileName}" has been downloaded but could not be opened automatically. Check your device's file manager.`);
+  // Try proxy URL in system browser
+  try {
+    const proxyUrl = getProxyDownloadUrl(url, fileName);
+    await Linking.openURL(proxyUrl);
+    return;
+  } catch { /* continue */ }
+
+  // All methods exhausted
+  Alert.alert(
+    "Download Error",
+    `Could not download "${fileName}". The file URL may have expired. Please ask the sender to re-send the file.`
+  );
 }
 
 function getMimeFromFileName(fileName: string): string {

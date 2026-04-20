@@ -194,8 +194,11 @@ export default function MessagesScreen({ embedded }: { embedded?: boolean } = {}
       );
     } catch (err: any) {
       console.error("Download error:", err);
+      try {
+        Alert.alert("Download Issue", `Could not open "${item.attachmentName || 'file'}". Please try again.`);
+      } catch { /* prevent any further crash */ }
     } finally {
-      setDownloadingId(null);
+      try { setDownloadingId(null); } catch { /* safety */ }
     }
   };
 

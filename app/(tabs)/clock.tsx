@@ -888,12 +888,12 @@ export default function ClockScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Job Selector (only when clocked out) — collapsible full-width list */}
+            {/* Job Selector (only when clocked out) — full-screen modal picker */}
             {!isClockedIn && (
               <View style={styles.jobSelector}>
                 <Text style={styles.sectionTitle}>Select Jobsite</Text>
                 <TouchableOpacity
-                  onPress={() => setJobsExpanded(!jobsExpanded)}
+                  onPress={() => setJobsExpanded(true)}
                   activeOpacity={0.7}
                   style={{
                     flexDirection: "row", alignItems: "center",
@@ -902,41 +902,61 @@ export default function ClockScreen() {
                     borderWidth: 1.5, borderColor: selectedJobId ? colors.primary : colors.border,
                   }}
                 >
-                  <Text style={{ flex: 1, fontSize: 15, fontWeight: selectedJobId ? "700" : "500", color: selectedJobId ? colors.primary : colors.muted }}>
+                  <Text style={{ flex: 1, fontSize: 15, fontWeight: selectedJobId ? "700" : "500", color: selectedJobId ? colors.primary : colors.muted }} numberOfLines={1}>
                     {selectedJobId ? (effectiveJobs.find((j: any) => j.id === selectedJobId)?.name || "Selected") : "Select a jobsite"}
                   </Text>
                   <Text style={{ fontSize: 12, color: colors.muted, marginLeft: 8, fontWeight: "600" }}>{effectiveJobs.length} sites</Text>
-                  <Text style={{ fontSize: 14, color: colors.muted, marginLeft: 8 }}>{jobsExpanded ? "▲" : "▼"}</Text>
+                  <Text style={{ fontSize: 14, color: colors.muted, marginLeft: 8 }}>▼</Text>
                 </TouchableOpacity>
-                {jobsExpanded && (
-                  <View style={{ marginTop: 6, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
-                    {effectiveJobs.map((job: any, index: number) => {
-                      const isSelected = selectedJobId === job.id;
-                      const isLast = index === effectiveJobs.length - 1;
-                      return (
-                        <TouchableOpacity
-                          key={job.id}
-                          onPress={() => { setSelectedJobId(job.id); setJobsExpanded(false); }}
-                          activeOpacity={0.6}
-                          style={{
-                            flexDirection: "row", alignItems: "center",
-                            paddingVertical: 14, paddingHorizontal: 16,
-                            backgroundColor: isSelected ? colors.primary + "15" : "transparent",
-                            borderBottomWidth: isLast ? 0 : 0.5, borderBottomColor: colors.border,
-                          }}
-                        >
-                          <Text style={{ flex: 1, fontSize: 15, fontWeight: isSelected ? "700" : "500", color: isSelected ? colors.primary : colors.foreground, lineHeight: 22 }}>
-                            {String(job.name)}
-                          </Text>
-                          {isSelected && <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "700", marginLeft: 8 }}>✓</Text>}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )}
                 {effectiveJobs.length === 0 && (
                   <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>No active jobs available.</Text>
                 )}
+                {/* Full-Screen Job Picker Modal */}
+                <Modal visible={jobsExpanded} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setJobsExpanded(false)}>
+                  <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: Platform.OS === "ios" ? insets.top : 16 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
+                      <Text style={{ flex: 1, fontSize: 20, fontWeight: "800", color: colors.foreground }}>Select Jobsite</Text>
+                      <TouchableOpacity onPress={() => setJobsExpanded(false)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: colors.surface }}>
+                        <Text style={{ fontSize: 15, fontWeight: "600", color: colors.muted }}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <FlatList
+                      data={effectiveJobs}
+                      keyExtractor={(item: any) => String(item.id)}
+                      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 20 }}
+                      keyboardShouldPersistTaps="handled"
+                      ListEmptyComponent={<View style={{ paddingVertical: 40, alignItems: "center" }}><Text style={{ color: colors.muted, fontSize: 15 }}>No jobsites available</Text></View>}
+                      renderItem={({ item, index }: { item: any; index: number }) => {
+                        const isSelected = selectedJobId === item.id;
+                        return (
+                          <TouchableOpacity
+                            onPress={() => { setSelectedJobId(item.id); setJobsExpanded(false); if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+                            activeOpacity={0.6}
+                            style={{
+                              flexDirection: "row", alignItems: "center",
+                              paddingVertical: 16, paddingHorizontal: 16,
+                              marginTop: index === 0 ? 4 : 0, marginBottom: 6, borderRadius: 12,
+                              backgroundColor: isSelected ? colors.primary + "18" : colors.surface,
+                              borderWidth: isSelected ? 1.5 : 1, borderColor: isSelected ? colors.primary : colors.border,
+                            }}
+                          >
+                            <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: isSelected ? colors.primary : colors.border + "60", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                              <Text style={{ fontSize: 13, fontWeight: "700", color: isSelected ? "#fff" : colors.muted }}>{index + 1}</Text>
+                            </View>
+                            <Text style={{ flex: 1, fontSize: 16, fontWeight: isSelected ? "700" : "500", color: isSelected ? colors.primary : colors.foreground, lineHeight: 22 }}>
+                              {String(item.name)}
+                            </Text>
+                            {isSelected && (
+                              <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginLeft: 8 }}>
+                                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>✓</Text>
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      }}
+                    />
+                  </View>
+                </Modal>
               </View>
             )}
 

@@ -1974,3 +1974,12 @@
 - [x] Rewrote file-download.ts: uses proxy URL for reliable iOS downloads, multi-level fallbacks (share sheet → WebBrowser → Linking)
 - [x] PDFs now fall back to in-app WebBrowser if share sheet fails
 - [x] Proper error messages when download fails (suggests re-send if URL expired)
+
+### Phase 98: URGENT - Job Selector Can't Scroll + PDF Download Crash
+- [x] Fix job selector: list springs back to top when scrolling, can't see all 10 jobs. Redesign like ClockShark/Jibble with full-screen modal picker
+- [x] Fix PDF download: tapping attachment crashes app — flashes to Jobs screen then redirects to home instead of downloading
+- [x] JobPicker now opens full-screen modal with FlatList (fully scrollable), search bar for 5+ jobs, numbered badges, checkmark selection
+- [x] Clock screen job selector also converted to full-screen modal
+- [x] PDF download now uses WebBrowser as primary method (in-app Safari) — most reliable on iOS
+- [x] Multi-level fallback chain: WebBrowser → FileSystem+Sharing → Linking → system browser
+- [x] Every step wrapped in try/catch to prevent app crashes/navigation resets

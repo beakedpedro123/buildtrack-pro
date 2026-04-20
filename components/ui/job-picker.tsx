@@ -2,22 +2,19 @@ import { useEffect, useState, useRef } from "react";
 import {
   ActivityIndicator,
   Animated,
-  LayoutAnimation,
+  FlatList,
+  Modal,
   Platform,
   Text,
+  TextInput,
   TouchableOpacity,
-  UIManager,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-
-// Enable LayoutAnimation on Android
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 const JOB_PICKER_CACHE_KEY = "@job_picker_cache_v1";
 
@@ -33,15 +30,17 @@ interface JobPickerProps {
 }
 
 /**
- * Collapsible job picker — full-width, clean list with readable names.
- * No radio circles/squares. Tapping a job highlights it and collapses.
+ * Job picker — ClockShark/Jibble style.
+ * Tapping the selector opens a full-screen modal with a scrollable list
+ * and search bar. Fully scrollable, no cut-off jobs.
  */
 export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerProps) {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState(false);
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const [modalVisible, setModalVisible] = useState(false);
+  const [search, setSearch] = useState("");
 
   // Fetch from server
   const { data: serverJobs, isLoading: queryLoading } = trpc.jobs.forEmployee.useQuery(
@@ -102,35 +101,21 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
 
   const selectedJob = jobs.find((j) => j.id === selectedJobId);
 
-  const toggleExpanded = () => {
+  const openModal = () => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    const next = !expanded;
-    setExpanded(next);
-    Animated.timing(rotateAnim, {
-      toValue: next ? 1 : 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
+    setSearch("");
+    setModalVisible(true);
   };
 
   const handleSelect = (jobId: number) => {
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onSelectJob(jobId);
-    // Collapse after selection
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpanded(false);
-    Animated.timing(rotateAnim, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
+    setModalVisible(false);
   };
 
-  const chevronRotation = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "180deg"],
-  });
+  const filteredJobs = search.trim()
+    ? jobs.filter((j) => j.name.toLowerCase().includes(search.toLowerCase().trim()))
+    : jobs;
 
   if (loading && queryLoading && jobs.length === 0) {
     return (
@@ -149,7 +134,7 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
     );
   }
 
-  // If only 1 job, just show it as a static row (no dropdown needed)
+  // If only 1 job, just show it as a static row (no picker needed)
   if (jobs.length === 1) {
     return (
       <View style={{ marginBottom: 14 }}>
@@ -176,9 +161,9 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
 
   return (
     <View style={{ marginBottom: 14 }}>
-      {/* Collapsed Header / Pill */}
+      {/* Selector Button — tapping opens the full-screen modal */}
       <TouchableOpacity
-        onPress={toggleExpanded}
+        onPress={openModal}
         activeOpacity={0.7}
         style={{
           flexDirection: "row",
@@ -198,6 +183,7 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
             fontWeight: selectedJob ? "700" : "500",
             color: selectedJob ? colors.primary : colors.muted,
           }}
+          numberOfLines={1}
         >
           {selectedJob ? selectedJob.name : "Select a jobsite"}
         </Text>
@@ -211,67 +197,175 @@ export function JobPicker({ employeeId, selectedJobId, onSelectJob }: JobPickerP
         >
           {jobs.length} sites
         </Text>
-        <Animated.Text
-          style={{
-            fontSize: 14,
-            color: colors.muted,
-            marginLeft: 8,
-            transform: [{ rotate: chevronRotation }],
-          }}
-        >
-          ▲
-        </Animated.Text>
+        <Text style={{ fontSize: 14, color: colors.muted, marginLeft: 8 }}>▼</Text>
       </TouchableOpacity>
 
-      {/* Expanded Job List */}
-      {expanded && (
+      {/* Full-Screen Modal Picker */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setModalVisible(false)}
+      >
         <View
           style={{
-            marginTop: 6,
-            borderRadius: 12,
-            backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: colors.border,
-            overflow: "hidden",
+            flex: 1,
+            backgroundColor: colors.background,
+            paddingTop: Platform.OS === "ios" ? insets.top : 16,
           }}
         >
-          {jobs.map((job, index) => {
-            const isSelected = selectedJobId === job.id;
-            const isLast = index === jobs.length - 1;
-            return (
-              <TouchableOpacity
-                key={job.id}
-                onPress={() => handleSelect(job.id)}
-                activeOpacity={0.6}
+          {/* Header */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 16,
+              paddingBottom: 12,
+              borderBottomWidth: 0.5,
+              borderBottomColor: colors.border,
+            }}
+          >
+            <Text
+              style={{
+                flex: 1,
+                fontSize: 20,
+                fontWeight: "800",
+                color: colors.foreground,
+              }}
+            >
+              Select Jobsite
+            </Text>
+            <TouchableOpacity
+              onPress={() => setModalVisible(false)}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 8,
+                backgroundColor: colors.surface,
+              }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.muted }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Search Bar (show if 5+ jobs) */}
+          {jobs.length >= 5 && (
+            <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search jobsites..."
+                placeholderTextColor={colors.muted}
+                returnKeyType="search"
+                autoCorrect={false}
                 style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: 14,
-                  paddingHorizontal: 16,
-                  backgroundColor: isSelected ? colors.primary + "15" : "transparent",
-                  borderBottomWidth: isLast ? 0 : 0.5,
-                  borderBottomColor: colors.border,
+                  height: 44,
+                  borderRadius: 10,
+                  backgroundColor: colors.surface,
+                  paddingHorizontal: 14,
+                  fontSize: 15,
+                  color: colors.foreground,
+                  borderWidth: 1,
+                  borderColor: colors.border,
                 }}
-              >
-                <Text
+              />
+            </View>
+          )}
+
+          {/* Job List — fully scrollable FlatList */}
+          <FlatList
+            data={filteredJobs}
+            keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingTop: 8,
+              paddingBottom: insets.bottom + 20,
+            }}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              <View style={{ paddingVertical: 40, alignItems: "center" }}>
+                <Text style={{ color: colors.muted, fontSize: 15 }}>
+                  {search ? "No matching jobsites" : "No jobsites available"}
+                </Text>
+              </View>
+            }
+            renderItem={({ item, index }) => {
+              const isSelected = selectedJobId === item.id;
+              return (
+                <TouchableOpacity
+                  onPress={() => handleSelect(item.id)}
+                  activeOpacity={0.6}
                   style={{
-                    flex: 1,
-                    fontSize: 15,
-                    fontWeight: isSelected ? "700" : "500",
-                    color: isSelected ? colors.primary : colors.foreground,
-                    lineHeight: 22,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: 16,
+                    paddingHorizontal: 16,
+                    marginTop: index === 0 ? 4 : 0,
+                    marginBottom: 6,
+                    borderRadius: 12,
+                    backgroundColor: isSelected ? colors.primary + "18" : colors.surface,
+                    borderWidth: isSelected ? 1.5 : 1,
+                    borderColor: isSelected ? colors.primary : colors.border,
                   }}
                 >
-                  {job.name}
-                </Text>
-                {isSelected && (
-                  <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "700", marginLeft: 8 }}>✓</Text>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+                  {/* Job number badge */}
+                  <View
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      backgroundColor: isSelected ? colors.primary : colors.border + "60",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginRight: 12,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "700",
+                        color: isSelected ? "#fff" : colors.muted,
+                      }}
+                    >
+                      {index + 1}
+                    </Text>
+                  </View>
+
+                  {/* Job name — full text, no truncation */}
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: 16,
+                      fontWeight: isSelected ? "700" : "500",
+                      color: isSelected ? colors.primary : colors.foreground,
+                      lineHeight: 22,
+                    }}
+                  >
+                    {item.name}
+                  </Text>
+
+                  {/* Checkmark for selected */}
+                  {isSelected && (
+                    <View
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: 13,
+                        backgroundColor: colors.primary,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginLeft: 8,
+                      }}
+                    >
+                      <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>✓</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            }}
+          />
         </View>
-      )}
+      </Modal>
     </View>
   );
 }
