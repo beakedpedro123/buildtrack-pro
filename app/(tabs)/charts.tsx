@@ -386,8 +386,37 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
   const [activeSection, setActiveSection] = useState<ChartSection>("profitability");
   const [refreshing, setRefreshing] = useState(false);
   const [sharingChart, setSharingChart] = useState(false);
+  const [dateRange, setDateRange] = useState<"all" | "this_month" | "last_quarter" | "ytd" | "custom">("all");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
 
   const chartRef = useRef<View>(null);
+
+  // ─── Date range calculation ─────────────────────────────────────────
+  const dateParams = useMemo(() => {
+    const now = new Date();
+    let startDate: string | undefined;
+    let endDate: string | undefined;
+    if (dateRange === "this_month") {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      endDate = now.toISOString();
+    } else if (dateRange === "last_quarter") {
+      const qStart = new Date(now);
+      qStart.setMonth(qStart.getMonth() - 3);
+      startDate = qStart.toISOString();
+      endDate = now.toISOString();
+    } else if (dateRange === "ytd") {
+      startDate = new Date(now.getFullYear(), 0, 1).toISOString();
+      endDate = now.toISOString();
+    } else if (dateRange === "custom" && customStart && customEnd) {
+      startDate = new Date(customStart).toISOString();
+      endDate = new Date(customEnd).toISOString();
+    }
+    return { startDate, endDate };
+  }, [dateRange, customStart, customEnd]);
+
+  const hasDateFilter = dateRange !== "all";
 
   const role = employee?.role || "laborer";
   const isOwner = role === "owner";
@@ -395,19 +424,34 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
   const canSeeDollars = isOwner || isOfficeMgr;
 
   // ─── Data Queries ───────────────────────────────────────────────────
-  const profitQuery = trpc.financialCharts.jobProfitability.useQuery(undefined, { staleTime: 60000 });
+  // Use date-filtered queries when a filter is active, otherwise use the original unfiltered ones
+  const profitQueryUnfiltered = trpc.financialCharts.jobProfitability.useQuery(undefined, { staleTime: 60000, enabled: !hasDateFilter });
+  const profitQueryFiltered = trpc.financialCharts.jobProfitabilityFiltered.useQuery(
+    { startDate: dateParams.startDate, endDate: dateParams.endDate },
+    { staleTime: 60000, enabled: hasDateFilter }
+  );
+  const profitQuery = hasDateFilter ? profitQueryFiltered : profitQueryUnfiltered;
+
   const taxQuery = trpc.financialCharts.taxBreakdown.useQuery(undefined, { staleTime: 60000 });
+
+  const laborQueryUnfiltered = trpc.financialCharts.monthlyLaborTrend.useQuery({ months: 6 }, { staleTime: 60000, enabled: !hasDateFilter });
+  const laborQueryFiltered = trpc.financialCharts.monthlyLaborTrendFiltered.useQuery(
+    { startDate: dateParams.startDate, endDate: dateParams.endDate },
+    { staleTime: 60000, enabled: hasDateFilter }
+  );
+  const laborQuery = hasDateFilter ? laborQueryFiltered : laborQueryUnfiltered;
   // budgetBurnDown requires a jobId — we'll use profitability data for the all-jobs burndown view instead
   const burndownFromProfit = profitQuery.data;
-  const laborQuery = trpc.financialCharts.monthlyLaborTrend.useQuery({ months: 6 }, { staleTime: 60000 });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await Promise.all([
         utils.financialCharts.jobProfitability.invalidate(),
+        utils.financialCharts.jobProfitabilityFiltered.invalidate(),
         utils.financialCharts.taxBreakdown.invalidate(),
         utils.financialCharts.monthlyLaborTrend.invalidate(),
+        utils.financialCharts.monthlyLaborTrendFiltered.invalidate(),
       ]);
     } catch {}
     setRefreshing(false);
@@ -608,6 +652,100 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
             );
           })}
         </ScrollView>
+
+        {/* Date Range Filter */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+            {([
+              { key: "all", label: "All Time" },
+              { key: "this_month", label: "This Month" },
+              { key: "last_quarter", label: "Last 3 Months" },
+              { key: "ytd", label: "YTD" },
+              { key: "custom", label: "Custom" },
+            ] as const).map((p) => {
+              const isActive = dateRange === p.key;
+              return (
+                <TouchableOpacity
+                  key={p.key}
+                  onPress={() => {
+                    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setDateRange(p.key);
+                    if (p.key === "custom") setShowCustomPicker(true);
+                    else setShowCustomPicker(false);
+                  }}
+                  style={[
+                    styles.dateChip,
+                    isActive && { backgroundColor: colors.primary + "30", borderColor: colors.primary },
+                    !isActive && { backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.dateChipText, { color: isActive ? colors.primary : colors.muted }, isActive && { fontWeight: "700" }]}>
+                    {p.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          {showCustomPicker && dateRange === "custom" && (
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 4 }}>Start Date</Text>
+                <TouchableOpacity
+                  style={[styles.dateInput, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  onPress={() => {
+                    const d = customStart || new Date().toISOString().slice(0, 10);
+                    if (Platform.OS === "ios" && Alert.prompt) {
+                      Alert.prompt("Start Date", "Enter date (YYYY-MM-DD)", [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Set", onPress: (val?: string) => { if (val) setCustomStart(val); } },
+                      ], "plain-text", d);
+                    } else {
+                      const val = prompt("Start Date (YYYY-MM-DD)", d);
+                      if (val) setCustomStart(val);
+                    }
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: customStart ? colors.foreground : colors.muted }}>
+                    {customStart || "YYYY-MM-DD"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 4 }}>End Date</Text>
+                <TouchableOpacity
+                  style={[styles.dateInput, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  onPress={() => {
+                    const d = customEnd || new Date().toISOString().slice(0, 10);
+                    if (Platform.OS === "ios" && Alert.prompt) {
+                      Alert.prompt("End Date", "Enter date (YYYY-MM-DD)", [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Set", onPress: (val?: string) => { if (val) setCustomEnd(val); } },
+                      ], "plain-text", d);
+                    } else {
+                      const val = prompt("End Date (YYYY-MM-DD)", d);
+                      if (val) setCustomEnd(val);
+                    }
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: customEnd ? colors.foreground : colors.muted }}>
+                    {customEnd || "YYYY-MM-DD"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          {hasDateFilter && (
+            <Text style={{ fontSize: 11, color: colors.primary, marginTop: 6, fontStyle: "italic" }}>
+              {dateRange === "custom" && customStart && customEnd
+                ? `Showing: ${customStart} to ${customEnd}`
+                : dateRange === "this_month" ? "Showing: This Month"
+                : dateRange === "last_quarter" ? "Showing: Last 3 Months"
+                : dateRange === "ytd" ? "Showing: Year to Date"
+                : ""}
+            </Text>
+          )}
+        </View>
 
         {/* Share buttons */}
         {canSeeDollars && (
@@ -901,5 +1039,21 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     gap: 4,
+  },
+  dateChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  dateChipText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  dateInput: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
   },
 });

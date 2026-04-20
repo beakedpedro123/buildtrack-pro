@@ -1899,3 +1899,13 @@
 - [x] Share functionality for all charts (image export + native share sheet)
 - [x] Integrate charts into existing reports section alongside PDF reports
 - [x] Role-based access: owner/office_manager see dollar amounts, foreman sees hours only
+
+### Phase 90: Date Range Filter & Budget Audit Log
+- [x] Budget audit log DB schema (budgetAuditLog table)
+- [x] Budget audit log DB functions (create entry, list by job)
+- [x] Budget audit log server routes
+- [x] Date range filter UI on Charts screen (This Month, Last Quarter, YTD, Custom)
+- [x] Update server analytics endpoints to accept startDate/endDate params
+- [x] Budget audit log UI on Jobs budget tab (full paper trail)
+- [x] Wire budget edits to create audit log entries automatically
+- [x] Wire change order create/delete to create audit log entries automatically

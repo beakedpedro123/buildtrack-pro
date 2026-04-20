@@ -866,6 +866,31 @@ const financialChartsRouter = router({
   monthlyLaborTrend: publicProcedure.input(z.object({
     months: z.number().default(6),
   })).query(({ input }) => db.getMonthlyLaborTrend(input.months)),
+  // Date-filtered endpoints
+  jobProfitabilityFiltered: publicProcedure.input(z.object({
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+  })).query(({ input }) => db.getJobProfitabilityFiltered(input.startDate, input.endDate)),
+  monthlyLaborTrendFiltered: publicProcedure.input(z.object({
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+  })).query(({ input }) => db.getMonthlyLaborTrendFiltered(input.startDate, input.endDate)),
+  // Budget Audit Log
+  auditLog: publicProcedure.input(z.object({
+    jobId: z.number(),
+  })).query(({ input }) => db.getBudgetAuditLog(input.jobId)),
+  createAuditEntry: publicProcedure.input(z.object({
+    jobId: z.number(),
+    employeeId: z.number(),
+    action: z.string(),
+    previousValue: z.string().optional(),
+    newValue: z.string().optional(),
+    description: z.string().optional(),
+    changeOrderId: z.number().optional(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.employeeId, ["owner", "office_manager"], "create audit entries");
+    return db.createBudgetAuditEntry(input);
+  }),
 });
 
 const kpiRouter = router({

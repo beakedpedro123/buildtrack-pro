@@ -93,6 +93,9 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const [coType, setCoType] = useState<"add" | "deduct">("add");
   const [coNotes, setCoNotes] = useState("");
 
+  // Budget audit log
+  const [showAuditLog, setShowAuditLog] = useState(false);
+
   // RBAC role helpers
   const role = employee?.role ?? "laborer";
   const canManage = role === "owner" || role === "office_manager" || role === "logistics";
@@ -140,12 +143,19 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     { jobId: selectedJob?.id || 0 },
     { enabled: !!selectedJob && canSeeBudget }
   );
+  const { data: auditLogEntries } = trpc.financialCharts.auditLog.useQuery(
+    { jobId: selectedJob?.id || 0 },
+    { enabled: !!selectedJob && canSeeBudget && showAuditLog }
+  );
 
   const createJob = trpc.jobs.create.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); setShowNewJob(false); resetJobForm(); } });
   const updateJob = trpc.jobs.update.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); } });
   const addExpense = trpc.budget.addExpense.useMutation({ onSuccess: () => { utils.budget.getExpenses.invalidate(); utils.budget.getCategories.invalidate(); setShowAddExpense(false); resetExpForm(); } });
   const addBudgetCat = trpc.budget.createCategory.useMutation({ onSuccess: () => { utils.budget.getCategories.invalidate(); setShowAddBudget(false); setBudgetName(""); setBudgetAmount(""); } });
-  const createCO = trpc.changeOrders.create.useMutation({ onSuccess: () => { utils.changeOrders.list.invalidate(); utils.changeOrders.total.invalidate(); setShowAddCO(false); setCoDesc(""); setCoAmount(""); setCoType("add"); setCoNotes(""); } });
+  const createAuditEntry = trpc.financialCharts.createAuditEntry.useMutation({ onSuccess: () => { utils.financialCharts.auditLog.invalidate(); } });
+  const createCO = trpc.changeOrders.create.useMutation({ onSuccess: () => {
+    utils.changeOrders.list.invalidate(); utils.changeOrders.total.invalidate(); setShowAddCO(false); setCoDesc(""); setCoAmount(""); setCoType("add"); setCoNotes("");
+  } });
   const deleteCO = trpc.changeOrders.delete.useMutation({ onSuccess: () => { utils.changeOrders.list.invalidate(); utils.changeOrders.total.invalidate(); } });
 
   const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); setJobTaxRate(""); setJobWorkersComp(""); setJobLiabilityIns(""); setJobBillingType("fixed"); setJobHourlyRate("55"); };
@@ -784,7 +794,16 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                               onPress={() => {
                                 const val = editBudgetValue.replace(/[^0-9.]/g, "");
                                 if (val && parseFloat(val) > 0) {
+                                  const oldBudget = parseFloat(selectedJob.totalBudget || "0");
                                   updateJob.mutate({ id: selectedJob.id, totalBudget: val });
+                                  createAuditEntry.mutate({
+                                    jobId: selectedJob.id,
+                                    employeeId: employee?.id || 0,
+                                    action: "budget_edit",
+                                    previousValue: String(oldBudget),
+                                    newValue: val,
+                                    description: `Base budget changed from $${oldBudget.toLocaleString()} to $${parseFloat(val).toLocaleString()}`,
+                                  });
                                   setSelectedJob({ ...selectedJob, totalBudget: val });
                                   if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                                 }
@@ -867,13 +886,21 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                               <TouchableOpacity
                                 onPress={() => {
                                   if (!coDesc.trim() || !coAmount.trim()) { Alert.alert("Required", "Description and amount are required."); return; }
+                                  const coAmtClean = coAmount.replace(/[^0-9.]/g, "");
                                   createCO.mutate({
                                     jobId: selectedJob.id,
                                     description: coDesc.trim(),
-                                    amount: coAmount.replace(/[^0-9.]/g, ""),
+                                    amount: coAmtClean,
                                     orderType: coType,
                                     createdBy: employee?.id || 0,
                                     notes: coNotes.trim() || undefined,
+                                  });
+                                  createAuditEntry.mutate({
+                                    jobId: selectedJob.id,
+                                    employeeId: employee?.id || 0,
+                                    action: coType === "add" ? "change_order_add" : "change_order_deduct",
+                                    newValue: coAmtClean,
+                                    description: `Change order ${coType === "add" ? "addition" : "deduction"}: ${coDesc.trim()} — $${parseFloat(coAmtClean).toLocaleString()}`,
                                   });
                                   if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                                 }}
@@ -912,7 +939,16 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                                 onPress={() => {
                                   Alert.alert("Delete Change Order", `Remove "${co.description}"?`, [
                                     { text: "Cancel", style: "cancel" },
-                                    { text: "Delete", style: "destructive", onPress: () => deleteCO.mutate({ id: co.id, requestingId: employee?.id || 0 }) },
+                                    { text: "Delete", style: "destructive", onPress: () => {
+                                      deleteCO.mutate({ id: co.id, requestingId: employee?.id || 0 });
+                                      createAuditEntry.mutate({
+                                        jobId: selectedJob.id,
+                                        employeeId: employee?.id || 0,
+                                        action: "change_order_deleted",
+                                        previousValue: co.amount,
+                                        description: `Change order deleted: ${co.description} — $${parseFloat(co.amount).toLocaleString()}`,
+                                      });
+                                    } },
                                   ]);
                                 }}
                                 style={{ padding: 4 }}
@@ -1037,6 +1073,86 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                       </View>
                     </View>
                   ))}
+
+                  {/* Budget Audit Log */}
+                  <View style={{ marginTop: 20, marginBottom: 20 }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowAuditLog(!showAuditLog);
+                        if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }}
+                      style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <Text style={{ fontSize: 18 }}>📋</Text>
+                        <View>
+                          <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Budget History</Text>
+                          <Text style={{ fontSize: 12, color: colors.muted }}>Full audit trail of all budget changes</Text>
+                        </View>
+                      </View>
+                      <Text style={{ fontSize: 18, color: colors.muted }}>{showAuditLog ? "▲" : "▼"}</Text>
+                    </TouchableOpacity>
+
+                    {showAuditLog && (
+                      <View style={{ marginTop: 8 }}>
+                        {!auditLogEntries || auditLogEntries.length === 0 ? (
+                          <View style={{ backgroundColor: colors.surface, borderRadius: 10, padding: 20, alignItems: "center", borderWidth: 1, borderColor: colors.border }}>
+                            <Text style={{ fontSize: 13, color: colors.muted }}>No budget changes recorded yet</Text>
+                          </View>
+                        ) : (
+                          auditLogEntries.map((entry: any, idx: number) => {
+                            const actionColors: Record<string, string> = {
+                              budget_edit: colors.primary,
+                              change_order_add: colors.success,
+                              change_order_deduct: colors.warning,
+                              change_order_deleted: colors.error,
+                            };
+                            const actionIcons: Record<string, string> = {
+                              budget_edit: "✏️",
+                              change_order_add: "➕",
+                              change_order_deduct: "➖",
+                              change_order_deleted: "🗑️",
+                            };
+                            const accentColor = actionColors[entry.action] || colors.muted;
+                            return (
+                              <View
+                                key={entry.id || idx}
+                                style={{
+                                  flexDirection: "row",
+                                  backgroundColor: colors.surface,
+                                  borderRadius: 10,
+                                  padding: 12,
+                                  marginBottom: 6,
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                  borderLeftWidth: 3,
+                                  borderLeftColor: accentColor,
+                                }}
+                              >
+                                <Text style={{ fontSize: 16, marginRight: 10, marginTop: 2 }}>{actionIcons[entry.action] || "🔄"}</Text>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{entry.description || entry.action}</Text>
+                                  <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
+                                    {entry.previousValue && (
+                                      <Text style={{ fontSize: 11, color: colors.muted }}>From: ${parseFloat(entry.previousValue).toLocaleString()}</Text>
+                                    )}
+                                    {entry.newValue && (
+                                      <Text style={{ fontSize: 11, color: accentColor, fontWeight: "600" }}>To: ${parseFloat(entry.newValue).toLocaleString()}</Text>
+                                    )}
+                                  </View>
+                                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
+                                    <Text style={{ fontSize: 11, color: colors.muted }}>{entry.employeeName || "System"}</Text>
+                                    <Text style={{ fontSize: 11, color: colors.muted }}>{new Date(entry.createdAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}</Text>
+                                  </View>
+                                </View>
+                              </View>
+                            );
+                          })
+                        )}
+                      </View>
+                    )}
+                  </View>
 
                   {/* Generate PDF Report */}
                   <View style={styles.pdfCard}>

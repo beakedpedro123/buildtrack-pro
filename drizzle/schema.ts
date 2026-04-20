@@ -458,3 +458,20 @@ export type InsertMessageRecipient = typeof messageRecipients.$inferInsert;
 
 export type ChangeOrder = typeof changeOrders.$inferSelect;
 export type InsertChangeOrder = typeof changeOrders.$inferInsert;
+
+
+// ─── Budget Audit Log ─────────────────────────────────────────────────────
+export const budgetAuditLog = mysqlTable("budget_audit_log", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
+  employeeId: int("employeeId").notNull(),
+  action: varchar("action", { length: 64 }).notNull(), // 'budget_edit' | 'change_order_add' | 'change_order_delete'
+  previousValue: decimal("previousValue", { precision: 12, scale: 2 }),
+  newValue: decimal("newValue", { precision: 12, scale: 2 }),
+  description: text("description"),
+  changeOrderId: int("changeOrderId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BudgetAuditLog = typeof budgetAuditLog.$inferSelect;
+export type InsertBudgetAuditLog = typeof budgetAuditLog.$inferInsert;

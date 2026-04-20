@@ -49,6 +49,8 @@ import {
   InsertMessageRecipient,
   changeOrders,
   InsertChangeOrder,
+  budgetAuditLog,
+  InsertBudgetAuditLog,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -2000,4 +2002,138 @@ export async function getMonthlyLaborTrend(months: number = 6) {
     liCost: Math.round(b.liCost * 100) / 100,
     totalCost: Math.round((b.laborOnly + b.taxCost + b.wcCost + b.liCost) * 100) / 100,
   }));
+}
+
+
+// ─── Budget Audit Log ─────────────────────────────────────────────────────
+
+export async function createBudgetAuditEntry(entry: InsertBudgetAuditLog) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+  const [result] = await dbConn.insert(budgetAuditLog).values(entry);
+  return result.insertId;
+}
+
+export async function getBudgetAuditLog(jobId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  const rows = await dbConn
+    .select()
+    .from(budgetAuditLog)
+    .where(eq(budgetAuditLog.jobId, jobId))
+    .orderBy(desc(budgetAuditLog.createdAt));
+  return rows;
+}
+
+// ─── Date-Filtered Analytics ──────────────────────────────────────────────
+
+export async function getJobProfitabilityFiltered(startDate?: string, endDate?: string) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+
+  const allJobs = await dbConn.select().from(jobs).where(eq(jobs.status, "active"));
+  const allBudgets = await dbConn.select().from(budgetCategories);
+  const allChangeOrderRows = await dbConn.select().from(changeOrders);
+
+  // Build date filter for clock entries
+  let clockConditions: any[] = [];
+  if (startDate) clockConditions.push(gte(clockEntries.clockIn, new Date(startDate)));
+  if (endDate) clockConditions.push(lte(clockEntries.clockIn, new Date(endDate)));
+
+  const clockRows = clockConditions.length > 0
+    ? await dbConn.select().from(clockEntries).where(and(...clockConditions))
+    : await dbConn.select().from(clockEntries);
+
+  // Build date filter for expenses
+  let expConditions: any[] = [];
+  if (startDate) expConditions.push(gte(expenses.expenseDate, new Date(startDate)));
+  if (endDate) expConditions.push(lte(expenses.expenseDate, new Date(endDate)));
+
+  const expenseRows = expConditions.length > 0
+    ? await dbConn.select().from(expenses).where(and(...expConditions))
+    : await dbConn.select().from(expenses);
+
+  return allJobs.map(j => {
+    const jobBudgets = allBudgets.filter(b => b.jobId === j.id);
+    const baseBudget = jobBudgets.reduce((s, b) => s + Number(b.budgetedAmount || 0), 0);
+    const jobCOs = allChangeOrderRows.filter(co => co.jobId === j.id);
+    const coTotal = jobCOs.reduce((s, co) => s + Number(co.amount || 0), 0);
+    const effectiveBudget = baseBudget + coTotal;
+
+    const jobClock = clockRows.filter(c => c.jobId === j.id && c.clockOut);
+    const laborMinutes = jobClock.reduce((s, c) => {
+      const diff = new Date(c.clockOut!).getTime() - new Date(c.clockIn).getTime();
+      return s + diff / 60000;
+    }, 0);
+    const laborCost = (laborMinutes / 60) * 35;
+
+    const jobExpenses = expenseRows.filter(e => e.jobId === j.id);
+    const materialCost = jobExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+
+    const totalSpend = laborCost + materialCost;
+    const profit = effectiveBudget - totalSpend;
+    const marginPct = effectiveBudget > 0 ? (profit / effectiveBudget) * 100 : 0;
+
+    return {
+      jobId: j.id,
+      jobName: j.name,
+      effectiveBudget: Math.round(effectiveBudget * 100) / 100,
+      totalSpend: Math.round(totalSpend * 100) / 100,
+      laborCost: Math.round(laborCost * 100) / 100,
+      materialCost: Math.round(materialCost * 100) / 100,
+      profit: Math.round(profit * 100) / 100,
+      marginPct: Math.round(marginPct * 10) / 10,
+    };
+  });
+}
+
+export async function getMonthlyLaborTrendFiltered(startDate?: string, endDate?: string) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+
+  let conditions: any[] = [];
+  if (startDate) conditions.push(gte(clockEntries.clockIn, new Date(startDate)));
+  if (endDate) conditions.push(lte(clockEntries.clockIn, new Date(endDate)));
+
+  const clockRows = conditions.length > 0
+    ? await dbConn.select().from(clockEntries).where(and(...conditions))
+    : await dbConn.select().from(clockEntries);
+
+  const allEmployees = await dbConn.select().from(employees);
+  const rateMap = new Map(allEmployees.map(e => [e.id, Number(e.hourlyRate || 35)]));
+
+  // Group by month
+  const monthMap = new Map<string, { totalMinutes: number; laborOnly: number; taxCost: number; wcCost: number; liCost: number }>();
+
+  for (const c of clockRows) {
+    if (!c.clockOut) continue;
+    const d = new Date(c.clockIn);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (!monthMap.has(key)) monthMap.set(key, { totalMinutes: 0, laborOnly: 0, taxCost: 0, wcCost: 0, liCost: 0 });
+    const bucket = monthMap.get(key)!;
+    const mins = (new Date(c.clockOut).getTime() - d.getTime()) / 60000;
+    const rate = rateMap.get(c.employeeId) || 35;
+    const cost = (mins / 60) * rate;
+    bucket.totalMinutes += mins;
+    bucket.laborOnly += cost;
+    bucket.taxCost += cost * 0.0765;
+    bucket.wcCost += cost * 0.08;
+    bucket.liCost += cost * 0.02;
+  }
+
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return Array.from(monthMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, b]) => {
+      const [y, m] = key.split("-");
+      return {
+        monthLabel: `${months[parseInt(m) - 1]} ${y}`,
+        totalMinutes: Math.round(b.totalMinutes),
+        laborOnly: Math.round(b.laborOnly * 100) / 100,
+        taxCost: Math.round(b.taxCost * 100) / 100,
+        wcCost: Math.round(b.wcCost * 100) / 100,
+        liCost: Math.round(b.liCost * 100) / 100,
+        totalCost: Math.round((b.laborOnly + b.taxCost + b.wcCost + b.liCost) * 100) / 100,
+      };
+    });
 }
