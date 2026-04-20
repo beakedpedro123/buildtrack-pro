@@ -1995,3 +1995,17 @@
 - [x] Ensure every screen shows cached data when DB is down (no infinite spinners)
 - [x] Add "Using cached data" indicator when serving from cache (OfflineBanner already handles this)
 - [x] Add auto-reconnect when TiDB comes back online (exponential backoff with pool recreation)
+
+### Phase 99b: Fix Home Screen Showing All Zeros When DB is Down
+- [x] Home screen shows 0 Active Jobs, 0 Employees, $0 Labor when DB is down — added useOfflineCache to all home queries
+- [x] Investigate why cached data arrays are not being used for counts/display — labor dashboard queries had no caching
+- [x] Fix all screens to properly display cached data when tRPC queries fail (jobs, meetings, goals, team, home)
+
+### Phase 99c: Migrate from TiDB to Built-in Manus PostgreSQL
+- [x] Read server README and understand built-in PostgreSQL setup
+- [x] Migrate database layer from MySQL/TiDB to PostgreSQL (schema.ts, db.ts, drizzle.config.ts — full rewrite)
+- [x] Run database migrations on PostgreSQL — 26 tables created
+- [x] Extract ALL data from old TiDB before it goes permanently offline (22 employees, 12 jobs, 225 clock entries, 157 goals, 27 meetings, 343 time adjustments, 323 punch list items, 32 safety topics, 9 safety meetings, 25 daily reports, 57 photos, 584 Pivot conversations, 13 Pivot memories, 10 material entries, 3 messages)
+- [x] Import ALL data into PostgreSQL — ZERO data lost
+- [x] Verify database connection and full app functionality — API serving all data correctly
+- [x] TypeScript: 0 errors, Tests: 304 passed, 6 skipped

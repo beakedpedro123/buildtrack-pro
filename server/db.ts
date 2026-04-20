@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
-import mysql from "mysql2";
+import { eq, and, or, desc, gte, lte, lt, isNull, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
 import {
   InsertBudgetCategory,
   InsertClockEntry,
@@ -54,25 +54,26 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
+// Override: use local PostgreSQL since the TiDB cluster was deleted
+const PG_DATABASE_URL = process.env.PG_DATABASE_URL || "postgresql://buildtrack:buildtrack123@localhost:5432/buildtrack";
+
 let _db: ReturnType<typeof drizzle> | null = null;
-let _pool: ReturnType<typeof mysql.createPool> | null = null;
+let _pool: pg.Pool | null = null;
 let _lastConnectAttempt = 0;
 let _retryCount = 0;
-const RETRY_INTERVAL_MS = 10000; // 10 seconds between retries
-const MAX_RETRY_BACKOFF_MS = 60000; // Max 60 seconds between retries
+const RETRY_INTERVAL_MS = 10000;
+const MAX_RETRY_BACKOFF_MS = 60000;
 
 function createPool() {
-  if (!process.env.DATABASE_URL) return null;
+  if (!PG_DATABASE_URL) return null;
   try {
-    const pool = mysql.createPool({
-      uri: process.env.DATABASE_URL,
-      timezone: "Z",
-      connectTimeout: 10000, // 10s connection timeout
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 30000,
+    const isLocalhost = PG_DATABASE_URL.includes('localhost') || PG_DATABASE_URL.includes('127.0.0.1');
+    const pool = new pg.Pool({
+      connectionString: PG_DATABASE_URL,
+      ssl: isLocalhost ? false : { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000,
+      max: 10,
+      idleTimeoutMillis: 30000,
     });
     return pool;
   } catch (error) {
@@ -82,34 +83,30 @@ function createPool() {
 }
 
 export async function getDb() {
-  // If we have a DB instance, verify it's still alive
   if (_db && _pool) {
     try {
-      // Quick ping to check connection health
-      const promisePool = _pool.promise();
       await Promise.race([
-        promisePool.query("SELECT 1"),
+        _pool.query("SELECT 1"),
         new Promise((_, reject) => setTimeout(() => reject(new Error("ping timeout")), 5000)),
       ]);
-      _retryCount = 0; // Reset retry count on success
+      _retryCount = 0;
       return _db;
     } catch {
       console.warn("[Database] Connection lost, will recreate pool...");
-      try { _pool.end(); } catch {}
+      try { await _pool.end(); } catch {}
       _db = null;
       _pool = null;
     }
   }
 
-  // Rate-limit reconnection attempts with exponential backoff
   const now = Date.now();
   const backoff = Math.min(RETRY_INTERVAL_MS * Math.pow(1.5, _retryCount), MAX_RETRY_BACKOFF_MS);
   if (now - _lastConnectAttempt < backoff) {
-    return null; // Too soon to retry
+    return null;
   }
   _lastConnectAttempt = now;
 
-  if (!process.env.DATABASE_URL) return null;
+  if (!PG_DATABASE_URL) return null;
 
   try {
     _pool = createPool();
@@ -117,10 +114,8 @@ export async function getDb() {
       _retryCount++;
       return null;
     }
-    // Verify the pool actually works before returning
-    const promisePool = _pool.promise();
     await Promise.race([
-      promisePool.query("SELECT 1"),
+      _pool.query("SELECT 1"),
       new Promise((_, reject) => setTimeout(() => reject(new Error("connect timeout")), 10000)),
     ]);
     _db = drizzle({ client: _pool });
@@ -129,7 +124,7 @@ export async function getDb() {
     return _db;
   } catch (error: any) {
     console.warn(`[Database] Connection attempt failed (retry #${_retryCount + 1}):`, error?.message || error);
-    try { _pool?.end(); } catch {}
+    try { await _pool?.end(); } catch {}
     _db = null;
     _pool = null;
     _retryCount++;
@@ -137,7 +132,6 @@ export async function getDb() {
   }
 }
 
-// Force reset the connection pool (call when you detect persistent errors)
 export function resetDbPool() {
   try { _pool?.end(); } catch {}
   _db = null;
@@ -169,7 +163,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   else if (user.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -204,8 +198,8 @@ export async function getEmployeeByPin(pin: string) {
 export async function createEmployee(data: InsertEmployee) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(employees).values(data);
-  return result[0].insertId;
+  const [row] = await db.insert(employees).values(data).returning({ id: employees.id });
+  return row.id;
 }
 
 export async function updateEmployee(id: number, data: Partial<InsertEmployee>) {
@@ -243,8 +237,8 @@ export async function getJobById(id: number) {
 export async function createJob(data: InsertJob) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(jobs).values(data);
-  return result[0].insertId;
+  const [row] = await db.insert(jobs).values(data).returning({ id: jobs.id });
+  return row.id;
 }
 
 export async function updateJob(id: number, data: Partial<InsertJob>) {
@@ -259,8 +253,6 @@ export async function getJobsForEmployee(employeeId: number) {
   const assignments = await db.select().from(jobAssignments)
     .where(eq(jobAssignments.employeeId, employeeId));
   if (assignments.length === 0) {
-    // No explicit assignments — return ALL active jobs as fallback
-    // This ensures foremen and laborers can always clock in
     return db.select().from(jobs).where(eq(jobs.status, "active")).orderBy(jobs.name);
   }
   const jobIds = assignments.map((a) => a.jobId);
@@ -293,20 +285,17 @@ export async function removeJobAssignment(jobId: number, employeeId: number) {
 export async function clockIn(data: InsertClockEntry) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  // 1. Dedup by localId (offline sync)
   if (data.localId) {
     const existing = await db.select().from(clockEntries)
       .where(eq(clockEntries.localId, data.localId)).limit(1);
     if (existing.length > 0) return existing[0].id;
   }
-  // 2. Validate employeeId exists (prevent ghost entries)
   const emp = await db.select({ id: employees.id }).from(employees)
     .where(eq(employees.id, data.employeeId)).limit(1);
   if (emp.length === 0) {
-    console.warn(`[clockIn] Rejected ghost employeeId=${data.employeeId} — not in employees table`);
+    console.warn(`[clockIn] Rejected ghost employeeId=${data.employeeId}`);
     throw new Error(`Employee ID ${data.employeeId} does not exist`);
   }
-  // 3. Dedup by time proximity — reject if same employee+job within 5 minutes
   const clockInTime = data.clockIn instanceof Date ? data.clockIn : new Date(data.clockIn as any);
   const fiveMinBefore = new Date(clockInTime.getTime() - 5 * 60000);
   const fiveMinAfter = new Date(clockInTime.getTime() + 5 * 60000);
@@ -318,19 +307,17 @@ export async function clockIn(data: InsertClockEntry) {
       lte(clockEntries.clockIn, fiveMinAfter)
     )).limit(1);
   if (dupe.length > 0) {
-    console.warn(`[clockIn] Rejected duplicate: emp=${data.employeeId} job=${data.jobId} within 5min of entry ${dupe[0].id}`);
-    return dupe[0].id; // Return existing entry ID instead of creating duplicate
+    console.warn(`[clockIn] Rejected duplicate: emp=${data.employeeId} job=${data.jobId}`);
+    return dupe[0].id;
   }
-  const result = await db.insert(clockEntries).values(data);
-  return result[0].insertId;
+  const [row] = await db.insert(clockEntries).values(data).returning({ id: clockEntries.id });
+  return row.id;
 }
 
 export async function clockOut(entryId: number, clockOutTime: Date) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(clockEntries).set({
-    clockOut: clockOutTime,
-  }).where(eq(clockEntries.id, entryId));
+  await db.update(clockEntries).set({ clockOut: clockOutTime }).where(eq(clockEntries.id, entryId));
 }
 
 export async function getActiveClockEntry(employeeId: number) {
@@ -365,7 +352,6 @@ export async function getClockEntriesForJob(jobId: number, date?: Date) {
 export async function getClockedInEmployees() {
   const db = await getDb();
   if (!db) return [];
-  // Join with employees and jobs so the client has name/job info without extra queries
   const rows = await db
     .select({
       id: clockEntries.id,
@@ -384,7 +370,6 @@ export async function getClockedInEmployees() {
     .leftJoin(employees, eq(clockEntries.employeeId, employees.id))
     .leftJoin(jobs, eq(clockEntries.jobId, jobs.id))
     .where(isNull(clockEntries.clockOut));
-  // Ensure no null names — use fallback for deleted/missing employees
   return rows.map(row => ({
     ...row,
     employeeName: row.employeeName || `Employee #${row.employeeId}`,
@@ -408,8 +393,8 @@ export async function updateClockEntry(entryId: number, data: { clockIn?: Date; 
 export async function createDailyReport(data: InsertDailyReport) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(dailyReports).values(data);
-  return result[0].insertId;
+  const [row] = await db.insert(dailyReports).values(data).returning({ id: dailyReports.id });
+  return row.id;
 }
 
 export async function getDailyReportsForJob(jobId: number) {
@@ -446,8 +431,8 @@ export async function markReportSeen(reportId: number, seen: boolean) {
 export async function addMaterialEntry(data: InsertMaterialEntry) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(materialEntries).values(data);
-  return result[0].insertId;
+  const [row] = await db.insert(materialEntries).values(data).returning({ id: materialEntries.id });
+  return row.id;
 }
 
 export async function getMaterialsForReport(reportId: number) {
@@ -467,8 +452,8 @@ export async function getMaterialsForJob(jobId: number) {
 export async function addReportPhoto(data: InsertReportPhoto) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(reportPhotos).values(data);
-  return result[0].insertId;
+  const [row] = await db.insert(reportPhotos).values(data).returning({ id: reportPhotos.id });
+  return row.id;
 }
 
 export async function getPhotosForReport(reportId: number) {
@@ -488,8 +473,8 @@ export async function getPhotosForJob(jobId: number) {
 export async function createBudgetCategory(data: InsertBudgetCategory) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(budgetCategories).values(data);
-  return result[0].insertId;
+  const [row] = await db.insert(budgetCategories).values(data).returning({ id: budgetCategories.id });
+  return row.id;
 }
 
 export async function getBudgetCategoriesForJob(jobId: number) {
@@ -508,8 +493,8 @@ export async function updateBudgetCategory(id: number, data: Partial<InsertBudge
 export async function createExpense(data: InsertExpense) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(expenses).values(data);
-  return result[0].insertId;
+  const [row] = await db.insert(expenses).values(data).returning({ id: expenses.id });
+  return row.id;
 }
 
 export async function getExpensesForJob(jobId: number) {
@@ -535,8 +520,8 @@ export async function markExpenseSynced(id: number) {
 export async function createSyncLog(data: Omit<typeof qbSyncLog.$inferInsert, "id" | "createdAt">) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(qbSyncLog).values(data);
-  return result[0].insertId;
+  const [row] = await db.insert(qbSyncLog).values(data).returning({ id: qbSyncLog.id });
+  return row.id;
 }
 
 export async function updateSyncLog(id: number, data: Partial<typeof qbSyncLog.$inferInsert>) {
@@ -550,12 +535,13 @@ export async function getRecentSyncLogs(limit = 10) {
   if (!db) return [];
   return db.select().from(qbSyncLog).orderBy(desc(qbSyncLog.createdAt)).limit(limit);
 }
+
 // ─── Meetings ─────────────────────────────────────────────────────────────────
 export async function createMeeting(data: Omit<InsertMeeting, "id" | "createdAt" | "updatedAt">) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(meetings).values(data);
-  return result[0].insertId as number;
+  const [row] = await db.insert(meetings).values(data).returning({ id: meetings.id });
+  return row.id as number;
 }
 
 export async function getMeetings(limit = 20) {
@@ -582,15 +568,14 @@ export async function updateMeeting(id: number, data: Partial<InsertMeeting>) {
 export async function createWeeklyGoal(data: Omit<InsertWeeklyGoal, "id" | "createdAt" | "updatedAt">) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(weeklyGoals).values(data);
-  return result[0].insertId as number;
+  const [row] = await db.insert(weeklyGoals).values(data).returning({ id: weeklyGoals.id });
+  return row.id as number;
 }
 
 export async function getWeeklyGoals(weekOf?: Date) {
   const db = await getDb();
   if (!db) return [];
   if (weekOf) {
-    // Get goals for the week containing weekOf
     const start = new Date(weekOf);
     start.setHours(0, 0, 0, 0);
     const end = new Date(start);
@@ -663,8 +648,7 @@ export async function getEstimatesForJob(jobId: number) {
 export async function createQbEstimate(data: InsertQbEstimate) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.insert(qbEstimates).values(data);
-  const [row] = await db.select().from(qbEstimates).where(eq(qbEstimates.jobId, data.jobId)).orderBy(desc(qbEstimates.createdAt)).limit(1);
+  const [row] = await db.insert(qbEstimates).values(data).returning();
   return row;
 }
 export async function updateQbEstimate(id: number, data: Partial<InsertQbEstimate>) {
@@ -693,8 +677,7 @@ export async function getKpiById(id: number) {
 export async function createKpi(data: InsertKpiMetric) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.insert(kpiMetrics).values(data);
-  const [row] = await db.select().from(kpiMetrics).where(eq(kpiMetrics.createdBy, data.createdBy)).orderBy(desc(kpiMetrics.createdAt)).limit(1);
+  const [row] = await db.insert(kpiMetrics).values(data).returning();
   return row;
 }
 export async function updateKpi(id: number, data: Partial<InsertKpiMetric>) {
@@ -718,7 +701,6 @@ export async function addKpiHistoryEntry(data: InsertKpiHistory) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.insert(kpiHistory).values(data);
-  // Also update the current value on the KPI metric
   await db.update(kpiMetrics).set({ currentValue: data.value, updatedBy: data.recordedBy }).where(eq(kpiMetrics.id, data.kpiId));
 }
 
@@ -770,10 +752,6 @@ export async function getLaborCostForJob(jobId: number) {
 
 // ─── Labor Cost Dashboard Queries ────────────────────────────────────────────
 
-/**
- * Get labor cost breakdown per job for a date range.
- * Returns: array of { jobId, jobName, totalMinutes, totalCost, employeeCount }
- */
 export async function getLaborCostByJob(startDate: Date, endDate: Date) {
   const db = await getDb();
   if (!db) return [];
@@ -826,15 +804,10 @@ export async function getLaborCostByJob(startDate: Date, endDate: Date) {
   }).sort((a, b) => b.totalCost - a.totalCost);
 }
 
-/**
- * Get weekly labor cost trend for the past N weeks.
- * Returns: array of { weekStart, weekLabel, totalMinutes, totalCost, jobCount }
- */
 export async function getWeeklyLaborCostTrend(weeks: number = 8) {
   const db = await getDb();
   if (!db) return [];
   const now = new Date();
-  // Go back to the start of the current week (Monday)
   const dayOfWeek = now.getDay();
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const currentMonday = new Date(now);
@@ -849,7 +822,6 @@ export async function getWeeklyLaborCostTrend(weeks: number = 8) {
   const allEmployees = await db.select().from(employees);
   const empMap = new Map(allEmployees.map(e => [e.id, e]));
 
-  // Build week buckets
   const weekBuckets: { weekStart: string; weekLabel: string; totalMinutes: number; totalCost: number; jobIds: Set<number> }[] = [];
   for (let i = 0; i < weeks; i++) {
     const ws = new Date(startDate);
@@ -890,10 +862,6 @@ export async function getWeeklyLaborCostTrend(weeks: number = 8) {
   }));
 }
 
-/**
- * Get labor cost breakdown per employee for a date range.
- * Returns: array of { employeeId, employeeName, role, hourlyRate, totalMinutes, totalCost }
- */
 export async function getLaborCostByEmployee(startDate: Date, endDate: Date) {
   const db = await getDb();
   if (!db) return [];
@@ -928,11 +896,6 @@ export async function getLaborCostByEmployee(startDate: Date, endDate: Date) {
 
 
 // ─── Budget Alerts ──────────────────────────────────────────────────────────
-/**
- * Get budget alert status for all active jobs.
- * Calculates total spend (labor + overhead + expenses) vs totalBudget.
- * Returns array with alert level: "ok" | "warning" (80%) | "danger" (90%) | "critical" (100%+)
- */
 export async function getBudgetAlerts() {
   const db = await getDb();
   if (!db) return [];
@@ -957,9 +920,8 @@ export async function getBudgetAlerts() {
 
   for (const job of activeJobsList) {
     const budget = parseFloat((job.totalBudget as string) || "0");
-    if (budget <= 0) continue; // Skip jobs with no budget set
+    if (budget <= 0) continue;
 
-    // Calculate labor cost for this job
     const jobEntries = allClockEntries.filter(e => e.jobId === job.id && e.clockOut);
     let laborCost = 0;
     for (const entry of jobEntries) {
@@ -970,13 +932,11 @@ export async function getBudgetAlerts() {
       }
     }
 
-    // Calculate overhead
     const taxRate = parseFloat((job.taxRate as string) || "0");
     const workersCompRate = parseFloat((job.workersCompRate as string) || "0");
     const liabilityInsRate = parseFloat((job.liabilityInsRate as string) || "0");
     const overheadCost = laborCost * ((taxRate + workersCompRate + liabilityInsRate) / 100);
 
-    // Calculate expenses
     const jobExpenses = allExpenses.filter(e => e.jobId === job.id);
     const expensesCost = jobExpenses.reduce((sum, e) => sum + parseFloat((e.amount as string) || "0"), 0);
 
@@ -1017,13 +977,13 @@ export async function getSafetyTopics(activeOnly = true) {
 export async function createSafetyTopic(data: { title: string; content?: string; category?: string; createdBy: number }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [result] = await db.insert(safetyTopics).values({
+  const [row] = await db.insert(safetyTopics).values({
     title: data.title,
     content: data.content || null,
     category: data.category || "general",
     createdBy: data.createdBy,
-  });
-  return (result as any).insertId as number;
+  }).returning({ id: safetyTopics.id });
+  return row.id;
 }
 
 export async function updateSafetyTopic(id: number, data: { title?: string; content?: string; category?: string; isActive?: boolean }) {
@@ -1073,7 +1033,7 @@ export async function createSafetyMeeting(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [result] = await db.insert(safetyMeetings).values({
+  const [row] = await db.insert(safetyMeetings).values({
     topicId: data.topicId || null,
     jobId: data.jobId,
     meetingType: data.meetingType,
@@ -1084,8 +1044,8 @@ export async function createSafetyMeeting(data: {
     photoUrl: data.photoUrl || null,
     conductedBy: data.conductedBy,
     conductedAt: data.conductedAt,
-  });
-  return (result as any).insertId as number;
+  }).returning({ id: safetyMeetings.id });
+  return row.id;
 }
 
 export async function deleteSafetyMeeting(id: number) {
@@ -1232,7 +1192,6 @@ export async function getAdjustmentsForEntry(clockEntryId: number) {
 export async function getAdjustmentsForEmployee(employeeId: number, startDate: Date, endDate: Date) {
   const dbConn = await getDb();
   if (!dbConn) return [];
-  // Get all clock entries for this employee in the range, then get adjustments
   const entries = await dbConn.select().from(clockEntries)
     .where(and(
       eq(clockEntries.employeeId, employeeId),
@@ -1246,10 +1205,6 @@ export async function getAdjustmentsForEmployee(employeeId: number, startDate: D
     .orderBy(desc(timeAdjustments.createdAt));
 }
 
-/**
- * Update a clock entry with adjustment tracking.
- * Logs each changed field as a separate adjustment record.
- */
 export async function updateClockEntryWithAdjustment(
   entryId: number,
   data: { clockIn?: Date; clockOut?: Date; jobId?: number },
@@ -1259,7 +1214,6 @@ export async function updateClockEntryWithAdjustment(
   const dbConn = await getDb();
   if (!dbConn) throw new Error("Database not available");
 
-  // Get the current entry to compare
   const [current] = await dbConn.select().from(clockEntries).where(eq(clockEntries.id, entryId)).limit(1);
   if (!current) throw new Error("Clock entry not found");
 
@@ -1302,7 +1256,6 @@ export async function updateClockEntryWithAdjustment(
     });
   }
 
-  // Apply the update
   const updateData: any = {};
   if (data.clockIn) updateData.clockIn = data.clockIn;
   if (data.clockOut) updateData.clockOut = data.clockOut;
@@ -1311,7 +1264,6 @@ export async function updateClockEntryWithAdjustment(
     await dbConn.update(clockEntries).set(updateData).where(eq(clockEntries.id, entryId));
   }
 
-  // Log all adjustments
   for (const adj of adjustments) {
     await dbConn.insert(timeAdjustments).values(adj);
   }
@@ -1319,9 +1271,6 @@ export async function updateClockEntryWithAdjustment(
   return { updated: true, adjustmentsLogged: adjustments.length };
 }
 
-/**
- * Get detailed timecard for an employee: daily breakdown with entries, job names, adjustments.
- */
 export async function getDetailedTimecard(employeeId: number, startDate: Date, endDate: Date) {
   const dbConn = await getDb();
   if (!dbConn) return { days: [], totalMinutes: 0, employee: null };
@@ -1338,15 +1287,12 @@ export async function getDetailedTimecard(employeeId: number, startDate: Date, e
   const allJobs = await dbConn.select().from(jobs);
   const jobMap = new Map(allJobs.map(j => [j.id, j]));
 
-  // Get all adjustments for these entries
   const entryIds = entries.map(e => e.id);
   let adjustmentMap = new Map<number, any[]>();
   if (entryIds.length > 0) {
     const allAdj = await dbConn.select().from(timeAdjustments)
       .where(or(...entryIds.map(id => eq(timeAdjustments.clockEntryId, id))))
       .orderBy(desc(timeAdjustments.createdAt));
-    // Get adjuster names
-    const adjusterIds = [...new Set(allAdj.map(a => a.adjustedBy))];
     const allEmps = await dbConn.select().from(employees);
     const empMap = new Map(allEmps.map(e => [e.id, e]));
     for (const adj of allAdj) {
@@ -1359,7 +1305,6 @@ export async function getDetailedTimecard(employeeId: number, startDate: Date, e
     }
   }
 
-  // Group by day
   const dayMap = new Map<string, any[]>();
   let totalMinutes = 0;
   for (const entry of entries) {
@@ -1368,7 +1313,7 @@ export async function getDetailedTimecard(employeeId: number, startDate: Date, e
     const durationMs = entry.clockOut
       ? new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()
       : 0;
-    const minutes = Math.max(0, Math.floor(durationMs / 60000)); // Guard against negative (timezone edge case)
+    const minutes = Math.max(0, Math.floor(durationMs / 60000));
     totalMinutes += minutes;
     const job = jobMap.get(entry.jobId);
     list.push({
@@ -1419,7 +1364,7 @@ export async function createPunchListItem(data: {
 }) {
   const dbConn = await getDb();
   if (!dbConn) throw new Error("Database not available");
-  const [result] = await dbConn.insert(punchListItems).values({
+  const [row] = await dbConn.insert(punchListItems).values({
     jobId: data.jobId,
     area: data.area || null,
     title: data.title,
@@ -1428,8 +1373,8 @@ export async function createPunchListItem(data: {
     assignedTo: data.assignedTo || null,
     createdBy: data.createdBy,
     sortOrder: data.sortOrder || 0,
-  });
-  return (result as any).insertId as number;
+  }).returning({ id: punchListItems.id });
+  return row.id;
 }
 
 export async function createPunchListItemsBulk(items: Array<{
@@ -1519,8 +1464,7 @@ export async function addManualClockEntry(input: {
     clockIn: input.clockIn,
     clockOut: input.clockOut,
     isOfflineEntry: false,
-  }).$returningId();
-  // Log the manual addition as an adjustment
+  }).returning({ id: clockEntries.id });
   await dbConn.insert(timeAdjustments).values({
     clockEntryId: entry.id,
     adjustedBy: input.addedBy,
@@ -1535,7 +1479,6 @@ export async function addManualClockEntry(input: {
 export async function deleteClockEntry(entryId: number, deletedBy: number, reason: string) {
   const dbConn = await getDb();
   if (!dbConn) return null;
-  // Log the deletion as an adjustment before deleting
   const [existing] = await dbConn.select().from(clockEntries).where(eq(clockEntries.id, entryId));
   if (existing) {
     await dbConn.insert(timeAdjustments).values({
@@ -1578,20 +1521,22 @@ export async function sendMessage(data: {
     attachmentType: data.attachmentType || null,
     attachmentName: data.attachmentName || null,
     isCompanyWide: data.isCompanyWide || false,
-  }).$returningId();
+  }).returning({ id: messages.id });
 
   const messageId = msg.id;
 
   if (data.isCompanyWide) {
-    // Send to all active employees
     const allEmployees = await dbConn.select({ id: employees.id }).from(employees).where(eq(employees.isActive, true));
     if (allEmployees.length > 0) {
-      await dbConn.insert(messageRecipients).values(
-        allEmployees.filter(e => e.id !== data.senderId).map(e => ({
-          messageId,
-          recipientId: e.id,
-        }))
-      );
+      const recipients = allEmployees.filter(e => e.id !== data.senderId);
+      if (recipients.length > 0) {
+        await dbConn.insert(messageRecipients).values(
+          recipients.map(e => ({
+            messageId,
+            recipientId: e.id,
+          }))
+        );
+      }
     }
   } else if (data.recipientIds && data.recipientIds.length > 0) {
     await dbConn.insert(messageRecipients).values(
@@ -1609,7 +1554,6 @@ export async function getInboxMessages(employeeId: number) {
   const dbConn = await getDb();
   if (!dbConn) return [];
 
-  // Get messages where this employee is a recipient OR it's company-wide
   const rows = await dbConn
     .select({
       id: messages.id,
@@ -1706,7 +1650,8 @@ export async function getMessageRecipients(messageId: number) {
 
 export async function getChangeOrdersForJob(jobId: number) {
   const dbConn = await getDb();
-  return dbConn!
+  if (!dbConn) return [];
+  return dbConn
     .select()
     .from(changeOrders)
     .where(eq(changeOrders.jobId, jobId))
@@ -1723,7 +1668,8 @@ export async function createChangeOrder(data: {
   notes?: string;
 }) {
   const dbConn = await getDb();
-  const result = await dbConn!.insert(changeOrders).values({
+  if (!dbConn) throw new Error("Database not available");
+  const [row] = await dbConn.insert(changeOrders).values({
     jobId: data.jobId,
     description: data.description,
     amount: data.amount,
@@ -1732,13 +1678,14 @@ export async function createChangeOrder(data: {
     createdBy: data.createdBy,
     notes: data.notes || null,
     orderDate: new Date(),
-  });
-  return { id: result[0].insertId };
+  }).returning({ id: changeOrders.id });
+  return { id: row.id };
 }
 
 export async function updateChangeOrderStatus(id: number, status: "pending" | "approved" | "rejected", approvedBy?: number) {
   const dbConn = await getDb();
-  await dbConn!
+  if (!dbConn) throw new Error("Database not available");
+  await dbConn
     .update(changeOrders)
     .set({ status, approvedBy: approvedBy || null })
     .where(eq(changeOrders.id, id));
@@ -1746,12 +1693,14 @@ export async function updateChangeOrderStatus(id: number, status: "pending" | "a
 
 export async function deleteChangeOrder(id: number) {
   const dbConn = await getDb();
-  await dbConn!.delete(changeOrders).where(eq(changeOrders.id, id));
+  if (!dbConn) throw new Error("Database not available");
+  await dbConn.delete(changeOrders).where(eq(changeOrders.id, id));
 }
 
 export async function getChangeOrderTotal(jobId: number) {
   const dbConn = await getDb();
-  const orders = await dbConn!
+  if (!dbConn) return 0;
+  const orders = await dbConn
     .select()
     .from(changeOrders)
     .where(and(eq(changeOrders.jobId, jobId), eq(changeOrders.status, "approved")));
@@ -1766,10 +1715,6 @@ export async function getChangeOrderTotal(jobId: number) {
 
 // ─── Financial Charts Analytics ──────────────────────────────────────────────
 
-/**
- * Get job profitability data for all active/completed jobs.
- * Returns: budget, total spend (labor + overhead + expenses), profit margin, change orders.
- */
 export async function getJobProfitability() {
   const db = await getDb();
   if (!db) return [];
@@ -1784,7 +1729,6 @@ export async function getJobProfitability() {
   return allJobs.filter(j => j.status === "active" || j.status === "completed").map(job => {
     const baseBudget = parseFloat((job.totalBudget as string) || "0");
 
-    // Change orders
     const jobCOs = allChangeOrders.filter(co => co.jobId === job.id && co.status === "approved");
     let coTotal = 0;
     for (const co of jobCOs) {
@@ -1793,7 +1737,6 @@ export async function getJobProfitability() {
     }
     const effectiveBudget = baseBudget + coTotal;
 
-    // Labor
     const jobEntries = allEntries.filter(e => e.jobId === job.id && e.clockOut);
     let laborCost = 0;
     let totalMinutes = 0;
@@ -1806,7 +1749,6 @@ export async function getJobProfitability() {
       }
     }
 
-    // Overhead
     const taxRate = parseFloat((job.taxRate as string) || "0");
     const wcRate = parseFloat((job.workersCompRate as string) || "0");
     const liRate = parseFloat((job.liabilityInsRate as string) || "0");
@@ -1815,7 +1757,6 @@ export async function getJobProfitability() {
     const liCost = laborCost * (liRate / 100);
     const overheadCost = taxCost + wcCost + liCost;
 
-    // Expenses
     const jobExp = allExpenses.filter(e => e.jobId === job.id);
     const expenseCost = jobExp.reduce((s, e) => s + parseFloat((e.amount as string) || "0"), 0);
 
@@ -1845,10 +1786,6 @@ export async function getJobProfitability() {
   }).sort((a, b) => b.effectiveBudget - a.effectiveBudget);
 }
 
-/**
- * Get tax breakdown across all active jobs.
- * Returns per-job: payroll tax, workers comp, liability insurance, total overhead.
- */
 export async function getTaxBreakdown() {
   const db = await getDb();
   if (!db) return [];
@@ -1888,10 +1825,6 @@ export async function getTaxBreakdown() {
   }).filter(j => j.laborCost > 0).sort((a, b) => b.totalOverhead - a.totalOverhead);
 }
 
-/**
- * Get budget burn-down data for a specific job over time.
- * Returns weekly cumulative spend vs budget line.
- */
 export async function getBudgetBurnDown(jobId: number, weeks: number = 12) {
   const db = await getDb();
   if (!db) return { job: null, burnDown: [] };
@@ -1901,7 +1834,6 @@ export async function getBudgetBurnDown(jobId: number, weeks: number = 12) {
   const theJob = job[0];
 
   const baseBudget = parseFloat((theJob.totalBudget as string) || "0");
-  // Get change order total
   const jobCOs = await db.select().from(changeOrders).where(and(eq(changeOrders.jobId, jobId), eq(changeOrders.status, "approved")));
   let coTotal = 0;
   for (const co of jobCOs) {
@@ -1910,15 +1842,12 @@ export async function getBudgetBurnDown(jobId: number, weeks: number = 12) {
   }
   const effectiveBudget = baseBudget + coTotal;
 
-  // Get all clock entries for this job
   const jobEntries = await db.select().from(clockEntries).where(eq(clockEntries.jobId, jobId));
   const allEmployees = await db.select().from(employees);
   const empMap = new Map(allEmployees.map(e => [e.id, e]));
 
-  // Get all expenses for this job
   const jobExpenses = await db.select().from(expenses).where(eq(expenses.jobId, jobId));
 
-  // Build weekly buckets going back N weeks
   const now = new Date();
   const dayOfWeek = now.getDay();
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -1932,7 +1861,6 @@ export async function getBudgetBurnDown(jobId: number, weeks: number = 12) {
   const burnDown: { weekLabel: string; weekStart: string; cumulativeSpend: number; budgetLine: number }[] = [];
   let cumulativeSpend = 0;
 
-  // Calculate spend before the window
   for (const entry of jobEntries) {
     if (!entry.clockOut) continue;
     const clockInDate = new Date(entry.clockIn);
@@ -1959,7 +1887,6 @@ export async function getBudgetBurnDown(jobId: number, weeks: number = 12) {
     const we = new Date(ws);
     we.setDate(we.getDate() + 7);
 
-    // Labor cost this week
     let weekLabor = 0;
     for (const entry of jobEntries) {
       if (!entry.clockOut) continue;
@@ -1971,13 +1898,11 @@ export async function getBudgetBurnDown(jobId: number, weeks: number = 12) {
         weekLabor += (mins / 60) * parseFloat(emp.hourlyRate as string);
       }
     }
-    // Add overhead to labor
     const taxRate = parseFloat((theJob.taxRate as string) || "0");
     const wcRate = parseFloat((theJob.workersCompRate as string) || "0");
     const liRate = parseFloat((theJob.liabilityInsRate as string) || "0");
     weekLabor *= (1 + (taxRate + wcRate + liRate) / 100);
 
-    // Expenses this week
     let weekExpenses = 0;
     for (const exp of jobExpenses) {
       const expDate = new Date(exp.expenseDate);
@@ -2009,10 +1934,6 @@ export async function getBudgetBurnDown(jobId: number, weeks: number = 12) {
   };
 }
 
-/**
- * Get monthly labor cost trend for the past N months.
- * Returns: array of { monthLabel, totalCost, totalMinutes, laborOnly, taxCost, wcCost, liCost }
- */
 export async function getMonthlyLaborTrend(months: number = 6) {
   const db = await getDb();
   if (!db) return [];
@@ -2025,7 +1946,6 @@ export async function getMonthlyLaborTrend(months: number = 6) {
   const allJobs = await db.select().from(jobs);
   const empMap = new Map(allEmployees.map(e => [e.id, e]));
 
-  // Build month buckets
   const monthBuckets: { monthLabel: string; totalMinutes: number; laborOnly: number; taxCost: number; wcCost: number; liCost: number }[] = [];
   for (let i = 0; i < months; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - months + 1 + i, 1);
@@ -2039,7 +1959,6 @@ export async function getMonthlyLaborTrend(months: number = 6) {
     });
   }
 
-  // Average tax rates across all active jobs for overhead calculation
   const activeJobs = allJobs.filter(j => j.status === "active");
   let avgTaxRate = 0, avgWcRate = 0, avgLiRate = 0;
   if (activeJobs.length > 0) {
@@ -2082,8 +2001,8 @@ export async function getMonthlyLaborTrend(months: number = 6) {
 export async function createBudgetAuditEntry(entry: InsertBudgetAuditLog) {
   const dbConn = await getDb();
   if (!dbConn) return null;
-  const [result] = await dbConn.insert(budgetAuditLog).values(entry);
-  return result.insertId;
+  const [row] = await dbConn.insert(budgetAuditLog).values(entry).returning({ id: budgetAuditLog.id });
+  return row.id;
 }
 
 export async function getBudgetAuditLog(jobId: number) {
@@ -2107,7 +2026,6 @@ export async function getJobProfitabilityFiltered(startDate?: string, endDate?: 
   const allBudgets = await dbConn.select().from(budgetCategories);
   const allChangeOrderRows = await dbConn.select().from(changeOrders);
 
-  // Build date filter for clock entries
   let clockConditions: any[] = [];
   if (startDate) clockConditions.push(gte(clockEntries.clockIn, new Date(startDate)));
   if (endDate) clockConditions.push(lte(clockEntries.clockIn, new Date(endDate)));
@@ -2116,7 +2034,6 @@ export async function getJobProfitabilityFiltered(startDate?: string, endDate?: 
     ? await dbConn.select().from(clockEntries).where(and(...clockConditions))
     : await dbConn.select().from(clockEntries);
 
-  // Build date filter for expenses
   let expConditions: any[] = [];
   if (startDate) expConditions.push(gte(expenses.expenseDate, new Date(startDate)));
   if (endDate) expConditions.push(lte(expenses.expenseDate, new Date(endDate)));
@@ -2174,7 +2091,6 @@ export async function getMonthlyLaborTrendFiltered(startDate?: string, endDate?:
   const allEmployees = await dbConn.select().from(employees);
   const rateMap = new Map(allEmployees.map(e => [e.id, Number(e.hourlyRate || 35)]));
 
-  // Group by month
   const monthMap = new Map<string, { totalMinutes: number; laborOnly: number; taxCost: number; wcCost: number; liCost: number }>();
 
   for (const c of clockRows) {
@@ -2193,13 +2109,13 @@ export async function getMonthlyLaborTrendFiltered(startDate?: string, endDate?:
     bucket.liCost += cost * 0.02;
   }
 
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return Array.from(monthMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, b]) => {
       const [y, m] = key.split("-");
       return {
-        monthLabel: `${months[parseInt(m) - 1]} ${y}`,
+        monthLabel: `${monthNames[parseInt(m) - 1]} ${y}`,
         totalMinutes: Math.round(b.totalMinutes),
         laborOnly: Math.round(b.laborOnly * 100) / 100,
         taxCost: Math.round(b.taxCost * 100) / 100,

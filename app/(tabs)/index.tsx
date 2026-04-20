@@ -24,6 +24,7 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useOfflineQueue } from "@/lib/offline-queue";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { VoiceGoalCreator } from "@/components/voice-goal-creator";
 import { JobPicker } from "@/components/ui/job-picker";
@@ -293,7 +294,10 @@ export default function DashboardScreen() {
     }
   }, [allEmployees]);
 
-  const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 0, refetchInterval: 15000, refetchOnMount: "always", refetchOnWindowFocus: "always" });
+  // Clocked-in with cache fallback
+  const clockedInQ = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 0, refetchInterval: 15000, refetchOnMount: "always", refetchOnWindowFocus: "always" });
+  const { data: clockedIn } = useOfflineCache(CACHE_KEYS.CLOCKED_IN, clockedInQ.data, clockedInQ.isLoading);
+  const refetchClockedIn = clockedInQ.refetch;
 
   const [showVoiceGoals, setShowVoiceGoals] = useState(false);
   const { addClockEntry } = useOfflineQueue();
@@ -440,13 +444,17 @@ export default function DashboardScreen() {
   }, [effectiveMyJobs]);
 
   // Budget alerts — owner AND office_manager (secretary) should see them
-  const { data: budgetAlerts } = trpc.budgetAlerts.getAlerts.useQuery(undefined, { enabled: isOwner || isSecretary, staleTime: 60000 });
+  const budgetAlertsQ = trpc.budgetAlerts.getAlerts.useQuery(undefined, { enabled: isOwner || isSecretary, staleTime: 60000 });
+  const { data: budgetAlerts } = useOfflineCache(CACHE_KEYS.BUDGET_ALERTS, budgetAlertsQ.data, budgetAlertsQ.isLoading);
   const activeAlerts = useMemo(() => (budgetAlerts || []).filter(a => a.alertLevel !== "ok"), [budgetAlerts]);
 
-  // Labor cost data
-  const { data: byJob } = trpc.laborDashboard.byJob.useQuery({ startDate, endDate }, { enabled: isManagement, staleTime: 30000 });
-  const { data: weeklyTrend } = trpc.laborDashboard.weeklyTrend.useQuery({ weeks: 8 }, { enabled: isManagement, staleTime: 60000 });
-  const { data: byEmployee } = trpc.laborDashboard.byEmployee.useQuery({ startDate, endDate }, { enabled: isManagement, staleTime: 30000 });
+  // Labor cost data with cache fallback
+  const byJobQ = trpc.laborDashboard.byJob.useQuery({ startDate, endDate }, { enabled: isManagement, staleTime: 30000 });
+  const weeklyTrendQ = trpc.laborDashboard.weeklyTrend.useQuery({ weeks: 8 }, { enabled: isManagement, staleTime: 60000 });
+  const byEmployeeQ = trpc.laborDashboard.byEmployee.useQuery({ startDate, endDate }, { enabled: isManagement, staleTime: 30000 });
+  const { data: byJob } = useOfflineCache(`${CACHE_KEYS.LABOR_BY_JOB}_home_${startDate}`, byJobQ.data, byJobQ.isLoading);
+  const { data: weeklyTrend } = useOfflineCache(CACHE_KEYS.CHART_LABOR_TRENDS, weeklyTrendQ.data, weeklyTrendQ.isLoading);
+  const { data: byEmployee } = useOfflineCache(`${CACHE_KEYS.LABOR_BY_EMPLOYEE}_home_${startDate}`, byEmployeeQ.data, byEmployeeQ.isLoading);
 
   const totalCost = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalCost, 0), [byJob]);
   const totalMinutes = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalMinutes, 0), [byJob]);
