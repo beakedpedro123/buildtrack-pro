@@ -43,6 +43,12 @@ import {
   InsertTimeAdjustment,
   punchListItems,
   InsertPunchListItem,
+  messages,
+  messageRecipients,
+  InsertMessage,
+  InsertMessageRecipient,
+  changeOrders,
+  InsertChangeOrder,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1469,4 +1475,216 @@ export async function deleteClockEntry(entryId: number, deletedBy: number, reaso
   }
   await dbConn.delete(clockEntries).where(eq(clockEntries.id, entryId));
   return { success: true };
+}
+
+// ─── Messages / Notes ──────────────────────────────────────────────────────
+
+export async function sendMessage(data: {
+  senderId: number;
+  subject: string;
+  body: string;
+  type?: "note" | "message" | "alert" | "plan_set";
+  priority?: "normal" | "urgent";
+  attachmentUrl?: string;
+  attachmentType?: "image" | "pdf" | "document";
+  attachmentName?: string;
+  isCompanyWide?: boolean;
+  recipientIds?: number[];
+}) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+
+  const [msg] = await dbConn.insert(messages).values({
+    senderId: data.senderId,
+    subject: data.subject,
+    body: data.body,
+    type: data.type || "message",
+    priority: data.priority || "normal",
+    attachmentUrl: data.attachmentUrl || null,
+    attachmentType: data.attachmentType || null,
+    attachmentName: data.attachmentName || null,
+    isCompanyWide: data.isCompanyWide || false,
+  }).$returningId();
+
+  const messageId = msg.id;
+
+  if (data.isCompanyWide) {
+    // Send to all active employees
+    const allEmployees = await dbConn.select({ id: employees.id }).from(employees).where(eq(employees.isActive, true));
+    if (allEmployees.length > 0) {
+      await dbConn.insert(messageRecipients).values(
+        allEmployees.filter(e => e.id !== data.senderId).map(e => ({
+          messageId,
+          recipientId: e.id,
+        }))
+      );
+    }
+  } else if (data.recipientIds && data.recipientIds.length > 0) {
+    await dbConn.insert(messageRecipients).values(
+      data.recipientIds.map(rid => ({
+        messageId,
+        recipientId: rid,
+      }))
+    );
+  }
+
+  return { id: messageId, success: true };
+}
+
+export async function getInboxMessages(employeeId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+
+  // Get messages where this employee is a recipient OR it's company-wide
+  const rows = await dbConn
+    .select({
+      id: messages.id,
+      senderId: messages.senderId,
+      subject: messages.subject,
+      body: messages.body,
+      type: messages.type,
+      priority: messages.priority,
+      attachmentUrl: messages.attachmentUrl,
+      attachmentType: messages.attachmentType,
+      attachmentName: messages.attachmentName,
+      isCompanyWide: messages.isCompanyWide,
+      createdAt: messages.createdAt,
+      isRead: messageRecipients.isRead,
+      readAt: messageRecipients.readAt,
+      recipientId: messageRecipients.recipientId,
+    })
+    .from(messageRecipients)
+    .innerJoin(messages, eq(messageRecipients.messageId, messages.id))
+    .where(eq(messageRecipients.recipientId, employeeId))
+    .orderBy(desc(messages.createdAt));
+
+  return rows;
+}
+
+export async function getSentMessages(employeeId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+
+  const rows = await dbConn
+    .select()
+    .from(messages)
+    .where(eq(messages.senderId, employeeId))
+    .orderBy(desc(messages.createdAt));
+
+  return rows;
+}
+
+export async function markMessageRead(messageId: number, employeeId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+
+  await dbConn
+    .update(messageRecipients)
+    .set({ isRead: true, readAt: new Date() })
+    .where(
+      and(
+        eq(messageRecipients.messageId, messageId),
+        eq(messageRecipients.recipientId, employeeId)
+      )
+    );
+
+  return { success: true };
+}
+
+export async function getUnreadCount(employeeId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return 0;
+
+  const rows = await dbConn
+    .select({ id: messageRecipients.id })
+    .from(messageRecipients)
+    .where(
+      and(
+        eq(messageRecipients.recipientId, employeeId),
+        eq(messageRecipients.isRead, false)
+      )
+    );
+
+  return rows.length;
+}
+
+export async function getMessageRecipients(messageId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+
+  const rows = await dbConn
+    .select({
+      recipientId: messageRecipients.recipientId,
+      isRead: messageRecipients.isRead,
+      readAt: messageRecipients.readAt,
+      employeeName: employees.name,
+      employeeRole: employees.role,
+    })
+    .from(messageRecipients)
+    .innerJoin(employees, eq(messageRecipients.recipientId, employees.id))
+    .where(eq(messageRecipients.messageId, messageId));
+
+  return rows;
+}
+
+
+// ─── Change Orders ──────────────────────────────────────────────────────────
+
+export async function getChangeOrdersForJob(jobId: number) {
+  const dbConn = await getDb();
+  return dbConn!
+    .select()
+    .from(changeOrders)
+    .where(eq(changeOrders.jobId, jobId))
+    .orderBy(desc(changeOrders.orderDate));
+}
+
+export async function createChangeOrder(data: {
+  jobId: number;
+  description: string;
+  amount: string;
+  orderType: "add" | "deduct";
+  status?: "pending" | "approved" | "rejected";
+  createdBy: number;
+  notes?: string;
+}) {
+  const dbConn = await getDb();
+  const result = await dbConn!.insert(changeOrders).values({
+    jobId: data.jobId,
+    description: data.description,
+    amount: data.amount,
+    orderType: data.orderType,
+    status: data.status || "approved",
+    createdBy: data.createdBy,
+    notes: data.notes || null,
+    orderDate: new Date(),
+  });
+  return { id: result[0].insertId };
+}
+
+export async function updateChangeOrderStatus(id: number, status: "pending" | "approved" | "rejected", approvedBy?: number) {
+  const dbConn = await getDb();
+  await dbConn!
+    .update(changeOrders)
+    .set({ status, approvedBy: approvedBy || null })
+    .where(eq(changeOrders.id, id));
+}
+
+export async function deleteChangeOrder(id: number) {
+  const dbConn = await getDb();
+  await dbConn!.delete(changeOrders).where(eq(changeOrders.id, id));
+}
+
+export async function getChangeOrderTotal(jobId: number) {
+  const dbConn = await getDb();
+  const orders = await dbConn!
+    .select()
+    .from(changeOrders)
+    .where(and(eq(changeOrders.jobId, jobId), eq(changeOrders.status, "approved")));
+  let total = 0;
+  for (const o of orders) {
+    const amt = parseFloat(String(o.amount) || "0");
+    total += o.orderType === "deduct" ? -amt : amt;
+  }
+  return total;
 }

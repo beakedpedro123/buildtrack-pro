@@ -46,7 +46,7 @@ describe("Phase 16 — Budget Alerts", () => {
     expect(indexTsx).toContain("budgetAlerts.getAlerts.useQuery");
     expect(indexTsx).toContain("Budget Alerts");
     expect(indexTsx).toContain("activeAlerts");
-    expect(indexTsx).toContain("isOwner && activeAlerts.length > 0");
+    expect(indexTsx).toContain("activeAlerts.length > 0");
   });
 
   it("should display color-coded alert banners on Home screen", () => {

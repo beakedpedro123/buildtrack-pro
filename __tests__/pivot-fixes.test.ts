@@ -82,8 +82,8 @@ describe("Phase 28 Fixes", () => {
         "utf-8"
       );
       expect(pivotChat).toContain("PivotAvatar");
-      // Should have the robot face design
-      expect(pivotChat).toContain("Robot face");
+      // Should have the robot avatar image
+      expect(pivotChat).toContain("pivot-icon");
     });
 
     it("messages have unique id field for FlatList keyExtractor", () => {

@@ -35,14 +35,22 @@ const WORK_CHECKLIST = [
   "Floor Sheathing",
   "Stair Framing",
   "Roof Framing",
+  "Roof Sheathing",
   "Deck Framing",
+  "Wall Sheathing",
+  "T&G Siding",
+  "Interior Finish Work",
+  "Finished Facia",
+  "Exterior Soffit",
+  "Interior Soffit",
+  "Demo",
+  "Shim and Shave",
   "Demolition",
   "Cleaning",
   "Inspection Checklist",
   "Timber Work",
   "Steel Install",
   "Decking Install",
-  "Wall Sheathing",
 ];
 
 const WEATHER_OPTIONS = ["Clear", "Partly Cloudy", "Overcast", "Rain", "Wind", "Snow", "Extreme Heat"];
@@ -68,6 +76,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
   }, [utils]);
 
   const [showNewReport, setShowNewReport] = useState(false);
+  const [showWorkChecklist, setShowWorkChecklist] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [workItems, setWorkItems] = useState<string[]>([]);
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
@@ -590,10 +599,24 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
                 </ScrollView>
               </View>
 
-              {/* Work Completed */}
+              {/* Work Completed — Collapsible */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Work Completed</Text>
-                {WORK_CHECKLIST.map((item) => (
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+                  onPress={() => setShowWorkChecklist(!showWorkChecklist)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={styles.sectionTitle}>Work Completed</Text>
+                    {workItems.length > 0 && (
+                      <View style={{ backgroundColor: colors.success + "20", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: colors.success }}>{workItems.length}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>{showWorkChecklist ? "▲" : "▼"}</Text>
+                </TouchableOpacity>
+                {showWorkChecklist && WORK_CHECKLIST.map((item) => (
                   <TouchableOpacity key={item} style={styles.checkItem} onPress={() => toggleWorkItem(item)}>
                     <View style={[styles.checkBox, { borderColor: workItems.includes(item) ? colors.success : colors.border, backgroundColor: workItems.includes(item) ? colors.success : "transparent" }]}>
                       {workItems.includes(item) && <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>✓</Text>}
@@ -601,6 +624,15 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
                     <Text style={[styles.checkLabel, { color: workItems.includes(item) ? colors.foreground : colors.muted }]}>{item}</Text>
                   </TouchableOpacity>
                 ))}
+                {!showWorkChecklist && workItems.length > 0 && (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                    {workItems.map((w) => (
+                      <View key={w} style={{ backgroundColor: colors.success + "15", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                        <Text style={{ fontSize: 11, fontWeight: "600", color: colors.success }}>✓ {w}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
 
               {/* Materials Used */}

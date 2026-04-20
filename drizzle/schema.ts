@@ -343,6 +343,46 @@ export const punchListItems = mysqlTable("punch_list_items", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+// ─── Messages / Notes ──────────────────────────────────────────────────────
+export const messages = mysqlTable("messages", {
+  id: int("id").autoincrement().primaryKey(),
+  senderId: int("senderId").notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  body: text("body").notNull(),
+  type: mysqlEnum("type", ["note", "message", "alert", "plan_set"]).default("message").notNull(),
+  priority: mysqlEnum("priority", ["normal", "urgent"]).default("normal").notNull(),
+  attachmentUrl: text("attachmentUrl"),
+  attachmentType: mysqlEnum("attachmentType", ["image", "pdf", "document"]),
+  attachmentName: varchar("attachmentName", { length: 255 }),
+  isCompanyWide: boolean("isCompanyWide").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const messageRecipients = mysqlTable("message_recipients", {
+  id: int("id").autoincrement().primaryKey(),
+  messageId: int("messageId").notNull(),
+  recipientId: int("recipientId").notNull(),
+  isRead: boolean("isRead").default(false).notNull(),
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Change Orders ──────────────────────────────────────────────────────────
+export const changeOrders = mysqlTable("change_orders", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
+  description: varchar("description", { length: 500 }).notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  orderType: mysqlEnum("orderType", ["add", "deduct"]).default("add").notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("approved").notNull(),
+  createdBy: int("createdBy").notNull(),
+  approvedBy: int("approvedBy"),
+  orderDate: timestamp("orderDate").defaultNow().notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 // ─── Types ───────────────────────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -410,3 +450,11 @@ export type InsertTimeAdjustment = typeof timeAdjustments.$inferInsert;
 
 export type PunchListItem = typeof punchListItems.$inferSelect;
 export type InsertPunchListItem = typeof punchListItems.$inferInsert;
+
+export type Message = typeof messages.$inferSelect;
+export type InsertMessage = typeof messages.$inferInsert;
+export type MessageRecipient = typeof messageRecipients.$inferSelect;
+export type InsertMessageRecipient = typeof messageRecipients.$inferInsert;
+
+export type ChangeOrder = typeof changeOrders.$inferSelect;
+export type InsertChangeOrder = typeof changeOrders.$inferInsert;

@@ -63,7 +63,7 @@ describe("Phase 19 — UI Spacing & Role-Based Home Screen", () => {
 
     it("laborer sees quick action buttons", () => {
       expect(homeContent).toContain("My Hours");
-      expect(homeContent).toContain("quickAction");
+      expect(homeContent).toContain("Quick Actions");
     });
 
     it("laborer does NOT see labor cost data", () => {
@@ -90,8 +90,14 @@ describe("Phase 19 — UI Spacing & Role-Based Home Screen", () => {
     });
 
     it("foreman does not see dollar amounts", () => {
-      // canSeeDollars is isManagement, but foreman is not management
-      expect(homeContent).toContain("canSeeDollars = isManagement");
+      // canSeeDollars is owner/office_manager only, foreman excluded
+      expect(homeContent).toContain("canSeeDollars");
+      // Verify foreman is not in the canSeeDollars definition
+      const match = homeContent.match(/const canSeeDollars\s*=\s*([^;]+);/);
+      expect(match).toBeTruthy();
+      if (match) {
+        expect(match[1]).not.toContain("foreman");
+      }
     });
   });
 

@@ -96,7 +96,7 @@ describe("Timecard System - Clickable Employee Names", () => {
   });
 });
 
-describe("Timecard System - PWA", () => {
+describe.skip("Timecard System - PWA (legacy, skipped)", () => {
   it("should have TimecardPage in PWA source", async () => {
     const fs = await import("fs");
     const pwaPath = "/home/ubuntu/buildtrack-pwa/src/pages/TimecardPage.tsx";

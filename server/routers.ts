@@ -413,6 +413,26 @@ const budgetRouter = router({
   getSyncLogs: publicProcedure.input(z.object({ limit: z.number().default(10) })).query(({ input }) => db.getRecentSyncLogs(input.limit)),
 });
 
+const changeOrdersRouter = router({
+  list: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getChangeOrdersForJob(input.jobId)),
+  create: publicProcedure.input(z.object({
+    jobId: z.number(),
+    description: z.string().min(1).max(500),
+    amount: z.string(),
+    orderType: z.enum(["add", "deduct"]).default("add"),
+    status: z.enum(["pending", "approved", "rejected"]).default("approved"),
+    createdBy: z.number(),
+    notes: z.string().optional(),
+  })).mutation(({ input }) => db.createChangeOrder(input)),
+  updateStatus: publicProcedure.input(z.object({
+    id: z.number(),
+    status: z.enum(["pending", "approved", "rejected"]),
+    approvedBy: z.number().optional(),
+  })).mutation(({ input }) => db.updateChangeOrderStatus(input.id, input.status, input.approvedBy)),
+  delete: publicProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteChangeOrder(input.id)),
+  total: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getChangeOrderTotal(input.jobId)),
+});
+
 const meetingsRouter = router({
   list: publicProcedure.query(() => db.getMeetings(30)),
   getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getMeetingById(input.id)),
@@ -1386,6 +1406,12 @@ You have REAL tools to take actions in the app. Use them immediately when asked 
 **Punch List** — use create_punch_list_item or create_punch_items_bulk to add items to job punch lists.
 **Generate Report** — use generate_report to create a daily report for any job. When Pedro says "generate a report" or "create a report for [job]", use this tool immediately.
 **Mark Report Seen** — use mark_report_seen to mark reports as reviewed by the owner.
+**Send Messages** — use send_message to push messages/notes to employees or the whole company. Works just like goals but for communication.
+- "Tell everyone to bring hard hats tomorrow" → send_message with sendToAll=true
+- "Send a note to Ricardo about the deck plans" → send_message with recipientNames=['Ricardo']
+- "Notify Lupe about the budget overage" → send_message with recipientNames=['Lupe']
+- For urgent messages, set priority='urgent' — the subject will be prefixed with ⚠️ URGENT
+- Messages appear in the recipient's Messages tab immediately
 
 ## Mandatory Goals — Proactive Enforcement
 When Pedro asks you to push mandatory goals (like "clock in by 7:30" or "submit daily reports"), create them with:
@@ -1518,6 +1544,28 @@ ${employee.role === "office_manager" ? `## Office Manager Special Capabilities (
 - Notify the owner or logistics about urgent items
 - Explain what each number means in plain language
 - Help with any administrative or scheduling questions
+
+## App Actions You Can Execute Directly
+You have REAL tools to take actions in the app. Use them immediately when asked — don't just describe what to do.
+
+**Clock In/Out** — use clock_in_employee / clock_out_employee tools directly.
+**Who's On Site** — use get_clocked_in_status to get a live list of clocked-in employees.
+**Payroll Summary** — use get_payroll_summary to pull real numbers from the current pay period.
+**Goal Creation** — use create_goal tool to push goals directly to the Goals tab.
+- To assign to EVERYONE: set assignToEveryone=true.
+- To assign to a specific person: use assignedToName with their name.
+- For daily recurring goals: set repeatDaily=true.
+**Send Messages** — use send_message to push messages/notes to employees or the whole company.
+- "Remind everyone about the meeting" → send_message with sendToAll=true
+- "Tell Ricardo to submit his report" → send_message with recipientNames=['Ricardo']
+- For urgent messages, set priority='urgent'
+**Remember Corrections** — use remember_correction whenever the user corrects you.
+**Generate Report** — use generate_report to create a daily report for any job.
+
+## What You CANNOT See
+- You do NOT have access to the owner's private knowledge base or financial patterns.
+- You can see payroll data, hours, and job costs — but not the owner's personal financial goals.
+- Never share payroll details with non-management employees.
 ` : ""}
 
 ${isOwner ? `## Owner-Only: Pattern Learning
@@ -1575,6 +1623,28 @@ When the foreman describes goals by voice or text, you MUST:
 3. Once confirmed, use the create_goal tool for EACH goal — actually create them, don't just show formatted text
 4. Confirm each goal was created successfully
 
+## App Actions You Can Execute Directly
+You have REAL tools to take actions in the app. Use them immediately when asked.
+
+**Clock In/Out** — use clock_in_employee / clock_out_employee to clock yourself or your crew in/out.
+**Who's On Site** — use get_clocked_in_status to see who's working right now.
+**Goal Creation** — use create_goal to push goals to your laborers or yourself.
+- To assign to a specific laborer: use assignedToName with their name.
+- For daily recurring goals: set repeatDaily=true.
+**Punch List** — use create_punch_list_item or create_punch_items_bulk to add items to job punch lists.
+**Send Messages** — use send_message to push messages/notes to your crew or the whole company.
+- "Tell my crew to bring safety glasses tomorrow" → send_message with sendToAll=true
+- "Send a note to Vicente about the deck" → send_message with recipientNames=['Vicente']
+- For urgent messages, set priority='urgent'
+**Remember Corrections** — use remember_correction when the foreman corrects you.
+**Generate Report** — use generate_report to create a daily field report for any job.
+
+## What You CANNOT See
+- You do NOT have access to dollar amounts, budgets, pay rates, or financial data.
+- You see job progress as percentages only.
+- You cannot see other foremen's goals or their crew's private goals.
+- Never guess at costs — if asked about money, say "That's something Pedro or the office can help with."
+
 When the foreman greets you, always show their goals and any overdue items first, then ask if they need anything.
 Keep responses practical, direct, and field-ready. No fluff.`;
     } else {
@@ -1624,8 +1694,30 @@ You can help with:
 - Simple measurement conversions (feet to inches, etc.)
 Always show your math step by step.
 
+## App Actions You Can Use
+You have tools to help you get things done in the app.
+
+**Goal Creation** — use create_goal to set personal goals for yourself.
+**Send Messages** — use send_message to send a message to your foreman, the office, or the whole company.
+- "Tell Ricardo I need more nails" → send_message with recipientNames=['Ricardo']
+- "Send a note to the office about my hours" → send_message with recipientNames=['Lupe']
+**Remember Corrections** — use remember_correction when you correct Pivot about something.
+
+## What You CAN See
+- Your own assigned goals and deadlines
+- Your own clock-in/out history and hours
+- Safety information and construction techniques
+- Messages sent to you
+
+## What You CANNOT See
+- Other employees' hours, pay, or goals
+- Budget or financial information
+- Management meetings or KPIs
+- Other people's messages
+
 When the laborer greets you, show their assigned goals with status and deadlines. If goals are overdue, mention them supportively.
-Keep responses short, practical, and encouraging. You're here to help them succeed.`;
+Keep responses short, practical, and encouraging. You're here to help them succeed.
+If they speak Spanish, respond in Spanish. If they speak English, respond in English. Match their language naturally.`;
     }
 
     // Build messages with optional file/image attachments on the last user message
@@ -1891,6 +1983,28 @@ Keep responses short, practical, and encouraging. You're here to help them succe
           },
         },
       },
+      {
+        type: "function" as const,
+        function: {
+          name: "send_message",
+          description: "Send a message/note to one or more employees or the entire company. Use when the user says 'send a message to...', 'tell everyone...', 'notify the crew...', 'push a note to...'. Creates an in-app message that appears in the recipient's Messages tab. Can include text, and mention attachments.",
+          parameters: {
+            type: "object",
+            properties: {
+              subject: { type: "string", description: "Subject line of the message (e.g. 'Safety Reminder', 'Schedule Change', 'Good Work Today')." },
+              body: { type: "string", description: "The full message body text." },
+              recipientNames: {
+                type: "array",
+                items: { type: "string" },
+                description: "Array of employee names to send to (e.g. ['Ricardo', 'Vicente']). Leave empty and set sendToAll=true for whole company.",
+              },
+              sendToAll: { type: "boolean", description: "Set to true to send to ALL employees in the company. Default false." },
+              priority: { type: "string", enum: ["normal", "urgent"], description: "Message priority. Default normal." },
+            },
+            required: ["subject", "body"],
+          },
+        },
+      },
     ];
 
     // ── Call LLM with tool support ──────────────────────────────────────────
@@ -1913,27 +2027,72 @@ Keep responses short, practical, and encouraging. You're here to help them succe
         const searchQuery = args.query || "";
         if (searchQuery) {
           try {
-            const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(searchQuery)}`;
-            const searchResp = await fetch(searchUrl, {
-              headers: { "User-Agent": "Mozilla/5.0 (compatible; BuildTrackPivot/1.0)" },
+            // Try Google first for better results
+            const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}&num=5`;
+            let searchResp = await fetch(googleUrl, {
+              headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
             });
-            const html = await searchResp.text();
-            const snippets: string[] = [];
-            const snippetRegex = /<a class="result__snippet"[^>]*>(.*?)<\/a>/gs;
-            let match;
-            while ((match = snippetRegex.exec(html)) !== null && snippets.length < 5) {
-              snippets.push(match[1].replace(/<[^>]*>/g, "").trim());
+            let html = await searchResp.text();
+            const googleSnippets: string[] = [];
+            // Extract Google search result snippets
+            const gResultRegex = /<div class="[^"]*"[^>]*><div[^>]*><div[^>]*><a href="\/url\?q=([^&"]+)[^"]*"[^>]*><h3[^>]*>(.*?)<\/h3>/gs;
+            let gMatch;
+            while ((gMatch = gResultRegex.exec(html)) !== null && googleSnippets.length < 5) {
+              const url = decodeURIComponent(gMatch[1]);
+              const title = gMatch[2].replace(/<[^>]*>/g, "").trim();
+              googleSnippets.push(`${title} (${url})`);
             }
-            const titleRegex = /<a class="result__a"[^>]*href="([^"]*?)"[^>]*>(.*?)<\/a>/gs;
-            const titles: string[] = [];
-            while ((match = titleRegex.exec(html)) !== null && titles.length < 5) {
-              titles.push(`${match[2].replace(/<[^>]*>/g, "").trim()} (${match[1]})`);
+            // Also try extracting from data-surl patterns
+            if (googleSnippets.length === 0) {
+              const altRegex = /<a href="([^"]+)"[^>]*><h3[^>]*>(.*?)<\/h3>/gs;
+              while ((gMatch = altRegex.exec(html)) !== null && googleSnippets.length < 5) {
+                const rawUrl = gMatch[1];
+                const title = gMatch[2].replace(/<[^>]*>/g, "").trim();
+                if (rawUrl.includes("/url?q=")) {
+                  const cleanUrl = decodeURIComponent(rawUrl.split("/url?q=")[1]?.split("&")[0] || rawUrl);
+                  googleSnippets.push(`${title} (${cleanUrl})`);
+                } else if (!rawUrl.startsWith("/")) {
+                  googleSnippets.push(`${title} (${rawUrl})`);
+                }
+              }
             }
-            if (snippets.length > 0 || titles.length > 0) {
-              toolResult = `Web search results for "${searchQuery}":\n`;
-              for (let i = 0; i < Math.max(snippets.length, titles.length); i++) {
-                if (titles[i]) toolResult += `\n${i + 1}. ${titles[i]}`;
-                if (snippets[i]) toolResult += `\n   ${snippets[i]}`;
+            // Extract text snippets from Google results
+            const spanSnippetRegex = /<span class="[^"]*">((?:(?!<\/span>).)*)<\/span>/gs;
+            const textSnippets: string[] = [];
+            while ((gMatch = spanSnippetRegex.exec(html)) !== null && textSnippets.length < 5) {
+              const text = gMatch[1].replace(/<[^>]*>/g, "").trim();
+              if (text.length > 40 && text.length < 500) textSnippets.push(text);
+            }
+            if (googleSnippets.length > 0) {
+              toolResult = `Google search results for "${searchQuery}":\n`;
+              for (let i = 0; i < googleSnippets.length; i++) {
+                toolResult += `\n${i + 1}. ${googleSnippets[i]}`;
+                if (textSnippets[i]) toolResult += `\n   ${textSnippets[i]}`;
+              }
+            } else {
+              // Fallback to DuckDuckGo
+              const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(searchQuery)}`;
+              searchResp = await fetch(ddgUrl, {
+                headers: { "User-Agent": "Mozilla/5.0 (compatible; BuildTrackPivot/1.0)" },
+              });
+              html = await searchResp.text();
+              const snippets: string[] = [];
+              const snippetRegex = /<a class="result__snippet"[^>]*>(.*?)<\/a>/gs;
+              let match;
+              while ((match = snippetRegex.exec(html)) !== null && snippets.length < 5) {
+                snippets.push(match[1].replace(/<[^>]*>/g, "").trim());
+              }
+              const titleRegex = /<a class="result__a"[^>]*href="([^"]*?)"[^>]*>(.*?)<\/a>/gs;
+              const titles: string[] = [];
+              while ((match = titleRegex.exec(html)) !== null && titles.length < 5) {
+                titles.push(`${match[2].replace(/<[^>]*>/g, "").trim()} (${match[1]})`);
+              }
+              if (snippets.length > 0 || titles.length > 0) {
+                toolResult = `Web search results for "${searchQuery}":\n`;
+                for (let i = 0; i < Math.max(snippets.length, titles.length); i++) {
+                  if (titles[i]) toolResult += `\n${i + 1}. ${titles[i]}`;
+                  if (snippets[i]) toolResult += `\n   ${snippets[i]}`;
+                }
               }
             }
           } catch (searchErr) {
@@ -2338,6 +2497,51 @@ Keep responses short, practical, and encouraging. You're here to help them succe
           } catch (payErr) {
             toolResult = `Failed to get payroll summary: ${payErr instanceof Error ? payErr.message : "unknown error"}`;
           }
+        } else if (toolName === "send_message") {
+          try {
+            const subject = args.subject || "Message from Pivot";
+            const body = args.body || "";
+            const recipientNames: string[] = args.recipientNames || [];
+            const sendToAll = args.sendToAll === true;
+            const priority = args.priority || "normal";
+
+            const allEmps = await db.getAllEmployees();
+            const activeEmps = allEmps.filter((e: any) => e.isActive);
+            let targetRecipients: number[] = [];
+
+            if (sendToAll || recipientNames.length === 0) {
+              targetRecipients = activeEmps.map((e: any) => e.id);
+            } else {
+              for (const name of recipientNames) {
+                const match = activeEmps.find((e: any) =>
+                  e.name.toLowerCase().includes(name.toLowerCase()) ||
+                  name.toLowerCase().includes(e.name.split(' ')[0].toLowerCase())
+                );
+                if (match) targetRecipients.push(match.id);
+              }
+            }
+
+            if (targetRecipients.length === 0) {
+              toolResult = `Could not find any matching employees. Available: ${activeEmps.map((e: any) => e.name).join(', ')}`;
+            } else {
+              // Create the message using the messaging system
+              const msgId = await db.sendMessage({
+                senderId: employee.id,
+                subject: priority === "urgent" ? `⚠️ URGENT: ${subject}` : subject,
+                body,
+                priority,
+                isCompanyWide: sendToAll,
+                recipientIds: targetRecipients,
+              });
+              const recipientList = targetRecipients.map(id => {
+                const emp = activeEmps.find((e: any) => e.id === id);
+                return emp ? emp.name : `ID ${id}`;
+              });
+              toolResult = `Message sent successfully!\nSubject: ${subject}\nRecipients: ${sendToAll ? 'Everyone (' + targetRecipients.length + ' employees)' : recipientList.join(', ')}\nPriority: ${priority}\nThe message will appear in their Messages tab.`;
+            }
+          } catch (msgErr) {
+            toolResult = `Failed to send message: ${msgErr instanceof Error ? msgErr.message : "unknown error"}`;
+          }
         }
       } catch (parseErr) {
         toolResult = `Error parsing tool arguments: ${parseErr instanceof Error ? parseErr.message : "unknown"}`;
@@ -2515,6 +2719,41 @@ ${isOwner ? "\n## OWNER_PATTERNS\nDecision-making patterns, recurring concerns, 
   }),
 });
 
+const messagesRouter = router({
+  send: publicProcedure.input(z.object({
+    senderId: z.number(),
+    subject: z.string().min(1).max(255),
+    body: z.string().min(1),
+    type: z.enum(["note", "message", "alert", "plan_set"]).default("message"),
+    priority: z.enum(["normal", "urgent"]).default("normal"),
+    attachmentUrl: z.string().optional(),
+    attachmentType: z.enum(["image", "pdf", "document"]).optional(),
+    attachmentName: z.string().optional(),
+    isCompanyWide: z.boolean().default(false),
+    recipientIds: z.array(z.number()).optional(),
+  })).mutation(async ({ input }) => {
+    return db.sendMessage(input);
+  }),
+  inbox: publicProcedure.input(z.object({ employeeId: z.number() })).query(async ({ input }) => {
+    return db.getInboxMessages(input.employeeId);
+  }),
+  sent: publicProcedure.input(z.object({ employeeId: z.number() })).query(async ({ input }) => {
+    return db.getSentMessages(input.employeeId);
+  }),
+  markRead: publicProcedure.input(z.object({
+    messageId: z.number(),
+    employeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    return db.markMessageRead(input.messageId, input.employeeId);
+  }),
+  unreadCount: publicProcedure.input(z.object({ employeeId: z.number() })).query(async ({ input }) => {
+    return db.getUnreadCount(input.employeeId);
+  }),
+  recipients: publicProcedure.input(z.object({ messageId: z.number() })).query(async ({ input }) => {
+    return db.getMessageRecipients(input.messageId);
+  }),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -2541,6 +2780,8 @@ export const appRouter = router({
   safetyMeetings: safetyMeetingsRouter,
   pivot: pivotRouter,
   punchList: punchListRouter,
+  messages: messagesRouter,
+  changeOrders: changeOrdersRouter,
 });
 
 export type AppRouter = typeof appRouter;

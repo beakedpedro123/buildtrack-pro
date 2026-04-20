@@ -1,6 +1,5 @@
 import { ScreenContainer } from "@/components/screen-container";
 import { OfflineBanner } from "@/components/ui/offline-banner";
-import { JobCard } from "@/components/ui/job-card";
 import { useAppAuth } from "@/lib/auth-context";
 import { useClockState } from "@/lib/clock-state-context";
 import { trpc } from "@/lib/trpc";
@@ -11,9 +10,9 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Image,
   ImageBackground,
+  Linking,
   Platform,
   RefreshControl,
   ScrollView,
@@ -21,12 +20,14 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View } from "react-native";
+  View,
+} from "react-native";
 import * as Haptics from "expo-haptics";
 import { useOfflineQueue } from "@/lib/offline-queue";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { VoiceGoalCreator } from "@/components/voice-goal-creator";
 import { JobPicker } from "@/components/ui/job-picker";
+import { ConstructionCalculator } from "@/components/construction-calculator";
 
 const companyLogo = require("@/assets/images/company-logo.png");
 import { BG_HOME as bgHome } from "@/constants/bg-urls";
@@ -36,14 +37,16 @@ const ROLE_COLORS: Record<string, string> = {
   office_manager: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#D4A843",
-  laborer: "#22C55E" };
+  laborer: "#22C55E",
+};
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
   office_manager: "Office Manager",
   logistics: "Logistics",
   foreman: "Foreman",
-  laborer: "Laborer" };
+  laborer: "Laborer",
+};
 
 type LaborPeriod = "week" | "month" | "30days";
 
@@ -74,7 +77,6 @@ function getDateRange(period: LaborPeriod): { startDate: string; endDate: string
   const now = new Date();
   const end = new Date(now);
   end.setHours(23, 59, 59, 999);
-
   if (period === "week") {
     const dayOfWeek = now.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -94,7 +96,7 @@ function getDateRange(period: LaborPeriod): { startDate: string; endDate: string
   return { startDate: start.toISOString(), endDate: end.toISOString(), label: "Last 30 Days" };
 }
 
-// Daily motivational messages by role — rotate based on day of year
+// Daily motivational messages by role
 const OWNER_QUOTES = [
   "Building greatness, one project at a time.",
   "Your vision drives the whole team forward.",
@@ -111,7 +113,6 @@ const OWNER_QUOTES = [
   "You didn't come this far to only come this far.",
   "The grind never lies. Keep going, boss.",
 ];
-
 const OFFICE_MANAGER_QUOTES = [
   "Organization is the backbone of every great project.",
   "Your attention to detail keeps everything running smooth.",
@@ -128,7 +129,6 @@ const OFFICE_MANAGER_QUOTES = [
   "Payroll, hours, reports — you handle it all with grace.",
   "The crew doesn't see everything you do, but the business wouldn't run without you.",
 ];
-
 const LOGISTICS_QUOTES = [
   "Coordination is your superpower — keep it flowing.",
   "Every delivery, every schedule, every move — you make it happen.",
@@ -143,7 +143,6 @@ const LOGISTICS_QUOTES = [
   "Every truck, every load, every schedule — you own it.",
   "The field depends on your timing. Don't let up.",
 ];
-
 const FOREMAN_QUOTES = [
   "Your crew counts on you — lead with confidence.",
   "A great foreman builds both structures and people.",
@@ -158,7 +157,6 @@ const FOREMAN_QUOTES = [
   "Your experience is your superpower. Use it.",
   "Another day to show your crew what excellence looks like.",
 ];
-
 const LABORER_QUOTES = [
   "Let's build something great today!",
   "Hard work pays off — keep it up!",
@@ -185,6 +183,53 @@ function getDailyQuote(role?: string): string {
   return LABORER_QUOTES[dayOfYear % LABORER_QUOTES.length];
 }
 
+// ═══════════════════════════════════════════════════════════
+// Collapsible Section Header Component
+// ═══════════════════════════════════════════════════════════
+function CollapsibleHeader({
+  title,
+  expanded,
+  onToggle,
+  badge,
+  rightAction,
+  colors,
+}: {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  badge?: number;
+  rightAction?: { label: string; onPress: () => void };
+  colors: any;
+}) {
+  return (
+    <TouchableOpacity
+      style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 }}
+      onPress={() => {
+        if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onToggle();
+      }}
+      activeOpacity={0.7}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>{title}</Text>
+        {badge !== undefined && badge > 0 && (
+          <View style={{ backgroundColor: colors.error + "22", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}>
+            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.error }}>{badge}</Text>
+          </View>
+        )}
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        {rightAction && (
+          <TouchableOpacity onPress={rightAction.onPress}>
+            <Text style={{ fontSize: 14, color: colors.primary, fontWeight: "600" }}>{rightAction.label}</Text>
+          </TouchableOpacity>
+        )}
+        <Text style={{ fontSize: 12, color: colors.muted }}>{expanded ? "▲" : "▼"}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 export default function DashboardScreen() {
   const utils = trpc.useUtils();
   const [refreshing, setRefreshing] = useState(false);
@@ -199,6 +244,9 @@ export default function DashboardScreen() {
   const [laborPeriod, setLaborPeriod] = useState<LaborPeriod>("week");
   const [showActiveJobs, setShowActiveJobs] = useState(false);
   const [showByEmployee, setShowByEmployee] = useState(true);
+  const [showBudgetAlerts, setShowBudgetAlerts] = useState(true);
+  const [showWeeklyTrend, setShowWeeklyTrend] = useState(false);
+  const [showCalculator, setShowCalculator] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60000);
@@ -211,6 +259,7 @@ export default function DashboardScreen() {
   const isForeman = role === "foreman";
   const isLaborer = role === "laborer";
   const isFieldRole = role === "foreman" || role === "laborer";
+  const isSecretary = role === "office_manager";
 
   const { startDate, endDate, label: periodLabel } = useMemo(() => getDateRange(laborPeriod), [laborPeriod]);
 
@@ -218,42 +267,37 @@ export default function DashboardScreen() {
   const [cachedActiveJobs, setCachedActiveJobs] = useState<any[] | null>(null);
   const [cachedEmployees, setCachedEmployees] = useState<any[] | null>(null);
 
-  // Load cached data on mount (for offline use)
   useEffect(() => {
     getCached<any[]>(CACHE_KEYS.MY_JOBS).then((d) => { if (d) setCachedMyJobs(d); });
     getCached<any[]>(CACHE_KEYS.ACTIVE_JOBS).then((d) => { if (d) setCachedActiveJobs(d); });
     getCached<any[]>(CACHE_KEYS.ALL_EMPLOYEES).then((d) => { if (d) setCachedEmployees(d); });
   }, []);
 
-  // Fetch active jobs for ALL roles — management uses it for dashboard, field roles use it as fallback for self clock-in
   const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 30000 });
-
-  // Cache activeJobs when fetched
   useEffect(() => {
     if (activeJobs && activeJobs.length > 0) {
       setCache(CACHE_KEYS.ACTIVE_JOBS, activeJobs);
       setCachedActiveJobs(activeJobs);
     }
   }, [activeJobs]);
+
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
-  // Cache employees when fetched
   useEffect(() => {
     if (allEmployees && allEmployees.length > 0) {
       setCache(CACHE_KEYS.ALL_EMPLOYEES, allEmployees);
       setCachedEmployees(allEmployees);
     }
   }, [allEmployees]);
-    const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 0, refetchInterval: 15000, refetchOnMount: "always", refetchOnWindowFocus: "always" });
-  // Voice goal creator state
+
+  const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 0, refetchInterval: 15000, refetchOnMount: "always", refetchOnWindowFocus: "always" });
+
   const [showVoiceGoals, setShowVoiceGoals] = useState(false);
-  // Offline queue (used by clock-in/out handlers — only as fallback when server fails)
   const { addClockEntry } = useOfflineQueue();
 
-  // Clock-out from dashboard — uses forceRefresh from ClockStateContext for instant UI update
+  // Clock-out from dashboard
   const { forceRefresh: clockForceRefresh } = useClockState();
   const clockOutMutation = trpc.clock.out.useMutation();
   const [clockingOutId, setClockingOutId] = useState<number | null>(null);
-  // Dashboard clock-out — ALWAYS try server first, fall back to offline only on failure
   const handleDashboardClockOut = useCallback(async (entryId: number) => {
     if (clockingOutId) return;
     setClockingOutId(entryId);
@@ -261,15 +305,11 @@ export default function DashboardScreen() {
     const clockOutTime = new Date().toISOString();
     const entryData = (clockedIn || []).find((e: any) => e.id === entryId);
     try {
-      await clockOutMutation.mutateAsync({
-        entryId,
-        clockOut: clockOutTime,
-      });
+      await clockOutMutation.mutateAsync({ entryId, clockOut: clockOutTime });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await clockForceRefresh();
       refetchClockedIn();
     } catch {
-      // Server failed — queue for later sync
       if (entryData) {
         await addClockEntry({
           employeeId: entryData.employeeId,
@@ -280,10 +320,10 @@ export default function DashboardScreen() {
         });
       }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-    finally { setClockingOutId(null); }
+    } finally { setClockingOutId(null); }
   }, [clockingOutId, clockOutMutation, clockForceRefresh, refetchClockedIn, clockedIn, addClockEntry]);
-  // Edit time state for Onsite Now
+
+  // Edit time state
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editTimeStr, setEditTimeStr] = useState("");
   const [editSaving, setEditSaving] = useState(false);
@@ -317,17 +357,14 @@ export default function DashboardScreen() {
     finally { setEditSaving(false); }
   }, [editingEntryId, editTimeStr, clockedIn, updateEntryMutation]);
 
-  // Use the shared local-first clock state (instant updates, no stale data)
+  // Self clock state
   const { activeEntry, optimisticClockIn, optimisticClockOut } = useClockState();
   const clockInMutation = trpc.clock.in.useMutation();
   const clockOutMutationSelf = trpc.clock.out.useMutation();
-
-  // State for inline job picker on home screen (foreman/laborer self-clock)
   const [selfClockJobId, setSelfClockJobId] = useState<number | null>(null);
   const [selfClockLoading, setSelfClockLoading] = useState(false);
   const [selfClockSuccess, setSelfClockSuccess] = useState<string | null>(null);
 
-  // Direct self clock-in handler — ALWAYS try server first, fall back to offline only on failure
   const handleSelfClockIn = useCallback(async () => {
     if (!employee?.id || !selfClockJobId) {
       Alert.alert("Select a Job", "Please select a jobsite before clocking in.");
@@ -338,43 +375,20 @@ export default function DashboardScreen() {
     setSelfClockLoading(true);
     try {
       const clockInTime = new Date().toISOString();
-
-      // Optimistic update — show clocked in immediately
-      optimisticClockIn({
-        id: -1,
-        employeeId: employee.id,
-        jobId: selfClockJobId,
-        clockIn: clockInTime,
-        clockOut: null,
-      });
+      optimisticClockIn({ id: -1, employeeId: employee.id, jobId: selfClockJobId, clockIn: clockInTime, clockOut: null });
       setSelfClockSuccess("Clocked in!");
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => setSelfClockSuccess(null), 4000);
-
-      // ALWAYS try server first
       try {
-        await clockInMutation.mutateAsync({
-          employeeId: employee.id,
-          jobId: selfClockJobId,
-          clockIn: clockInTime,
-          isOfflineEntry: false,
-        });
+        await clockInMutation.mutateAsync({ employeeId: employee.id, jobId: selfClockJobId, clockIn: clockInTime, isOfflineEntry: false });
       } catch {
-        // Server failed — save to offline queue for later sync
-        await addClockEntry({
-          employeeId: employee.id,
-          jobId: selfClockJobId,
-          clockIn: clockInTime,
-        });
+        await addClockEntry({ employeeId: employee.id, jobId: selfClockJobId, clockIn: clockInTime });
         setSelfClockSuccess("Clocked in (saved for sync)!");
         setTimeout(() => setSelfClockSuccess(null), 4000);
       }
-    } finally {
-      setSelfClockLoading(false);
-    }
+    } finally { setSelfClockLoading(false); }
   }, [employee?.id, selfClockJobId, selfClockLoading, clockInMutation, addClockEntry, optimisticClockIn]);
 
-  // Direct self clock-out handler — ALWAYS try server first, fall back to offline only on failure
   const handleSelfClockOut = useCallback(async () => {
     if (!activeEntry) return;
     if (selfClockLoading) return;
@@ -386,47 +400,24 @@ export default function DashboardScreen() {
       setSelfClockSuccess("Clocked out!");
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => setSelfClockSuccess(null), 4000);
-
       if (activeEntry.id < 0) {
-        // This was an offline-created entry — queue the complete entry for sync
-        await addClockEntry({
-          employeeId: activeEntry.employeeId,
-          jobId: activeEntry.jobId,
-          clockIn: activeEntry.clockIn,
-          clockOut: clockOutTime,
-        });
+        await addClockEntry({ employeeId: activeEntry.employeeId, jobId: activeEntry.jobId, clockIn: activeEntry.clockIn, clockOut: clockOutTime });
       } else {
-        // Server entry — ALWAYS try server first
         try {
-          await clockOutMutationSelf.mutateAsync({
-            entryId: activeEntry.id,
-            clockOut: clockOutTime,
-          });
+          await clockOutMutationSelf.mutateAsync({ entryId: activeEntry.id, clockOut: clockOutTime });
         } catch {
-          // Server failed — queue with existingEntryId so sync closes the right entry
-          await addClockEntry({
-            employeeId: activeEntry.employeeId,
-            jobId: activeEntry.jobId,
-            clockIn: activeEntry.clockIn,
-            clockOut: clockOutTime,
-            existingEntryId: activeEntry.id,
-          });
+          await addClockEntry({ employeeId: activeEntry.employeeId, jobId: activeEntry.jobId, clockIn: activeEntry.clockIn, clockOut: clockOutTime, existingEntryId: activeEntry.id });
           setSelfClockSuccess("Clocked out (saved for sync)!");
           setTimeout(() => setSelfClockSuccess(null), 4000);
         }
       }
-    } catch {
-      // Keep optimistic clock-out
-    } finally {
-      setSelfClockLoading(false);
-    }
+    } catch {} finally { setSelfClockLoading(false); }
   }, [activeEntry, selfClockLoading, clockOutMutationSelf, optimisticClockOut, addClockEntry]);
+
   const { data: myJobs } = trpc.jobs.forEmployee.useQuery(
     { employeeId: employee?.id || 0 },
     { enabled: !!employee && !isManagement }
   );
-
-  // Cache myJobs when fetched
   useEffect(() => {
     if (myJobs && myJobs.length > 0) {
       setCache(CACHE_KEYS.MY_JOBS, myJobs);
@@ -434,41 +425,27 @@ export default function DashboardScreen() {
     }
   }, [myJobs]);
 
-  // Use server data if available, fall back to cache, then fall back to active jobs
-  // Safety: filter out any entries with missing/corrupted names
   const rawMyJobs = (myJobs && myJobs.length > 0) ? myJobs : (cachedMyJobs && cachedMyJobs.length > 0) ? cachedMyJobs : (activeJobs || cachedActiveJobs || []);
-  // Normalize: ensure every job has a string name, coerce if needed
   const effectiveMyJobs = (rawMyJobs as any[]).filter((j: any) => j && j.id).map((j: any) => ({ ...j, name: String(j.name || j.jobName || `Job #${j.id}`) })).filter((j: any) => j.name.length >= 2);
   const effectiveActiveJobs = ((activeJobs || cachedActiveJobs || []) as any[]).filter((j: any) => j && j.id).map((j: any) => ({ ...j, name: String(j.name || j.jobName || `Job #${j.id}`) })).filter((j: any) => j.name.length >= 2);
 
-  // Auto-select first job if only one available
   useEffect(() => {
     if (effectiveMyJobs.length === 1 && !selfClockJobId) {
       setSelfClockJobId(effectiveMyJobs[0].id);
     }
   }, [effectiveMyJobs]);
 
-  // Budget alerts (owner/management only)
-  const { data: budgetAlerts } = trpc.budgetAlerts.getAlerts.useQuery(undefined, { enabled: isOwner, staleTime: 60000 });
+  // Budget alerts — owner AND office_manager (secretary) should see them
+  const { data: budgetAlerts } = trpc.budgetAlerts.getAlerts.useQuery(undefined, { enabled: isOwner || isSecretary, staleTime: 60000 });
   const activeAlerts = useMemo(() => (budgetAlerts || []).filter(a => a.alertLevel !== "ok"), [budgetAlerts]);
 
-  // Labor cost data (management only on Home)
-  const { data: byJob } = trpc.laborDashboard.byJob.useQuery(
-    { startDate, endDate },
-    { enabled: isManagement, staleTime: 30000 }
-  );
-  const { data: weeklyTrend } = trpc.laborDashboard.weeklyTrend.useQuery(
-    { weeks: 8 },
-    { enabled: isManagement, staleTime: 60000 }
-  );
-  const { data: byEmployee } = trpc.laborDashboard.byEmployee.useQuery(
-    { startDate, endDate },
-    { enabled: isManagement, staleTime: 30000 }
-  );
+  // Labor cost data
+  const { data: byJob } = trpc.laborDashboard.byJob.useQuery({ startDate, endDate }, { enabled: isManagement, staleTime: 30000 });
+  const { data: weeklyTrend } = trpc.laborDashboard.weeklyTrend.useQuery({ weeks: 8 }, { enabled: isManagement, staleTime: 60000 });
+  const { data: byEmployee } = trpc.laborDashboard.byEmployee.useQuery({ startDate, endDate }, { enabled: isManagement, staleTime: 30000 });
 
   const totalCost = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalCost, 0), [byJob]);
   const totalMinutes = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalMinutes, 0), [byJob]);
-
   const canSeeDollars = isOwner || role === "office_manager";
 
   const maxJobCost = useMemo(() => {
@@ -484,72 +461,23 @@ export default function DashboardScreen() {
   const elapsed = activeEntry ? now.getTime() - new Date(activeEntry.clockIn).getTime() : 0;
   const activeJobForEntry = [...effectiveActiveJobs, ...effectiveMyJobs].find((j) => j.id === activeEntry?.jobId);
 
-  const styles = StyleSheet.create({
-    header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
-    greeting: { fontSize: 22, fontWeight: "800", color: colors.foreground },
-    roleTag: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, alignSelf: "flex-start", marginTop: 4 },
-    roleTagText: { fontSize: 12, fontWeight: "700", color: "#fff" },
-    kpiRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, marginBottom: 16 },
-    kpiCard: { flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border },
-    kpiValue: { fontSize: 26, fontWeight: "800", color: colors.foreground },
-    kpiLabel: { fontSize: 12, color: colors.muted, marginTop: 2 },
-    sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 10 },
-    sectionTitle: { fontSize: 17, fontWeight: "700", color: colors.foreground },
-    seeAll: { fontSize: 14, color: colors.primary, fontWeight: "600" },
-    clockCard: { marginHorizontal: 20, marginBottom: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: colors.border },
-    clockStatusDot: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
-    empRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
-    avatar: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", marginRight: 12 },
-    avatarText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-    logoutBtn: { marginHorizontal: 20, marginTop: 8, marginBottom: 32, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
-    alertBanner: { marginHorizontal: 20, marginBottom: 12, borderRadius: 14, padding: 14, borderWidth: 1.5 },
-    alertRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-    alertDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
-    alertJobName: { flex: 1, fontSize: 13, fontWeight: "700" },
-    alertPct: { fontSize: 13, fontWeight: "800" },
-    alertDetail: { fontSize: 11, marginTop: 2, marginLeft: 16 },
-    periodRow: { flexDirection: "row", paddingHorizontal: 20, marginBottom: 12, gap: 8 },
-    periodBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1.5 },
-    periodText: { fontSize: 12, fontWeight: "600" },
-    summaryRow: { flexDirection: "row", paddingHorizontal: 16, marginBottom: 16, gap: 8 },
-    summaryCard: { flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border },
-    summaryValue: { fontSize: 20, fontWeight: "800", marginBottom: 2 },
-    summaryLabel: { fontSize: 10, color: colors.muted, fontWeight: "500" },
-    barRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-    barLabel: { width: 90, fontSize: 11, color: colors.foreground, fontWeight: "600" },
-    barTrack: { flex: 1, height: 20, backgroundColor: colors.border, borderRadius: 5, overflow: "hidden", marginHorizontal: 6 },
-    barFill: { height: "100%", borderRadius: 5 },
-    barValue: { fontSize: 11, fontWeight: "700", minWidth: 55, textAlign: "right" },
-    weeklyChart: { flexDirection: "row", alignItems: "flex-end", height: 100, paddingHorizontal: 20, marginBottom: 6, gap: 3 },
-    weekBar: { flex: 1, borderRadius: 3, minWidth: 16 },
-    weekLabelsRow: { flexDirection: "row", paddingHorizontal: 20, marginBottom: 16, gap: 3 },
-    laborEmpRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
-    laborEmpAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", marginRight: 10 },
-    // Laborer/Foreman styles
-    fieldHero: { alignItems: "center", paddingVertical: 24, paddingHorizontal: 20 },
-    fieldAvatar: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center", marginBottom: 12 },
-    fieldAvatarText: { color: "#fff", fontWeight: "800", fontSize: 28 },
-    fieldName: { fontSize: 26, fontWeight: "800", color: colors.foreground, marginBottom: 2 },
-    fieldRole: { fontSize: 14, fontWeight: "600", marginBottom: 8 },
-    fieldQuote: { fontSize: 13, color: colors.muted, textAlign: "center", fontStyle: "italic", marginTop: 4, paddingHorizontal: 20 },
-    fieldClockCard: { marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.surface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
-    fieldTimeText: { fontSize: 48, fontWeight: "800", color: colors.foreground, letterSpacing: -1 },
-    fieldJobText: { fontSize: 14, color: colors.muted, marginTop: 4, marginBottom: 16 },
-    fieldClockBtn: { borderRadius: 14, padding: 16, alignItems: "center", width: "100%" },
-    quickAction: { flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
-    quickActionIcon: { fontSize: 24, marginBottom: 6 },
-    quickActionLabel: { fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" },
-    weekHoursCard: { marginHorizontal: 20, marginBottom: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: colors.border } });
-
-  if (!employee) {
-    return (
-      <ScreenContainer>
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-      </ScreenContainer>
-    );
-  }
-
-  const roleColor = ROLE_COLORS[role] || colors.primary;
+  // Profit calculation for hourly jobs
+  const hourlyJobProfits = useMemo(() => {
+    if (!byJob || !activeJobs) return [];
+    return (activeJobs as any[])
+      .filter((j: any) => j.billingType === "hourly" && j.hourlyRate)
+      .map((job: any) => {
+        const laborData = byJob.find((b) => b.jobId === job.id);
+        if (!laborData || laborData.totalMinutes === 0) return null;
+        const hours = laborData.totalMinutes / 60;
+        const revenue = hours * parseFloat(job.hourlyRate || "0");
+        const cost = laborData.totalCost;
+        const profit = revenue - cost;
+        const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+        return { jobName: job.name, revenue, cost, profit, margin, hours };
+      })
+      .filter(Boolean) as { jobName: string; revenue: number; cost: number; profit: number; margin: number; hours: number }[];
+  }, [byJob, activeJobs]);
 
   const getRoleColor = (r: string) => {
     switch (r) {
@@ -561,6 +489,16 @@ export default function DashboardScreen() {
       default: return colors.muted;
     }
   };
+
+  if (!employee) {
+    return (
+      <ScreenContainer>
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+      </ScreenContainer>
+    );
+  }
+
+  const roleColor = ROLE_COLORS[role] || colors.primary;
 
   // ═══════════════════════════════════════════════════════════
   // LABORER HOME — Clean, simple, personal
@@ -577,22 +515,19 @@ export default function DashboardScreen() {
           </View>
 
           {/* Personal Hero */}
-          <View style={styles.fieldHero}>
-            <View style={[styles.fieldAvatar, { backgroundColor: roleColor }]}>
-              <Text style={styles.fieldAvatarText}>{getInitials(employee.name)}</Text>
-            </View>
-            <Text style={styles.fieldName}>{employee.name}</Text>
-            <Text style={[styles.fieldRole, { color: roleColor }]}>{ROLE_LABELS[role]}</Text>
-            <Text style={{ fontSize: 13, color: colors.muted }}>
+          <View style={{ alignItems: "center", paddingVertical: 24, paddingHorizontal: 20 }}>
+            <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground, marginBottom: 2 }}>{employee.name}</Text>
+            <Text style={{ fontSize: 14, fontWeight: "600", color: roleColor }}>{ROLE_LABELS[role]}</Text>
+            <Text style={{ fontSize: 13, color: colors.muted, marginTop: 4 }}>
               {now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
             </Text>
-            <Text style={styles.fieldQuote}>{getDailyQuote(role)}</Text>
+            <Text style={{ fontSize: 13, color: colors.muted, textAlign: "center", fontStyle: "italic", marginTop: 4, paddingHorizontal: 20 }}>{getDailyQuote(role)}</Text>
           </View>
 
           {/* Clock Status Card */}
-          <View style={styles.fieldClockCard}>
+          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.surface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}>
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-              <View style={[styles.clockStatusDot, { backgroundColor: activeEntry ? colors.success : colors.muted }]} />
+              <View style={{ width: 10, height: 10, borderRadius: 5, marginRight: 8, backgroundColor: activeEntry ? colors.success : colors.muted }} />
               <Text style={{ fontSize: 15, fontWeight: "700", color: activeEntry ? colors.success : colors.muted }}>
                 {activeEntry ? "Clocked In" : "Not Clocked In"}
               </Text>
@@ -604,12 +539,12 @@ export default function DashboardScreen() {
             )}
             {activeEntry ? (
               <>
-                <Text style={styles.fieldTimeText}>{formatDuration(elapsed)}</Text>
-                <Text style={styles.fieldJobText}>
+                <Text style={{ fontSize: 48, fontWeight: "800", color: colors.foreground, letterSpacing: -1 }}>{formatDuration(elapsed)}</Text>
+                <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, marginBottom: 16 }}>
                   {activeJobForEntry?.name || "Unknown Job"} · Since {formatTime12(activeEntry.clockIn)}
                 </Text>
                 <TouchableOpacity
-                  style={[styles.fieldClockBtn, { backgroundColor: colors.error, opacity: selfClockLoading ? 0.7 : 1 }]}
+                  style={{ borderRadius: 14, padding: 16, alignItems: "center", width: "100%", backgroundColor: colors.error, opacity: selfClockLoading ? 0.7 : 1 }}
                   onPress={handleSelfClockOut}
                   disabled={selfClockLoading}
                 >
@@ -618,18 +553,13 @@ export default function DashboardScreen() {
               </>
             ) : (
               <>
-                <Text style={[styles.fieldTimeText, { color: colors.muted + "60" }]}>0h 0m</Text>
-                <Text style={[styles.fieldJobText, { marginBottom: 12 }]}>Select a jobsite and clock in</Text>
-                {/* Inline Job Picker */}
+                <Text style={{ fontSize: 48, fontWeight: "800", color: colors.muted + "60", letterSpacing: -1 }}>0h 0m</Text>
+                <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, marginBottom: 12 }}>Select a jobsite and clock in</Text>
                 {employee?.id ? (
-                  <JobPicker
-                    employeeId={employee.id}
-                    selectedJobId={selfClockJobId}
-                    onSelectJob={setSelfClockJobId}
-                  />
+                  <JobPicker employeeId={employee.id} selectedJobId={selfClockJobId} onSelectJob={setSelfClockJobId} />
                 ) : null}
                 <TouchableOpacity
-                  style={[styles.fieldClockBtn, { backgroundColor: colors.success, opacity: (!selfClockJobId || selfClockLoading) ? 0.5 : 1 }]}
+                  style={{ borderRadius: 14, padding: 16, alignItems: "center", width: "100%", backgroundColor: colors.success, opacity: (!selfClockJobId || selfClockLoading) ? 0.5 : 1 }}
                   onPress={handleSelfClockIn}
                   disabled={!selfClockJobId || selfClockLoading}
                 >
@@ -641,47 +571,67 @@ export default function DashboardScreen() {
 
           {/* Quick Actions */}
           <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
-            <TouchableOpacity style={styles.quickAction} onPress={() => setShowVoiceGoals(true)}>
-              <Text style={styles.quickActionIcon}>🎯</Text>
-              <Text style={styles.quickActionLabel}>My Goals</Text>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => setShowVoiceGoals(true)}>
+              <Text style={{ fontSize: 24, marginBottom: 6 }}>🎯</Text>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>My Goals</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickAction} onPress={() => router.push("/reports" as any)}>
-              <Text style={styles.quickActionIcon}>📋</Text>
-              <Text style={styles.quickActionLabel}>Daily Report</Text>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => router.push("/reports" as any)}>
+              <Text style={{ fontSize: 24, marginBottom: 6 }}>📋</Text>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>Daily Report</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickAction} onPress={() => router.push("/hours" as any)}>
-              <Text style={styles.quickActionIcon}>⏰</Text>
-              <Text style={styles.quickActionLabel}>My Hours</Text>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => router.push("/hours" as any)}>
+              <Text style={{ fontSize: 24, marginBottom: 6 }}>⏰</Text>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>My Hours</Text>
             </TouchableOpacity>
           </View>
 
-          {/* My Jobsites */}
-          {effectiveMyJobs.length > 0 && (
-            <>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>My Jobsites</Text>
-              </View>
-              <View style={{ paddingHorizontal: 20 }}>
-                {effectiveMyJobs.map((job) => (
-                  <JobCard key={job.id} job={job} onPress={() => router.push("/jobs" as any)} hideBudget />
-                ))}
-              </View>
-            </>
-          )}
+          {/* Tools: Calculator + Compass */}
+          <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground, marginBottom: 10 }}>Tools</Text>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
+                onPress={() => setShowCalculator(true)}
+              >
+                <Text style={{ fontSize: 24, marginRight: 12 }}>🧮</Text>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Calculator</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted }}>Construction & Payroll</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
+                onPress={() => {
+                  if (Platform.OS !== "web") {
+                    Linking.openURL("compass://").catch(() => {
+                      Linking.openURL("https://www.google.com/maps").catch(() => {});
+                    });
+                  }
+                }}
+              >
+                <Text style={{ fontSize: 24, marginRight: 12 }}>🧭</Text>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Compass</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted }}>Direction & Navigation</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
 
           {/* Logout */}
-          <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          <TouchableOpacity style={{ marginHorizontal: 20, marginTop: 8, marginBottom: 32, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={logout}>
             <Text style={{ color: colors.muted, fontSize: 15, fontWeight: "600" }}>Sign Out</Text>
           </TouchableOpacity>
         </ScrollView>
       </ImageBackground>
       <VoiceGoalCreator visible={showVoiceGoals} onClose={() => setShowVoiceGoals(false)} />
+      <ConstructionCalculator visible={showCalculator} onClose={() => setShowCalculator(false)} />
       </ScreenContainer>
     );
   }
 
   // ═══════════════════════════════════════════════════════════
-  // FOREMAN HOME — Personal + crew overview, no dollar amounts
+  // FOREMAN HOME — Personal + crew overview
   // ═══════════════════════════════════════════════════════════
   if (isForeman) {
     return (
@@ -695,22 +645,19 @@ export default function DashboardScreen() {
           </View>
 
           {/* Personal Hero */}
-          <View style={styles.fieldHero}>
-            <View style={[styles.fieldAvatar, { backgroundColor: roleColor }]}>
-              <Text style={styles.fieldAvatarText}>{getInitials(employee.name)}</Text>
-            </View>
-            <Text style={styles.fieldName}>{employee.name}</Text>
-            <Text style={[styles.fieldRole, { color: roleColor }]}>{ROLE_LABELS[role]}</Text>
-            <Text style={{ fontSize: 13, color: colors.muted }}>
+          <View style={{ alignItems: "center", paddingVertical: 24, paddingHorizontal: 20 }}>
+            <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground, marginBottom: 2 }}>{employee.name}</Text>
+            <Text style={{ fontSize: 14, fontWeight: "600", color: roleColor }}>{ROLE_LABELS[role]}</Text>
+            <Text style={{ fontSize: 13, color: colors.muted, marginTop: 4 }}>
               {now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
             </Text>
-            <Text style={styles.fieldQuote}>{getDailyQuote(role)}</Text>
+            <Text style={{ fontSize: 13, color: colors.muted, textAlign: "center", fontStyle: "italic", marginTop: 4, paddingHorizontal: 20 }}>{getDailyQuote(role)}</Text>
           </View>
 
           {/* Clock Status Card */}
-          <View style={styles.fieldClockCard}>
+          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.surface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}>
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-              <View style={[styles.clockStatusDot, { backgroundColor: activeEntry ? colors.success : colors.muted }]} />
+              <View style={{ width: 10, height: 10, borderRadius: 5, marginRight: 8, backgroundColor: activeEntry ? colors.success : colors.muted }} />
               <Text style={{ fontSize: 15, fontWeight: "700", color: activeEntry ? colors.success : colors.muted }}>
                 {activeEntry ? "Clocked In" : "Not Clocked In"}
               </Text>
@@ -722,12 +669,12 @@ export default function DashboardScreen() {
             )}
             {activeEntry ? (
               <>
-                <Text style={styles.fieldTimeText}>{formatDuration(elapsed)}</Text>
-                <Text style={styles.fieldJobText}>
+                <Text style={{ fontSize: 48, fontWeight: "800", color: colors.foreground, letterSpacing: -1 }}>{formatDuration(elapsed)}</Text>
+                <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, marginBottom: 16 }}>
                   {activeJobForEntry?.name || "Unknown Job"} · Since {formatTime12(activeEntry.clockIn)}
                 </Text>
                 <TouchableOpacity
-                  style={[styles.fieldClockBtn, { backgroundColor: colors.error, opacity: selfClockLoading ? 0.7 : 1 }]}
+                  style={{ borderRadius: 14, padding: 16, alignItems: "center", width: "100%", backgroundColor: colors.error, opacity: selfClockLoading ? 0.7 : 1 }}
                   onPress={handleSelfClockOut}
                   disabled={selfClockLoading}
                 >
@@ -736,18 +683,13 @@ export default function DashboardScreen() {
               </>
             ) : (
               <>
-                <Text style={[styles.fieldTimeText, { color: colors.muted + "60" }]}>0h 0m</Text>
-                <Text style={[styles.fieldJobText, { marginBottom: 12 }]}>Select a jobsite and clock in</Text>
-                {/* Inline Job Picker */}
+                <Text style={{ fontSize: 48, fontWeight: "800", color: colors.muted + "60", letterSpacing: -1 }}>0h 0m</Text>
+                <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, marginBottom: 12 }}>Select a jobsite and clock in</Text>
                 {employee?.id ? (
-                  <JobPicker
-                    employeeId={employee.id}
-                    selectedJobId={selfClockJobId}
-                    onSelectJob={setSelfClockJobId}
-                  />
+                  <JobPicker employeeId={employee.id} selectedJobId={selfClockJobId} onSelectJob={setSelfClockJobId} />
                 ) : null}
                 <TouchableOpacity
-                  style={[styles.fieldClockBtn, { backgroundColor: colors.success, opacity: (!selfClockJobId || selfClockLoading) ? 0.5 : 1 }]}
+                  style={{ borderRadius: 14, padding: 16, alignItems: "center", width: "100%", backgroundColor: colors.success, opacity: (!selfClockJobId || selfClockLoading) ? 0.5 : 1 }}
                   onPress={handleSelfClockIn}
                   disabled={!selfClockJobId || selfClockLoading}
                 >
@@ -757,50 +699,71 @@ export default function DashboardScreen() {
             )}
           </View>
 
-          {/* Quick Actions for Foreman */}
+          {/* Quick Actions */}
           <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
-            <TouchableOpacity style={[styles.quickAction, { backgroundColor: colors.success + "15", borderColor: colors.success + "40", borderWidth: 1 }]} onPress={() => router.push("/manage" as any)}>
-              <Text style={styles.quickActionIcon}>⏱️</Text>
-              <Text style={[styles.quickActionLabel, { color: colors.success }]}>Crew Clock</Text>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: colors.success + "15", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40", alignItems: "center" }} onPress={() => router.push("/manage" as any)}>
+              <Text style={{ fontSize: 24, marginBottom: 6 }}>⏱️</Text>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.success, textAlign: "center" }}>Crew Clock</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickAction} onPress={() => router.push("/reports" as any)}>
-              <Text style={styles.quickActionIcon}>📋</Text>
-              <Text style={styles.quickActionLabel}>Field Report</Text>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => router.push("/reports" as any)}>
+              <Text style={{ fontSize: 24, marginBottom: 6 }}>📋</Text>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>Field Report</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickAction} onPress={() => router.push("/safety" as any)}>
-              <Text style={styles.quickActionIcon}>🛡️</Text>
-              <Text style={styles.quickActionLabel}>Safety</Text>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => router.push("/safety" as any)}>
+              <Text style={{ fontSize: 24, marginBottom: 6 }}>🛡️</Text>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>Safety</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickAction} onPress={() => setShowVoiceGoals(true)}>
-              <Text style={styles.quickActionIcon}>🎯</Text>
-              <Text style={styles.quickActionLabel}>Goals</Text>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => setShowVoiceGoals(true)}>
+              <Text style={{ fontSize: 24, marginBottom: 6 }}>🎯</Text>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>Goals</Text>
             </TouchableOpacity>
           </View>
 
-          {/* My Jobsites */}
-          {effectiveMyJobs.length > 0 && (
-            <>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>My Jobsites</Text>
-              </View>
-              <View style={{ paddingHorizontal: 20 }}>
-                {effectiveMyJobs.map((job) => (
-                  <JobCard key={job.id} job={job} onPress={() => router.push("/jobs" as any)} hideBudget />
-                ))}
-              </View>
-            </>
-          )}
+          {/* Tools: Calculator + Compass */}
+          <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground, marginBottom: 10 }}>Tools</Text>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
+                onPress={() => setShowCalculator(true)}
+              >
+                <Text style={{ fontSize: 24, marginRight: 12 }}>🧮</Text>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Calculator</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted }}>Construction & Payroll</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
+                onPress={() => {
+                  if (Platform.OS !== "web") {
+                    Linking.openURL("compass://").catch(() => {
+                      Linking.openURL("https://www.google.com/maps").catch(() => {});
+                    });
+                  }
+                }}
+              >
+                <Text style={{ fontSize: 24, marginRight: 12 }}>🧭</Text>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Compass</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted }}>Direction & Navigation</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
 
           {/* Logout */}
-          <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          <TouchableOpacity style={{ marginHorizontal: 20, marginTop: 8, marginBottom: 32, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={logout}>
             <Text style={{ color: colors.muted, fontSize: 15, fontWeight: "600" }}>Sign Out</Text>
           </TouchableOpacity>
-         </ScrollView>
+        </ScrollView>
       </ImageBackground>
       <VoiceGoalCreator visible={showVoiceGoals} onClose={() => setShowVoiceGoals(false)} />
+      <ConstructionCalculator visible={showCalculator} onClose={() => setShowCalculator(false)} />
       </ScreenContainer>
     );
   }
+
   // ═══════════════════════════════════════════════════════════
   // MANAGEMENT HOME — Full dashboard (Owner, Office Manager, Logistics)
   // ═══════════════════════════════════════════════════════════
@@ -815,14 +778,14 @@ export default function DashboardScreen() {
         </View>
 
         {/* Header */}
-        <View style={styles.header}>
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <View>
-              <Text style={styles.greeting}>
+              <Text style={{ fontSize: 22, fontWeight: "800", color: colors.foreground }}>
                 {now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening"}, {employee.name.split(" ")[0]}
               </Text>
-              <View style={[styles.roleTag, { backgroundColor: roleColor }]}>
-                <Text style={styles.roleTagText}>{ROLE_LABELS[role]}</Text>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, alignSelf: "flex-start", marginTop: 4, backgroundColor: roleColor }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>{ROLE_LABELS[role]}</Text>
               </View>
             </View>
             <Text style={{ fontSize: 13, color: colors.muted }}>
@@ -834,46 +797,56 @@ export default function DashboardScreen() {
           </Text>
         </View>
 
-        {/* Management KPIs */}
-        <View style={styles.kpiRow}>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{(activeJobs || cachedActiveJobs || []).length}</Text>
-            <Text style={styles.kpiLabel}>Active Jobs</Text>
-          </View>
-          <View style={styles.kpiCard}>
-            <Text style={[styles.kpiValue, { color: colors.success }]}>{(clockedIn || []).length}</Text>
-            <Text style={styles.kpiLabel}>On Site Now</Text>
-          </View>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{(allEmployees || cachedEmployees || []).filter((e: any) => e.isActive).length}</Text>
-            <Text style={styles.kpiLabel}>Employees</Text>
-          </View>
+        {/* Management KPIs — TAPPABLE */}
+        <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 20, marginBottom: 16 }}>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border }}
+            onPress={() => router.push("/jobs" as any)}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }}>{(activeJobs || cachedActiveJobs || []).length}</Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Active Jobs</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border }}
+            onPress={() => router.push("/team" as any)}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 26, fontWeight: "800", color: colors.success }}>{(clockedIn || []).length}</Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>On Site Now</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border }}
+            onPress={() => router.push("/manage" as any)}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }}>{(allEmployees || cachedEmployees || []).filter((e: any) => e.isActive).length}</Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Employees</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Who's On Site */}
         {(clockedIn || []).length > 0 && (
           <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>On Site Now ({(clockedIn || []).length})</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 10 }}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>On Site Now ({(clockedIn || []).length})</Text>
               <TouchableOpacity onPress={() => router.push("/team" as any)}>
-                <Text style={styles.seeAll}>See All</Text>
+                <Text style={{ fontSize: 14, color: colors.primary, fontWeight: "600" }}>See All</Text>
               </TouchableOpacity>
             </View>
             {(clockedIn || []).slice(0, 5).map((entry: any) => {
-              // Use enriched data from server join (employeeName, jobName) — no need for client-side lookup
               const empName = entry.employeeName || (allEmployees || []).find((e: any) => e.id === entry.employeeId)?.name || "Unknown";
               const empRole = entry.employeeRole || (allEmployees || []).find((e: any) => e.id === entry.employeeId)?.role || "laborer";
               const jobName = entry.jobName || (activeJobs || []).find((j: any) => j.id === entry.jobId)?.name || "Unknown Job";
               const dur = now.getTime() - new Date(entry.clockIn).getTime();
-              // Guard against negative duration (clock-in in future due to timezone issues)
               const durDisplay = dur > 0 ? formatDuration(dur) : "0h 0m";
               const isEditing = editingEntryId === entry.id;
               const timeStr = formatTime12(entry.clockIn);
               const isClockingOut = clockingOutId === entry.id;
               return (
-                <View key={entry.id} style={styles.empRow}>
-                  <View style={[styles.avatar, { backgroundColor: ROLE_COLORS[empRole] || colors.primary }]}>
-                    <Text style={styles.avatarText}>{getInitials(empName)}</Text>
+                <View key={entry.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                  <View style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", marginRight: 12, backgroundColor: ROLE_COLORS[empRole] || colors.primary }}>
+                    <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{getInitials(empName)}</Text>
                   </View>
                   <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push(`/timecard/${entry.employeeId}` as any)} activeOpacity={0.6}>
                     <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>{empName}</Text>
@@ -922,30 +895,32 @@ export default function DashboardScreen() {
           </>
         )}
 
-        {/* ═══ BUDGET ALERTS (owner only) ═══ */}
-        {isOwner && activeAlerts.length > 0 && (
+        {/* ═══ BUDGET ALERTS (owner + office_manager) — COLLAPSIBLE ═══ */}
+        {(isOwner || isSecretary) && activeAlerts.length > 0 && (
           <>
-            <View style={[styles.sectionHeader, { marginTop: 4 }]}>
-              <Text style={styles.sectionTitle}>Budget Alerts</Text>
-              <View style={{ backgroundColor: colors.error + "22", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.error }}>{activeAlerts.length}</Text>
-              </View>
-            </View>
-            {activeAlerts.map((alert) => {
+            <CollapsibleHeader
+              title="Budget Alerts"
+              expanded={showBudgetAlerts}
+              onToggle={() => setShowBudgetAlerts(!showBudgetAlerts)}
+              badge={activeAlerts.length}
+              colors={colors}
+            />
+            {showBudgetAlerts && activeAlerts.map((alert) => {
               const alertColors = {
                 warning: { bg: "#FEF3C7", border: "#F59E0B", text: "#92400E", dot: "#F59E0B" },
                 danger: { bg: "#FFF1F0", border: "#F97316", text: "#9A3412", dot: "#F97316" },
                 critical: { bg: "#FEE2E2", border: "#EF4444", text: "#991B1B", dot: "#EF4444" },
-                ok: { bg: colors.surface, border: colors.border, text: colors.foreground, dot: colors.success } };
+                ok: { bg: colors.surface, border: colors.border, text: colors.foreground, dot: colors.success },
+              };
               const ac = alertColors[alert.alertLevel];
               return (
-                <View key={alert.jobId} style={[styles.alertBanner, { backgroundColor: ac.bg, borderColor: ac.border }]}>
-                  <View style={styles.alertRow as any}>
-                    <View style={[styles.alertDot, { backgroundColor: ac.dot }]} />
-                    <Text style={[styles.alertJobName, { color: ac.text }]} numberOfLines={1}>{alert.jobName}</Text>
-                    <Text style={[styles.alertPct, { color: ac.dot }]}>{alert.percentUsed}%</Text>
+                <View key={alert.jobId} style={{ marginHorizontal: 20, marginBottom: 8, borderRadius: 14, padding: 14, borderWidth: 1.5, backgroundColor: ac.bg, borderColor: ac.border }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, marginRight: 8, backgroundColor: ac.dot }} />
+                    <Text style={{ flex: 1, fontSize: 13, fontWeight: "700", color: ac.text }} numberOfLines={1}>{alert.jobName}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "800", color: ac.dot }}>{alert.percentUsed}%</Text>
                   </View>
-                  <Text style={[styles.alertDetail, { color: ac.text }]}>
+                  <Text style={{ fontSize: 11, marginTop: 2, marginLeft: 16, color: ac.text }}>
                     {formatCurrency(alert.totalSpend)} of {formatCurrency(alert.totalBudget)} budget used
                   </Text>
                   <View style={{ flexDirection: "row", marginLeft: 16, marginTop: 4, gap: 12 }}>
@@ -962,107 +937,138 @@ export default function DashboardScreen() {
           </>
         )}
 
-        {/* ═══ LABOR COST DASHBOARD (management only) ═══ */}
+        {/* ═══ HOURLY JOB PROFIT (owner only) ═══ */}
+        {isOwner && hourlyJobProfits.length > 0 && (
+          <>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 }}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Hourly Job Profit</Text>
+            </View>
+            {hourlyJobProfits.map((jp, i) => (
+              <View key={i} style={{ marginHorizontal: 20, marginBottom: 8, backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 6 }}>{jp.jobName}</Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <View>
+                    <Text style={{ fontSize: 10, color: colors.muted }}>Revenue</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.success }}>{formatCurrency(jp.revenue)}</Text>
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 10, color: colors.muted }}>Labor Cost</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.error }}>{formatCurrency(jp.cost)}</Text>
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 10, color: colors.muted }}>Profit</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: jp.profit >= 0 ? colors.success : colors.error }}>{formatCurrency(jp.profit)}</Text>
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 10, color: colors.muted }}>Margin</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: jp.margin >= 0 ? colors.success : colors.error }}>{jp.margin.toFixed(1)}%</Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </>
+        )}
+
+        {/* ═══ LABOR COST DASHBOARD ═══ */}
         <>
-          <View style={[styles.sectionHeader, { marginTop: 4 }]}>
-            <Text style={styles.sectionTitle}>{canSeeDollars ? "Labor Costs" : "Labor Overview"}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 }}>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>{canSeeDollars ? "Labor Costs" : "Labor Overview"}</Text>
           </View>
 
           {/* Period Selector */}
-          <View style={styles.periodRow}>
+          <View style={{ flexDirection: "row", paddingHorizontal: 20, marginBottom: 12, gap: 8 }}>
             {(["week", "month", "30days"] as LaborPeriod[]).map((p) => {
               const labels: Record<LaborPeriod, string> = { week: "This Week", month: "This Month", "30days": "Last 30 Days" };
               const active = laborPeriod === p;
               return (
                 <TouchableOpacity
                   key={p}
-                  style={[
-                    styles.periodBtn,
-                    {
-                      borderColor: active ? colors.primary : colors.border,
-                      backgroundColor: active ? colors.primary + "15" : colors.surface },
-                  ]}
+                  style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1.5, borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary + "15" : colors.surface }}
                   onPress={() => {
                     setLaborPeriod(p);
                     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                 >
-                  <Text style={[styles.periodText, { color: active ? colors.primary : colors.muted }]}>
-                    {labels[p]}
-                  </Text>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: active ? colors.primary : colors.muted }}>{labels[p]}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
 
           {/* Summary Cards */}
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryCard}>
-              <Text style={[styles.summaryValue, { color: colors.primary }]}>
+          <View style={{ flexDirection: "row", paddingHorizontal: 16, marginBottom: 16, gap: 8 }}>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}
+              onPress={() => router.push("/jobs" as any)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 20, fontWeight: "800", marginBottom: 2, color: colors.primary }}>
                 {canSeeDollars ? formatCurrency(totalCost) : formatHours(totalMinutes)}
               </Text>
-              <Text style={styles.summaryLabel}>
+              <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }}>
                 {canSeeDollars ? `Total Spend (${periodLabel})` : `Total Hours (${periodLabel})`}
               </Text>
-            </View>
-            <View style={styles.summaryCard}>
-              <Text style={[styles.summaryValue, { color: colors.foreground }]}>
+            </TouchableOpacity>
+            <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ fontSize: 20, fontWeight: "800", marginBottom: 2, color: colors.foreground }}>
                 {(byJob || []).filter(j => j.totalMinutes > 0).length}
               </Text>
-              <Text style={styles.summaryLabel}>Jobs w/ Labor</Text>
+              <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }}>Jobs w/ Labor</Text>
             </View>
-            <View style={styles.summaryCard}>
-              <Text style={[styles.summaryValue, { color: colors.foreground }]}>
+            <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ fontSize: 20, fontWeight: "800", marginBottom: 2, color: colors.foreground }}>
                 {(byEmployee || []).length}
               </Text>
-              <Text style={styles.summaryLabel}>Workers</Text>
+              <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }}>Workers</Text>
             </View>
           </View>
 
-          {/* Weekly Trend Chart */}
+          {/* Weekly Trend — COLLAPSIBLE */}
           {weeklyTrend && weeklyTrend.length > 0 && (
             <>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, paddingHorizontal: 20, marginBottom: 8 }}>
-                Weekly Trend
-              </Text>
-              <View style={styles.weeklyChart}>
-                {weeklyTrend.map((w, i) => {
-                  const value = canSeeDollars ? w.totalCost : w.totalMinutes;
-                  const height = maxWeeklyCost > 0 ? Math.max((value / maxWeeklyCost) * 80, 2) : 2;
-                  const isCurrentWeek = i === weeklyTrend.length - 1;
-                  return (
-                    <View key={i} style={{ flex: 1, alignItems: "center" }}>
-                      <Text style={{ fontSize: 8, fontWeight: "600", color: colors.muted, marginBottom: 3 }}>
-                        {canSeeDollars ? formatCurrency(value) : formatHours(value)}
-                      </Text>
-                      <View
-                        style={[
-                          styles.weekBar,
-                          { height, backgroundColor: isCurrentWeek ? colors.primary : colors.primary + "60" },
-                        ]}
-                      />
-                    </View>
-                  );
-                })}
-              </View>
-              <View style={styles.weekLabelsRow}>
-                {weeklyTrend.map((w, i) => (
-                  <View key={i} style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 8, color: colors.muted, textAlign: "center" }}>
-                      {w.weekLabel}
-                    </Text>
+              <CollapsibleHeader
+                title="Weekly Trend"
+                expanded={showWeeklyTrend}
+                onToggle={() => setShowWeeklyTrend(!showWeeklyTrend)}
+                colors={colors}
+              />
+              {showWeeklyTrend && (
+                <>
+                  <View style={{ flexDirection: "row", alignItems: "flex-end", height: 100, paddingHorizontal: 20, marginBottom: 6, gap: 3 }}>
+                    {weeklyTrend.map((w, i) => {
+                      const value = canSeeDollars ? w.totalCost : w.totalMinutes;
+                      const height = maxWeeklyCost > 0 ? Math.max((value / maxWeeklyCost) * 80, 2) : 2;
+                      const isCurrentWeek = i === weeklyTrend.length - 1;
+                      return (
+                        <View key={i} style={{ flex: 1, alignItems: "center" }}>
+                          <Text style={{ fontSize: 8, fontWeight: "600", color: colors.muted, marginBottom: 3 }}>
+                            {canSeeDollars ? formatCurrency(value) : formatHours(value)}
+                          </Text>
+                          <View style={{ flex: 1, borderRadius: 3, minWidth: 16, height, backgroundColor: isCurrentWeek ? colors.primary : colors.primary + "60" }} />
+                        </View>
+                      );
+                    })}
                   </View>
-                ))}
-              </View>
+                  <View style={{ flexDirection: "row", paddingHorizontal: 20, marginBottom: 16, gap: 3 }}>
+                    {weeklyTrend.map((w, i) => (
+                      <View key={i} style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 8, color: colors.muted, textAlign: "center" }}>{w.weekLabel}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
             </>
           )}
 
           {/* Per-Job Breakdown */}
           {byJob && byJob.length > 0 && (
             <>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, paddingHorizontal: 20, marginBottom: 8 }}>
-                {canSeeDollars ? "Cost" : "Hours"} by Job ({periodLabel})
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
+                  {canSeeDollars ? "Cost" : "Hours"} by Job ({periodLabel})
+                </Text>
+              </View>
               <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
                 {byJob.slice(0, 8).map((job) => {
                   const value = canSeeDollars ? job.totalCost : job.totalMinutes;
@@ -1070,12 +1076,12 @@ export default function DashboardScreen() {
                   const hasOverhead = canSeeDollars && (job.taxRate > 0 || job.workersCompRate > 0 || job.liabilityInsRate > 0);
                   return (
                     <View key={job.jobId} style={{ marginBottom: hasOverhead ? 12 : 0 }}>
-                      <View style={styles.barRow}>
-                        <Text style={styles.barLabel} numberOfLines={1}>{job.jobName}</Text>
-                        <View style={styles.barTrack}>
-                          <View style={[styles.barFill, { width: `${Math.max(pct, 2)}%`, backgroundColor: colors.primary }]} />
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                        <Text style={{ width: 90, fontSize: 11, color: colors.foreground, fontWeight: "600" }} numberOfLines={1}>{job.jobName}</Text>
+                        <View style={{ flex: 1, height: 20, backgroundColor: colors.border, borderRadius: 5, overflow: "hidden", marginHorizontal: 6 }}>
+                          <View style={{ height: "100%", borderRadius: 5, width: `${Math.max(pct, 2)}%`, backgroundColor: colors.primary }} />
                         </View>
-                        <Text style={[styles.barValue, { color: colors.foreground }]}>
+                        <Text style={{ fontSize: 11, fontWeight: "700", minWidth: 55, textAlign: "right", color: colors.foreground }}>
                           {canSeeDollars ? formatCurrency(job.totalCost) : formatHours(job.totalMinutes)}
                         </Text>
                       </View>
@@ -1115,24 +1121,17 @@ export default function DashboardScreen() {
           {/* Per-Employee Breakdown (collapsible) */}
           {byEmployee && byEmployee.length > 0 && (
             <>
-              <TouchableOpacity
-                style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, marginBottom: 8 }}
-                onPress={() => {
-                  setShowByEmployee(!showByEmployee);
-                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
-                  By Employee ({periodLabel})
-                </Text>
-                <Text style={{ fontSize: 16, color: colors.muted }}>{showByEmployee ? "▲" : "▼"}</Text>
-              </TouchableOpacity>
+              <CollapsibleHeader
+                title={`By Employee (${periodLabel})`}
+                expanded={showByEmployee}
+                onToggle={() => setShowByEmployee(!showByEmployee)}
+                colors={colors}
+              />
               {showByEmployee && (
                 <View style={{ marginBottom: 16 }}>
                   {byEmployee.slice(0, 8).map((emp) => (
-                    <TouchableOpacity key={emp.employeeId} style={styles.laborEmpRow} onPress={() => router.push(`/timecard/${emp.employeeId}` as any)} activeOpacity={0.6}>
-                      <View style={[styles.laborEmpAvatar, { backgroundColor: getRoleColor(emp.role) }]}>
+                    <TouchableOpacity key={emp.employeeId} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border }} onPress={() => router.push(`/timecard/${emp.employeeId}` as any)} activeOpacity={0.6}>
+                      <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", marginRight: 10, backgroundColor: getRoleColor(emp.role) }}>
                         <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{getInitials(emp.employeeName)}</Text>
                       </View>
                       <View style={{ flex: 1 }}>
@@ -1157,36 +1156,72 @@ export default function DashboardScreen() {
         </>
 
         {/* ═══ ACTIVE JOBS (collapsible) ═══ */}
-        <TouchableOpacity
-          style={[styles.sectionHeader, { marginTop: 4 }]}
-          onPress={() => {
-            setShowActiveJobs(!showActiveJobs);
-            if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.sectionTitle}>Active Jobs ({(activeJobs || cachedActiveJobs || []).length})</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <TouchableOpacity onPress={() => router.push("/jobs" as any)}>
-              <Text style={styles.seeAll}>See All</Text>
-            </TouchableOpacity>
-            <Text style={{ fontSize: 16, color: colors.muted }}>{showActiveJobs ? "▲" : "▼"}</Text>
-          </View>
-        </TouchableOpacity>
+        <CollapsibleHeader
+          title={`Active Jobs (${(activeJobs || cachedActiveJobs || []).length})`}
+          expanded={showActiveJobs}
+          onToggle={() => setShowActiveJobs(!showActiveJobs)}
+          rightAction={{ label: "See All", onPress: () => router.push("/jobs" as any) }}
+          colors={colors}
+        />
         {showActiveJobs && (
           <View style={{ paddingHorizontal: 20 }}>
-            {(activeJobs || cachedActiveJobs || []).slice(0, 5).map((job: any) => (
-              <JobCard key={job.id} job={job} spentAmount={(job as any).spentAmount || 0} onPress={() => router.push("/jobs" as any)} />
-            ))}
+            {(activeJobs || cachedActiveJobs || []).slice(0, 5).map((job: any) => {
+              const budget = parseFloat(job.totalBudget || "0");
+              const spent = (job as any).spentAmount || 0;
+              const pct = budget > 0 ? Math.min(spent / budget, 1) : 0;
+              const barColor = pct < 0.6 ? colors.success : pct < 0.85 ? colors.warning : colors.error;
+              return (
+                <TouchableOpacity
+                  key={job.id}
+                  style={{ paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border }}
+                  onPress={() => router.push("/jobs" as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground, flex: 1 }} numberOfLines={1}>{job.name}</Text>
+                    <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: (job.status === "active" ? colors.success : colors.warning) + "20" }}>
+                      <Text style={{ fontSize: 10, fontWeight: "700", color: job.status === "active" ? colors.success : colors.warning }}>
+                        {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
+                      </Text>
+                    </View>
+                  </View>
+                  {job.clientName && <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{job.clientName}</Text>}
+                  {budget > 0 && canSeeDollars && (
+                    <View style={{ marginTop: 6 }}>
+                      <View style={{ height: 4, backgroundColor: colors.border, borderRadius: 2, overflow: "hidden" }}>
+                        <View style={{ height: 4, borderRadius: 2, backgroundColor: barColor, width: `${pct * 100}%` }} />
+                      </View>
+                      <Text style={{ fontSize: 10, color: colors.muted, marginTop: 2 }}>${spent.toLocaleString()} / ${budget.toLocaleString()}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 
+        {/* ═══ TOOLS: Calculator ═══ */}
+        <View style={{ paddingHorizontal: 20, marginTop: 16, marginBottom: 8 }}>
+          <TouchableOpacity
+            style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
+            onPress={() => setShowCalculator(true)}
+          >
+            <Text style={{ fontSize: 24, marginRight: 12 }}>🧮</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Construction Calculator</Text>
+              <Text style={{ fontSize: 11, color: colors.muted }}>Area, Concrete, Framing, Payroll, Stairs</Text>
+            </View>
+            <Text style={{ fontSize: 14, color: colors.primary }}>›</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+        <TouchableOpacity style={{ marginHorizontal: 20, marginTop: 8, marginBottom: 32, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={logout}>
           <Text style={{ color: colors.muted, fontSize: 15, fontWeight: "600" }}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
     </ImageBackground>
+    <ConstructionCalculator visible={showCalculator} onClose={() => setShowCalculator(false)} />
     </ScreenContainer>
   );
 }

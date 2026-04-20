@@ -113,6 +113,20 @@
       "when": 1776568020195,
       "tag": "0015_fast_azazel",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1776644826714,
+      "tag": "0016_pale_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1776646161682,
+      "tag": "0017_common_carmella_unuscione",
+      "breakpoints": true
     }
   ]
 }

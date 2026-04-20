@@ -5,6 +5,7 @@ import { useColors } from "@/hooks/use-colors";
 import { Redirect, Tabs } from "expo-router";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { trpc } from "@/lib/trpc";
 
 export default function TabLayout() {
   const colors = useColors();
@@ -38,6 +39,11 @@ export default function TabLayout() {
   const isForeman = role === "foreman";
   // Foreman gets Manage tab for crew clock-in/out access
   const hasManageTab = isManagement || isForeman;
+
+  // Unread message count for badge
+  const empId = (employee as any)?.id ?? 0;
+  const unreadQuery = trpc.messages.unreadCount.useQuery({ employeeId: empId }, { enabled: empId > 0, refetchInterval: 30000 });
+  const unreadMsgCount = unreadQuery.data ?? 0;
 
   return (
     <Tabs
@@ -99,6 +105,17 @@ export default function TabLayout() {
           title: "My Hours",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="timer" color={color} />,
           href: !isManagement ? undefined : null, // Laborer only; foreman uses Manage tab
+        }}
+      />
+
+      {/* ─── Messages tab for all roles ─── */}
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: "Messages",
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="envelope.fill" color={color} />,
+          tabBarBadge: unreadMsgCount > 0 ? unreadMsgCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: "#D4AF37", color: "#000", fontSize: 10, fontWeight: "700", minWidth: 18, height: 18 },
         }}
       />
 

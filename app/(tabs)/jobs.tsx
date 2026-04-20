@@ -82,6 +82,17 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const [budgetName, setBudgetName] = useState("");
   const [budgetAmount, setBudgetAmount] = useState("");
 
+  // Inline budget editing
+  const [editingBudget, setEditingBudget] = useState(false);
+  const [editBudgetValue, setEditBudgetValue] = useState("");
+
+  // Change orders
+  const [showAddCO, setShowAddCO] = useState(false);
+  const [coDesc, setCoDesc] = useState("");
+  const [coAmount, setCoAmount] = useState("");
+  const [coType, setCoType] = useState<"add" | "deduct">("add");
+  const [coNotes, setCoNotes] = useState("");
+
   // RBAC role helpers
   const role = employee?.role ?? "laborer";
   const canManage = role === "owner" || role === "office_manager" || role === "logistics";
@@ -121,11 +132,21 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     { jobId: selectedJob?.id || 0 },
     { enabled: !!selectedJob && canSeeBudget }
   );
+  const { data: changeOrdersList } = trpc.changeOrders.list.useQuery(
+    { jobId: selectedJob?.id || 0 },
+    { enabled: !!selectedJob && canSeeBudget }
+  );
+  const { data: coTotalAmt } = trpc.changeOrders.total.useQuery(
+    { jobId: selectedJob?.id || 0 },
+    { enabled: !!selectedJob && canSeeBudget }
+  );
 
   const createJob = trpc.jobs.create.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); setShowNewJob(false); resetJobForm(); } });
   const updateJob = trpc.jobs.update.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); } });
   const addExpense = trpc.budget.addExpense.useMutation({ onSuccess: () => { utils.budget.getExpenses.invalidate(); utils.budget.getCategories.invalidate(); setShowAddExpense(false); resetExpForm(); } });
   const addBudgetCat = trpc.budget.createCategory.useMutation({ onSuccess: () => { utils.budget.getCategories.invalidate(); setShowAddBudget(false); setBudgetName(""); setBudgetAmount(""); } });
+  const createCO = trpc.changeOrders.create.useMutation({ onSuccess: () => { utils.changeOrders.list.invalidate(); utils.changeOrders.total.invalidate(); setShowAddCO(false); setCoDesc(""); setCoAmount(""); setCoType("add"); setCoNotes(""); } });
+  const deleteCO = trpc.changeOrders.delete.useMutation({ onSuccess: () => { utils.changeOrders.list.invalidate(); utils.changeOrders.total.invalidate(); } });
 
   const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); setJobTaxRate(""); setJobWorkersComp(""); setJobLiabilityIns(""); setJobBillingType("fixed"); setJobHourlyRate("55"); };
   const resetExpForm = () => { setExpDesc(""); setExpAmount(""); setExpCategoryId(null); };
@@ -137,8 +158,10 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     return true;
   });
 
-  // Budget figures
-  const totalBudget = canSeeBudget ? parseFloat(selectedJob?.totalBudget || "0") : 0;
+  // Budget figures (includes approved change orders)
+  const baseBudget = canSeeBudget ? parseFloat(selectedJob?.totalBudget || "0") : 0;
+  const changeOrderAdj = canSeeBudget ? (typeof coTotalAmt === "number" ? coTotalAmt : 0) : 0;
+  const totalBudget = baseBudget + changeOrderAdj;
   const expenseSpent = canSeeBudget ? (expenses || []).reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0) : 0;
   const laborSpent = canSeeBudget ? (laborCost?.totalCost || 0) : 0;
   const laborHours = laborCost ? Math.round(laborCost.totalMinutes / 60 * 10) / 10 : 0;
@@ -524,7 +547,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                     ...(canSeeBudget ? [
                       { label: "Client Phone", value: selectedJob.clientPhone },
                       { label: "Billing", value: selectedJob.billingType === "hourly" ? `Hourly @ $${selectedJob.hourlyRate || "55"}/hr` : "Fixed Budget" },
-                      ...(selectedJob.billingType !== "hourly" ? [{ label: "Total Budget", value: selectedJob.totalBudget ? `$${parseFloat(selectedJob.totalBudget).toLocaleString()}` : null }] : []),
+                      ...(selectedJob.billingType !== "hourly" ? [{ label: "Total Budget", value: totalBudget > 0 ? `$${totalBudget.toLocaleString()}${changeOrderAdj !== 0 ? " (incl. COs)" : ""}` : (selectedJob.totalBudget ? `$${parseFloat(selectedJob.totalBudget).toLocaleString()}` : null) }] : []),
                     ] : []),
                     { label: "Notes", value: selectedJob.notes },
                   ].filter((r) => r.value).map((row) => (
@@ -723,12 +746,59 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                         </View>
                       )}
 
-                      {/* Budget Overview */}
+                      {/* Budget Overview — Tap to Edit */}
                       <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 20 }}>
-                        <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 4 }}>Total Budget</Text>
-                        <Text style={{ fontSize: 28, fontWeight: "800", color: colors.foreground, marginBottom: 8 }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <Text style={{ fontSize: 14, color: colors.muted }}>Effective Budget</Text>
+                          {canSeeBudget && (
+                            <TouchableOpacity
+                              onPress={() => { setEditingBudget(true); setEditBudgetValue(String(baseBudget)); }}
+                              style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.primary + "15" }}
+                            >
+                              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>Edit Base</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        <Text style={{ fontSize: 28, fontWeight: "800", color: colors.foreground, marginBottom: 2 }}>
                           ${totalBudget.toLocaleString()}
                         </Text>
+                        {changeOrderAdj !== 0 && (
+                          <Text style={{ fontSize: 12, color: changeOrderAdj > 0 ? colors.success : colors.error, marginBottom: 6 }}>
+                            Base ${baseBudget.toLocaleString()} {changeOrderAdj > 0 ? "+" : ""}{changeOrderAdj.toLocaleString()} in change orders
+                          </Text>
+                        )}
+                        {editingBudget && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8, marginTop: 4 }}>
+                            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>$</Text>
+                            <TextInput
+                              style={{ flex: 1, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 18, fontWeight: "700", color: colors.foreground }}
+                              value={editBudgetValue}
+                              onChangeText={setEditBudgetValue}
+                              keyboardType="decimal-pad"
+                              autoFocus
+                              returnKeyType="done"
+                              placeholder="Enter new budget"
+                              placeholderTextColor={colors.muted}
+                            />
+                            <TouchableOpacity
+                              onPress={() => {
+                                const val = editBudgetValue.replace(/[^0-9.]/g, "");
+                                if (val && parseFloat(val) > 0) {
+                                  updateJob.mutate({ id: selectedJob.id, totalBudget: val });
+                                  setSelectedJob({ ...selectedJob, totalBudget: val });
+                                  if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                }
+                                setEditingBudget(false);
+                              }}
+                              style={{ backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}
+                            >
+                              <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff" }}>Save</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setEditingBudget(false)} style={{ paddingHorizontal: 8, paddingVertical: 8 }}>
+                              <Text style={{ fontSize: 14, color: colors.muted }}>Cancel</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
                         <View style={{ height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: "hidden", marginBottom: 6 }}>
                           <View style={{ height: "100%", width: `${budgetPct * 100}%`, backgroundColor: budgetBarColor, borderRadius: 4 }} />
                         </View>
@@ -736,6 +806,131 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                           <Text style={{ fontSize: 13, color: colors.muted }}>Spent: ${totalSpent.toLocaleString()}</Text>
                           <Text style={{ fontSize: 13, color: colors.muted }}>Remaining: ${Math.max(0, totalBudget - totalSpent).toLocaleString()}</Text>
                         </View>
+                      </View>
+
+                      {/* Change Orders Section */}
+                      <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 20 }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                          <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Change Orders</Text>
+                          <TouchableOpacity
+                            onPress={() => setShowAddCO(true)}
+                            style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#D4A843" + "20" }}
+                          >
+                            <Text style={{ fontSize: 18, color: "#D4A843", marginRight: 4 }}>+</Text>
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: "#D4A843" }}>Add CO</Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        {showAddCO && (
+                          <View style={{ backgroundColor: colors.background, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: "#D4A843" + "40", marginBottom: 12 }}>
+                            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 10 }}>New Change Order</Text>
+                            <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
+                              {(["add", "deduct"] as const).map((t) => (
+                                <TouchableOpacity
+                                  key={t}
+                                  onPress={() => setCoType(t)}
+                                  style={{
+                                    flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 2, alignItems: "center",
+                                    borderColor: coType === t ? (t === "add" ? colors.success : colors.error) : colors.border,
+                                    backgroundColor: coType === t ? (t === "add" ? colors.success + "15" : colors.error + "15") : "transparent",
+                                  }}
+                                >
+                                  <Text style={{ fontSize: 13, fontWeight: "700", color: coType === t ? (t === "add" ? colors.success : colors.error) : colors.muted }}>
+                                    {t === "add" ? "+ Addition" : "- Deduction"}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                            <TextInput
+                              style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.foreground, marginBottom: 8 }}
+                              placeholder="Description (e.g. Added 2nd floor framing)"
+                              placeholderTextColor={colors.muted}
+                              value={coDesc}
+                              onChangeText={setCoDesc}
+                            />
+                            <TextInput
+                              style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.foreground, marginBottom: 8 }}
+                              placeholder="Amount ($)"
+                              placeholderTextColor={colors.muted}
+                              keyboardType="decimal-pad"
+                              value={coAmount}
+                              onChangeText={setCoAmount}
+                            />
+                            <TextInput
+                              style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.foreground, marginBottom: 12 }}
+                              placeholder="Notes (optional)"
+                              placeholderTextColor={colors.muted}
+                              value={coNotes}
+                              onChangeText={setCoNotes}
+                            />
+                            <View style={{ flexDirection: "row", gap: 8 }}>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  if (!coDesc.trim() || !coAmount.trim()) { Alert.alert("Required", "Description and amount are required."); return; }
+                                  createCO.mutate({
+                                    jobId: selectedJob.id,
+                                    description: coDesc.trim(),
+                                    amount: coAmount.replace(/[^0-9.]/g, ""),
+                                    orderType: coType,
+                                    createdBy: employee?.id || 0,
+                                    notes: coNotes.trim() || undefined,
+                                  });
+                                  if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                }}
+                                style={{ flex: 1, backgroundColor: "#D4A843", paddingVertical: 12, borderRadius: 8, alignItems: "center" }}
+                              >
+                                <Text style={{ fontSize: 14, fontWeight: "700", color: "#000" }}>{createCO.isPending ? "Saving..." : "Save Change Order"}</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => { setShowAddCO(false); setCoDesc(""); setCoAmount(""); setCoType("add"); setCoNotes(""); }}
+                                style={{ paddingHorizontal: 16, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border }}
+                              >
+                                <Text style={{ fontSize: 14, color: colors.muted }}>Cancel</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        )}
+
+                        {(!changeOrdersList || changeOrdersList.length === 0) && !showAddCO && (
+                          <Text style={{ fontSize: 13, color: colors.muted, textAlign: "center", paddingVertical: 12 }}>No change orders yet. Tap "+ Add CO" to create one.</Text>
+                        )}
+
+                        {(changeOrdersList || []).map((co: any) => (
+                          <View key={co.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                            <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: co.orderType === "add" ? colors.success + "20" : colors.error + "20", alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+                              <Text style={{ fontSize: 16, fontWeight: "800", color: co.orderType === "add" ? colors.success : colors.error }}>{co.orderType === "add" ? "+" : "-"}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{co.description}</Text>
+                              <Text style={{ fontSize: 11, color: colors.muted }}>{new Date(co.orderDate).toLocaleDateString()}{co.notes ? " — " + co.notes : ""}</Text>
+                            </View>
+                            <Text style={{ fontSize: 14, fontWeight: "700", color: co.orderType === "add" ? colors.success : colors.error, marginRight: 8 }}>
+                              {co.orderType === "add" ? "+" : "-"}${parseFloat(co.amount || "0").toLocaleString()}
+                            </Text>
+                            {canSeeBudget && (
+                              <TouchableOpacity
+                                onPress={() => {
+                                  Alert.alert("Delete Change Order", `Remove "${co.description}"?`, [
+                                    { text: "Cancel", style: "cancel" },
+                                    { text: "Delete", style: "destructive", onPress: () => deleteCO.mutate({ id: co.id }) },
+                                  ]);
+                                }}
+                                style={{ padding: 4 }}
+                              >
+                                <Text style={{ fontSize: 16, color: colors.error }}>X</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ))}
+
+                        {(changeOrdersList && changeOrdersList.length > 0) && (
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>Net Change Orders</Text>
+                            <Text style={{ fontSize: 14, fontWeight: "800", color: changeOrderAdj >= 0 ? colors.success : colors.error }}>
+                              {changeOrderAdj >= 0 ? "+" : ""}${changeOrderAdj.toLocaleString()}
+                            </Text>
+                          </View>
+                        )}
                       </View>
                     </>
                   )}

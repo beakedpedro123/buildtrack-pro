@@ -190,6 +190,7 @@ export function PivotChat() {
   const [uploading, setUploading] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const pendingVoiceRef = useRef<string | null>(null);
@@ -711,6 +712,46 @@ export function PivotChat() {
       backgroundColor: "#FF4444",
     },
     recordingText: { fontSize: 11, color: "#FF4444" },
+    attachMenu: {
+      flexDirection: "row",
+      justifyContent: "space-evenly",
+      alignItems: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderTopWidth: 0.5,
+      borderTopColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    attachMenuItem: {
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 16,
+      paddingVertical: 6,
+    },
+    attachMenuIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.background,
+      borderWidth: 0.5,
+      borderColor: "#D4AF3744",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    attachMenuLabel: {
+      fontSize: 11,
+      fontWeight: "500" as const,
+    },
+    plusBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: "#D4AF3766",
+    },
   });
 
   return (
@@ -855,29 +896,55 @@ export function PivotChat() {
                 </View>
               )}
 
+              {/* Attachment menu (expands above input) */}
+              {attachMenuOpen && access.canAttachFiles && (
+                <View style={s.attachMenu}>
+                  <TouchableOpacity
+                    style={s.attachMenuItem}
+                    onPress={() => { setAttachMenuOpen(false); takePhoto(); }}
+                    disabled={uploading}
+                  >
+                    <View style={s.attachMenuIcon}><Text style={{ fontSize: 20 }}>📷</Text></View>
+                    <Text style={[s.attachMenuLabel, { color: colors.foreground }]}>Camera</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.attachMenuItem}
+                    onPress={() => { setAttachMenuOpen(false); pickImage(); }}
+                    disabled={uploading}
+                  >
+                    <View style={s.attachMenuIcon}><Text style={{ fontSize: 20 }}>🖼️</Text></View>
+                    <Text style={[s.attachMenuLabel, { color: colors.foreground }]}>Gallery</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.attachMenuItem}
+                    onPress={() => { setAttachMenuOpen(false); pickDocument(); }}
+                    disabled={uploading}
+                  >
+                    <View style={s.attachMenuIcon}><Text style={{ fontSize: 20 }}>📎</Text></View>
+                    <Text style={[s.attachMenuLabel, { color: colors.foreground }]}>File</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* Input row */}
               <View style={s.inputRow}>
-                {/* File attachment buttons — only for eligible roles */}
+                {/* Single + button to open attachment menu */}
                 {access.canAttachFiles && (
-                  <>
-                    <TouchableOpacity style={s.iconBtn} onPress={takePhoto} disabled={uploading}>
-                      <Text style={{ fontSize: 18 }}>📷</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.iconBtn} onPress={pickImage} disabled={uploading}>
-                      <Text style={{ fontSize: 18 }}>🖼️</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.iconBtn} onPress={pickDocument} disabled={uploading}>
-                      <Text style={{ fontSize: 18 }}>📎</Text>
-                    </TouchableOpacity>
-                  </>
+                  <TouchableOpacity
+                    style={[s.plusBtn, attachMenuOpen && { backgroundColor: "#D4AF37" }]}
+                    onPress={() => setAttachMenuOpen(!attachMenuOpen)}
+                    disabled={uploading}
+                  >
+                    <Text style={{ fontSize: 22, color: attachMenuOpen ? "#000" : "#D4AF37", fontWeight: "700" }}>{attachMenuOpen ? "×" : "+"}</Text>
+                  </TouchableOpacity>
                 )}
 
-                {/* Text input */}
+                {/* Text input — now wider with only 1 button on left */}
                 <TextInput
                   ref={inputRef}
                   style={s.textInput}
                   value={input}
-                  onChangeText={setInput}
+                  onChangeText={(text) => { setInput(text); if (attachMenuOpen) setAttachMenuOpen(false); }}
                   placeholder={isRecording ? "Recording..." : access.placeholder}
                   placeholderTextColor={colors.muted}
                   multiline
@@ -885,6 +952,7 @@ export function PivotChat() {
                   returnKeyType="default"
                   blurOnSubmit={false}
                   scrollEnabled={true}
+                  onFocus={() => { if (attachMenuOpen) setAttachMenuOpen(false); }}
                 />
 
                 {/* Voice mic button — only for eligible roles */}

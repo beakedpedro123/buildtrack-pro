@@ -1827,3 +1827,65 @@
 - [ ] Connect marketing site signups to multi-tenant server
 - [ ] Support team can view/manage all customer company accounts
 - [ ] Support team can help customers with crew management issues
+
+## Phase 88: Major UI Redesign & Feature Update (Apr 19, 2026)
+
+### UI Redesign — Sleek & Collapsible
+- [x] Remove boxes from job list on clock-in screen, make it collapsible and sleek
+- [x] Make budget alerts section collapsible on owner dashboard (handles multiple alerts)
+- [x] Make weekly trend section collapsible on owner dashboard
+- [x] Overall sleek, high-end, seamless design across all account types
+
+### Dashboard Interactivity — Tappable Icons
+- [x] Make Active Jobs stat icon tappable → links to Jobs tab
+- [x] Make On Site Now stat icon tappable → links to employees on site
+- [x] Make Employees stat icon tappable → links to employee management
+- [x] Link budget alerts to budget details when tapped
+
+### Profit Tracking on Hourly Jobs
+- [x] Show profit on hourly jobs (revenue vs labor cost)
+- [x] Display profit metrics on dashboard or job details
+
+### Messaging/Notes System
+- [x] Build messaging system: send text messages/notes
+- [x] Support picture attachments in messages
+- [x] Support PDF/plan set attachments in messages
+- [x] Allow assigning messages to 1-5 specific people or whole company
+- [x] All users can send messages (not just owner)
+- [ ] Pivot can push messages/notes like goals across accounts
+
+### Role-Based Dashboard Content
+- [x] Workers/Foremen: replace jobs list at bottom with high-end construction calculator + compass
+- [x] Secretary/Office Manager: show budget alert notifications
+- [x] Ensure each role only sees what they're supposed to see
+
+### Pivot Enhancements
+- [ ] Give Pivot access to Google (web search capability)
+- [x] Tailor Pivot responses to user's specific position/role
+- [ ] Allow Pivot to push messages/notes across accounts like goals
+
+### Account Sync & Role Verification
+- [ ] Verify all accounts are synced properly
+- [ ] Verify role-based visibility is correct for each position
+- [ ] Ensure owner-only data stays owner-only
+
+### Final Audit
+- [ ] Audit sync functionality across all accounts
+- [ ] Audit caching for offline use
+- [ ] Audit refresh and data fetching
+- [ ] Code optimization and compression
+- [ ] Check all functions work end-to-end
+- [x] Add high-end construction + payroll calculator for ALL roles (accessible from dashboard)
+- [x] Redesign job buttons/list on main screen for ALL roles (sleek, no boxes, modern)
+- [x] Add work items to Daily Field Report: Roof Sheathing, T&G Siding, Interior Finish Work, Finished Facia, Exterior Soffit, Interior Soffit, Demo, Shim and Shave
+- [x] Make Work Completed checklist collapsible in Daily Field Report
+- [x] Consolidate Pivot 3 attachment buttons (camera, image, paperclip) into single + button with expandable menu
+- [x] Improve Pivot input bar layout — wider text field, less cramped
+- [x] Add real-time budget editing on job detail screen (owner/office_manager only)
+- [x] Add server-side updateJobBudget mutation with role guard
+- [x] Add change orders DB schema (changeOrders table)
+- [x] Add change orders DB functions (create, list, delete)
+- [x] Add change orders server routes with role guards
+- [x] Add inline budget editing on job detail (owner/office_manager)
+- [x] Add change orders UI section on Jobs budget tab
+- [x] Change orders auto-adjust the effective budget total
