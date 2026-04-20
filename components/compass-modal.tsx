@@ -1,13 +1,21 @@
 /**
  * CompassModal — A real built-in compass using the device magnetometer.
  * Renders a rotating compass rose with heading degree readout.
+ * Detects low accuracy and shows a figure-8 calibration prompt (like iOS Compass).
  * Falls back gracefully on web or if sensor is unavailable.
  */
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from "react-native-reanimated";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  withSequence,
+  Easing,
+} from "react-native-reanimated";
 
 interface CompassModalProps {
   visible: boolean;
@@ -21,24 +29,49 @@ function getCardinal(deg: number): string {
   return dirs[idx];
 }
 
+// Detect if magnetometer readings indicate poor calibration
+// Low magnitude = weak/uncalibrated sensor. Erratic jumps = interference.
+function computeMagnitude(x: number, y: number, z: number): number {
+  return Math.sqrt(x * x + y * y + z * z);
+}
+
 export function CompassModal({ visible, onClose }: CompassModalProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [heading, setHeading] = useState(0);
   const [available, setAvailable] = useState(true);
+  const [needsCalibration, setNeedsCalibration] = useState(false);
+  const [calibrationDismissed, setCalibrationDismissed] = useState(false);
   const subscriptionRef = useRef<any>(null);
   const rotation = useSharedValue(0);
+
+  // Figure-8 animation for calibration prompt
+  const figure8X = useSharedValue(0);
+  const figure8Y = useSharedValue(0);
+  const figure8Opacity = useSharedValue(1);
+
+  // Calibration detection: track recent magnitudes
+  const magnitudeHistoryRef = useRef<number[]>([]);
+  const headingHistoryRef = useRef<number[]>([]);
+  const calibrationCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Smooth heading updates
   const prevHeadingRef = useRef(0);
 
-  const updateHeading = useCallback((x: number, y: number) => {
+  const updateHeading = useCallback((x: number, y: number, z: number) => {
     // Calculate heading from magnetometer x,y
     let angle = Math.atan2(y, x) * (180 / Math.PI);
     // Convert to 0-360 compass heading (North = 0)
     angle = (90 - angle + 360) % 360;
     const rounded = Math.round(angle);
     setHeading(rounded);
+
+    // Track magnitude for calibration detection
+    const mag = computeMagnitude(x, y, z);
+    magnitudeHistoryRef.current.push(mag);
+    headingHistoryRef.current.push(angle);
+    if (magnitudeHistoryRef.current.length > 30) magnitudeHistoryRef.current.shift();
+    if (headingHistoryRef.current.length > 30) headingHistoryRef.current.shift();
 
     // Smooth rotation — handle wrap-around (e.g., 350° → 10°)
     const prev = prevHeadingRef.current;
@@ -50,8 +83,111 @@ export function CompassModal({ visible, onClose }: CompassModalProps) {
     rotation.value = withTiming(-newTarget, { duration: 200, easing: Easing.out(Easing.quad) });
   }, [rotation]);
 
+  // Periodically check calibration quality
+  useEffect(() => {
+    if (!visible || !available) return;
+
+    const checkCalibration = () => {
+      const mags = magnitudeHistoryRef.current;
+      const headings = headingHistoryRef.current;
+
+      if (mags.length < 10) return; // Not enough data yet
+
+      // Check 1: Very low magnitude (sensor not calibrated)
+      const avgMag = mags.reduce((a, b) => a + b, 0) / mags.length;
+      if (avgMag < 5) {
+        setNeedsCalibration(true);
+        return;
+      }
+
+      // Check 2: High variance in magnitude (interference/uncalibrated)
+      const magVariance = mags.reduce((sum, m) => sum + Math.pow(m - avgMag, 2), 0) / mags.length;
+      const magStdDev = Math.sqrt(magVariance);
+      const coeffOfVariation = magStdDev / avgMag;
+      if (coeffOfVariation > 0.5) {
+        setNeedsCalibration(true);
+        return;
+      }
+
+      // Check 3: Erratic heading jumps (more than 60° between consecutive readings)
+      if (headings.length >= 10) {
+        let bigJumps = 0;
+        for (let i = 1; i < headings.length; i++) {
+          let hDiff = Math.abs(headings[i] - headings[i - 1]);
+          if (hDiff > 180) hDiff = 360 - hDiff;
+          if (hDiff > 60) bigJumps++;
+        }
+        if (bigJumps > headings.length * 0.3) {
+          setNeedsCalibration(true);
+          return;
+        }
+      }
+
+      // Readings look good
+      setNeedsCalibration(false);
+    };
+
+    calibrationCheckRef.current = setInterval(checkCalibration, 2000);
+    // Initial check after 3 seconds of data collection
+    const initialCheck = setTimeout(checkCalibration, 3000);
+
+    return () => {
+      if (calibrationCheckRef.current) clearInterval(calibrationCheckRef.current);
+      clearTimeout(initialCheck);
+    };
+  }, [visible, available]);
+
+  // Start figure-8 animation when calibration is needed
+  useEffect(() => {
+    if (needsCalibration && !calibrationDismissed) {
+      // Animate a figure-8 path
+      figure8X.value = withRepeat(
+        withSequence(
+          withTiming(30, { duration: 800, easing: Easing.inOut(Easing.sin) }),
+          withTiming(-30, { duration: 800, easing: Easing.inOut(Easing.sin) }),
+          withTiming(30, { duration: 800, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0, { duration: 400, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false
+      );
+      figure8Y.value = withRepeat(
+        withSequence(
+          withTiming(-20, { duration: 400, easing: Easing.inOut(Easing.sin) }),
+          withTiming(20, { duration: 800, easing: Easing.inOut(Easing.sin) }),
+          withTiming(-20, { duration: 800, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0, { duration: 400, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false
+      );
+      figure8Opacity.value = withRepeat(
+        withSequence(
+          withTiming(0.4, { duration: 1200 }),
+          withTiming(1, { duration: 1200 }),
+        ),
+        -1,
+        true
+      );
+    }
+  }, [needsCalibration, calibrationDismissed, figure8X, figure8Y, figure8Opacity]);
+
+  const figure8Style = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: figure8X.value },
+      { translateY: figure8Y.value },
+    ],
+    opacity: figure8Opacity.value,
+  }));
+
   useEffect(() => {
     if (!visible) return;
+    // Reset state when opening
+    setCalibrationDismissed(false);
+    magnitudeHistoryRef.current = [];
+    headingHistoryRef.current = [];
+    prevHeadingRef.current = 0;
+
     if (Platform.OS === "web") {
       setAvailable(false);
       return;
@@ -68,8 +204,8 @@ export function CompassModal({ visible, onClose }: CompassModalProps) {
         }
         setAvailable(true);
         Magnetometer.setUpdateInterval(100);
-        sub = Magnetometer.addListener(({ x, y }) => {
-          updateHeading(x, y);
+        sub = Magnetometer.addListener(({ x, y, z }) => {
+          updateHeading(x, y, z);
         });
         subscriptionRef.current = sub;
       } catch {
@@ -88,6 +224,7 @@ export function CompassModal({ visible, onClose }: CompassModalProps) {
   }));
 
   const cardinal = getCardinal(heading);
+  const showCalibrationBanner = needsCalibration && !calibrationDismissed;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -112,9 +249,42 @@ export function CompassModal({ visible, onClose }: CompassModalProps) {
           </View>
         ) : (
           <View style={styles.compassArea}>
+            {/* Calibration Banner */}
+            {showCalibrationBanner && (
+              <View style={[styles.calibrationBanner, { backgroundColor: colors.warning + "18", borderColor: colors.warning + "40" }]}>
+                <View style={styles.calibrationContent}>
+                  <Animated.View style={[styles.figure8Icon, figure8Style]}>
+                    <Text style={{ fontSize: 28 }}>📱</Text>
+                  </Animated.View>
+                  <View style={styles.calibrationTextArea}>
+                    <Text style={[styles.calibrationTitle, { color: colors.warning }]}>
+                      Calibration Needed
+                    </Text>
+                    <Text style={[styles.calibrationDesc, { color: colors.muted }]}>
+                      Move your device in a figure-8 pattern to improve compass accuracy
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setCalibrationDismissed(true)}
+                  style={[styles.dismissBtn, { backgroundColor: colors.warning + "20" }]}
+                >
+                  <Text style={{ color: colors.warning, fontSize: 13, fontWeight: "600" }}>Dismiss</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Heading readout */}
             <Text style={[styles.headingDeg, { color: colors.foreground }]}>{heading}°</Text>
             <Text style={[styles.headingCardinal, { color: colors.primary }]}>{cardinal}</Text>
+
+            {/* Accuracy indicator */}
+            <View style={[styles.accuracyBadge, { backgroundColor: needsCalibration ? colors.warning + "20" : colors.success + "20" }]}>
+              <View style={[styles.accuracyDot, { backgroundColor: needsCalibration ? colors.warning : colors.success }]} />
+              <Text style={{ fontSize: 11, fontWeight: "600", color: needsCalibration ? colors.warning : colors.success }}>
+                {needsCalibration ? "Low Accuracy" : "Good Accuracy"}
+              </Text>
+            </View>
 
             {/* Compass Rose */}
             <View style={styles.compassRing}>
@@ -217,7 +387,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingBottom: 60,
+    paddingBottom: 40,
   },
   headingDeg: {
     fontSize: 56,
@@ -227,7 +397,21 @@ const styles = StyleSheet.create({
   headingCardinal: {
     fontSize: 24,
     fontWeight: "700",
-    marginBottom: 30,
+    marginBottom: 8,
+  },
+  accuracyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginBottom: 20,
+    gap: 6,
+  },
+  accuracyDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   compassRing: {
     width: DIAL_SIZE + 40,
@@ -276,5 +460,43 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
+  },
+  // Calibration banner styles
+  calibrationBanner: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    alignItems: "center",
+  },
+  calibrationContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  figure8Icon: {
+    width: 50,
+    height: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  calibrationTextArea: {
+    flex: 1,
+  },
+  calibrationTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 3,
+  },
+  calibrationDesc: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  dismissBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 8,
   },
 });

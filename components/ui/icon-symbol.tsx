@@ -69,6 +69,8 @@ const MAPPING = {
   "envelope.fill": "mail" as const,
   "paperclip": "attach-file" as const,
   "chart.pie.fill": "pie-chart" as const,
+  "arrow.down.circle.fill": "file-download" as const,
+  "eye.slash.fill": "visibility-off" as const,
 } satisfies Record<string, ComponentProps<typeof MaterialIcons>["name"]>;
 
 /**

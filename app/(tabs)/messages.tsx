@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useOfflineCache } from "@/hooks/use-offline-cache";
 import { CACHE_KEYS } from "@/lib/data-cache";
 import {
@@ -23,8 +23,16 @@ import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import { Platform, Alert } from "react-native";
 import { useOfflineQueue } from "@/lib/offline-queue";
+import { uploadFile, getMimeType, getAttachmentType } from "@/lib/file-upload";
+import { downloadAndOpenFile } from "@/lib/file-download";
 
 type TabKey = "inbox" | "sent";
+
+interface AttachmentInfo {
+  uri: string;
+  name: string;
+  mimeType: string;
+}
 
 export default function MessagesScreen() {
   const colors = useColors();
@@ -42,8 +50,10 @@ export default function MessagesScreen() {
   const [priority, setPriority] = useState<"normal" | "urgent">("normal");
   const [isCompanyWide, setIsCompanyWide] = useState(false);
   const [selectedRecipients, setSelectedRecipients] = useState<number[]>([]);
-  const [attachmentName, setAttachmentName] = useState("");
+  const [attachment, setAttachment] = useState<AttachmentInfo | null>(null);
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
   // Queries with offline caching
   const inboxQ = trpc.messages.inbox.useQuery({ employeeId: empId }, { enabled: empId > 0 });
@@ -78,8 +88,9 @@ export default function MessagesScreen() {
     setPriority("normal");
     setIsCompanyWide(false);
     setSelectedRecipients([]);
-    setAttachmentName("");
+    setAttachment(null);
     setSending(false);
+    setUploading(false);
   };
 
   const { addMutation, isOnline } = useOfflineQueue();
@@ -88,6 +99,43 @@ export default function MessagesScreen() {
     if (!subject.trim() || !body.trim()) return;
     if (!isCompanyWide && selectedRecipients.length === 0) return;
     setSending(true);
+
+    try {
+      // Upload attachment if present
+      let attachmentUrl: string | undefined;
+      let attachmentType: "image" | "pdf" | "document" | undefined;
+      let attachmentName: string | undefined;
+
+      if (attachment) {
+        setUploading(true);
+        try {
+          const result = await uploadFile(attachment.uri, attachment.name, attachment.mimeType);
+          attachmentUrl = result.url;
+          attachmentType = getAttachmentType(attachment.mimeType);
+          attachmentName = attachment.name;
+        } catch (err: any) {
+          console.error("Upload failed:", err);
+          Alert.alert("Upload Failed", "Could not upload the attachment. Send without it?", [
+            { text: "Cancel", style: "cancel", onPress: () => setSending(false) },
+            { text: "Send Without", onPress: () => doSend(undefined, undefined, undefined) },
+          ]);
+          setUploading(false);
+          return;
+        }
+        setUploading(false);
+      }
+
+      await doSend(attachmentUrl, attachmentType, attachmentName);
+    } catch {
+      setSending(false);
+    }
+  };
+
+  const doSend = async (
+    attachmentUrl?: string,
+    attachmentType?: "image" | "pdf" | "document",
+    attachmentName?: string
+  ) => {
     const payload = {
       senderId: empId,
       subject: subject.trim(),
@@ -96,7 +144,9 @@ export default function MessagesScreen() {
       priority,
       isCompanyWide,
       recipientIds: isCompanyWide ? undefined : selectedRecipients,
-      attachmentName: attachmentName || undefined,
+      attachmentUrl,
+      attachmentType,
+      attachmentName,
     };
     try {
       await sendMsg.mutateAsync(payload);
@@ -127,6 +177,67 @@ export default function MessagesScreen() {
       if (!isRead && activeTab === "inbox") {
         markRead.mutate({ messageId: msgId, employeeId: empId });
       }
+    }
+  };
+
+  const handleDownloadAttachment = async (item: any) => {
+    if (!item.attachmentUrl) {
+      Alert.alert("No File", "This attachment has no downloadable file.");
+      return;
+    }
+    setDownloadingId(item.id);
+    try {
+      await downloadAndOpenFile(
+        item.attachmentUrl,
+        item.attachmentName || "attachment",
+        undefined
+      );
+    } catch (err: any) {
+      console.error("Download error:", err);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setAttachment({
+          uri: asset.uri,
+          name: asset.fileName || `photo_${Date.now()}.jpg`,
+          mimeType: asset.mimeType || "image/jpeg",
+        });
+      }
+    } catch (err: any) {
+      console.error("Image picker error:", err);
+    }
+  };
+
+  const handlePickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "image/*", "application/msword",
+               "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+               "application/vnd.ms-excel",
+               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+               "text/plain", "text/csv"],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setAttachment({
+          uri: asset.uri,
+          name: asset.name || `document_${Date.now()}`,
+          mimeType: asset.mimeType || getMimeType(asset.name || "file"),
+        });
+      }
+    } catch (err: any) {
+      console.error("Document picker error:", err);
     }
   };
 
@@ -176,11 +287,19 @@ export default function MessagesScreen() {
     [allEmployees.data, empId]
   );
 
+  const getAttachmentIcon = (type: string | null) => {
+    if (type === "image") return "photo.fill" as const;
+    if (type === "pdf") return "doc.text.fill" as const;
+    return "paperclip" as const;
+  };
+
   const renderMessage = useCallback(
     ({ item }: { item: any }) => {
       const isExpanded = expandedId === item.id;
       const isUnread = activeTab === "inbox" && !item.isRead;
       const accentColor = item.priority === "urgent" ? colors.warning : typeColor(item.type);
+      const hasAttachment = !!(item.attachmentUrl || item.attachmentName);
+      const isDownloading = downloadingId === item.id;
 
       return (
         <Pressable
@@ -199,12 +318,17 @@ export default function MessagesScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 8 }}>
               <IconSymbol name={typeIcon(item.type)} size={18} color={accentColor} />
               <View style={{ flex: 1 }}>
-                <Text
-                  style={[styles.msgSubject, { color: colors.foreground, fontWeight: isUnread ? "700" : "500" }]}
-                  numberOfLines={1}
-                >
-                  {item.subject}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Text
+                    style={[styles.msgSubject, { color: colors.foreground, fontWeight: isUnread ? "700" : "500", flex: 1 }]}
+                    numberOfLines={1}
+                  >
+                    {item.subject}
+                  </Text>
+                  {hasAttachment && (
+                    <IconSymbol name="paperclip" size={13} color={colors.muted} />
+                  )}
+                </View>
                 <Text style={[styles.msgMeta, { color: colors.muted }]}>
                   {activeTab === "inbox" ? `From ${senderName(item.senderId)}` : `To ${item.isCompanyWide ? "Everyone" : "Selected"}`}
                 </Text>
@@ -222,18 +346,38 @@ export default function MessagesScreen() {
           {isExpanded && (
             <View style={[styles.msgBody, { borderTopColor: colors.border }]}>
               <Text style={[styles.msgBodyText, { color: colors.foreground }]}>{item.body}</Text>
-              {item.attachmentName && (
-                <View style={[styles.attachBadge, { backgroundColor: `${colors.primary}15` }]}>
-                  <IconSymbol name="paperclip" size={14} color={colors.primary} />
-                  <Text style={{ color: colors.primary, fontSize: 12, marginLeft: 4 }}>{item.attachmentName}</Text>
-                </View>
+              {hasAttachment && (
+                <TouchableOpacity
+                  onPress={() => handleDownloadAttachment(item)}
+                  activeOpacity={0.6}
+                  style={[styles.attachDownloadBtn, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}
+                >
+                  {isDownloading ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <>
+                      <IconSymbol name={getAttachmentIcon(item.attachmentType)} size={18} color={colors.primary} />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+                          {item.attachmentName || "Attachment"}
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 11, marginTop: 1 }}>
+                          {item.attachmentUrl ? "Tap to download & open" : "File not available"}
+                        </Text>
+                      </View>
+                      {item.attachmentUrl && (
+                        <IconSymbol name="arrow.down.circle.fill" size={24} color={colors.primary} />
+                      )}
+                    </>
+                  )}
+                </TouchableOpacity>
               )}
             </View>
           )}
         </Pressable>
       );
     },
-    [expandedId, activeTab, colors, senderName]
+    [expandedId, activeTab, colors, senderName, downloadingId]
   );
 
   return (
@@ -258,8 +402,8 @@ export default function MessagesScreen() {
         {(["inbox", "sent"] as TabKey[]).map((tab) => (
           <TouchableOpacity
             key={tab}
-            onPress={() => { setActiveTab(tab); setExpandedId(null); }}
-            style={[styles.tab, activeTab === tab && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+            onPress={() => setActiveTab(tab)}
+            style={[styles.tab, { borderBottomColor: activeTab === tab ? colors.primary : "transparent", borderBottomWidth: 2 }]}
           >
             <Text style={[styles.tabText, { color: activeTab === tab ? colors.primary : colors.muted }]}>
               {tab === "inbox" ? "Inbox" : "Sent"}
@@ -276,48 +420,48 @@ export default function MessagesScreen() {
       {/* Message List */}
       {isLoading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} size="large" />
+          <ActivityIndicator color={colors.primary} />
         </View>
-      ) : !activeData || activeData.length === 0 ? (
+      ) : !activeData || (activeData as any[]).length === 0 ? (
         <View style={styles.center}>
-          <IconSymbol name="envelope.fill" size={48} color={colors.muted} />
+          <IconSymbol name="envelope.fill" size={40} color={colors.muted} />
           <Text style={[styles.emptyText, { color: colors.muted }]}>
             {activeTab === "inbox" ? "No messages yet" : "No sent messages"}
           </Text>
         </View>
       ) : (
         <FlatList
-          data={activeData}
-          keyExtractor={(item: any) => String(item.id)}
+          data={activeData as any[]}
+          keyExtractor={(item) => String(item.id)}
           renderItem={renderMessage}
           contentContainerStyle={{ paddingBottom: 100 }}
-          showsVerticalScrollIndicator={false}
         />
       )}
 
       {/* Compose Modal */}
-      <Modal visible={showCompose} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={showCompose} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowCompose(false)}>
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => setShowCompose(false)}>
-              <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
+            <TouchableOpacity onPress={() => { resetCompose(); setShowCompose(false); }}>
+              <Text style={{ color: colors.muted, fontSize: 16 }}>Cancel</Text>
             </TouchableOpacity>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>New Message</Text>
             <TouchableOpacity
               onPress={handleSend}
               disabled={sending || !subject.trim() || !body.trim() || (!isCompanyWide && selectedRecipients.length === 0)}
-              style={{ opacity: sending || !subject.trim() || !body.trim() ? 0.4 : 1 }}
             >
               {sending ? (
-                <ActivityIndicator color={colors.primary} size="small" />
+                <ActivityIndicator size="small" color={colors.primary} />
               ) : (
-                <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "700" }}>Send</Text>
+                <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "700" }}>
+                  {uploading ? "Uploading..." : "Send"}
+                </Text>
               )}
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
-            {/* Type Selector */}
+            {/* Type */}
             <Text style={[styles.label, { color: colors.muted }]}>Type</Text>
             <View style={styles.typeRow}>
               {(["message", "note", "alert", "plan_set"] as const).map((t) => (
@@ -327,18 +471,12 @@ export default function MessagesScreen() {
                   style={[
                     styles.typeChip,
                     {
-                      backgroundColor: msgType === t ? colors.primary : `${colors.surface}`,
                       borderColor: msgType === t ? colors.primary : colors.border,
+                      backgroundColor: msgType === t ? `${colors.primary}15` : "transparent",
                     },
                   ]}
                 >
-                  <Text
-                    style={{
-                      color: msgType === t ? colors.background : colors.foreground,
-                      fontSize: 12,
-                      fontWeight: "600",
-                    }}
-                  >
+                  <Text style={{ color: msgType === t ? colors.primary : colors.muted, fontSize: 13, fontWeight: "600" }}>
                     {t === "plan_set" ? "Plan Set" : t.charAt(0).toUpperCase() + t.slice(1)}
                   </Text>
                 </TouchableOpacity>
@@ -347,7 +485,7 @@ export default function MessagesScreen() {
 
             {/* Priority */}
             <Text style={[styles.label, { color: colors.muted }]}>Priority</Text>
-            <View style={styles.typeRow}>
+            <View style={[styles.typeRow, { marginBottom: 16 }]}>
               {(["normal", "urgent"] as const).map((p) => (
                 <TouchableOpacity
                   key={p}
@@ -355,15 +493,15 @@ export default function MessagesScreen() {
                   style={[
                     styles.typeChip,
                     {
-                      backgroundColor: priority === p ? (p === "urgent" ? colors.warning : colors.primary) : colors.surface,
                       borderColor: priority === p ? (p === "urgent" ? colors.warning : colors.primary) : colors.border,
+                      backgroundColor: priority === p ? (p === "urgent" ? `${colors.warning}15` : `${colors.primary}15`) : "transparent",
                     },
                   ]}
                 >
                   <Text
                     style={{
-                      color: priority === p ? (p === "urgent" ? "#000" : colors.background) : colors.foreground,
-                      fontSize: 12,
+                      color: priority === p ? (p === "urgent" ? colors.warning : colors.primary) : colors.muted,
+                      fontSize: 13,
                       fontWeight: "600",
                     }}
                   >
@@ -376,69 +514,47 @@ export default function MessagesScreen() {
             {/* Recipients */}
             <Text style={[styles.label, { color: colors.muted }]}>Recipients</Text>
             <TouchableOpacity
-              onPress={() => {
-                setIsCompanyWide(!isCompanyWide);
-                if (!isCompanyWide) setSelectedRecipients([]);
-              }}
+              onPress={() => setIsCompanyWide(!isCompanyWide)}
               style={[
                 styles.companyWideBtn,
                 {
-                  backgroundColor: isCompanyWide ? colors.primary : colors.surface,
                   borderColor: isCompanyWide ? colors.primary : colors.border,
+                  backgroundColor: isCompanyWide ? `${colors.primary}15` : "transparent",
                 },
               ]}
             >
-              <IconSymbol name="person.3.fill" size={16} color={isCompanyWide ? colors.background : colors.foreground} />
-              <Text
-                style={{
-                  color: isCompanyWide ? colors.background : colors.foreground,
-                  fontSize: 13,
-                  fontWeight: "600",
-                  marginLeft: 6,
-                }}
-              >
-                Entire Company
+              <IconSymbol name="person.3.fill" size={16} color={isCompanyWide ? colors.primary : colors.muted} />
+              <Text style={{ color: isCompanyWide ? colors.primary : colors.muted, fontSize: 13, fontWeight: "600", marginLeft: 8 }}>
+                Send to Everyone
               </Text>
             </TouchableOpacity>
-
             {!isCompanyWide && (
               <View style={styles.recipientGrid}>
-                {activeEmployees.map((emp: any) => {
-                  const selected = selectedRecipients.includes(emp.id);
-                  return (
-                    <TouchableOpacity
-                      key={emp.id}
-                      onPress={() => toggleRecipient(emp.id)}
-                      style={[
-                        styles.recipientChip,
-                        {
-                          backgroundColor: selected ? `${colors.primary}20` : colors.surface,
-                          borderColor: selected ? colors.primary : colors.border,
-                        },
-                      ]}
+                {activeEmployees.map((emp: any) => (
+                  <TouchableOpacity
+                    key={emp.id}
+                    onPress={() => toggleRecipient(emp.id)}
+                    style={[
+                      styles.recipientChip,
+                      {
+                        borderColor: selectedRecipients.includes(emp.id) ? colors.primary : colors.border,
+                        backgroundColor: selectedRecipients.includes(emp.id) ? `${colors.primary}15` : "transparent",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: selectedRecipients.includes(emp.id) ? colors.primary : colors.muted,
+                        fontSize: 12,
+                        fontWeight: "600",
+                      }}
+                      numberOfLines={1}
                     >
-                      <Text
-                        style={{
-                          color: selected ? colors.primary : colors.foreground,
-                          fontSize: 12,
-                          fontWeight: selected ? "700" : "500",
-                        }}
-                        numberOfLines={1}
-                      >
-                        {emp.name}
-                      </Text>
-                      <Text style={{ color: colors.muted, fontSize: 10 }}>
-                        {emp.role === "office_manager" ? "Office Mgr" : emp.role.charAt(0).toUpperCase() + emp.role.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                      {emp.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-            )}
-            {!isCompanyWide && selectedRecipients.length > 0 && (
-              <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>
-                {selectedRecipients.length}/5 recipients selected
-              </Text>
             )}
 
             {/* Subject */}
@@ -446,11 +562,10 @@ export default function MessagesScreen() {
             <TextInput
               value={subject}
               onChangeText={setSubject}
-              placeholder="Enter subject..."
+              placeholder="Subject..."
               placeholderTextColor={colors.muted}
               style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.surface }]}
-              maxLength={255}
-              returnKeyType="next"
+              returnKeyType="done"
             />
 
             {/* Body */}
@@ -469,44 +584,31 @@ export default function MessagesScreen() {
               textAlignVertical="top"
             />
 
-            {/* Attachment placeholder */}
+            {/* Attachment */}
             <Text style={[styles.label, { color: colors.muted }]}>Attachment (optional)</Text>
             <View style={styles.attachRow}>
               <TouchableOpacity
-                onPress={async () => {
-                  const result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ["images"],
-                    quality: 0.8,
-                  });
-                  if (!result.canceled && result.assets[0]) {
-                    setAttachmentName(result.assets[0].fileName || "photo.jpg");
-                  }
-                }}
+                onPress={handlePickImage}
                 style={[styles.attachBtn, { borderColor: colors.border }]}
               >
                 <IconSymbol name="camera.fill" size={18} color={colors.primary} />
                 <Text style={{ color: colors.primary, fontSize: 12, marginLeft: 4 }}>Photo</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={async () => {
-                  const result = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"] });
-                  if (!result.canceled && result.assets[0]) {
-                    setAttachmentName(result.assets[0].name || "document");
-                  }
-                }}
+                onPress={handlePickDocument}
                 style={[styles.attachBtn, { borderColor: colors.border }]}
               >
                 <IconSymbol name="paperclip" size={18} color={colors.primary} />
                 <Text style={{ color: colors.primary, fontSize: 12, marginLeft: 4 }}>File/PDF</Text>
               </TouchableOpacity>
             </View>
-            {attachmentName ? (
-              <View style={[styles.attachPreview, { backgroundColor: `${colors.primary}10` }]}>
-                <IconSymbol name="paperclip" size={14} color={colors.primary} />
-                <Text style={{ color: colors.primary, fontSize: 12, flex: 1, marginLeft: 6 }} numberOfLines={1}>
-                  {attachmentName}
+            {attachment ? (
+              <View style={[styles.attachPreview, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}25` }]}>
+                <IconSymbol name={attachment.mimeType.startsWith("image/") ? "photo.fill" : attachment.mimeType === "application/pdf" ? "doc.text.fill" : "paperclip"} size={16} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontSize: 13, flex: 1, marginLeft: 8, fontWeight: "500" }} numberOfLines={1}>
+                  {attachment.name}
                 </Text>
-                <TouchableOpacity onPress={() => setAttachmentName("")}>
+                <TouchableOpacity onPress={() => setAttachment(null)}>
                   <IconSymbol name="xmark" size={16} color={colors.muted} />
                 </TouchableOpacity>
               </View>
@@ -582,14 +684,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 0.5,
   },
   msgBodyText: { fontSize: 14, lineHeight: 20 },
-  attachBadge: {
+  attachDownloadBtn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginTop: 8,
-    alignSelf: "flex-start",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
   },
   // Modal
   modalContainer: { flex: 1 },
@@ -656,9 +758,10 @@ const styles = StyleSheet.create({
   attachPreview: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
     marginBottom: 12,
   },
 });

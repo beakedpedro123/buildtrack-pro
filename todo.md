@@ -1941,3 +1941,13 @@
 ### Phase 93: Clock Screen Job Selector & Compass Fix
 - [x] Redesign job selector: full-width, collapsible, readable full job names, no radio circles/squares
 - [x] Replace compass button (currently opens Google Maps) with actual built-in compass using device magnetometer
+
+### Phase 94: Compass Calibration & PDF Download Fix
+- [x] Add compass calibration prompt with figure-8 animation when magnetometer accuracy is low
+- [x] Fix PDF/file download in messages — ensure all users can receive and download files on all devices
+- [x] Created lib/file-upload.ts: uploads files to S3 via /api/upload endpoint
+- [x] Created lib/file-download.ts: downloads files and opens via native share sheet (iOS/Android) or new tab (web)
+- [x] Messages now upload actual file binary to S3 when attaching (not just the name)
+- [x] Messages now show download button with file icon for received attachments
+- [x] Supports images, PDFs, Word docs, Excel, CSV, text files
+- [x] Compass modal shows figure-8 calibration overlay when magnetometer readings are inconsistent
