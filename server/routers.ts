@@ -423,13 +423,19 @@ const changeOrdersRouter = router({
     status: z.enum(["pending", "approved", "rejected"]).default("approved"),
     createdBy: z.number(),
     notes: z.string().optional(),
-  })).mutation(({ input }) => db.createChangeOrder(input)),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.createdBy, ["owner", "office_manager"], "create change orders");
+    return db.createChangeOrder(input);
+  }),
   updateStatus: publicProcedure.input(z.object({
     id: z.number(),
     status: z.enum(["pending", "approved", "rejected"]),
     approvedBy: z.number().optional(),
   })).mutation(({ input }) => db.updateChangeOrderStatus(input.id, input.status, input.approvedBy)),
-  delete: publicProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteChangeOrder(input.id)),
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingId: z.number() })).mutation(async ({ input }) => {
+    await assertRole(input.requestingId, ["owner", "office_manager"], "delete change orders");
+    return db.deleteChangeOrder(input.id);
+  }),
   total: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getChangeOrderTotal(input.jobId)),
 });
 

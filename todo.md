@@ -1852,7 +1852,7 @@
 - [x] Support PDF/plan set attachments in messages
 - [x] Allow assigning messages to 1-5 specific people or whole company
 - [x] All users can send messages (not just owner)
-- [ ] Pivot can push messages/notes like goals across accounts
+- [x] Pivot can push messages/notes like goals across accounts
 
 ### Role-Based Dashboard Content
 - [x] Workers/Foremen: replace jobs list at bottom with high-end construction calculator + compass
@@ -1860,21 +1860,21 @@
 - [x] Ensure each role only sees what they're supposed to see
 
 ### Pivot Enhancements
-- [ ] Give Pivot access to Google (web search capability)
+- [x] Give Pivot access to Google (web search capability)
 - [x] Tailor Pivot responses to user's specific position/role
-- [ ] Allow Pivot to push messages/notes across accounts like goals
+- [x] Allow Pivot to push messages/notes across accounts like goals
 
 ### Account Sync & Role Verification
-- [ ] Verify all accounts are synced properly
-- [ ] Verify role-based visibility is correct for each position
-- [ ] Ensure owner-only data stays owner-only
+- [x] Verify all accounts are synced properly
+- [x] Verify role-based visibility is correct for each position
+- [x] Ensure owner-only data stays owner-only
 
 ### Final Audit
-- [ ] Audit sync functionality across all accounts
-- [ ] Audit caching for offline use
-- [ ] Audit refresh and data fetching
-- [ ] Code optimization and compression
-- [ ] Check all functions work end-to-end
+- [x] Audit sync functionality across all accounts
+- [x] Audit caching for offline use
+- [x] Audit refresh and data fetching
+- [x] Code optimization and compression
+- [x] Check all functions work end-to-end
 - [x] Add high-end construction + payroll calculator for ALL roles (accessible from dashboard)
 - [x] Redesign job buttons/list on main screen for ALL roles (sleek, no boxes, modern)
 - [x] Add work items to Daily Field Report: Roof Sheathing, T&G Siding, Interior Finish Work, Finished Facia, Exterior Soffit, Interior Soffit, Demo, Shim and Shave

@@ -912,7 +912,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                                 onPress={() => {
                                   Alert.alert("Delete Change Order", `Remove "${co.description}"?`, [
                                     { text: "Cancel", style: "cancel" },
-                                    { text: "Delete", style: "destructive", onPress: () => deleteCO.mutate({ id: co.id }) },
+                                    { text: "Delete", style: "destructive", onPress: () => deleteCO.mutate({ id: co.id, requestingId: employee?.id || 0 }) },
                                   ]);
                                 }}
                                 style={{ padding: 4 }}
