@@ -164,6 +164,10 @@ export default function TabLayout() {
         name="team"
         options={{ href: null, title: "Team" }}
       />
+      <Tabs.Screen
+        name="charts"
+        options={{ href: null, title: "Charts" }}
+      />
     </Tabs>
   );
 }

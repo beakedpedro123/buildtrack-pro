@@ -1688,3 +1688,316 @@ export async function getChangeOrderTotal(jobId: number) {
   }
   return total;
 }
+
+
+// ─── Financial Charts Analytics ──────────────────────────────────────────────
+
+/**
+ * Get job profitability data for all active/completed jobs.
+ * Returns: budget, total spend (labor + overhead + expenses), profit margin, change orders.
+ */
+export async function getJobProfitability() {
+  const db = await getDb();
+  if (!db) return [];
+
+  const allJobs = await db.select().from(jobs);
+  const allEntries = await db.select().from(clockEntries);
+  const allEmployees = await db.select().from(employees);
+  const allExpenses = await db.select().from(expenses);
+  const allChangeOrders = await db.select().from(changeOrders);
+  const empMap = new Map(allEmployees.map(e => [e.id, e]));
+
+  return allJobs.filter(j => j.status === "active" || j.status === "completed").map(job => {
+    const baseBudget = parseFloat((job.totalBudget as string) || "0");
+
+    // Change orders
+    const jobCOs = allChangeOrders.filter(co => co.jobId === job.id && co.status === "approved");
+    let coTotal = 0;
+    for (const co of jobCOs) {
+      const amt = parseFloat(String(co.amount) || "0");
+      coTotal += co.orderType === "deduct" ? -amt : amt;
+    }
+    const effectiveBudget = baseBudget + coTotal;
+
+    // Labor
+    const jobEntries = allEntries.filter(e => e.jobId === job.id && e.clockOut);
+    let laborCost = 0;
+    let totalMinutes = 0;
+    for (const entry of jobEntries) {
+      const mins = Math.max(0, Math.floor((new Date(entry.clockOut!).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+      totalMinutes += mins;
+      const emp = empMap.get(entry.employeeId);
+      if (emp?.hourlyRate) {
+        laborCost += (mins / 60) * parseFloat(emp.hourlyRate as string);
+      }
+    }
+
+    // Overhead
+    const taxRate = parseFloat((job.taxRate as string) || "0");
+    const wcRate = parseFloat((job.workersCompRate as string) || "0");
+    const liRate = parseFloat((job.liabilityInsRate as string) || "0");
+    const taxCost = laborCost * (taxRate / 100);
+    const wcCost = laborCost * (wcRate / 100);
+    const liCost = laborCost * (liRate / 100);
+    const overheadCost = taxCost + wcCost + liCost;
+
+    // Expenses
+    const jobExp = allExpenses.filter(e => e.jobId === job.id);
+    const expenseCost = jobExp.reduce((s, e) => s + parseFloat((e.amount as string) || "0"), 0);
+
+    const totalSpend = laborCost + overheadCost + expenseCost;
+    const profit = effectiveBudget - totalSpend;
+    const marginPct = effectiveBudget > 0 ? (profit / effectiveBudget) * 100 : 0;
+
+    return {
+      jobId: job.id,
+      jobName: job.name,
+      status: job.status,
+      baseBudget: Math.round(baseBudget * 100) / 100,
+      changeOrderTotal: Math.round(coTotal * 100) / 100,
+      effectiveBudget: Math.round(effectiveBudget * 100) / 100,
+      laborCost: Math.round(laborCost * 100) / 100,
+      taxCost: Math.round(taxCost * 100) / 100,
+      wcCost: Math.round(wcCost * 100) / 100,
+      liCost: Math.round(liCost * 100) / 100,
+      overheadCost: Math.round(overheadCost * 100) / 100,
+      expenseCost: Math.round(expenseCost * 100) / 100,
+      totalSpend: Math.round(totalSpend * 100) / 100,
+      profit: Math.round(profit * 100) / 100,
+      marginPct: Math.round(marginPct * 10) / 10,
+      totalMinutes,
+      changeOrderCount: jobCOs.length,
+    };
+  }).sort((a, b) => b.effectiveBudget - a.effectiveBudget);
+}
+
+/**
+ * Get tax breakdown across all active jobs.
+ * Returns per-job: payroll tax, workers comp, liability insurance, total overhead.
+ */
+export async function getTaxBreakdown() {
+  const db = await getDb();
+  if (!db) return [];
+
+  const allJobs = await db.select().from(jobs).where(eq(jobs.status, "active"));
+  const allEntries = await db.select().from(clockEntries);
+  const allEmployees = await db.select().from(employees);
+  const empMap = new Map(allEmployees.map(e => [e.id, e]));
+
+  return allJobs.map(job => {
+    const jobEntries = allEntries.filter(e => e.jobId === job.id && e.clockOut);
+    let laborCost = 0;
+    for (const entry of jobEntries) {
+      const mins = Math.max(0, Math.floor((new Date(entry.clockOut!).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+      const emp = empMap.get(entry.employeeId);
+      if (emp?.hourlyRate) {
+        laborCost += (mins / 60) * parseFloat(emp.hourlyRate as string);
+      }
+    }
+
+    const taxRate = parseFloat((job.taxRate as string) || "0");
+    const wcRate = parseFloat((job.workersCompRate as string) || "0");
+    const liRate = parseFloat((job.liabilityInsRate as string) || "0");
+
+    return {
+      jobId: job.id,
+      jobName: job.name,
+      laborCost: Math.round(laborCost * 100) / 100,
+      taxRate,
+      taxCost: Math.round(laborCost * (taxRate / 100) * 100) / 100,
+      workersCompRate: wcRate,
+      workersCompCost: Math.round(laborCost * (wcRate / 100) * 100) / 100,
+      liabilityInsRate: liRate,
+      liabilityInsCost: Math.round(laborCost * (liRate / 100) * 100) / 100,
+      totalOverhead: Math.round(laborCost * ((taxRate + wcRate + liRate) / 100) * 100) / 100,
+    };
+  }).filter(j => j.laborCost > 0).sort((a, b) => b.totalOverhead - a.totalOverhead);
+}
+
+/**
+ * Get budget burn-down data for a specific job over time.
+ * Returns weekly cumulative spend vs budget line.
+ */
+export async function getBudgetBurnDown(jobId: number, weeks: number = 12) {
+  const db = await getDb();
+  if (!db) return { job: null, burnDown: [] };
+
+  const job = await db.select().from(jobs).where(eq(jobs.id, jobId));
+  if (!job.length) return { job: null, burnDown: [] };
+  const theJob = job[0];
+
+  const baseBudget = parseFloat((theJob.totalBudget as string) || "0");
+  // Get change order total
+  const jobCOs = await db.select().from(changeOrders).where(and(eq(changeOrders.jobId, jobId), eq(changeOrders.status, "approved")));
+  let coTotal = 0;
+  for (const co of jobCOs) {
+    const amt = parseFloat(String(co.amount) || "0");
+    coTotal += co.orderType === "deduct" ? -amt : amt;
+  }
+  const effectiveBudget = baseBudget + coTotal;
+
+  // Get all clock entries for this job
+  const jobEntries = await db.select().from(clockEntries).where(eq(clockEntries.jobId, jobId));
+  const allEmployees = await db.select().from(employees);
+  const empMap = new Map(allEmployees.map(e => [e.id, e]));
+
+  // Get all expenses for this job
+  const jobExpenses = await db.select().from(expenses).where(eq(expenses.jobId, jobId));
+
+  // Build weekly buckets going back N weeks
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const currentMonday = new Date(now);
+  currentMonday.setDate(now.getDate() + mondayOffset);
+  currentMonday.setHours(0, 0, 0, 0);
+
+  const startDate = new Date(currentMonday);
+  startDate.setDate(startDate.getDate() - (weeks - 1) * 7);
+
+  const burnDown: { weekLabel: string; weekStart: string; cumulativeSpend: number; budgetLine: number }[] = [];
+  let cumulativeSpend = 0;
+
+  // Calculate spend before the window
+  for (const entry of jobEntries) {
+    if (!entry.clockOut) continue;
+    const clockInDate = new Date(entry.clockIn);
+    if (clockInDate >= startDate) continue;
+    const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - clockInDate.getTime()) / 60000));
+    const emp = empMap.get(entry.employeeId);
+    if (emp?.hourlyRate) {
+      const cost = (mins / 60) * parseFloat(emp.hourlyRate as string);
+      const taxRate = parseFloat((theJob.taxRate as string) || "0");
+      const wcRate = parseFloat((theJob.workersCompRate as string) || "0");
+      const liRate = parseFloat((theJob.liabilityInsRate as string) || "0");
+      cumulativeSpend += cost * (1 + (taxRate + wcRate + liRate) / 100);
+    }
+  }
+  for (const exp of jobExpenses) {
+    const expDate = new Date(exp.expenseDate);
+    if (expDate >= startDate) continue;
+    cumulativeSpend += parseFloat((exp.amount as string) || "0");
+  }
+
+  for (let i = 0; i < weeks; i++) {
+    const ws = new Date(startDate);
+    ws.setDate(ws.getDate() + i * 7);
+    const we = new Date(ws);
+    we.setDate(we.getDate() + 7);
+
+    // Labor cost this week
+    let weekLabor = 0;
+    for (const entry of jobEntries) {
+      if (!entry.clockOut) continue;
+      const clockInDate = new Date(entry.clockIn);
+      if (clockInDate < ws || clockInDate >= we) continue;
+      const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - clockInDate.getTime()) / 60000));
+      const emp = empMap.get(entry.employeeId);
+      if (emp?.hourlyRate) {
+        weekLabor += (mins / 60) * parseFloat(emp.hourlyRate as string);
+      }
+    }
+    // Add overhead to labor
+    const taxRate = parseFloat((theJob.taxRate as string) || "0");
+    const wcRate = parseFloat((theJob.workersCompRate as string) || "0");
+    const liRate = parseFloat((theJob.liabilityInsRate as string) || "0");
+    weekLabor *= (1 + (taxRate + wcRate + liRate) / 100);
+
+    // Expenses this week
+    let weekExpenses = 0;
+    for (const exp of jobExpenses) {
+      const expDate = new Date(exp.expenseDate);
+      if (expDate < ws || expDate >= we) continue;
+      weekExpenses += parseFloat((exp.amount as string) || "0");
+    }
+
+    cumulativeSpend += weekLabor + weekExpenses;
+
+    const month = ws.toLocaleString("en-US", { month: "short" });
+    const day = ws.getDate();
+    burnDown.push({
+      weekLabel: `${month} ${day}`,
+      weekStart: ws.toISOString(),
+      cumulativeSpend: Math.round(cumulativeSpend * 100) / 100,
+      budgetLine: effectiveBudget,
+    });
+  }
+
+  return {
+    job: {
+      id: theJob.id,
+      name: theJob.name,
+      effectiveBudget,
+      baseBudget,
+      changeOrderTotal: coTotal,
+    },
+    burnDown,
+  };
+}
+
+/**
+ * Get monthly labor cost trend for the past N months.
+ * Returns: array of { monthLabel, totalCost, totalMinutes, laborOnly, taxCost, wcCost, liCost }
+ */
+export async function getMonthlyLaborTrend(months: number = 6) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+
+  const entries = await db.select().from(clockEntries).where(gte(clockEntries.clockIn, startDate));
+  const allEmployees = await db.select().from(employees);
+  const allJobs = await db.select().from(jobs);
+  const empMap = new Map(allEmployees.map(e => [e.id, e]));
+
+  // Build month buckets
+  const monthBuckets: { monthLabel: string; totalMinutes: number; laborOnly: number; taxCost: number; wcCost: number; liCost: number }[] = [];
+  for (let i = 0; i < months; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - months + 1 + i, 1);
+    monthBuckets.push({
+      monthLabel: d.toLocaleString("en-US", { month: "short", year: "2-digit" }),
+      totalMinutes: 0,
+      laborOnly: 0,
+      taxCost: 0,
+      wcCost: 0,
+      liCost: 0,
+    });
+  }
+
+  // Average tax rates across all active jobs for overhead calculation
+  const activeJobs = allJobs.filter(j => j.status === "active");
+  let avgTaxRate = 0, avgWcRate = 0, avgLiRate = 0;
+  if (activeJobs.length > 0) {
+    avgTaxRate = activeJobs.reduce((s, j) => s + parseFloat((j.taxRate as string) || "0"), 0) / activeJobs.length;
+    avgWcRate = activeJobs.reduce((s, j) => s + parseFloat((j.workersCompRate as string) || "0"), 0) / activeJobs.length;
+    avgLiRate = activeJobs.reduce((s, j) => s + parseFloat((j.liabilityInsRate as string) || "0"), 0) / activeJobs.length;
+  }
+
+  for (const entry of entries) {
+    if (!entry.clockOut) continue;
+    const clockInDate = new Date(entry.clockIn);
+    const monthIdx = (clockInDate.getFullYear() - startDate.getFullYear()) * 12 + (clockInDate.getMonth() - startDate.getMonth());
+    if (monthIdx < 0 || monthIdx >= months) continue;
+
+    const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - clockInDate.getTime()) / 60000));
+    monthBuckets[monthIdx].totalMinutes += mins;
+    const emp = empMap.get(entry.employeeId);
+    if (emp?.hourlyRate) {
+      const cost = (mins / 60) * parseFloat(emp.hourlyRate as string);
+      monthBuckets[monthIdx].laborOnly += cost;
+      monthBuckets[monthIdx].taxCost += cost * (avgTaxRate / 100);
+      monthBuckets[monthIdx].wcCost += cost * (avgWcRate / 100);
+      monthBuckets[monthIdx].liCost += cost * (avgLiRate / 100);
+    }
+  }
+
+  return monthBuckets.map(b => ({
+    ...b,
+    laborOnly: Math.round(b.laborOnly * 100) / 100,
+    taxCost: Math.round(b.taxCost * 100) / 100,
+    wcCost: Math.round(b.wcCost * 100) / 100,
+    liCost: Math.round(b.liCost * 100) / 100,
+    totalCost: Math.round((b.laborOnly + b.taxCost + b.wcCost + b.liCost) * 100) / 100,
+  }));
+}

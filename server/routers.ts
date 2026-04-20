@@ -856,6 +856,18 @@ const laborDashboardRouter = router({
   }),
 });
 
+const financialChartsRouter = router({
+  jobProfitability: publicProcedure.query(() => db.getJobProfitability()),
+  taxBreakdown: publicProcedure.query(() => db.getTaxBreakdown()),
+  budgetBurnDown: publicProcedure.input(z.object({
+    jobId: z.number(),
+    weeks: z.number().default(12),
+  })).query(({ input }) => db.getBudgetBurnDown(input.jobId, input.weeks)),
+  monthlyLaborTrend: publicProcedure.input(z.object({
+    months: z.number().default(6),
+  })).query(({ input }) => db.getMonthlyLaborTrend(input.months)),
+});
+
 const kpiRouter = router({
   list: publicProcedure.query(() => db.getAllKpis()),
   getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getKpiById(input.id)),
@@ -2782,6 +2794,7 @@ export const appRouter = router({
   kpi: kpiRouter,
   laborDashboard: laborDashboardRouter,
   budgetAlerts: budgetAlertsRouter,
+  financialCharts: financialChartsRouter,
   safetyTopics: safetyTopicsRouter,
   safetyMeetings: safetyMeetingsRouter,
   pivot: pivotRouter,

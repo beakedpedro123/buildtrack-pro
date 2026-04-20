@@ -1889,3 +1889,13 @@
 - [x] Add inline budget editing on job detail (owner/office_manager)
 - [x] Add change orders UI section on Jobs budget tab
 - [x] Change orders auto-adjust the effective budget total
+
+### Phase 89: Financial Graphs & Shareable Charts
+- [x] Server-side analytics endpoints (profitability by job, labor trends, tax breakdown, budget burn-down)
+- [x] Financial Charts screen with job profitability chart
+- [x] Labor cost trends chart (weekly/monthly)
+- [x] Tax breakdown chart (per job and aggregate)
+- [x] Budget burn-down chart (per job over time)
+- [x] Share functionality for all charts (image export + native share sheet)
+- [x] Integrate charts into existing reports section alongside PDF reports
+- [x] Role-based access: owner/office_manager see dollar amounts, foreman sees hours only

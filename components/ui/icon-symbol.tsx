@@ -68,6 +68,7 @@ const MAPPING = {
   "square.grid.2x2.fill": "dashboard" as const,
   "envelope.fill": "mail" as const,
   "paperclip": "attach-file" as const,
+  "chart.pie.fill": "pie-chart" as const,
 } satisfies Record<string, ComponentProps<typeof MaterialIcons>["name"]>;
 
 /**

@@ -13,8 +13,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import JobsScreen from "./jobs";
 import ReportsScreen from "./reports";
+import ChartsScreen from "./charts";
 
-type SubTab = "jobs" | "reports";
+type SubTab = "jobs" | "reports" | "charts";
 
 export default function JobsReportsScreen() {
   const colors = useColors();
@@ -23,6 +24,7 @@ export default function JobsReportsScreen() {
   const tabs: { key: SubTab; label: string; icon: string }[] = [
     { key: "jobs", label: "Jobs", icon: "🏗️" },
     { key: "reports", label: "Reports", icon: "📋" },
+    { key: "charts", label: "Charts", icon: "📊" },
   ];
 
   const handleTabPress = useCallback((tab: SubTab) => {
@@ -67,6 +69,7 @@ export default function JobsReportsScreen() {
       <View style={{ flex: 1 }}>
         {activeTab === "jobs" && <JobsScreen embedded />}
         {activeTab === "reports" && <ReportsScreen embedded />}
+        {activeTab === "charts" && <ChartsScreen embedded />}
       </View>
     </View>
   );
