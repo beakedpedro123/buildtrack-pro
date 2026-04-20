@@ -246,6 +246,8 @@ export default function DashboardScreen() {
   const [showByEmployee, setShowByEmployee] = useState(true);
   const [showBudgetAlerts, setShowBudgetAlerts] = useState(true);
   const [showWeeklyTrend, setShowWeeklyTrend] = useState(false);
+  const [showCostByJob, setShowCostByJob] = useState(false);
+  const [showHourlyProfit, setShowHourlyProfit] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
 
   useEffect(() => {
@@ -937,35 +939,42 @@ export default function DashboardScreen() {
           </>
         )}
 
-        {/* ═══ HOURLY JOB PROFIT (owner only) ═══ */}
+        {/* ═══ HOURLY JOB PROFIT (owner only) — COLLAPSIBLE ═══ */}
         {isOwner && hourlyJobProfits.length > 0 && (
           <>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 }}>
-              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Hourly Job Profit</Text>
-            </View>
-            {hourlyJobProfits.map((jp, i) => (
-              <View key={i} style={{ marginHorizontal: 20, marginBottom: 8, backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border }}>
-                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 6 }}>{jp.jobName}</Text>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <View>
-                    <Text style={{ fontSize: 10, color: colors.muted }}>Revenue</Text>
-                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.success }}>{formatCurrency(jp.revenue)}</Text>
+            <CollapsibleHeader
+              title={`Hourly Job Profit (${hourlyJobProfits.length})`}
+              expanded={showHourlyProfit}
+              onToggle={() => setShowHourlyProfit(!showHourlyProfit)}
+              colors={colors}
+            />
+            {showHourlyProfit && (
+              <View style={{ marginBottom: 8 }}>
+                {hourlyJobProfits.map((jp, i) => (
+                  <View key={i} style={{ marginHorizontal: 20, marginBottom: 8, backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 6 }}>{jp.jobName}</Text>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                      <View>
+                        <Text style={{ fontSize: 10, color: colors.muted }}>Revenue</Text>
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.success }}>{formatCurrency(jp.revenue)}</Text>
+                      </View>
+                      <View>
+                        <Text style={{ fontSize: 10, color: colors.muted }}>Labor Cost</Text>
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.error }}>{formatCurrency(jp.cost)}</Text>
+                      </View>
+                      <View>
+                        <Text style={{ fontSize: 10, color: colors.muted }}>Profit</Text>
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: jp.profit >= 0 ? colors.success : colors.error }}>{formatCurrency(jp.profit)}</Text>
+                      </View>
+                      <View>
+                        <Text style={{ fontSize: 10, color: colors.muted }}>Margin</Text>
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: jp.margin >= 0 ? colors.success : colors.error }}>{jp.margin.toFixed(1)}%</Text>
+                      </View>
+                    </View>
                   </View>
-                  <View>
-                    <Text style={{ fontSize: 10, color: colors.muted }}>Labor Cost</Text>
-                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.error }}>{formatCurrency(jp.cost)}</Text>
-                  </View>
-                  <View>
-                    <Text style={{ fontSize: 10, color: colors.muted }}>Profit</Text>
-                    <Text style={{ fontSize: 14, fontWeight: "700", color: jp.profit >= 0 ? colors.success : colors.error }}>{formatCurrency(jp.profit)}</Text>
-                  </View>
-                  <View>
-                    <Text style={{ fontSize: 10, color: colors.muted }}>Margin</Text>
-                    <Text style={{ fontSize: 14, fontWeight: "700", color: jp.margin >= 0 ? colors.success : colors.error }}>{jp.margin.toFixed(1)}%</Text>
-                  </View>
-                </View>
+                ))}
               </View>
-            ))}
+            )}
           </>
         )}
 
@@ -1061,14 +1070,16 @@ export default function DashboardScreen() {
             </>
           )}
 
-          {/* Per-Job Breakdown */}
+          {/* Per-Job Breakdown — COLLAPSIBLE */}
           {byJob && byJob.length > 0 && (
             <>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 }}>
-                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
-                  {canSeeDollars ? "Cost" : "Hours"} by Job ({periodLabel})
-                </Text>
-              </View>
+              <CollapsibleHeader
+                title={`${canSeeDollars ? "Cost" : "Hours"} by Job (${periodLabel})`}
+                expanded={showCostByJob}
+                onToggle={() => setShowCostByJob(!showCostByJob)}
+                colors={colors}
+              />
+              {showCostByJob && (
               <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
                 {byJob.slice(0, 8).map((job) => {
                   const value = canSeeDollars ? job.totalCost : job.totalMinutes;
@@ -1115,6 +1126,7 @@ export default function DashboardScreen() {
                   );
                 })}
               </View>
+            )}
             </>
           )}
 

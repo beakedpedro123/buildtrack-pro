@@ -1909,3 +1909,10 @@
 - [x] Budget audit log UI on Jobs budget tab (full paper trail)
 - [x] Wire budget edits to create audit log entries automatically
 - [x] Wire change order create/delete to create audit log entries automatically
+
+### Phase 91: Collapsible Home Screen Sections
+- [x] Make Cost by Job section collapsible
+- [x] Make By Employee section collapsible (already was)
+- [x] Make Active Jobs section collapsible (already was)
+- [x] Make Weekly Trend section collapsible (already was)
+- [x] Make hourly job profit section collapsible on home screen
