@@ -2016,3 +2016,11 @@
 - [x] Restored MySQL schema, db.ts, drizzle.config.ts, relations.ts, migration files from pre-PG commit
 - [x] Verified API serving all data correctly (22 employees, 12 jobs)
 - [x] TypeScript: 0 errors, Tests: 304 passed
+
+### Phase 100: Payroll Period Navigation & Compass Fix
+- [x] Add previous/next arrows to navigate between pay periods
+- [x] Highlight current pay period distinctly ("Current Period" badge + border highlight)
+- [x] Tap center label to jump back to current period from any historical period
+- [x] Unicode dash display verified working (\u2013 renders correctly)
+- [x] Fix compass showing East as West (atan2(y,x) -> atan2(x,y) for correct cardinal mapping)
+- [x] TypeScript: 0 errors, Tests: 304 passed

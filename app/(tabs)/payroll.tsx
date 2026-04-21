@@ -47,11 +47,21 @@ function getCurrentPayPeriod(now: Date): { periodStart: Date; periodEnd: Date } 
   return { periodStart, periodEnd };
 }
 
+/** Get pay period with offset from current. offset=0 is current, -1 is previous, etc. */
+function getPayPeriodByOffset(offset: number): { periodStart: Date; periodEnd: Date } {
+  const { periodStart: currentStart } = getCurrentPayPeriod(new Date());
+  const periodStart = new Date(currentStart.getTime() + offset * PERIOD_DAYS * MS_PER_DAY);
+  periodStart.setHours(0, 0, 0, 0);
+  const periodEnd = new Date(periodStart.getTime() + (PERIOD_DAYS - 1) * MS_PER_DAY);
+  periodEnd.setHours(23, 59, 59, 999);
+  return { periodStart, periodEnd };
+}
+
 function fmtDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
 }
 
-function getDateRange(period: Period, customStart?: string, customEnd?: string): { startDate: string; endDate: string; label: string } {
+function getDateRange(period: Period, customStart?: string, customEnd?: string, periodOffset: number = 0): { startDate: string; endDate: string; label: string } {
   if (period === "custom" && customStart && customEnd) {
     const start = new Date(customStart + "T00:00:00");
     const end = new Date(customEnd + "T23:59:59.999");
@@ -79,11 +89,12 @@ function getDateRange(period: Period, customStart?: string, customEnd?: string):
       label: `${fmtDate(weekStart)} \u2013 ${fmtDate(weekEnd)}`,
     };
   } else if (period === "biweek") {
-    // Full current pay period
+    // Pay period with offset navigation (0 = current, -1 = previous, etc.)
+    const { periodStart: pStart, periodEnd: pEnd } = getPayPeriodByOffset(periodOffset);
     return {
-      startDate: periodStart.toISOString(),
-      endDate: periodEnd.toISOString(),
-      label: `${fmtDate(periodStart)} \u2013 ${fmtDate(periodEnd)}`,
+      startDate: pStart.toISOString(),
+      endDate: pEnd.toISOString(),
+      label: `${fmtDate(pStart)} \u2013 ${fmtDate(pEnd)}`,
     };
   } else {
     // This month
@@ -213,6 +224,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
   const router = useRouter();
   const { employee } = useAppAuth();
   const [period, setPeriod] = useState<Period>("biweek");
+  const [periodOffset, setPeriodOffset] = useState(0); // 0=current, -1=previous, -2=two ago, etc.
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [reportType, setReportType] = useState<"full" | "payroll" | "jobcost" | "employee">("full");
@@ -229,7 +241,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
   const [customStart, setCustomStart] = useState(twoWeeksAgo.toISOString().slice(0, 10));
   const [customEnd, setCustomEnd] = useState(today.toISOString().slice(0, 10));
 
-  const range = getDateRange(period, customStart, customEnd);
+  const range = getDateRange(period, customStart, customEnd, periodOffset);
 
   // RBAC: payroll screen is for owner/office_manager/logistics only
   const canAccessPayroll = employee?.role === "owner" || employee?.role === "office_manager";
@@ -348,6 +360,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
       setShowDatePicker(true);
     } else {
       setPeriod(key);
+      if (key !== "biweek") setPeriodOffset(0); // reset offset when leaving biweek
     }
   };
 
@@ -365,15 +378,103 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
             {new Date(range.endDate).toLocaleDateString()}
           </Text>
           {period === "biweek" && (() => {
-            const { periodStart } = getCurrentPayPeriod(new Date());
+            const { periodStart } = getPayPeriodByOffset(periodOffset);
             const payDate = new Date(periodStart.getTime() + 4 * MS_PER_DAY);
             return (
-              <Text style={{ fontSize: 12, color: colors.primary, marginTop: 2, fontWeight: "600" }}>
-                Pay Date: {payDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
+                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
+                  Pay Date: {payDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </Text>
+                {periodOffset === 0 && (
+                  <View style={{ backgroundColor: colors.success + "22", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: colors.success }}>Current Period</Text>
+                  </View>
+                )}
+              </View>
             );
           })()}
         </View>
+
+        {/* Pay Period Navigation — only when biweek is selected */}
+        {period === "biweek" && (
+          <View style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginHorizontal: 16,
+            marginBottom: 12,
+            backgroundColor: colors.surface,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: periodOffset === 0 ? colors.primary + "40" : colors.border,
+            padding: 10,
+          }}>
+            <TouchableOpacity
+              onPress={() => {
+                setPeriodOffset((prev) => prev - 1);
+                if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: colors.primary + "15",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 18, color: colors.primary, fontWeight: "700" }}>{"\u2190"}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                if (periodOffset !== 0) {
+                  setPeriodOffset(0);
+                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }
+              }}
+              style={{ flex: 1, alignItems: "center", paddingHorizontal: 8 }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
+                {periodOffset === 0
+                  ? "Current Pay Period"
+                  : periodOffset === -1
+                    ? "Previous Pay Period"
+                    : periodOffset === 1
+                      ? "Next Pay Period"
+                      : `${Math.abs(periodOffset)} Periods ${periodOffset < 0 ? "Ago" : "Ahead"}`}
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                {range.label}
+              </Text>
+              {periodOffset !== 0 && (
+                <Text style={{ fontSize: 11, color: colors.primary, marginTop: 2, fontWeight: "600" }}>
+                  Tap to return to current
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                if (periodOffset < 0) {
+                  setPeriodOffset((prev) => prev + 1);
+                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }
+              }}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: periodOffset < 0 ? colors.primary + "15" : colors.border + "40",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: periodOffset < 0 ? 1 : 0.4,
+              }}
+            >
+              <Text style={{ fontSize: 18, color: periodOffset < 0 ? colors.primary : colors.muted, fontWeight: "700" }}>{"\u2192"}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Period Selector */}
         <View style={{ flexDirection: "row", paddingHorizontal: 16, paddingBottom: 16, flexWrap: "wrap", gap: 4 }}>

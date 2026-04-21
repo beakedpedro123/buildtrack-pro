@@ -60,9 +60,11 @@ export function CompassModal({ visible, onClose }: CompassModalProps) {
 
   const updateHeading = useCallback((x: number, y: number, z: number) => {
     // Calculate heading from magnetometer x,y
-    let angle = Math.atan2(y, x) * (180 / Math.PI);
-    // Convert to 0-360 compass heading (North = 0)
-    angle = (90 - angle + 360) % 360;
+    // atan2(x, y) gives angle from Y-axis (phone top = forward/North)
+    // This correctly maps: N=0°, E=90°, S=180°, W=270°
+    let angle = Math.atan2(x, y) * (180 / Math.PI);
+    // Normalize to 0-360 compass heading
+    angle = (angle + 360) % 360;
     const rounded = Math.round(angle);
     setHeading(rounded);
 
