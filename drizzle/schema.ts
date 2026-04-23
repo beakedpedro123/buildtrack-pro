@@ -475,3 +475,59 @@ export const budgetAuditLog = mysqlTable("budget_audit_log", {
 
 export type BudgetAuditLog = typeof budgetAuditLog.$inferSelect;
 export type InsertBudgetAuditLog = typeof budgetAuditLog.$inferInsert;
+
+// ─── Company Overhead / Monthly Expenses ──────────────────────────────────
+// Owner-only: stores real monthly business expenses for accurate job costing
+export const companyOverhead = mysqlTable("company_overhead", {
+  id: int("id").autoincrement().primaryKey(),
+  category: varchar("category", { length: 64 }).notNull(),
+  // Categories: insurance, vehicles, yard, tools, office, payroll_taxes, workers_comp, liability, other
+  label: varchar("label", { length: 128 }).notNull(), // e.g. "General Liability Insurance", "F-250 Payment"
+  monthlyAmount: decimal("monthlyAmount", { precision: 10, scale: 2 }).notNull(),
+  notes: text("notes"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CompanyOverhead = typeof companyOverhead.$inferSelect;
+export type InsertCompanyOverhead = typeof companyOverhead.$inferInsert;
+
+// ─── Job Schedule / Calendar ──────────────────────────────────────────────
+// Tracks scheduled tasks per job with crew assignments and dates
+export const jobSchedule = mysqlTable("job_schedule", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  scheduledDate: timestamp("scheduledDate").notNull(),
+  endDate: timestamp("endDate"),
+  status: mysqlEnum("status", ["pending", "in_progress", "completed", "skipped"]).default("pending").notNull(),
+  assignedEmployees: text("assignedEmployees"), // JSON array of employee IDs
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type JobSchedule = typeof jobSchedule.$inferSelect;
+export type InsertJobSchedule = typeof jobSchedule.$inferInsert;
+
+// ─── Employee Tax Info ────────────────────────────────────────────────────
+// Stores tax-related info per employee for accountant reference
+export const employeeTaxInfo = mysqlTable("employee_tax_info", {
+  id: int("id").autoincrement().primaryKey(),
+  employeeId: int("employeeId").notNull(),
+  ssn: varchar("ssn", { length: 11 }), // encrypted or last 4 only
+  filingStatus: mysqlEnum("filingStatus", ["single", "married_filing_jointly", "married_filing_separately", "head_of_household"]),
+  federalAllowances: int("federalAllowances").default(0),
+  stateAllowances: int("stateAllowances").default(0),
+  additionalWithholding: decimal("additionalWithholding", { precision: 8, scale: 2 }).default("0"),
+  w4Year: int("w4Year"),
+  i9Verified: boolean("i9Verified").default(false),
+  notes: text("notes"),
+  updatedBy: int("updatedBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type EmployeeTaxInfo = typeof employeeTaxInfo.$inferSelect;
+export type InsertEmployeeTaxInfo = typeof employeeTaxInfo.$inferInsert;

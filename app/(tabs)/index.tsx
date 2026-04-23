@@ -473,6 +473,17 @@ export default function DashboardScreen() {
   const elapsed = activeEntry ? now.getTime() - new Date(activeEntry.clockIn).getTime() : 0;
   const activeJobForEntry = [...effectiveActiveJobs, ...effectiveMyJobs].find((j) => j.id === activeEntry?.jobId);
 
+  // Today's schedule tasks
+  const { data: allSchedule } = trpc.schedule.getAll.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
+  const todayTasks = useMemo(() => {
+    if (!allSchedule) return [];
+    const today = new Date();
+    return (allSchedule as any[]).filter((item: any) => {
+      const d = new Date(item.scheduledDate);
+      return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+    }).sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  }, [allSchedule]);
+
   // Profit calculation for hourly jobs
   const hourlyJobProfits = useMemo(() => {
     if (!byJob || !activeJobs) return [];
@@ -806,7 +817,7 @@ export default function DashboardScreen() {
             onPress={() => router.push("/jobs" as any)}
             activeOpacity={0.7}
           >
-            <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }}>{(activeJobs || cachedActiveJobs || []).length}</Text>
+            <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{(activeJobs || cachedActiveJobs || []).length}</Text>
             <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Active Jobs</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -814,7 +825,7 @@ export default function DashboardScreen() {
             onPress={() => router.push("/team" as any)}
             activeOpacity={0.7}
           >
-            <Text style={{ fontSize: 26, fontWeight: "800", color: colors.success }}>{(clockedIn || []).length}</Text>
+            <Text style={{ fontSize: 26, fontWeight: "800", color: colors.success }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{(clockedIn || []).length}</Text>
             <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>On Site Now</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -822,7 +833,7 @@ export default function DashboardScreen() {
             onPress={() => router.push("/manage" as any)}
             activeOpacity={0.7}
           >
-            <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }}>{(allEmployees || cachedEmployees || []).filter((e: any) => e.isActive).length}</Text>
+            <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{(allEmployees || cachedEmployees || []).filter((e: any) => e.isActive).length}</Text>
             <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Employees</Text>
           </TouchableOpacity>
         </View>
@@ -897,6 +908,45 @@ export default function DashboardScreen() {
           </>
         )}
 
+        {/* ═══ TODAY'S SCHEDULE — COLLAPSIBLE ═══ */}
+        {isManagement && todayTasks.length > 0 && (
+          <>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 10 }}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Today's Schedule ({todayTasks.length})</Text>
+              <TouchableOpacity onPress={() => router.push("/manage" as any)}>
+                <Text style={{ fontSize: 14, color: colors.primary, fontWeight: "600" }}>View All</Text>
+              </TouchableOpacity>
+            </View>
+            {todayTasks.slice(0, 5).map((task: any) => {
+              const jobName = (activeJobs || []).find((j: any) => j.id === task.jobId)?.name || "Unknown Job";
+              const statusColors: Record<string, { bg: string; text: string; label: string }> = {
+                pending: { bg: "#F59E0B22", text: "#F59E0B", label: "Pending" },
+                in_progress: { bg: "#3B82F622", text: "#3B82F6", label: "In Progress" },
+                completed: { bg: "#22C55E22", text: "#22C55E", label: "Done" },
+                skipped: { bg: "#EF444422", text: "#EF4444", label: "Skipped" },
+              };
+              const sc = statusColors[task.status] || statusColors.pending;
+              return (
+                <View key={task.id} style={{ marginHorizontal: 20, marginBottom: 8, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center" }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: colors.primary }}>{jobName}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{task.title}</Text>
+                  </View>
+                  <View style={{ backgroundColor: sc.bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 10, fontWeight: "700", color: sc.text }}>{sc.label}</Text>
+                  </View>
+                </View>
+              );
+            })}
+            {todayTasks.length > 5 && (
+              <TouchableOpacity onPress={() => router.push("/manage" as any)} style={{ alignItems: "center", paddingVertical: 6 }}>
+                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>+{todayTasks.length - 5} more tasks</Text>
+              </TouchableOpacity>
+            )}
+            <View style={{ height: 12 }} />
+          </>
+        )}
+
         {/* ═══ BUDGET ALERTS (owner + office_manager) — COLLAPSIBLE ═══ */}
         {(isOwner || isSecretary) && activeAlerts.length > 0 && (
           <>
@@ -930,7 +980,7 @@ export default function DashboardScreen() {
                     <Text style={{ fontSize: 10, color: ac.text }}>Overhead: {formatCurrency(alert.overheadCost)}</Text>
                     <Text style={{ fontSize: 10, color: ac.text }}>Expenses: {formatCurrency(alert.expensesCost)}</Text>
                   </View>
-                  <View style={{ height: 4, backgroundColor: ac.border + "33", borderRadius: 2, marginTop: 8, marginHorizontal: 16 }}>
+                  <View style={{ height: 4, backgroundColor: ac.border + "33", borderRadius: 2, marginTop: 8, marginLeft: 16, marginRight: 4 }}>
                     <View style={{ height: 4, borderRadius: 2, backgroundColor: ac.dot, width: `${Math.min(alert.percentUsed, 100)}%` }} />
                   </View>
                 </View>
@@ -1005,27 +1055,27 @@ export default function DashboardScreen() {
           </View>
 
           {/* Summary Cards */}
-          <View style={{ flexDirection: "row", paddingHorizontal: 16, marginBottom: 16, gap: 8 }}>
+          <View style={{ flexDirection: "row", paddingHorizontal: 20, marginBottom: 16, gap: 8 }}>
             <TouchableOpacity
               style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}
               onPress={() => router.push("/jobs" as any)}
               activeOpacity={0.7}
             >
-              <Text style={{ fontSize: 20, fontWeight: "800", marginBottom: 2, color: colors.primary }}>
+              <Text style={{ fontSize: 20, fontWeight: "800", marginBottom: 2, color: colors.primary }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                 {canSeeDollars ? formatCurrency(totalCost) : formatHours(totalMinutes)}
               </Text>
-              <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }}>
+              <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                 {canSeeDollars ? `Total Spend (${periodLabel})` : `Total Hours (${periodLabel})`}
               </Text>
             </TouchableOpacity>
             <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}>
-              <Text style={{ fontSize: 20, fontWeight: "800", marginBottom: 2, color: colors.foreground }}>
+              <Text style={{ fontSize: 20, fontWeight: "800", marginBottom: 2, color: colors.foreground }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                 {(byJob || []).filter(j => j.totalMinutes > 0).length}
               </Text>
               <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }}>Jobs w/ Labor</Text>
             </View>
             <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}>
-              <Text style={{ fontSize: 20, fontWeight: "800", marginBottom: 2, color: colors.foreground }}>
+              <Text style={{ fontSize: 20, fontWeight: "800", marginBottom: 2, color: colors.foreground }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                 {(byEmployee || []).length}
               </Text>
               <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }}>Workers</Text>
@@ -1221,7 +1271,7 @@ export default function DashboardScreen() {
             <Text style={{ fontSize: 24, marginRight: 12 }}>🧮</Text>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Construction Calculator</Text>
-              <Text style={{ fontSize: 11, color: colors.muted }}>Area, Concrete, Framing, Payroll, Stairs</Text>
+              <Text style={{ fontSize: 11, color: colors.muted }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Area, Concrete, Framing, Payroll, Stairs</Text>
             </View>
             <Text style={{ fontSize: 14, color: colors.primary }}>›</Text>
           </TouchableOpacity>

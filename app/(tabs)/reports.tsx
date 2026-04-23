@@ -28,6 +28,7 @@ import { ActivityIndicator,
 
 import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
+import { useMemo } from "react";
 
 const WORK_CHECKLIST = [
   "Wall Framing",
@@ -113,6 +114,17 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
   }, []);
 
   const displayReports = recentReports || cachedReports;
+
+  // Today's scheduled tasks for the selected job
+  const { data: allSchedule } = trpc.schedule.getAll.useQuery(undefined, { staleTime: 30000 });
+  const todayScheduledTasks = useMemo(() => {
+    if (!allSchedule || !selectedJobId) return [];
+    const today = new Date();
+    return (allSchedule as any[]).filter((item: any) => {
+      const d = new Date(item.scheduledDate);
+      return item.jobId === selectedJobId && d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+    });
+  }, [allSchedule, selectedJobId]);
 
   const createReport = trpc.reports.create.useMutation();
   const markSeenMutation = trpc.reports.markSeen.useMutation({
@@ -598,6 +610,34 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
                   </View>
                 </ScrollView>
               </View>
+
+              {/* Today's Scheduled Tasks (if any for selected job) */}
+              {selectedJobId && todayScheduledTasks.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Today's Scheduled Tasks</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 8 }}>From the job schedule — reference for your report</Text>
+                  {todayScheduledTasks.map((task: any) => {
+                    const statusColors: Record<string, { bg: string; text: string; label: string }> = {
+                      pending: { bg: "#F59E0B22", text: "#F59E0B", label: "Pending" },
+                      in_progress: { bg: "#3B82F622", text: "#3B82F6", label: "In Progress" },
+                      completed: { bg: "#22C55E22", text: "#22C55E", label: "Done" },
+                      skipped: { bg: "#EF444422", text: "#EF4444", label: "Skipped" },
+                    };
+                    const sc = statusColors[task.status] || statusColors.pending;
+                    return (
+                      <View key={task.id} style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 10, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: colors.border }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{task.title}</Text>
+                          {task.description ? <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }} numberOfLines={1}>{task.description}</Text> : null}
+                        </View>
+                        <View style={{ backgroundColor: sc.bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: sc.text }}>{sc.label}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
 
               {/* Work Completed — Collapsible */}
               <View style={styles.section}>

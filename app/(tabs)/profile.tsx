@@ -20,6 +20,7 @@ import { ActivityIndicator,
 import { BG_MORE as bg_more } from "@/constants/bg-urls";
 import { useLanguage, type AppLanguage } from "@/lib/language-context";
 import MessagesScreen from "./messages";
+import { OverheadSettings } from "@/components/overhead-settings";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
@@ -44,7 +45,7 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
-type ProfileTab = "profile" | "messages";
+type ProfileTab = "profile" | "messages" | "overhead";
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -81,7 +82,7 @@ export default function ProfileScreen() {
     section: {
       backgroundColor: colors.surface,
       borderRadius: 14,
-      marginHorizontal: 16,
+      marginHorizontal: 20,
       marginBottom: 16,
       borderWidth: 1,
       borderColor: colors.border,
@@ -183,6 +184,14 @@ export default function ProfileScreen() {
   };
 
   // If showing messages, render the messages screen embedded
+  if (activeTab === "overhead") {
+    return (
+      <ScreenContainer>
+        <OverheadSettings employeeId={empId} onClose={() => setActiveTab("profile")} />
+      </ScreenContainer>
+    );
+  }
+
   if (activeTab === "messages") {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -412,6 +421,28 @@ export default function ProfileScreen() {
               <Text style={{ fontSize: 14, color: colors.foreground }}>#{employee.id}</Text>
             </View>
           </View>
+
+          {/* Overhead Settings - Owner Only */}
+          {(employee.role === "owner" || employee.role === "office_manager") && (
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.rowLast}
+                onPress={() => {
+                  setActiveTab("overhead");
+                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Text style={{ fontSize: 18 }}>💰</Text>
+                  <View>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Overhead & Expenses</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Set monthly business costs for accurate job costing</Text>
+                  </View>
+                </View>
+                <Text style={{ color: colors.muted, fontSize: 18 }}>›</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Sign Out */}
           <View style={{ paddingHorizontal: 16 }}>

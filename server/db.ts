@@ -51,6 +51,12 @@ import {
   InsertChangeOrder,
   budgetAuditLog,
   InsertBudgetAuditLog,
+  companyOverhead,
+  InsertCompanyOverhead,
+  jobSchedule,
+  InsertJobSchedule,
+  employeeTaxInfo,
+  InsertEmployeeTaxInfo,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -2208,4 +2214,111 @@ export async function getMonthlyLaborTrendFiltered(startDate?: string, endDate?:
         totalCost: Math.round((b.laborOnly + b.taxCost + b.wcCost + b.liCost) * 100) / 100,
       };
     });
+}
+
+
+// ─── Company Overhead / Monthly Expenses ──────────────────────────────────
+export async function getCompanyOverhead() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(companyOverhead).where(eq(companyOverhead.isActive, true));
+}
+
+export async function getAllCompanyOverhead() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(companyOverhead);
+}
+
+export async function createOverheadItem(data: Omit<InsertCompanyOverhead, "id" | "createdAt" | "updatedAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const result = await db.insert(companyOverhead).values(data);
+  return result[0].insertId;
+}
+
+export async function updateOverheadItem(id: number, data: Partial<InsertCompanyOverhead>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(companyOverhead).set(data).where(eq(companyOverhead.id, id));
+}
+
+export async function deleteOverheadItem(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(companyOverhead).set({ isActive: false }).where(eq(companyOverhead.id, id));
+}
+
+export async function getMonthlyOverheadTotal() {
+  const items = await getCompanyOverhead();
+  return items.reduce((sum, item) => sum + parseFloat((item.monthlyAmount as string) || "0"), 0);
+}
+
+// ─── Job Schedule / Calendar ──────────────────────────────────────────────
+export async function getJobSchedule(jobId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(jobSchedule).where(eq(jobSchedule.jobId, jobId));
+}
+
+export async function getAllScheduleItems() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(jobSchedule);
+}
+
+export async function getScheduleByDateRange(startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(jobSchedule)
+    .where(and(
+      gte(jobSchedule.scheduledDate, startDate),
+      lte(jobSchedule.scheduledDate, endDate),
+    ));
+}
+
+export async function createScheduleItem(data: Omit<InsertJobSchedule, "id" | "createdAt" | "updatedAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const result = await db.insert(jobSchedule).values(data);
+  return result[0].insertId;
+}
+
+export async function updateScheduleItem(id: number, data: Partial<InsertJobSchedule>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(jobSchedule).set(data).where(eq(jobSchedule.id, id));
+}
+
+export async function deleteScheduleItem(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.delete(jobSchedule).where(eq(jobSchedule.id, id));
+}
+
+// ─── Employee Tax Info ────────────────────────────────────────────────────
+export async function getEmployeeTaxInfo(employeeId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(employeeTaxInfo).where(eq(employeeTaxInfo.employeeId, employeeId));
+  return rows[0] || null;
+}
+
+export async function getAllEmployeeTaxInfo() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(employeeTaxInfo);
+}
+
+export async function upsertEmployeeTaxInfo(employeeId: number, data: Partial<InsertEmployeeTaxInfo>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const existing = await getEmployeeTaxInfo(employeeId);
+  if (existing) {
+    await db.update(employeeTaxInfo).set({ ...data, updatedBy: data.updatedBy || existing.updatedBy }).where(eq(employeeTaxInfo.employeeId, employeeId));
+    return existing.id;
+  } else {
+    const result = await db.insert(employeeTaxInfo).values({ employeeId, updatedBy: data.updatedBy || 0, ...data } as InsertEmployeeTaxInfo);
+    return result[0].insertId;
+  }
 }

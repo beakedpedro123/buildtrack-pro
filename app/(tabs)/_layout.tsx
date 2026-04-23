@@ -4,7 +4,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { Redirect, Tabs } from "expo-router";
 import { ActivityIndicator, Platform, View } from "react-native";
-import { OfflineBanner } from "@/components/offline-banner";
+import { OfflineBanner } from "@/components/ui/offline-banner";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { trpc } from "@/lib/trpc";
 
@@ -150,6 +150,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="charts"
         options={{ href: null, title: "Charts" }}
+      />
+      <Tabs.Screen
+        name="schedule"
+        options={{ href: null, title: "Schedule" }}
       />
     </Tabs>
     </View>

@@ -204,6 +204,11 @@ export default function MessagesScreen({ embedded }: { embedded?: boolean } = {}
 
   const handlePickImage = async () => {
     try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Please allow photo library access to attach images.");
+        return;
+      }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         quality: 0.8,

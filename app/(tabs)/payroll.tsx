@@ -298,7 +298,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
       backgroundColor: colors.surface,
       borderRadius: 14,
       padding: 16,
-      marginHorizontal: 16,
+      marginHorizontal: 20,
       marginBottom: 10,
       borderWidth: 1,
       borderColor: colors.border },
@@ -306,7 +306,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
       backgroundColor: "#D4AF37",
       borderRadius: 12,
       paddingVertical: 14,
-      marginHorizontal: 16,
+      marginHorizontal: 20,
       marginBottom: 12,
       alignItems: "center",
       flexDirection: "row",
@@ -401,7 +401,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
-            marginHorizontal: 16,
+            marginHorizontal: 20,
             marginBottom: 12,
             backgroundColor: colors.surface,
             borderRadius: 12,
@@ -495,7 +495,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
         {period === "custom" && (
           <TouchableOpacity
             style={{
-              marginHorizontal: 16,
+              marginHorizontal: 20,
               marginBottom: 12,
               backgroundColor: colors.primary + "15",
               borderRadius: 12,
@@ -530,21 +530,21 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                 {range.label} Summary
               </Text>
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                <View>
-                  <Text style={{ fontSize: 28, fontWeight: "800", color: colors.primary }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 28, fontWeight: "800", color: colors.primary }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                     {sortedRows.length}
                   </Text>
                   <Text style={{ fontSize: 12, color: colors.muted }}>employees</Text>
                 </View>
-                <View style={{ alignItems: "center" }}>
-                  <Text style={{ fontSize: 28, fontWeight: "800", color: colors.foreground }}>
+                <View style={{ flex: 1, alignItems: "center" }}>
+                  <Text style={{ fontSize: 28, fontWeight: "800", color: colors.foreground }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                     {formatDuration(sortedRows.reduce((s, r) => s + r.totalMinutes, 0))}
                   </Text>
                   <Text style={{ fontSize: 12, color: colors.muted }}>total hours</Text>
                 </View>
                 {canSeeRates && (
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={{ fontSize: 28, fontWeight: "800", color: colors.success }}>
+                  <View style={{ flex: 1, alignItems: "flex-end" }}>
+                    <Text style={{ fontSize: 28, fontWeight: "800", color: colors.success }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                       ${totalPayroll.toFixed(0)}
                     </Text>
                     <Text style={{ fontSize: 12, color: colors.muted }}>est. payroll</Text>
@@ -554,7 +554,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
             </View>
 
             {canSeeRates && (
-              <View style={{ marginHorizontal: 16, marginBottom: 12 }}>
+              <View style={{ marginHorizontal: 20, marginBottom: 12 }}>
                 {/* Report Type Selector */}
                 <TouchableOpacity
                   style={{
@@ -700,12 +700,12 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                       {row.payType === "salary" ? (
                         <Text style={{ fontSize: 11, color: colors.muted, fontStyle: "italic" }}>salaried</Text>
                       ) : (
-                        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.primary }}>
+                        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.primary }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                           {formatDuration(row.totalMinutes)}
                         </Text>
                       )}
                       {canSeeRates && (
-                        <Text style={{ fontSize: 15, fontWeight: "700", color: colors.success, marginTop: 2 }}>
+                        <Text style={{ fontSize: 15, fontWeight: "700", color: colors.success, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                           {calcPay(row)}
                         </Text>
                       )}

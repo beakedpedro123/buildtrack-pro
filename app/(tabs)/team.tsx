@@ -25,6 +25,7 @@ import { useRouter } from "expo-router";
 
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
+import { EmployeeTaxInfoModal } from "@/components/employee-tax-info";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#E8500A",
@@ -76,6 +77,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
   const [editSalaryAmount, setEditSalaryAmount] = useState("");
   const [editSalaryProjects, setEditSalaryProjects] = useState<number[]>([]);
   const [savingPay, setSavingPay] = useState(false);
+  const [showTaxInfo, setShowTaxInfo] = useState(false);
 
   // New employee form
   const [empName, setEmpName] = useState("");
@@ -697,6 +699,16 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
                   <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 15 }}>View Full Timecard</Text>
                 </TouchableOpacity>
 
+                {/* Tax Info Button — Owner only */}
+                {employee?.role === "owner" && (
+                  <TouchableOpacity
+                    style={{ backgroundColor: "#6366F115", borderRadius: 12, padding: 14, alignItems: "center", marginTop: 10, borderWidth: 1, borderColor: "#6366F140" }}
+                    onPress={() => setShowTaxInfo(true)}
+                  >
+                    <Text style={{ color: "#6366F1", fontWeight: "700", fontSize: 15 }}>Tax Information</Text>
+                  </TouchableOpacity>
+                )}
+
                 {/* Management Actions - only full managers can change roles/deactivate */}
                 {canManageTeam && selectedEmployee.id !== employee?.id && (
                   <View style={{ marginTop: 24, gap: 10 }}>
@@ -728,6 +740,16 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
           </View>
         )}
       </Modal>
+
+      {/* Tax Info Modal — Owner only */}
+      {selectedEmployee && (
+        <EmployeeTaxInfoModal
+          visible={showTaxInfo}
+          onClose={() => setShowTaxInfo(false)}
+          employeeId={selectedEmployee.id}
+          employeeName={selectedEmployee.name}
+        />
+      )}
 
       {/* Add Employee Modal */}
       <Modal visible={showAddEmployee} animationType="slide" presentationStyle="pageSheet">

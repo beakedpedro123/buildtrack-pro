@@ -1330,7 +1330,6 @@ You are not just a tool — you are each employee's PERSONAL assistant who grows
 
 ## Web Search Capability
 You have the ability to search the web for real-time information. When a user asks about:
-- Current lumber prices in Utah (framing lumber, engineered wood products)
 - AISC steel beam reference data (W-shapes, dimensions, weights, section properties) for steel erection work
 - Weather conditions
 - Building codes, OSHA regulations
@@ -1361,13 +1360,6 @@ ${getKnowledgeSummary()}
 ## Advanced Calculation Capabilities
 You can perform complex construction calculations. When asked, show your work step by step:
 
-**Lumber Takeoffs:**
-- Board feet = (thickness × width × length) / 12
-- Linear feet calculations for studs, plates, headers
-- Stud count = (wall length / 16") + 1 for 16" OC, (wall length / 24") + 1 for 24" OC
-- Add 10-15% waste factor
-- Current Utah lumber pricing: always note prices fluctuate, suggest verifying with supplier
-
 **Steel Calculations:**
 - Weight per linear foot for common steel sections
 - Connection bolt patterns and spacing
@@ -1379,11 +1371,6 @@ You can perform complex construction calculations. When asked, show your work st
 - Productivity factors: framing ~500-800 SF/day per crew, steel erection varies by complexity
 - Always factor in setup/teardown time
 
-**Material Estimates:**
-- Sheathing: wall area / 32 SF per sheet + 10% waste
-- Nails/fasteners: ~30 lbs per 1000 SF of framing
-- Concrete: volume in cubic yards = (L × W × D) / 27
-
 **Bid Analysis:**
 - Compare line items against Utah market rates
 - Flag items more than 15% above/below market
@@ -1391,6 +1378,37 @@ You can perform complex construction calculations. When asked, show your work st
 - Break down cost per square foot
 
 Always show your math clearly and explain each step.
+
+## Structural Plan Reading — Steel & Timber Identification
+When the user uploads structural plans (PDF or screenshots), you are a plan reading assistant. Your job is IDENTIFICATION ONLY — counts, sizes, lengths, locations. Do NOT calculate prices.
+
+**Two-Pass Approach:**
+1. FIRST PASS — Look for beam schedule tables on each sheet (e.g. "Main Floor Beam Schedule", "Upper Floor Beam Schedule"). These are the most reliable source. Extract every row: mark number, size, material type.
+2. SECOND PASS — Scan the framing plan drawings for any beams labeled directly on the plan that are NOT in the schedule tables. Cross-reference against the schedule to avoid double-counting.
+
+**What to identify:**
+- Steel beams: W-shapes, S-shapes, HSS sections — list mark number, designation (e.g. W10x22), and sheet location
+- Timber beams: solid sawn (e.g. 8x12 DF), glulam (e.g. 5-1/8x21 GLB), LVL — list mark number, size, species if noted
+- Steel posts/columns: HSS tubes, W-shapes used as columns — list mark number and size
+- Timber posts: dimensional posts (e.g. 6x6, 8x8, 12x12) — list mark number and size
+- Beam spans/lengths if dimensioned on the plan
+
+**Output format — ALWAYS use this table structure:**
+| Mark | Type | Size | Material | Sheet | Notes |
+|------|------|------|----------|-------|-------|
+| MFB-1 | Steel Beam | W10x22 | A992 | S2 | Main floor |
+| LRB-3 | Timber Beam | 8x12 | DF #1 | S4 | Lower roof |
+
+**After presenting your findings, ALWAYS ask:**
+"I found [X] steel beams and [Y] timber beams across sheets [list]. Does this match your count? Let me know if I missed anything."
+
+**When the user corrects you** (e.g. "You missed LRB-8 on sheet S4"), use the remember_correction tool AND the store_plan_data tool to permanently store the corrected count. This makes you better at catching similar items on future plans.
+
+**Important limitations to communicate:**
+- You read text labels and tables very accurately (90%+)
+- You may miss beams that are labeled in very small font or overlap with other text on the drawing
+- You cannot read dimension lines as accurately as a human — always ask the user to verify spans
+- If a mark number appears multiple times on different sheets, ask the user if it's the same beam shown on multiple views or separate beams
 `;
 
     if (isManagement) {
@@ -1415,14 +1433,14 @@ ${calculationBlock}
 ## Your Capabilities
 - Analyze labor costs, job profitability, and crew efficiency
 - Help create and track KPIs (revenue, labor efficiency, safety, schedule adherence)
-- Provide Utah-specific pricing guidance for framing lumber, steel, and construction materials
 - Analyze bid estimates and flag risks — if a PDF or image estimate is shared, extract line items and flag any concerns
+- Read structural plans (PDFs/screenshots) and identify all steel beams, timber beams, and posts with counts, sizes, and locations
 - Suggest improvements to crew scheduling and job management
 - Help draft safety talks, meeting agendas, and weekly goals
 - Explain construction industry benchmarks and best practices
 - Help plan future integrations (QuickBooks sync, material ordering, etc.)
 - Analyze uploaded documents: PDFs, Word docs, Excel spreadsheets, images, and URLs
-- Perform advanced construction calculations (lumber takeoffs, steel, labor projections, material estimates)
+- Perform advanced construction calculations (steel, labor projections, material estimates)
 
 ## Hourly Job Billing Intelligence
 Jobs can be either "Fixed Budget" or "Hourly" billing type.
@@ -1446,6 +1464,8 @@ You have REAL tools to take actions in the app. Use them immediately when asked 
 - For daily recurring goals (like 'clock in by 7:30'): set repeatDaily=true. The system will auto-create a fresh copy each morning.
 - NEVER create the same goal twice in one request. Each call to create_goal creates one goal — do NOT call it multiple times for the same goal.
 - When the user says 'for everyone' or 'for the crew' or 'for all', ALWAYS set assignToEveryone=true.
+**Job Schedule** — The app now has a Schedule tab under Manage. When Pedro asks about today's tasks, upcoming work, or crew assignments, reference the schedule data. The schedule syncs with the Home dashboard, Daily Reports, and Payroll.
+**Company Overhead** — The owner can now set monthly overhead expenses (insurance, trucks, yard rent, tools, etc.) in Profile > Overhead Settings. When calculating job profitability, factor in the overhead rate from these real expenses, not just the per-job tax/WC/liability rates.
 **Punch List** — use create_punch_list_item or create_punch_items_bulk to add items to job punch lists.
 **Generate Report** — use generate_report to create a daily report for any job. When Pedro says "generate a report" or "create a report for [job]", use this tool immediately.
 **Mark Report Seen** — use mark_report_seen to mark reports as reviewed by the owner.
@@ -1575,7 +1595,6 @@ You have comprehensive knowledge of Utah building requirements for custom homes:
 - Fire sprinklers: required in Summit County for new homes over 5,000 SF
 - Structural engineer stamp required for: spans over 20 ft, steel connections, non-standard framing
 - Common framing lumber species in Utah: Douglas Fir, Hem-Fir, SPF (Spruce-Pine-Fir)
-- Current Utah lumber pricing note: prices fluctuate significantly — always verify with supplier before bidding
 
 ${employee.role === "office_manager" ? `## Office Manager Special Capabilities (THIS IS YOU — ${employee.name})
 - Calculate total payroll for any date range from live data
@@ -1624,7 +1643,7 @@ Current page: ${input.context?.currentPage || "unknown"} — tailor your respons
 
 Always be specific, use real numbers from the live data above, and proactively surface insights. If labor costs are high, mention it. If a job looks over budget, flag it. If safety talks are behind schedule, bring it up.
 
-When discussing pricing, note that Utah lumber prices fluctuate — always suggest verifying current quotes. For steel, provide beam specifications and properties from the AISC reference table, not purchase pricing (the company erects steel, they don't purchase it).
+For steel, provide beam specifications and properties from the AISC reference table, not purchase pricing (the company erects steel, they don't purchase it).
 
 If an attachment is provided, analyze it thoroughly and reference specific details from it in your response.`;
     } else if (isForeman) {
@@ -1646,7 +1665,7 @@ ${calculationBlock}
 - Help draft safety talk scripts for your crew
 - Daily motivation and team management tips
 - Explain how to use BuildTrack Pro features
-- Perform construction calculations (lumber takeoffs, material estimates, labor projections)
+- Perform construction calculations (steel lookups, material estimates, labor projections)
 - Voice-to-goals: when the foreman speaks their goals to you, summarize them clearly and use the create_goal tool to push them directly to the Goals tab after confirmation
 - Look up AISC steel beam data (W-shapes) — use construction_lookup with type="steel_profile" for any beam question
 
@@ -1708,7 +1727,7 @@ ${goalsContext}
 - Answer questions about construction techniques (framing, steel erection, carpentry)
 - Daily motivation and encouragement
 - Explain how to use BuildTrack Pro features
-- Help with basic calculations (measurements, material counts, board feet, stud counts)
+- Help with basic calculations (measurements, material counts, stud counts)
 - Voice-to-goals: when you describe goals by voice, Pivot will summarize and push them to the Goals tab
 - Search the web for construction info, material prices, and safety guidelines
 - Look up AISC steel beam data (W-shapes) — use construction_lookup with type="steel_profile" for any beam question
@@ -2045,6 +2064,24 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               priority: { type: "string", enum: ["normal", "urgent"], description: "Message priority. Default normal." },
             },
             required: ["subject", "body"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "store_plan_data",
+          description: "Permanently store structural plan data (steel/timber counts, sizes, locations) from a construction plan set. Use after analyzing structural plans to save the findings so they are never lost. Also use when the user corrects your count — update the stored data with the corrected information. This data persists forever in the owner's knowledge base.",
+          parameters: {
+            type: "object",
+            properties: {
+              projectName: { type: "string", description: "The name of the project/plan set (e.g. 'Swanson Residence', 'England Remodel')." },
+              planData: { type: "string", description: "The complete structural member list in markdown table format. Include ALL identified members with mark numbers, types, sizes, materials, sheet locations, and any notes. This replaces any previously stored data for this project." },
+              summary: { type: "string", description: "A brief summary like '14 steel beams, 8 timber beams, 4 timber posts across sheets S1-S5'." },
+              steelCount: { type: "number", description: "Total number of structural steel members identified." },
+              timberCount: { type: "number", description: "Total number of timber members (beams + posts) identified." },
+            },
+            required: ["projectName", "planData", "summary", "steelCount", "timberCount"],
           },
         },
       },
@@ -2441,6 +2478,28 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
           } catch (corrErr) {
             toolResult = `Failed to store correction: ${corrErr instanceof Error ? corrErr.message : "unknown error"}`;
           }
+        } else if (toolName === "store_plan_data") {
+          try {
+            const projectName = args.projectName || "Unknown Project";
+            const planData = args.planData || "";
+            const summary = args.summary || "";
+            const steelCount = args.steelCount || 0;
+            const timberCount = args.timberCount || 0;
+            const currentMemory = await db.getPivotMemory(input.employeeId);
+            const existingPrefs = currentMemory?.preferences ? JSON.parse(currentMemory.preferences) : {};
+            if (!existingPrefs.planReadings) existingPrefs.planReadings = {};
+            existingPrefs.planReadings[projectName] = {
+              planData,
+              summary,
+              steelCount,
+              timberCount,
+              lastUpdated: new Date().toISOString(),
+            };
+            await db.upsertPivotMemory(input.employeeId, { preferences: JSON.stringify(existingPrefs) });
+            toolResult = `Plan data stored for "${projectName}": ${summary}. Steel: ${steelCount}, Timber: ${timberCount}. This data is permanently saved in your knowledge base and will be available in all future conversations. Tell the user the plan data has been saved.`;
+          } catch (planErr) {
+            toolResult = `Failed to store plan data: ${planErr instanceof Error ? planErr.message : "unknown error"}`;
+          }
         } else if (toolName === "generate_report") {
           try {
             const jobName = args.jobName || "";
@@ -2797,6 +2856,99 @@ const messagesRouter = router({
   }),
 });
 
+// ─── Company Overhead Router ──────────────────────────────────────────────
+const overheadRouter = router({
+  list: publicProcedure.query(() => db.getCompanyOverhead()),
+  listAll: publicProcedure.query(() => db.getAllCompanyOverhead()),
+  getTotal: publicProcedure.query(() => db.getMonthlyOverheadTotal()),
+  create: publicProcedure.input(z.object({
+    category: z.string(),
+    label: z.string(),
+    monthlyAmount: z.string(),
+    notes: z.string().optional(),
+    createdBy: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.createdBy, ["owner", "office_manager"], "manage overhead");
+    return db.createOverheadItem(input);
+  }),
+  update: publicProcedure.input(z.object({
+    id: z.number(),
+    category: z.string().optional(),
+    label: z.string().optional(),
+    monthlyAmount: z.string().optional(),
+    notes: z.string().optional(),
+    isActive: z.boolean().optional(),
+  })).mutation(async ({ input }) => {
+    const { id, ...data } = input;
+    return db.updateOverheadItem(id, data);
+  }),
+  delete: publicProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteOverheadItem(input.id)),
+});
+
+// ─── Job Schedule Router ──────────────────────────────────────────────────
+const scheduleRouter = router({
+  getByJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getJobSchedule(input.jobId)),
+  getAll: publicProcedure.query(() => db.getAllScheduleItems()),
+  getByDateRange: publicProcedure.input(z.object({
+    startDate: z.string(),
+    endDate: z.string(),
+  })).query(({ input }) => db.getScheduleByDateRange(new Date(input.startDate), new Date(input.endDate))),
+  create: publicProcedure.input(z.object({
+    jobId: z.number(),
+    title: z.string(),
+    description: z.string().optional(),
+    scheduledDate: z.string(),
+    endDate: z.string().optional(),
+    assignedEmployees: z.string().optional(),
+    sortOrder: z.number().optional(),
+    createdBy: z.number(),
+  })).mutation(async ({ input }) => {
+    return db.createScheduleItem({
+      ...input,
+      scheduledDate: new Date(input.scheduledDate),
+      endDate: input.endDate ? new Date(input.endDate) : undefined,
+    });
+  }),
+  update: publicProcedure.input(z.object({
+    id: z.number(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    scheduledDate: z.string().optional(),
+    endDate: z.string().optional(),
+    status: z.enum(["pending", "in_progress", "completed", "skipped"]).optional(),
+    assignedEmployees: z.string().optional(),
+    sortOrder: z.number().optional(),
+  })).mutation(async ({ input }) => {
+    const { id, ...data } = input;
+    const updateData: any = { ...data };
+    if (data.scheduledDate) updateData.scheduledDate = new Date(data.scheduledDate);
+    if (data.endDate) updateData.endDate = new Date(data.endDate);
+    return db.updateScheduleItem(id, updateData);
+  }),
+  delete: publicProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteScheduleItem(input.id)),
+});
+
+// ─── Employee Tax Info Router ─────────────────────────────────────────────
+const taxInfoRouter = router({
+  get: publicProcedure.input(z.object({ employeeId: z.number() })).query(({ input }) => db.getEmployeeTaxInfo(input.employeeId)),
+  getAll: publicProcedure.query(() => db.getAllEmployeeTaxInfo()),
+  upsert: publicProcedure.input(z.object({
+    employeeId: z.number(),
+    ssn: z.string().optional(),
+    filingStatus: z.enum(["single", "married_filing_jointly", "married_filing_separately", "head_of_household"]).optional(),
+    federalAllowances: z.number().optional(),
+    stateAllowances: z.number().optional(),
+    additionalWithholding: z.string().optional(),
+    w4Year: z.number().optional(),
+    i9Verified: z.boolean().optional(),
+    notes: z.string().optional(),
+    updatedBy: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.updatedBy, ["owner", "office_manager"], "manage tax info");
+    return db.upsertEmployeeTaxInfo(input.employeeId, input);
+  }),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -2826,6 +2978,9 @@ export const appRouter = router({
   punchList: punchListRouter,
   messages: messagesRouter,
   changeOrders: changeOrdersRouter,
+  overhead: overheadRouter,
+  schedule: scheduleRouter,
+  taxInfo: taxInfoRouter,
 });
 
 export type AppRouter = typeof appRouter;

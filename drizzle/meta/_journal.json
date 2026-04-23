@@ -134,6 +134,13 @@
       "when": 1776648863310,
       "tag": "0018_orange_gambit",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1776911746636,
+      "tag": "0019_rainy_thunderbolt_ross",
+      "breakpoints": true
     }
   ]
 }

@@ -17,8 +17,9 @@ import TeamScreen from "./team";
 import MeetingsScreen from "./meetings";
 import PayrollScreen from "./payroll";
 import HoursScreen from "./hours";
+import ScheduleScreen from "./schedule";
 
-type ManageTab = "team" | "meetings" | "payroll" | "hours";
+type ManageTab = "team" | "meetings" | "payroll" | "hours" | "schedule";
 
 export default function ManageScreen() {
   const colors = useColors();
@@ -34,6 +35,7 @@ export default function ManageScreen() {
 
   const tabs: { key: ManageTab; label: string; icon: string }[] = [
     { key: "team", label: isForeman ? "Crew" : "Team", icon: "👥" },
+    ...(isManagement ? [{ key: "schedule" as ManageTab, label: "Schedule", icon: "📅" }] : []),
     ...(isManagement ? [{ key: "meetings" as ManageTab, label: "Meetings", icon: "🎤️" }] : []),
     ...(canViewPayroll ? [{ key: "payroll" as ManageTab, label: "Payroll", icon: "💰" }] : []),
     { key: "hours", label: "My Hours", icon: "⏱️" },
@@ -85,6 +87,7 @@ export default function ManageScreen() {
         {activeTab === "team" && <TeamScreen embedded />}
         {activeTab === "meetings" && <MeetingsScreen embedded />}
         {activeTab === "payroll" && <PayrollScreen embedded />}
+        {activeTab === "schedule" && <ScheduleScreen />}
         {activeTab === "hours" && <HoursScreen embedded />}
       </View>
     </View>

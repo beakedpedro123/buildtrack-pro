@@ -484,13 +484,13 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
   // ─── Styles ──────────────────────────────────────────────────────────────
   const styles = StyleSheet.create({
     // Tab bar
-    tabBar: { flexDirection: "row", marginHorizontal: 16, marginTop: 8, marginBottom: 12, backgroundColor: colors.surface, borderRadius: 12, padding: 3 },
+    tabBar: { flexDirection: "row", marginHorizontal: 20, marginTop: 8, marginBottom: 12, backgroundColor: colors.surface, borderRadius: 12, padding: 3 },
     tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
     tabBtnActive: { backgroundColor: colors.primary },
     tabBtnText: { fontSize: 13, fontWeight: "700", color: colors.muted },
     tabBtnTextActive: { color: "#fff" },
     // Cards
-    card: { backgroundColor: colors.surface, borderRadius: 14, padding: 16, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: colors.border },
+    card: { backgroundColor: colors.surface, borderRadius: 14, padding: 16, marginHorizontal: 20, marginBottom: 10, borderWidth: 1, borderColor: colors.border },
     primaryBtn: { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
     dangerBtn: { backgroundColor: colors.error, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
     outlineBtn: { borderRadius: 12, paddingVertical: 12, alignItems: "center", borderWidth: 1.5, borderColor: colors.primary },
@@ -505,7 +505,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
     complianceCount: { fontSize: 28, fontWeight: "800" },
     complianceLabel: { fontSize: 11, fontWeight: "600", marginTop: 2 },
     complianceTarget: { fontSize: 10, marginTop: 4 },
-    meetingCard: { marginHorizontal: 16, marginBottom: 10, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14 },
+    meetingCard: { marginHorizontal: 20, marginBottom: 10, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14 },
     meetingBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginRight: 8 },
     meetingBadgeText: { fontSize: 10, fontWeight: "700", color: "#fff" },
     topicCard: { padding: 14, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, marginBottom: 8 },

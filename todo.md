@@ -2035,3 +2035,27 @@
 - [x] Create architecture diagram — D2 diagram with all 6 layers rendered to PNG
 - [x] Gap analysis — 7 missing features identified vs competitors, 5 unique advantages
 - [x] Compile full audit report with findings and recommendations
+
+### Phase 102: Pivot AI Enhancements — Plan Reading, Overhead, Scheduling
+- [x] Remove lumber estimate knowledge from Pivot (replaced with plan reading)
+- [x] Add PDF plan reading capability to Pivot — 2-pass approach with beam schedules
+- [x] Add owner overhead/expense settings screen — Profile > Overhead Settings
+- [x] Add job scheduling/calendar — Manage > Schedule tab with crew assignment
+- [x] Sync scheduling with payroll, daily logs, and project tracking
+- [x] Research leading apps for best practices on all 4 features
+- [x] Research GC-to-subcontractor management (documented in Feature Roadmap for multi-tenant)
+
+### Phase 103: Major Feature Build + UI Fixes
+- [x] Analyze screen recording for refresh/sync issues and UI overflow
+- [x] Research best practices for React Native data refresh/sync
+- [x] Fix UI edge/border padding on all tabs (marginHorizontal: 16 → 20 across all screens)
+- [x] Fix payroll number overflow in stat boxes (adjustsFontSizeToFit + numberOfLines)
+- [x] Fix 3 moderate audit issues (image permission added, offline-banner unified, as any reviewed)
+- [x] Remove lumber estimate knowledge from Pivot system prompt
+- [x] Build Pivot plan reading (2-pass: beam schedules + plan drawings, store_plan_data tool)
+- [x] Build owner overhead expense settings screen (Profile > Overhead Settings)
+- [x] Build job scheduling calendar with crew assignment (Manage > Schedule tab)
+- [x] Sync schedule with payroll and daily logs across all tabs (Home widget + Reports reference)
+- [x] Add employee tax info fields for accountant (Team > Tax Information, owner-only)
+- [x] Research best approach for employee tax document management
+- [x] Research data refresh/sync best practices for React Native + tRPC

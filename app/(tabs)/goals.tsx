@@ -309,7 +309,7 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
             <TouchableOpacity
               onPress={() => setSelectedJobId(item.id)}
               style={{
-                marginHorizontal: 16,
+                marginHorizontal: 20,
                 marginBottom: 10,
                 backgroundColor: colors.surface,
                 borderRadius: 14,
@@ -1098,7 +1098,7 @@ export default function GoalsScreen() {
     return (
       <View
         style={{
-          marginHorizontal: 16, marginBottom: 12, borderRadius: 16,
+          marginHorizontal: 20, marginBottom: 12, borderRadius: 16,
           backgroundColor: colors.surface, overflow: "hidden",
           ...(Platform.OS === "ios" ? {
             shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
