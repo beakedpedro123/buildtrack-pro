@@ -550,7 +550,7 @@ export function PivotChat() {
   const s = StyleSheet.create({
     fab: {
       position: "absolute",
-      bottom: 56 + Math.max(insets.bottom, 16) + 20,
+      bottom: 56 + Math.max(insets.bottom, 16) + 28,
       right: 16,
       width: 58,
       height: 58,

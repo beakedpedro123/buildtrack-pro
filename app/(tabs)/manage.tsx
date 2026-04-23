@@ -38,7 +38,7 @@ export default function ManageScreen() {
     ...(isManagement ? [{ key: "schedule" as ManageTab, label: "Schedule", icon: "📅" }] : []),
     ...(isManagement ? [{ key: "meetings" as ManageTab, label: "Meetings", icon: "🎤️" }] : []),
     ...(canViewPayroll ? [{ key: "payroll" as ManageTab, label: "Payroll", icon: "💰" }] : []),
-    { key: "hours", label: "My Hours", icon: "⏱️" },
+    ...(!isManagement ? [{ key: "hours" as ManageTab, label: "My Hours", icon: "⏱️" }] : []),
   ];
 
   const handleTabPress = useCallback((tab: ManageTab) => {

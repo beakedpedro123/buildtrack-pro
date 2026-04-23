@@ -614,6 +614,51 @@ const goalsRouter = router({
     await db.deleteWeeklyGoal(input.id);
     return { success: true };
   }),
+  syncFromSchedule: publicProcedure.input(z.object({
+    weekOf: z.string(),
+    createdBy: z.number(),
+  })).mutation(async ({ input }) => {
+    // Get the week start/end
+    const weekStart = new Date(input.weekOf);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    // Get all schedule items for this week
+    const scheduleItems = await db.getScheduleByDateRange(weekStart, weekEnd);
+    if (!scheduleItems || scheduleItems.length === 0) return { created: 0, message: "No schedule tasks found for this week." };
+    // Get existing goals for this week to avoid duplicates
+    const existingGoals = await db.getWeeklyGoals(weekStart);
+    const existingTitles = new Set(existingGoals.map((g: any) => g.title.toLowerCase()));
+    // Get all jobs for name lookup
+    const allJobs = await db.getAllJobs();
+    const jobMap = new Map<number, string>();
+    for (const j of allJobs) jobMap.set(j.id, j.name);
+    let created = 0;
+    for (const item of scheduleItems) {
+      const jobName = jobMap.get(item.jobId) || `Job #${item.jobId}`;
+      const goalTitle = `[${jobName}] ${item.title}`;
+      if (existingTitles.has(goalTitle.toLowerCase())) continue;
+      // Parse assigned employees
+      const assignedStr = (item as any).assignedEmployees || "";
+      const assignedIds = assignedStr.split(",").map(Number).filter((n: number) => n > 0);
+      const assignedTo = assignedIds.length === 1 ? assignedIds[0] : undefined;
+      const assignedToList = assignedIds.length > 1 ? assignedIds.join(",") : undefined;
+      const phase = (item as any).phase || "";
+      const desc = phase ? `Phase: ${phase}${item.description ? " — " + item.description : ""}` : (item.description || "");
+      await db.createWeeklyGoal({
+        title: goalTitle,
+        description: desc || undefined,
+        assignedTo,
+        assignedToList,
+        weekOf: weekStart,
+        priority: "medium" as const,
+        deadline: item.endDate || item.scheduledDate,
+        createdBy: input.createdBy,
+        repeatDaily: false,
+      });
+      created++;
+    }
+    return { created, message: `Synced ${created} schedule tasks as goals.` };
+  }),
 });
 
 // ── Punch List Router ──────────────────────────────────────────────────────

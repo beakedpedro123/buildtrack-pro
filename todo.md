@@ -2076,6 +2076,15 @@
 - [ ] Fix date dash display (\u2013 showing as literal text in schedule)
 - [ ] Research best dashboard designs for construction management
 - [ ] Research best role-based UX patterns for mobile apps
-- [ ] Apply Option B tab icons (cottage, domain, adjust, apps, person-outline)
+- [x] Apply Option B tab icons (cottage, domain, adjust, apps, person-outline)
 - [x] Redesign Goals tab with calendar view for daily/weekly goals
 - [x] Fix data refresh lag across all tabs — critical for production readiness
+
+### Phase 104 (continued): Remaining Items
+- [x] Sync job schedule progress graphs into Graphs tab (combined + per-job)
+- [x] Fix Pivot FAB position — overlapping tab bar on some devices
+- [x] Apply Option B tab icons (cottage, domain, adjust, apps, person-outline)
+- [x] Sync schedule → goals — push job-specific goals per person (same as punchlist)
+- [x] Update PDF reports with new schedule/goals/GPS data
+- [x] Hide My Hours sub-tab from management roles (Owner/Office Manager/Logistics)
+- [x] Ensure all data syncing across all tabs — verified refetchOnMount + staleTime across all queries

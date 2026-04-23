@@ -29,7 +29,7 @@ const CHART_W = SCREEN_W - 48;
 const CHART_H = 220;
 const CHART_PAD = { top: 20, right: 16, bottom: 40, left: 60 };
 
-type ChartSection = "profitability" | "labor" | "taxes" | "burndown";
+type ChartSection = "profitability" | "labor" | "taxes" | "burndown" | "schedule";
 
 // ─── Helper: format currency ────────────────────────────────────────────
 function fmt$(n: number): string {
@@ -458,6 +458,10 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
   // budgetBurnDown requires a jobId — we'll use profitability data for the all-jobs burndown view instead
   const burndownFromProfit = profitQuery.data;
 
+  // ─── Schedule progress query ─────────────────────────────────────
+  const scheduleAllQuery = trpc.schedule.getAll.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
+  const jobsQuery = trpc.jobs.list.useQuery(undefined, { staleTime: 30000, refetchOnMount: "always" });
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -467,6 +471,8 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
         utils.financialCharts.taxBreakdown.invalidate(),
         utils.financialCharts.monthlyLaborTrend.invalidate(),
         utils.financialCharts.monthlyLaborTrendFiltered.invalidate(),
+        utils.schedule.getAll.invalidate(),
+        utils.jobs.list.invalidate(),
       ]);
     } catch {}
     setRefreshing(false);
@@ -538,6 +544,45 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
     }));
   }, [profitQuery.data]);
 
+  // ─── Schedule progress data ─────────────────────────────────────
+  const scheduleProgressData = useMemo(() => {
+    if (!scheduleAllQuery.data || !jobsQuery.data) return [];
+    const jobMap = new Map<number, string>();
+    for (const j of jobsQuery.data) jobMap.set(j.id, j.name);
+    // Group schedule items by job
+    const byJob = new Map<number, { total: number; completed: number; phases: Map<string, { total: number; completed: number }> }>();
+    for (const item of scheduleAllQuery.data) {
+      if (!byJob.has(item.jobId)) byJob.set(item.jobId, { total: 0, completed: 0, phases: new Map() });
+      const jd = byJob.get(item.jobId)!;
+      jd.total++;
+      if (item.status === "completed") jd.completed++;
+      const phase = (item as any).phase || "General";
+      if (!jd.phases.has(phase)) jd.phases.set(phase, { total: 0, completed: 0 });
+      const pd = jd.phases.get(phase)!;
+      pd.total++;
+      if (item.status === "completed") pd.completed++;
+    }
+    return Array.from(byJob.entries()).map(([jobId, data]) => ({
+      jobId,
+      jobName: jobMap.get(jobId) || `Job #${jobId}`,
+      total: data.total,
+      completed: data.completed,
+      pct: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
+      phases: Array.from(data.phases.entries()).map(([name, pd]) => ({
+        name,
+        total: pd.total,
+        completed: pd.completed,
+        pct: pd.total > 0 ? Math.round((pd.completed / pd.total) * 100) : 0,
+      })),
+    }));
+  }, [scheduleAllQuery.data, jobsQuery.data]);
+
+  const overallSchedulePct = useMemo(() => {
+    const totalItems = scheduleProgressData.reduce((s, j) => s + j.total, 0);
+    const completedItems = scheduleProgressData.reduce((s, j) => s + j.completed, 0);
+    return totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+  }, [scheduleProgressData]);
+
   // ─── Share chart as image ───────────────────────────────────────────
   const shareChart = useCallback(async () => {
     if (!chartRef.current) return;
@@ -589,6 +634,19 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
           `<tr><td>${j.jobName}</td><td>${fmt$(j.effectiveBudget)}</td><td>${fmt$(j.totalSpend)}</td><td>${fmt$(Math.max(0, j.effectiveBudget - j.totalSpend))}</td><td>${j.effectiveBudget > 0 ? ((j.totalSpend / j.effectiveBudget) * 100).toFixed(1) : 0}%</td></tr>`
         ).join("");
         tableRows = `<table><thead><tr><th>Job</th><th>Budget</th><th>Spent</th><th>Remaining</th><th>Used</th></tr></thead><tbody>${tableRows}</tbody></table>`;
+      } else if (activeSection === "schedule" && scheduleProgressData.length > 0) {
+        title = "Schedule Progress Report";
+        let rows = "";
+        for (const job of scheduleProgressData) {
+          rows += `<tr style="background:#f0f0f0;font-weight:bold"><td colspan="4">${job.jobName} — ${job.pct}% Complete (${job.completed}/${job.total} tasks)</td></tr>`;
+          for (const phase of job.phases) {
+            rows += `<tr><td style="padding-left:20px">${phase.name}</td><td>${phase.completed}/${phase.total}</td><td>${phase.pct}%</td><td><div style="background:#e0e0e0;height:10px;border-radius:5px;overflow:hidden"><div style="background:${phase.pct >= 80 ? '#22C55E' : phase.pct >= 40 ? '#D4AF37' : '#F59E0B'};height:10px;width:${phase.pct}%"></div></div></td></tr>`;
+          }
+        }
+        const totalTasks = scheduleProgressData.reduce((s, j) => s + j.total, 0);
+        const completedTasks = scheduleProgressData.reduce((s, j) => s + j.completed, 0);
+        rows += `<tr style="background:#1a1a1a;color:#D4AF37;font-weight:bold"><td>OVERALL</td><td>${completedTasks}/${totalTasks}</td><td>${overallSchedulePct}%</td><td></td></tr>`;
+        tableRows = `<table><thead><tr><th>Job / Phase</th><th>Tasks</th><th>Progress</th><th>Bar</th></tr></thead><tbody>${rows}</tbody></table>`;
       }
 
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
@@ -617,7 +675,7 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
     } finally {
       setSharingChart(false);
     }
-  }, [activeSection, profitQuery.data, laborQuery.data, taxQuery.data]);
+  }, [activeSection, profitQuery.data, laborQuery.data, taxQuery.data, scheduleProgressData, overallSchedulePct]);
 
   // ─── Section tabs ───────────────────────────────────────────────────
   const sections: { key: ChartSection; label: string; icon: string }[] = [
@@ -625,9 +683,10 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
     { key: "labor", label: "Labor Trends", icon: "👷" },
     { key: "taxes", label: "Taxes & Ins", icon: "🏛️" },
     { key: "burndown", label: "Burn-Down", icon: "📉" },
+    { key: "schedule", label: "Schedule", icon: "📅" },
   ];
 
-  const isLoading = profitQuery.isLoading || taxQuery.isLoading || laborQuery.isLoading;
+  const isLoading = profitQuery.isLoading || taxQuery.isLoading || laborQuery.isLoading || scheduleAllQuery.isLoading;
 
   const CWrapper = embedded ? View : ScreenContainer;
 
@@ -955,6 +1014,99 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
                   <View style={{ padding: 40, alignItems: "center" }}>
                     <Text style={{ fontSize: 40 }}>🔒</Text>
                     <Text style={{ color: colors.muted, marginTop: 8, textAlign: "center" }}>Tax information is only visible to owners and office managers.</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* ─── Schedule Progress ──────────────────────────────── */}
+            {activeSection === "schedule" && (
+              <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+                {/* Overall progress */}
+                <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Text style={[styles.chartTitle, { color: colors.foreground }]}>Overall Schedule Progress</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 12 }}>Combined completion across all active jobs</Text>
+                  <View style={{ alignItems: "center", marginBottom: 12 }}>
+                    <Svg width={120} height={120}>
+                      <Circle cx={60} cy={60} r={50} stroke={colors.border + "40"} strokeWidth={10} fill="none" />
+                      <Circle
+                        cx={60} cy={60} r={50}
+                        stroke={colors.primary}
+                        strokeWidth={10}
+                        fill="none"
+                        strokeDasharray={`${(overallSchedulePct / 100) * 314} 314`}
+                        strokeLinecap="round"
+                        transform="rotate(-90 60 60)"
+                      />
+                      <SvgText x={60} y={56} textAnchor="middle" fontSize={24} fontWeight="800" fill={colors.foreground}>
+                        {overallSchedulePct}%
+                      </SvgText>
+                      <SvgText x={60} y={74} textAnchor="middle" fontSize={10} fill={colors.muted}>
+                        Complete
+                      </SvgText>
+                    </Svg>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View style={[styles.summaryCard, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" }]}>
+                      <Text style={{ fontSize: 10, color: colors.muted }}>Total Tasks</Text>
+                      <Text style={{ fontSize: 18, fontWeight: "800", color: colors.primary }}>
+                        {scheduleProgressData.reduce((s, j) => s + j.total, 0)}
+                      </Text>
+                    </View>
+                    <View style={[styles.summaryCard, { backgroundColor: colors.success + "15", borderColor: colors.success + "40" }]}>
+                      <Text style={{ fontSize: 10, color: colors.muted }}>Completed</Text>
+                      <Text style={{ fontSize: 18, fontWeight: "800", color: colors.success }}>
+                        {scheduleProgressData.reduce((s, j) => s + j.completed, 0)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Per-job progress */}
+                <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Text style={[styles.chartTitle, { color: colors.foreground }]}>Progress by Job</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 12 }}>Schedule completion per job with phase breakdown</Text>
+                  {scheduleProgressData.length === 0 ? (
+                    <Text style={{ color: colors.muted, textAlign: "center", paddingVertical: 20 }}>No schedule data yet. Generate schedules from the Schedule tab.</Text>
+                  ) : (
+                    scheduleProgressData.map((job, i) => {
+                      const barColor = job.pct >= 80 ? colors.success : job.pct >= 40 ? colors.primary : colors.warning;
+                      return (
+                        <View key={job.jobId} style={{ marginBottom: i < scheduleProgressData.length - 1 ? 16 : 0 }}>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>{job.jobName}</Text>
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: barColor }}>{job.pct}%</Text>
+                          </View>
+                          <View style={{ height: 10, backgroundColor: colors.border + "30", borderRadius: 5, overflow: "hidden", marginBottom: 6 }}>
+                            <View style={{ height: 10, width: `${job.pct}%` as any, backgroundColor: barColor, borderRadius: 5 }} />
+                          </View>
+                          <Text style={{ fontSize: 10, color: colors.muted, marginBottom: 4 }}>{job.completed}/{job.total} tasks complete</Text>
+                          {/* Phase breakdown */}
+                          {job.phases.map((phase) => (
+                            <View key={phase.name} style={{ flexDirection: "row", alignItems: "center", marginBottom: 3, paddingLeft: 8 }}>
+                              <Text style={{ fontSize: 10, color: colors.muted, width: 80 }} numberOfLines={1}>{phase.name}</Text>
+                              <View style={{ flex: 1, height: 5, backgroundColor: colors.border + "30", borderRadius: 3, overflow: "hidden", marginHorizontal: 6 }}>
+                                <View style={{ height: 5, width: `${phase.pct}%` as any, backgroundColor: phase.pct >= 80 ? colors.success : phase.pct >= 40 ? colors.primary : colors.warning, borderRadius: 3 }} />
+                              </View>
+                              <Text style={{ fontSize: 9, color: colors.muted, width: 30, textAlign: "right" }}>{phase.pct}%</Text>
+                            </View>
+                          ))}
+                        </View>
+                      );
+                    })
+                  )}
+                </View>
+
+                {/* Schedule bar chart */}
+                {scheduleProgressData.length > 0 && (
+                  <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <Text style={[styles.chartTitle, { color: colors.foreground }]}>Completion Comparison</Text>
+                    <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 8 }}>Side-by-side schedule completion across all jobs</Text>
+                    <BarChart
+                      data={scheduleProgressData.map((j) => ({ label: j.jobName, value: j.pct }))}
+                      colors={colors}
+                      barColor={colors.primary}
+                    />
                   </View>
                 )}
               </View>

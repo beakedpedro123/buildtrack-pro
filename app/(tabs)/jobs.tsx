@@ -143,6 +143,10 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     { jobId: selectedJob?.id || 0 },
     { enabled: !!selectedJob && canSeeBudget }
   );
+  const { data: jobScheduleItems } = trpc.schedule.getByJob.useQuery(
+    { jobId: selectedJob?.id || 0 },
+    { enabled: !!selectedJob, staleTime: 15000, refetchOnMount: "always" }
+  );
   const { data: auditLogEntries } = trpc.financialCharts.auditLog.useQuery(
     { jobId: selectedJob?.id || 0 },
     { enabled: !!selectedJob && canSeeBudget && showAuditLog }
@@ -313,6 +317,36 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     <thead><tr><th>Description</th><th>Amount</th><th>Date</th></tr></thead>
     <tbody>${expenseRows}</tbody>
   </table>` : ""}
+
+  ${(jobScheduleItems || []).length > 0 ? `
+  <h2>Schedule Progress</h2>
+  ${(() => {
+    const items = jobScheduleItems as any[];
+    const total = items.length;
+    const completed = items.filter(i => i.status === "completed").length;
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const phases = new Map<string, { total: number; completed: number }>();
+    for (const item of items) {
+      const p = item.phase || "General";
+      if (!phases.has(p)) phases.set(p, { total: 0, completed: 0 });
+      const pd = phases.get(p)!;
+      pd.total++;
+      if (item.status === "completed") pd.completed++;
+    }
+    let phaseRows = "";
+    for (const [name, pd] of phases) {
+      const pp = pd.total > 0 ? Math.round((pd.completed / pd.total) * 100) : 0;
+      phaseRows += `<tr><td>${name}</td><td>${pd.completed}/${pd.total}</td><td>${pp}%</td></tr>`;
+    }
+    return `
+    <div class="summary-grid">
+      <div class="summary-box"><div class="summary-value">${total}</div><div class="summary-label">Total Tasks</div></div>
+      <div class="summary-box"><div class="summary-value">${completed}</div><div class="summary-label">Completed</div></div>
+      <div class="summary-box"><div class="summary-value">${pct}%</div><div class="summary-label">Progress</div></div>
+    </div>
+    <div class="bar-container"><div class="bar-fill" style="width: ${pct}%; background: ${pct >= 80 ? '#22C55E' : pct >= 40 ? '#F59E0B' : '#EF4444'};"></div></div>
+    <table><thead><tr><th>Phase</th><th>Tasks</th><th>Progress</th></tr></thead><tbody>${phaseRows}</tbody></table>`;
+  })()}` : ""}
 
   <div class="footer">BuildTrack Pro · ${selectedJob.name} Budget Report · ${today}</div>
 </body></html>`;

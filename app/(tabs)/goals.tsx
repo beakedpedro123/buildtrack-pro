@@ -735,6 +735,17 @@ export default function GoalsScreen() {
   const deleteGoal = trpc.goals.delete.useMutation({
     onSuccess: () => utils.goals.list.invalidate() });
 
+  const syncFromSchedule = trpc.goals.syncFromSchedule.useMutation({
+    onSuccess: (data) => {
+      utils.goals.list.invalidate();
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Schedule Synced", data.message || `Synced ${data.created} tasks as goals.`);
+    },
+    onError: () => {
+      Alert.alert("Error", "Failed to sync schedule to goals.");
+    },
+  });
+
   const resetForm = () => {
     setNewGoalTitle("");
     setNewGoalDescription("");
@@ -1237,19 +1248,44 @@ export default function GoalsScreen() {
             {isLaborer ? "My Tasks" : "Goals & Tasks"}
           </Text>
           {canManage && activeSubTab === "goals" && (
-            <TouchableOpacity
-              style={{
-                backgroundColor: colors.primary, borderRadius: 12,
-                paddingHorizontal: 16, paddingVertical: 10,
-                ...(Platform.OS === "ios" ? {
-                  shadowColor: colors.primary, shadowOffset: { width: 0, height: 3 },
-                  shadowOpacity: 0.25, shadowRadius: 6,
-                } : { elevation: 3 }),
-              }}
-              onPress={() => { resetForm(); setShowAddGoal(true); }}
-            >
-              <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>+ Goal</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: colors.success + "20", borderRadius: 12, borderWidth: 1, borderColor: colors.success,
+                  paddingHorizontal: 12, paddingVertical: 10,
+                }}
+                onPress={() => {
+                  Alert.alert(
+                    "Sync Schedule → Goals",
+                    "This will pull this week's schedule tasks and create goals for assigned employees. Duplicates are skipped.",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Sync", onPress: () => syncFromSchedule.mutate({ weekOf: weekDate.toISOString(), createdBy: employee?.id || 0 }) },
+                    ]
+                  );
+                }}
+                disabled={syncFromSchedule.isPending}
+              >
+                {syncFromSchedule.isPending ? (
+                  <ActivityIndicator size="small" color={colors.success} />
+                ) : (
+                  <Text style={{ color: colors.success, fontWeight: "700", fontSize: 12 }}>🔄 Sync</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: colors.primary, borderRadius: 12,
+                  paddingHorizontal: 16, paddingVertical: 10,
+                  ...(Platform.OS === "ios" ? {
+                    shadowColor: colors.primary, shadowOffset: { width: 0, height: 3 },
+                    shadowOpacity: 0.25, shadowRadius: 6,
+                  } : { elevation: 3 }),
+                }}
+                onPress={() => { resetForm(); setShowAddGoal(true); }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>+ Goal</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
