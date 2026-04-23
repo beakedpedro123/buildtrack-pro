@@ -715,7 +715,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
                     <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>📷 Camera</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.addBtn, { flex: 1, justifyContent: "center", backgroundColor: "#1A2332" }]}
+                    style={[styles.addBtn, { flex: 1, justifyContent: "center", backgroundColor: colors.foreground }]}
                     onPress={pickPhoto}
                   >
                     <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>🖼 Gallery</Text>

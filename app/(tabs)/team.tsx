@@ -26,6 +26,8 @@ import { useRouter } from "expo-router";
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { EmployeeTaxInfoModal } from "@/components/employee-tax-info";
+import { useGpsTracking } from "@/hooks/use-gps-tracking";
+import { CrewMap } from "@/components/crew-map";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#E8500A",
@@ -66,6 +68,8 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
     setRefreshing(false);
   }, [utils]);
 
+  const { gpsEnabled, loaded: gpsLoaded } = useGpsTracking();
+  const [showMap, setShowMap] = useState(true);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const [filterRole, setFilterRole] = useState<string>("all");
@@ -397,6 +401,26 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
         ))}
       </ScrollView>
 
+      {/* GPS Crew Map — only visible when owner has GPS tracking enabled */}
+      {gpsLoaded && gpsEnabled && canManageTeam && (clockedIn || []).length > 0 && (
+        <View>
+          <TouchableOpacity
+            style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 8 }}
+            onPress={() => setShowMap(!showMap)}
+            activeOpacity={0.7}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>📍 Crew Locations</Text>
+              <View style={{ backgroundColor: colors.success + "20", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, marginLeft: 8 }}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: colors.success }}>GPS ON</Text>
+              </View>
+            </View>
+            <Text style={{ fontSize: 13, color: colors.primary, fontWeight: "600" }}>{showMap ? "Hide" : "Show"}</Text>
+          </TouchableOpacity>
+          {showMap && <CrewMap clockedIn={clockedIn as any} colors={colors} />}
+        </View>
+      )}
+
       {isLoading && !cachedEmployees ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
@@ -702,10 +726,10 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
                 {/* Tax Info Button — Owner only */}
                 {employee?.role === "owner" && (
                   <TouchableOpacity
-                    style={{ backgroundColor: "#6366F115", borderRadius: 12, padding: 14, alignItems: "center", marginTop: 10, borderWidth: 1, borderColor: "#6366F140" }}
+                    style={{ backgroundColor: "#8B5CF615", borderRadius: 12, padding: 14, alignItems: "center", marginTop: 10, borderWidth: 1, borderColor: "#8B5CF640" }}
                     onPress={() => setShowTaxInfo(true)}
                   >
-                    <Text style={{ color: "#6366F1", fontWeight: "700", fontSize: 15 }}>Tax Information</Text>
+                    <Text style={{ color: "#8B5CF6", fontWeight: "700", fontSize: 15 }}>Tax Information</Text>
                   </TouchableOpacity>
                 )}
 

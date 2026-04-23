@@ -1,0 +1,1 @@
+ALTER TABLE `weeklyGoals` ADD `scheduleTaskId` int;

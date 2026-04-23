@@ -2088,3 +2088,9 @@
 - [x] Update PDF reports with new schedule/goals/GPS data
 - [x] Hide My Hours sub-tab from management roles (Owner/Office Manager/Logistics)
 - [x] Ensure all data syncing across all tabs — verified refetchOnMount + staleTime across all queries
+
+### Phase 105: GPS Map + Schedule↔Goals Sync
+- [x] GPS map on Team tab — show clocked-in employee locations (only when owner GPS toggle is ON)
+- [x] If GPS toggle is OFF, hide the map section entirely
+- [x] Schedule↔Goals two-way sync — completing a synced goal auto-completes the schedule task
+- [x] Audit all pages for consistent layout and matching color schemes — fixed gold, purple, owner, foreman colors across all tabs

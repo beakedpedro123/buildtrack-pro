@@ -608,6 +608,17 @@ const goalsRouter = router({
       completedAt: completedAt ? new Date(completedAt) : undefined,
       deadline: deadline === null ? null : deadline ? new Date(deadline) : undefined,
     } as any);
+    // Two-way sync: if goal is completed and linked to a schedule task, auto-complete the schedule task
+    if (rest.status === "completed") {
+      try {
+        const goal = await db.getWeeklyGoalById(id);
+        if (goal && (goal as any).scheduleTaskId) {
+          await db.updateScheduleItem((goal as any).scheduleTaskId, { status: "completed" });
+        }
+      } catch (e) {
+        console.warn("[Goals] Failed to auto-complete linked schedule task:", e);
+      }
+    }
     return { success: true };
   }),
   delete: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
@@ -654,6 +665,7 @@ const goalsRouter = router({
         deadline: item.endDate || item.scheduledDate,
         createdBy: input.createdBy,
         repeatDaily: false,
+        scheduleTaskId: item.id,
       });
       created++;
     }

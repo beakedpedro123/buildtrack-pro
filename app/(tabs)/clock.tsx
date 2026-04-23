@@ -612,7 +612,7 @@ export default function ClockScreen() {
   const getRoleColor = (r: string) => {
     switch (r) {
       case "owner": return colors.primary;
-      case "office_manager": return "#6366F1";
+      case "office_manager": return "#8B5CF6";
       case "logistics": return "#0EA5E9";
       case "foreman": return colors.success;
       default: return colors.muted;

@@ -68,7 +68,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }>
 };
 
 const PHASE_COLORS = [
-  "#6366F1", "#0EA5E9", "#22C55E", "#F59E0B", "#EF4444",
+  "#8B5CF6", "#0EA5E9", "#22C55E", "#F59E0B", "#EF4444",
   "#8B5CF6", "#EC4899", "#14B8A6", "#F97316", "#64748B",
 ];
 

@@ -303,7 +303,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
       borderWidth: 1,
       borderColor: colors.border },
     pdfBtn: {
-      backgroundColor: "#D4AF37",
+      backgroundColor: "#D4A843",
       borderRadius: 12,
       paddingVertical: 14,
       marginHorizontal: 20,
@@ -585,11 +585,11 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                 {/* Billing Rate Selector */}
                 <TouchableOpacity
                   style={{
-                    backgroundColor: billingRate ? "#D4AF3715" : colors.surface,
+                    backgroundColor: billingRate ? "#D4A84315" : colors.surface,
                     borderRadius: 12,
                     padding: 14,
                     borderWidth: 1,
-                    borderColor: billingRate ? "#D4AF37" : colors.border,
+                    borderColor: billingRate ? "#D4A843" : colors.border,
                     flexDirection: "row",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -599,7 +599,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                 >
                   <View>
                     <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "600" }}>Hourly Billing Rate</Text>
-                    <Text style={{ fontSize: 15, color: billingRate ? "#D4AF37" : colors.foreground, fontWeight: "700", marginTop: 2 }}>
+                    <Text style={{ fontSize: 15, color: billingRate ? "#D4A843" : colors.foreground, fontWeight: "700", marginTop: 2 }}>
                       {billingRate ? `$${billingRate}/hr` : "None (internal payroll only)"}
                     </Text>
                     <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }}>
@@ -683,8 +683,8 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                           </Text>
                         </View>
                         {canSeeRates && row.payType === "salary" && (
-                          <View style={{ backgroundColor: "#D4AF3722", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
-                            <Text style={{ fontSize: 11, color: "#D4AF37", fontWeight: "700" }}>
+                          <View style={{ backgroundColor: "#D4A84322", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 11, color: "#D4A843", fontWeight: "700" }}>
                               SALARY · ${row.salaryAmount}/period
                             </Text>
                           </View>
@@ -873,12 +873,12 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
               <TouchableOpacity
                 key={rate ?? "none"}
                 style={{
-                  backgroundColor: billingRate === rate ? "#D4AF3720" : colors.surface,
+                  backgroundColor: billingRate === rate ? "#D4A84320" : colors.surface,
                   borderRadius: 12,
                   padding: 16,
                   marginBottom: 8,
                   borderWidth: 1,
-                  borderColor: billingRate === rate ? "#D4AF37" : colors.border,
+                  borderColor: billingRate === rate ? "#D4A843" : colors.border,
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "space-between",
@@ -889,7 +889,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                 }}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: "700", color: rate ? "#D4AF37" : colors.foreground }}>
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: rate ? "#D4A843" : colors.foreground }}>
                     {rate ? `$${rate}/hr` : "None"}
                   </Text>
                   <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
@@ -897,7 +897,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                   </Text>
                 </View>
                 {billingRate === rate && (
-                  <Text style={{ fontSize: 20, color: "#D4AF37", marginLeft: 12 }}>✓</Text>
+                  <Text style={{ fontSize: 20, color: "#D4A843", marginLeft: 12 }}>✓</Text>
                 )}
               </TouchableOpacity>
             ))}

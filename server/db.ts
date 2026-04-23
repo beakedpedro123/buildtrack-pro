@@ -391,6 +391,8 @@ export async function getClockedInEmployees() {
       employeeName: employees.name,
       employeeRole: employees.role,
       jobName: jobs.name,
+      clockInLatitude: clockEntries.clockInLatitude,
+      clockInLongitude: clockEntries.clockInLongitude,
     })
     .from(clockEntries)
     .leftJoin(employees, eq(clockEntries.employeeId, employees.id))
@@ -618,6 +620,13 @@ export async function getGoalsForMeeting(meetingId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(weeklyGoals).where(eq(weeklyGoals.meetingId, meetingId));
+}
+
+export async function getWeeklyGoalById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(weeklyGoals).where(eq(weeklyGoals.id, id)).limit(1);
+  return result[0];
 }
 
 export async function updateWeeklyGoal(id: number, data: Partial<InsertWeeklyGoal>) {

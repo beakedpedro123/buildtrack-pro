@@ -35,10 +35,10 @@ const companyLogo = require("@/assets/images/company-logo.png");
 import { BG_HOME as bgHome } from "@/constants/bg-urls";
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: "#C8A951",
+  owner: "#E8500A",
   office_manager: "#8B5CF6",
   logistics: "#0EA5E9",
-  foreman: "#D4A843",
+  foreman: "#F59E0B",
   laborer: "#22C55E",
 };
 
@@ -504,10 +504,10 @@ export default function DashboardScreen() {
 
   const getRoleColor = (r: string) => {
     switch (r) {
-      case "owner": return "#C8A951";
+      case "owner": return "#E8500A";
       case "office_manager": return "#8B5CF6";
       case "logistics": return "#0EA5E9";
-      case "foreman": return "#D4A843";
+      case "foreman": return "#F59E0B";
       case "laborer": return "#22C55E";
       default: return colors.muted;
     }
