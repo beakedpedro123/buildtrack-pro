@@ -6,6 +6,7 @@ import {
   FlatList,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -56,10 +57,10 @@ export default function MessagesScreen({ embedded }: { embedded?: boolean } = {}
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
   // Queries with offline caching
-  const inboxQ = trpc.messages.inbox.useQuery({ employeeId: empId }, { enabled: empId > 0 });
-  const sentQ = trpc.messages.sent.useQuery({ employeeId: empId }, { enabled: empId > 0 });
-  const unread = trpc.messages.unreadCount.useQuery({ employeeId: empId }, { enabled: empId > 0 });
-  const allEmployeesQ = trpc.employees.list.useQuery();
+  const inboxQ = trpc.messages.inbox.useQuery({ employeeId: empId }, { enabled: empId > 0, refetchOnMount: "always" });
+  const sentQ = trpc.messages.sent.useQuery({ employeeId: empId }, { enabled: empId > 0, refetchOnMount: "always" });
+  const unread = trpc.messages.unreadCount.useQuery({ employeeId: empId }, { enabled: empId > 0, refetchOnMount: "always" });
+  const allEmployeesQ = trpc.employees.list.useQuery(undefined, { refetchOnMount: "always" });
   const { data: inboxData, isLoading: inboxLoading } = useOfflineCache(CACHE_KEYS.MESSAGES + "_inbox", inboxQ.data, inboxQ.isLoading);
   const { data: sentData, isLoading: sentLoading } = useOfflineCache(CACHE_KEYS.MESSAGES + "_sent", sentQ.data, sentQ.isLoading);
   const { data: allEmpData } = useOfflineCache(CACHE_KEYS.ALL_EMPLOYEES, allEmployeesQ.data, allEmployeesQ.isLoading);
@@ -446,6 +447,17 @@ export default function MessagesScreen({ embedded }: { embedded?: boolean } = {}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderMessage}
           contentContainerStyle={{ paddingBottom: 100 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={activeTab === "inbox" ? inboxQ.isRefetching : sentQ.isRefetching}
+              onRefresh={() => {
+                if (activeTab === "inbox") { inboxQ.refetch(); unread.refetch(); }
+                else sentQ.refetch();
+              }}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
         />
       )}
 

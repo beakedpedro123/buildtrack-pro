@@ -72,7 +72,7 @@ export default function KPIsScreen() {
   const [updateValue, setUpdateValue] = useState("");
   const [updateNotes, setUpdateNotes] = useState("");
 
-  const kpiListQ = trpc.kpi.list.useQuery(undefined, { staleTime: 30000 });
+  const kpiListQ = trpc.kpi.list.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
   const kpiHistoryQ = trpc.kpi.getHistory.useQuery(
     { kpiId: selectedKpi?.id || 0, limit: 10 },
     { enabled: !!selectedKpi }
@@ -147,7 +147,7 @@ export default function KPIsScreen() {
     filterRow: { flexDirection: "row", paddingHorizontal: 16, marginBottom: 12, gap: 6 },
     filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1.5 },
     filterText: { fontSize: 12, fontWeight: "600" },
-    addBtn: { backgroundColor: colors.primary, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
+    addBtn: { backgroundColor: colors.primary, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8 },
     kpiCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 10 },
     modalContainer: { flex: 1, backgroundColor: colors.background },
     modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: Math.max(insets.top + 12, 28), paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -172,7 +172,7 @@ export default function KPIsScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
-        <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+        <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
       <View style={styles.header}>
         <Text style={styles.title}>KPIs</Text>
         {canEdit && (

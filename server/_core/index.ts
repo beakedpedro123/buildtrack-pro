@@ -244,6 +244,40 @@ async function startServer() {
     }
   });
 
+  // ─── Pivot AI Schedule Generation ─────────────────────────────────────
+  app.post("/api/pivot-generate-schedule", async (req: Request, res: Response) => {
+    try {
+      const { prompt, jobId } = req.body;
+      if (!prompt) { res.status(400).json({ error: "prompt required" }); return; }
+      const { invokeLLM } = await import("./llm");
+      const result = await invokeLLM({
+        messages: [
+          { role: "system", content: "You are a construction scheduling expert. Generate realistic construction schedules. Return ONLY valid JSON arrays, no markdown, no explanation." },
+          { role: "user", content: prompt },
+        ],
+      });
+      // Parse the LLM response to extract JSON
+      let tasks: any[] = [];
+      const content = typeof result === "string" ? result : (result as any)?.content || (result as any)?.message?.content || JSON.stringify(result);
+      try {
+        // Try to find JSON array in the response
+        const jsonMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        if (jsonMatch) {
+          tasks = JSON.parse(jsonMatch[0]);
+        } else {
+          tasks = JSON.parse(content);
+        }
+      } catch (parseErr) {
+        console.error("Failed to parse LLM schedule response:", parseErr);
+        tasks = [];
+      }
+      res.json({ tasks, jobId });
+    } catch (err: any) {
+      console.error("Schedule generation error:", err);
+      res.status(500).json({ error: "Failed to generate schedule", tasks: [] });
+    }
+  });
+
   app.use(
     "/api/trpc",
     createExpressMiddleware({

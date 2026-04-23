@@ -278,7 +278,7 @@ export default function DashboardScreen() {
     getCached<any[]>(CACHE_KEYS.ALL_EMPLOYEES).then((d) => { if (d) setCachedEmployees(d); });
   }, []);
 
-  const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 30000 });
+  const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
   useEffect(() => {
     if (activeJobs && activeJobs.length > 0) {
       setCache(CACHE_KEYS.ACTIVE_JOBS, activeJobs);
@@ -286,7 +286,7 @@ export default function DashboardScreen() {
     }
   }, [activeJobs]);
 
-  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
+  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: isManagement, staleTime: 15000, refetchOnMount: "always" });
   useEffect(() => {
     if (allEmployees && allEmployees.length > 0) {
       setCache(CACHE_KEYS.ALL_EMPLOYEES, allEmployees);
@@ -449,9 +449,9 @@ export default function DashboardScreen() {
   const activeAlerts = useMemo(() => (budgetAlerts || []).filter(a => a.alertLevel !== "ok"), [budgetAlerts]);
 
   // Labor cost data with cache fallback
-  const byJobQ = trpc.laborDashboard.byJob.useQuery({ startDate, endDate }, { enabled: isManagement, staleTime: 30000 });
+  const byJobQ = trpc.laborDashboard.byJob.useQuery({ startDate, endDate }, { enabled: isManagement, staleTime: 15000, refetchOnMount: "always" });
   const weeklyTrendQ = trpc.laborDashboard.weeklyTrend.useQuery({ weeks: 8 }, { enabled: isManagement, staleTime: 60000 });
-  const byEmployeeQ = trpc.laborDashboard.byEmployee.useQuery({ startDate, endDate }, { enabled: isManagement, staleTime: 30000 });
+  const byEmployeeQ = trpc.laborDashboard.byEmployee.useQuery({ startDate, endDate }, { enabled: isManagement, staleTime: 15000, refetchOnMount: "always" });
   const { data: byJob } = useOfflineCache(`${CACHE_KEYS.LABOR_BY_JOB}_home_${startDate}`, byJobQ.data, byJobQ.isLoading);
   const { data: weeklyTrend } = useOfflineCache(CACHE_KEYS.CHART_LABOR_TRENDS, weeklyTrendQ.data, weeklyTrendQ.isLoading);
   const { data: byEmployee } = useOfflineCache(`${CACHE_KEYS.LABOR_BY_EMPLOYEE}_home_${startDate}`, byEmployeeQ.data, byEmployeeQ.isLoading);
@@ -474,7 +474,7 @@ export default function DashboardScreen() {
   const activeJobForEntry = [...effectiveActiveJobs, ...effectiveMyJobs].find((j) => j.id === activeEntry?.jobId);
 
   // Today's schedule tasks
-  const { data: allSchedule } = trpc.schedule.getAll.useQuery(undefined, { enabled: isManagement, staleTime: 30000 });
+  const { data: allSchedule } = trpc.schedule.getAll.useQuery(undefined, { enabled: isManagement, staleTime: 15000, refetchOnMount: "always" });
   const todayTasks = useMemo(() => {
     if (!allSchedule) return [];
     const today = new Date();
@@ -529,7 +529,7 @@ export default function DashboardScreen() {
   if (isLaborer) {
     return (
       <ScreenContainer edges={["top", "left", "right"]}>
-        <ImageBackground source={bgHome} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.3 }}>
+        <ImageBackground source={bgHome} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.12 }}>
         <OfflineBanner />
         <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
           {/* Company Logo */}
@@ -548,7 +548,7 @@ export default function DashboardScreen() {
           </View>
 
           {/* Clock Status Card */}
-          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.surface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}>
+          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.surface, borderRadius: 14, padding: 24, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}>
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
               <View style={{ width: 10, height: 10, borderRadius: 5, marginRight: 8, backgroundColor: activeEntry ? colors.success : colors.muted }} />
               <Text style={{ fontSize: 15, fontWeight: "700", color: activeEntry ? colors.success : colors.muted }}>
@@ -654,7 +654,7 @@ export default function DashboardScreen() {
   if (isForeman) {
     return (
       <ScreenContainer edges={["top", "left", "right"]}>
-        <ImageBackground source={bgHome} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.3 }}>
+        <ImageBackground source={bgHome} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.12 }}>
         <OfflineBanner />
         <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
           {/* Company Logo */}
@@ -673,7 +673,7 @@ export default function DashboardScreen() {
           </View>
 
           {/* Clock Status Card */}
-          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.surface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}>
+          <View style={{ marginHorizontal: 20, marginBottom: 20, backgroundColor: colors.surface, borderRadius: 14, padding: 24, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}>
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
               <View style={{ width: 10, height: 10, borderRadius: 5, marginRight: 8, backgroundColor: activeEntry ? colors.success : colors.muted }} />
               <Text style={{ fontSize: 15, fontWeight: "700", color: activeEntry ? colors.success : colors.muted }}>
@@ -782,7 +782,7 @@ export default function DashboardScreen() {
   // ═══════════════════════════════════════════════════════════
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
-      <ImageBackground source={bgHome} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.3 }}>
+      <ImageBackground source={bgHome} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.12 }}>
       <OfflineBanner />
       <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
         {/* Company Logo */}

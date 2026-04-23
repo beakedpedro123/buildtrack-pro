@@ -1,12 +1,13 @@
 import "@/global.css";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager, onlineManager } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
-import { KeyboardAvoidingView, Platform } from "react-native";
+import { AppState, KeyboardAvoidingView, Platform } from "react-native";
+import NetInfo, { type NetInfoState } from "@react-native-community/netinfo";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { AuthProvider } from "@/lib/auth-context";
@@ -32,6 +33,32 @@ if (Platform.OS !== "web") {
   setupNotificationHandler();
 }
 
+// Bridge React Native AppState to React Query's focusManager
+// This makes refetchOnWindowFocus work on mobile — without this,
+// data never refreshes when switching tabs or returning to the app
+function useAppStateFocusManager() {
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const subscription = AppState.addEventListener("change", (status) => {
+      focusManager.setFocused(status === "active");
+    });
+    return () => subscription.remove();
+  }, []);
+}
+
+// Bridge network state to React Query's onlineManager
+// This ensures queries pause when offline and resume when back online
+function useOnlineManager() {
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const unsubscribe = NetInfo.addEventListener((state: NetInfoState) => {
+      const isConnected = state.isConnected != null ? state.isConnected : true;
+      onlineManager.setOnline(isConnected);
+    });
+    return () => unsubscribe();
+  }, []);
+}
+
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
 
@@ -40,6 +67,11 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  // Activate AppState → focusManager bridge for data refresh on tab/app switch
+  useAppStateFocusManager();
+  // Activate network state → onlineManager bridge for offline/online transitions
+  useOnlineManager();
+
   const router = useRouter();
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
   const initialFrame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
@@ -86,14 +118,19 @@ export default function RootLayout() {
       const qc = new QueryClient({
         defaultOptions: {
           queries: {
-            // Disable automatic refetching on window focus for mobile
-            refetchOnWindowFocus: false,
+            // Enable refetching on window focus — now works on mobile via AppState bridge
+            refetchOnWindowFocus: true,
+            // Refetch when component mounts if data is stale
+            refetchOnMount: true,
+            // Refetch when network reconnects
+            refetchOnReconnect: true,
             // Retry failed requests once
             retry: 1,
-            // Reduce unnecessary refetches — data stays fresh for 30s
+            // Data stays fresh for 30 seconds — ensures tabs show updated data quickly
+            // while still preventing excessive refetches on rapid navigation
             staleTime: 30_000,
-            // Keep unused query data in cache for 5 minutes
-            gcTime: 5 * 60_000,
+            // Keep unused query data in cache for 3 minutes
+            gcTime: 3 * 60_000,
           },
           mutations: {
             // Never retry mutations — fail fast so offline queue catches immediately

@@ -102,9 +102,9 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
   // Foremen and above can view other employees' cards
   const canViewOthers = canViewTeam;
 
-  const { data: employees, isLoading } = trpc.employees.list.useQuery(undefined, { staleTime: 30000 });
-  const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { staleTime: 15000, refetchInterval: 30000 });
-  const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 30000 });
+  const { data: employees, isLoading } = trpc.employees.list.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
+  const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { staleTime: 0, refetchInterval: 15000, refetchOnMount: "always", refetchOnWindowFocus: "always" });
+  const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
 
   // Offline caching
   const [cachedEmployees, setCachedEmployees] = useState<any[] | null>(null);
@@ -349,7 +349,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
   if (!canViewTeam && !employee) {
     return (
       <Wrapper style={embedded ? { flex: 1 } : undefined}>
-        <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+        <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
           <Text style={{ fontSize: 40, marginBottom: 16 }}>🔒</Text>
           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>Access Restricted</Text>
@@ -362,7 +362,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
 
   return (
     <Wrapper style={embedded ? { flex: 1 } : undefined} edges={embedded ? undefined : ["top", "left", "right"]}>
-        <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+        <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Team</Text>

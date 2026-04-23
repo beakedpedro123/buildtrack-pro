@@ -26,6 +26,8 @@ import { ActivityIndicator,
 
 import { BG_CLOCK as bg_clock } from "@/constants/bg-urls";
 import { formatTime12, formatDateTime12, formatTimeForEdit, parse12HrTime } from "@/lib/utils";
+import * as Location from "expo-location";
+import { useGpsTracking } from "@/hooks/use-gps-tracking";
 
 function formatDuration(ms: number) {
   if (ms <= 0) return "0h 0m";
@@ -53,6 +55,7 @@ export default function ClockScreen() {
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
   const { addClockEntry } = useOfflineQueue();
+  const { gpsEnabled } = useGpsTracking();
   const [now, setNow] = useState(new Date());
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [jobsExpanded, setJobsExpanded] = useState(false);
@@ -132,7 +135,7 @@ export default function ClockScreen() {
     }
   }, [canClockCrew]);
 
-  const { data: jobs, isError: jobsError, refetch: refetchJobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 60000, retry: 3, retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000) });
+  const { data: jobs, isError: jobsError, refetch: refetchJobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always", retry: 3, retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000) });
 
   // Auto-retry jobs fetch if it fails — retry up to 5 times with exponential backoff
   const jobsRetryRef = useRef(0);
@@ -160,7 +163,7 @@ export default function ClockScreen() {
     { enabled: !!clockTargetId, staleTime: 0, refetchOnMount: true }
   );
 
-  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: canClockCrew, staleTime: 30000 });
+  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: canClockCrew, staleTime: 15000, refetchOnMount: "always" });
 
   // Cache employees when fetched from server
   useEffect(() => {
@@ -216,6 +219,21 @@ export default function ClockScreen() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     try {
+      // GPS capture (non-blocking — don't delay clock-in)
+      let gpsLat: number | undefined;
+      let gpsLng: number | undefined;
+      if (gpsEnabled && Platform.OS !== "web") {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === "granted") {
+            const loc = await Promise.race([
+              Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+              new Promise<null>((r) => setTimeout(() => r(null), 5000)),
+            ]);
+            if (loc) { gpsLat = loc.coords.latitude; gpsLng = loc.coords.longitude; }
+          }
+        } catch { /* GPS failed — continue without it */ }
+      }
       // Calculate clock-in time: use custom time if set, otherwise use current time
       let clockInTime = new Date().toISOString();
       if (useCustomTime && customClockInTime) {
@@ -253,6 +271,7 @@ export default function ClockScreen() {
             jobId: selectedJobId,
             clockIn: clockInTime,
             isOfflineEntry: false,
+            ...(gpsLat != null && gpsLng != null ? { clockInLatitude: gpsLat, clockInLongitude: gpsLng } : {}),
           }),
           Platform.OS === "web" ? 20000 : 15000
         );
@@ -281,6 +300,22 @@ export default function ClockScreen() {
     const savedEntry = activeEntry; // save in case we need to revert
     const clockOutTime = new Date().toISOString();
 
+    // GPS capture on clock-out (non-blocking)
+    let gpsOutLat: number | undefined;
+    let gpsOutLng: number | undefined;
+    if (gpsEnabled && Platform.OS !== "web") {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          const loc = await Promise.race([
+            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+            new Promise<null>((r) => setTimeout(() => r(null), 5000)),
+          ]);
+          if (loc) { gpsOutLat = loc.coords.latitude; gpsOutLng = loc.coords.longitude; }
+        }
+      } catch { /* GPS failed — continue */ }
+    }
+
     // ★ OPTIMISTIC: update UI to "Clocked Out" IMMEDIATELY — before any server call
     // The context sets an 8-second lock so server responses can't overwrite this
     optimisticClockOut();
@@ -303,6 +338,7 @@ export default function ClockScreen() {
         clockOutMutation.mutateAsync({
           entryId,
           clockOut: clockOutTime,
+          ...(gpsOutLat != null && gpsOutLng != null ? { clockOutLatitude: gpsOutLat, clockOutLongitude: gpsOutLng } : {}),
         }),
         Platform.OS === "web" ? 20000 : 15000
       );
@@ -586,7 +622,7 @@ export default function ClockScreen() {
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-        <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+        <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
       <OfflineBanner />
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
         <View style={styles.header}>

@@ -205,8 +205,8 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
 
   // ─── Safety meeting queries ──────────────────────────────────────────────
   const { data: jobs } = trpc.jobs.listActive.useQuery();
-  const { data: topics } = trpc.safetyTopics.list.useQuery({ activeOnly: true }, { staleTime: 30000 });
-  const { data: allSafetyMeetings } = trpc.safetyMeetings.list.useQuery({ limit: 50 }, { staleTime: 30000 });
+  const { data: topics } = trpc.safetyTopics.list.useQuery({ activeOnly: true }, { staleTime: 15000, refetchOnMount: "always" });
+  const { data: allSafetyMeetings } = trpc.safetyMeetings.list.useQuery({ limit: 50 }, { staleTime: 15000, refetchOnMount: "always" });
 
   const now = new Date();
   const weekStart = getWeekStart(now);
@@ -526,7 +526,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
     const activeMeeting = meetings?.find((m) => m.id === activeMeetingId);
     return (
       <MWrapper style={embedded ? { flex: 1 } : undefined}>
-        <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+        <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
           <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: colors.error + "22", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
             <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: colors.error, alignItems: "center", justifyContent: "center" }}>
@@ -936,7 +936,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
   // ═══════════════════════════════════════════════════════════════════════════
   return (
     <MWrapper style={embedded ? { flex: 1 } : undefined}>
-    <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+    <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
       {/* Header */}
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
         <Text style={{ fontSize: 26, fontWeight: "700", color: colors.foreground }}>Meetings</Text>

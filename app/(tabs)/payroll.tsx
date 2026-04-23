@@ -68,7 +68,7 @@ function getDateRange(period: Period, customStart?: string, customEnd?: string, 
     return {
       startDate: start.toISOString(),
       endDate: end.toISOString(),
-      label: `${fmtDate(start)} \u2013 ${fmtDate(end)}`,
+      label: `${fmtDate(start)} – ${fmtDate(end)}`,
     };
   }
   const now = new Date();
@@ -86,7 +86,7 @@ function getDateRange(period: Period, customStart?: string, customEnd?: string, 
     return {
       startDate: weekStart.toISOString(),
       endDate: weekEnd.toISOString(),
-      label: `${fmtDate(weekStart)} \u2013 ${fmtDate(weekEnd)}`,
+      label: `${fmtDate(weekStart)} – ${fmtDate(weekEnd)}`,
     };
   } else if (period === "biweek") {
     // Pay period with offset navigation (0 = current, -1 = previous, etc.)
@@ -94,7 +94,7 @@ function getDateRange(period: Period, customStart?: string, customEnd?: string, 
     return {
       startDate: pStart.toISOString(),
       endDate: pEnd.toISOString(),
-      label: `${fmtDate(pStart)} \u2013 ${fmtDate(pEnd)}`,
+      label: `${fmtDate(pStart)} – ${fmtDate(pEnd)}`,
     };
   } else {
     // This month
@@ -251,7 +251,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
   if (!canAccessPayroll) {
     return (
       <PWrapper style={embedded ? { flex: 1 } : undefined}>
-        <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+        <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
           <Text style={{ fontSize: 48, marginBottom: 16 }}>🔒</Text>
           <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>
@@ -374,7 +374,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
             Payroll Report
           </Text>
           <Text style={{ fontSize: 14, color: colors.muted, marginTop: 2 }}>
-            {new Date(range.startDate).toLocaleDateString()} \u2013{" "}
+            {new Date(range.startDate).toLocaleDateString()} –{" "}
             {new Date(range.endDate).toLocaleDateString()}
           </Text>
           {period === "biweek" && (() => {
@@ -744,7 +744,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
       {/* Custom Date Range Picker Modal */}
       <Modal visible={showDatePicker} transparent animationType="slide">
         <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
-          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: 24 }}>
             <View style={{ alignItems: "center", marginBottom: 16 }}>
               <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
             </View>
@@ -793,7 +793,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
       {/* Report Type Picker Modal */}
       <Modal visible={showReportPicker} transparent animationType="slide">
         <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
-          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: 24 }}>
             <View style={{ alignItems: "center", marginBottom: 16 }}>
               <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
             </View>
@@ -858,7 +858,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
       {/* Billing Rate Picker Modal */}
       <Modal visible={showBillingPicker} transparent animationType="slide">
         <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
-          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: 24 }}>
             <View style={{ alignItems: "center", marginBottom: 16 }}>
               <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
             </View>
@@ -923,7 +923,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
       {/* Job Filter Picker Modal */}
       <Modal visible={showJobPicker} transparent animationType="slide">
         <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
-          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: "70%" }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: 24, maxHeight: "70%" }}>
             <View style={{ alignItems: "center", marginBottom: 16 }}>
               <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
             </View>

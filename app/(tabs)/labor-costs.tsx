@@ -173,7 +173,7 @@ export default function LaborCostsScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
-        <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+        <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
       <View style={styles.header}>
         <Text style={styles.title}>Labor Costs</Text>
         <Text style={styles.subtitle}>Track labor spend across jobs and employees</Text>

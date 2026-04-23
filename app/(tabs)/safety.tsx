@@ -88,7 +88,7 @@ export default function SafetyScreen() {
   const canManageTopics = isOwner || isLogistics; // Office Manager excluded from safety
   const canDocument = isForeman || canManageTopics;
 
-  const jobsQ = trpc.jobs.listActive.useQuery(undefined, { staleTime: 30000 });
+  const jobsQ = trpc.jobs.listActive.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
   const topicsQ = trpc.safetyTopics.list.useQuery({ activeOnly: true });
   const allMeetingsQ = trpc.safetyMeetings.list.useQuery({ limit: 50 });
   const { data: jobs } = useOfflineCache(CACHE_KEYS.ACTIVE_JOBS, jobsQ.data, jobsQ.isLoading);
@@ -287,7 +287,7 @@ export default function SafetyScreen() {
     return (
       <ScreenContainer>
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-        <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+        <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
           <TouchableOpacity onPress={() => { resetForm(); setScreen("list"); }}>
             <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
@@ -540,7 +540,7 @@ export default function SafetyScreen() {
   // ─── MAIN LIST VIEW ───
   return (
     <ScreenContainer>
-    <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+    <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
       <View style={styles.header}>
         <Text style={styles.title}>Safety</Text>
         <View style={styles.actionRow}>

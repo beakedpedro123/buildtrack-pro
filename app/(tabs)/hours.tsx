@@ -164,7 +164,7 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
   const Wrapper = embedded ? View : ScreenContainer;
   return (
     <Wrapper style={embedded ? { flex: 1 } : undefined}>
-        <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+        <ImageBackground source={bg_clock} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
       {/* Header */}
       <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
         <Text style={{ fontSize: 26, fontWeight: "700", color: colors.foreground }}>My Hours</Text>

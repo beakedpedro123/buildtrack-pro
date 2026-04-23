@@ -427,19 +427,19 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
 
   // ─── Data Queries ───────────────────────────────────────────────────
   // Use date-filtered queries when a filter is active, otherwise use the original unfiltered ones
-  const profitQueryUnfiltered = trpc.financialCharts.jobProfitability.useQuery(undefined, { staleTime: 60000, enabled: !hasDateFilter });
+  const profitQueryUnfiltered = trpc.financialCharts.jobProfitability.useQuery(undefined, { staleTime: 30000, refetchOnMount: "always", enabled: !hasDateFilter });
   const profitQueryFiltered = trpc.financialCharts.jobProfitabilityFiltered.useQuery(
     { startDate: dateParams.startDate, endDate: dateParams.endDate },
-    { staleTime: 60000, enabled: hasDateFilter }
+    { staleTime: 30000, refetchOnMount: "always", enabled: hasDateFilter }
   );
   const profitQueryRaw = hasDateFilter ? profitQueryFiltered : profitQueryUnfiltered;
 
-  const taxQueryRaw = trpc.financialCharts.taxBreakdown.useQuery(undefined, { staleTime: 60000 });
+  const taxQueryRaw = trpc.financialCharts.taxBreakdown.useQuery(undefined, { staleTime: 30000, refetchOnMount: "always" });
 
-  const laborQueryUnfiltered = trpc.financialCharts.monthlyLaborTrend.useQuery({ months: 6 }, { staleTime: 60000, enabled: !hasDateFilter });
+  const laborQueryUnfiltered = trpc.financialCharts.monthlyLaborTrend.useQuery({ months: 6 }, { staleTime: 30000, refetchOnMount: "always", enabled: !hasDateFilter });
   const laborQueryFiltered = trpc.financialCharts.monthlyLaborTrendFiltered.useQuery(
     { startDate: dateParams.startDate, endDate: dateParams.endDate },
-    { staleTime: 60000, enabled: hasDateFilter }
+    { staleTime: 30000, refetchOnMount: "always", enabled: hasDateFilter }
   );
   const laborQueryRaw = hasDateFilter ? laborQueryFiltered : laborQueryUnfiltered;
 

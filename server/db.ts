@@ -339,6 +339,12 @@ export async function clockOut(entryId: number, clockOutTime: Date) {
   }).where(eq(clockEntries.id, entryId));
 }
 
+export async function updateClockEntryGps(entryId: number, gps: { clockOutLatitude?: number; clockOutLongitude?: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(clockEntries).set(gps).where(eq(clockEntries.id, entryId));
+}
+
 export async function getActiveClockEntry(employeeId: number) {
   const db = await getDb();
   if (!db) return undefined;

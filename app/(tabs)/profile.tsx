@@ -21,6 +21,8 @@ import { BG_MORE as bg_more } from "@/constants/bg-urls";
 import { useLanguage, type AppLanguage } from "@/lib/language-context";
 import MessagesScreen from "./messages";
 import { OverheadSettings } from "@/components/overhead-settings";
+import { useGpsTracking } from "@/hooks/use-gps-tracking";
+import { Switch } from "react-native";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
@@ -67,6 +69,7 @@ export default function ProfileScreen() {
   const [confirmPin, setConfirmPin] = useState("");
   const [saving, setSaving] = useState(false);
   const { language, setLanguage } = useLanguage();
+  const { gpsEnabled, toggleGps } = useGpsTracking();
 
   // Unread message count for badge
   const empId = (employee as any)?.id ?? 0;
@@ -227,7 +230,7 @@ export default function ProfileScreen() {
 
   return (
     <ScreenContainer>
-        <ImageBackground source={bg_more} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+        <ImageBackground source={bg_more} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
 
@@ -266,7 +269,7 @@ export default function ProfileScreen() {
               <Text style={{ fontSize: 30, fontWeight: "800", color: roleColor }}>{getInitials(employee.name)}</Text>
             </View>
             <Text style={{ fontSize: 22, fontWeight: "800", color: colors.foreground }}>{employee.name}</Text>
-            <View style={{ backgroundColor: roleColor + "22", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 4, marginTop: 6 }}>
+            <View style={{ backgroundColor: roleColor + "22", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 4, marginTop: 6 }}>
               <Text style={{ fontSize: 13, fontWeight: "700", color: roleColor }}>{ROLE_LABELS[employee.role]}</Text>
             </View>
           </View>
@@ -421,6 +424,33 @@ export default function ProfileScreen() {
               <Text style={{ fontSize: 14, color: colors.foreground }}>#{employee.id}</Text>
             </View>
           </View>
+
+          {/* GPS Tracking Toggle — Owner Only */}
+          {employee.role === "owner" && (
+            <View style={styles.section}>
+              <View style={styles.row}>
+                <Text style={{ fontSize: 13, color: colors.muted, fontWeight: "600" }}>COMPANY SETTINGS</Text>
+              </View>
+              <View style={styles.rowLast}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                  <Text style={{ fontSize: 18 }}>📍</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>GPS Tracking</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Capture location on clock-in/out</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={gpsEnabled}
+                  onValueChange={(val) => {
+                    toggleGps(val);
+                    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  }}
+                  trackColor={{ false: colors.border, true: colors.primary + "80" }}
+                  thumbColor={gpsEnabled ? colors.primary : colors.muted}
+                />
+              </View>
+            </View>
+          )}
 
           {/* Overhead Settings - Owner Only */}
           {(employee.role === "owner" || employee.role === "office_manager") && (

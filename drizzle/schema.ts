@@ -500,6 +500,7 @@ export const jobSchedule = mysqlTable("job_schedule", {
   jobId: int("jobId").notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
+  phase: varchar("phase", { length: 100 }), // Construction phase: Foundation, Framing, Roofing, etc.
   scheduledDate: timestamp("scheduledDate").notNull(),
   endDate: timestamp("endDate"),
   status: mysqlEnum("status", ["pending", "in_progress", "completed", "skipped"]).default("pending").notNull(),

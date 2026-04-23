@@ -193,6 +193,8 @@ const clockRouter = router({
     isOfflineEntry: z.boolean().default(false),
     localId: z.string().optional(),
     notes: z.string().optional(),
+    clockInLatitude: z.number().optional(),
+    clockInLongitude: z.number().optional(),
   })).mutation(async ({ input }) => {
     const { clockOut: clockOutStr, ...clockInData } = input;
     const result = await db.clockIn({ ...clockInData, clockIn: new Date(input.clockIn) });
@@ -208,7 +210,17 @@ const clockRouter = router({
   out: publicProcedure.input(z.object({
     entryId: z.number(),
     clockOut: z.string(),
-  })).mutation(({ input }) => db.clockOut(input.entryId, new Date(input.clockOut))),
+    clockOutLatitude: z.number().optional(),
+    clockOutLongitude: z.number().optional(),
+  })).mutation(async ({ input }) => {
+    await db.clockOut(input.entryId, new Date(input.clockOut));
+    if (input.clockOutLatitude != null && input.clockOutLongitude != null) {
+      await db.updateClockEntryGps(input.entryId, {
+        clockOutLatitude: input.clockOutLatitude,
+        clockOutLongitude: input.clockOutLongitude,
+      });
+    }
+  }),
   activeEntry: publicProcedure.input(z.object({ employeeId: z.number() })).query(({ input }) => db.getActiveClockEntry(input.employeeId)),
   history: publicProcedure.input(z.object({ employeeId: z.number(), since: z.string().optional() })).query(({ input }) => db.getClockEntriesForEmployee(input.employeeId, input.since ? new Date(input.since) : undefined)),
   forJob: publicProcedure.input(z.object({ jobId: z.number(), date: z.string().optional() })).query(({ input }) => db.getClockEntriesForJob(input.jobId, input.date ? new Date(input.date) : undefined)),
@@ -2897,6 +2909,7 @@ const scheduleRouter = router({
     jobId: z.number(),
     title: z.string(),
     description: z.string().optional(),
+    phase: z.string().optional(),
     scheduledDate: z.string(),
     endDate: z.string().optional(),
     assignedEmployees: z.string().optional(),
@@ -2913,6 +2926,7 @@ const scheduleRouter = router({
     id: z.number(),
     title: z.string().optional(),
     description: z.string().optional(),
+    phase: z.string().optional(),
     scheduledDate: z.string().optional(),
     endDate: z.string().optional(),
     status: z.enum(["pending", "in_progress", "completed", "skipped"]).optional(),
@@ -2926,6 +2940,37 @@ const scheduleRouter = router({
     return db.updateScheduleItem(id, updateData);
   }),
   delete: publicProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteScheduleItem(input.id)),
+  bulkCreate: publicProcedure.input(z.object({
+    items: z.array(z.object({
+      jobId: z.number(),
+      title: z.string(),
+      description: z.string().optional(),
+      phase: z.string().optional(),
+      scheduledDate: z.string(),
+      endDate: z.string().optional(),
+      assignedEmployees: z.string().optional(),
+      sortOrder: z.number().optional(),
+      createdBy: z.number(),
+    })),
+  })).mutation(async ({ input }) => {
+    let created = 0;
+    for (const item of input.items) {
+      await db.createScheduleItem({
+        ...item,
+        scheduledDate: new Date(item.scheduledDate),
+        endDate: item.endDate ? new Date(item.endDate) : undefined,
+      });
+      created++;
+    }
+    return { count: created };
+  }),
+  deleteByJob: publicProcedure.input(z.object({ jobId: z.number() })).mutation(async ({ input }) => {
+    const items = await db.getJobSchedule(input.jobId);
+    for (const item of items) {
+      await db.deleteScheduleItem(item.id);
+    }
+    return { deleted: items.length };
+  }),
 });
 
 // ─── Employee Tax Info Router ─────────────────────────────────────────────

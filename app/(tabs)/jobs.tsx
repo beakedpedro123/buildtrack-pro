@@ -102,7 +102,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const canSeeBudget = role === "owner" || role === "office_manager";
   const canUpdateStatus = canManage || role === "foreman";
 
-  const { data: allJobs, isLoading, isError: jobsError } = trpc.jobs.list.useQuery(undefined, { staleTime: 30000 });
+  const { data: allJobs, isLoading, isError: jobsError } = trpc.jobs.list.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
 
   // Offline caching for jobs
   const [cachedJobs, setCachedJobs] = useState<any[] | null>(null);
@@ -404,7 +404,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     filterRow: { flexDirection: "row", paddingHorizontal: 20, marginBottom: 12, gap: 8 },
     filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5 },
     filterText: { fontSize: 13, fontWeight: "600" },
-    addBtn: { backgroundColor: colors.primary, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
+    addBtn: { backgroundColor: colors.primary, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8 },
     modalContainer: { flex: 1, backgroundColor: colors.background },
     modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: Math.max(insets.top + 12, 28), paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
     modalTitle: { fontSize: 20, fontWeight: "800", color: colors.foreground },
@@ -425,7 +425,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     const JWrapper = embedded ? View : ScreenContainer;
     return (
     <JWrapper style={embedded ? { flex: 1 } : undefined} edges={embedded ? undefined : ["top", "left", "right"]}>
-        <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+        <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
       <View style={styles.header}>
         <Text style={styles.title}>Jobs</Text>
         {canManage && (

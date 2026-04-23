@@ -63,7 +63,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="house.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="cottage.fill" color={color} />,
         }}
       />
 
@@ -72,7 +72,7 @@ export default function TabLayout() {
         name="jobsreports"
         options={{
           title: "Jobs",
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="briefcase.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="building.fill" color={color} />,
         }}
       />
 
@@ -80,7 +80,7 @@ export default function TabLayout() {
         name="goals"
         options={{
           title: "Goals",
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="target" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="target.fill" color={color} />,
         }}
       />
 
@@ -89,7 +89,7 @@ export default function TabLayout() {
         name="manage"
         options={{
           title: "Manage",
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="square.grid.2x2.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="apps.fill" color={color} />,
         }}
       />
 
@@ -98,7 +98,7 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="person.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="person.crop.circle.fill" color={color} />,
         }}
       />
 

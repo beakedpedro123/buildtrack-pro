@@ -72,6 +72,18 @@ const MAPPING = {
   "arrow.down.circle.fill": "file-download" as const,
   "eye.slash.fill": "visibility-off" as const,
   "calendar.badge.plus": "event-note" as const,
+  // ─── Option A: Sleek outlined icons ───
+  "house": "home" as const,
+  "briefcase": "work-outline" as const,
+  "scope": "gps-fixed" as const,
+  "slider.horizontal.3": "tune" as const,
+  "person.circle": "account-circle" as const,
+  // ─── Option B: Bold modern icons ───
+  "building.fill": "domain" as const,
+  "target.fill": "adjust" as const,
+  "apps.fill": "apps" as const,
+  "person.crop.circle.fill": "person-outline" as const,
+  "cottage.fill": "cottage" as const,
 } satisfies Record<string, ComponentProps<typeof MaterialIcons>["name"]>;
 
 /**

@@ -1,0 +1,1 @@
+ALTER TABLE `job_schedule` ADD `phase` varchar(100);

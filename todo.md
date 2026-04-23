@@ -2059,3 +2059,23 @@
 - [x] Add employee tax info fields for accountant (Team > Tax Information, owner-only)
 - [x] Research best approach for employee tax document management
 - [x] Research data refresh/sync best practices for React Native + tRPC
+
+### Phase 104: Major UI/UX Overhaul + Job Scheduling + GPS
+- [ ] Fix Pivot FAB position (too low, overlaps tab bar on some devices)
+- [ ] Fix grey section at bottom pushing icons into Pivot on some devices
+- [ ] Redesign tab bar icons — 2 sleek professional options (Home, Jobs, Goals, Manage, Profile)
+- [x] Reduce background curves — more subtle, less curvy
+- [x] Overhaul job scheduling — full multi-month calendars per job (3-8+ months)
+- [x] Pivot AI generates job schedule from budget + crew selection
+- [x] Add schedule to existing jobs (not just new ones)
+- [x] Job progress graphs (individual + all jobs combined)
+- [ ] Sync job progress graphs into Graphs tab
+- [ ] Redesign main dashboard — integrate all data for real-time viewing
+- [ ] Role-tailored dashboard views (Owner/OM: everything, Foreman: graphs/percentages, Laborer: minimal)
+- [x] Add GPS tracking toggle (owner account-level on/off)
+- [ ] Fix date dash display (\u2013 showing as literal text in schedule)
+- [ ] Research best dashboard designs for construction management
+- [ ] Research best role-based UX patterns for mobile apps
+- [ ] Apply Option B tab icons (cottage, domain, adjust, apps, person-outline)
+- [x] Redesign Goals tab with calendar view for daily/weekly goals
+- [x] Fix data refresh lag across all tabs — critical for production readiness

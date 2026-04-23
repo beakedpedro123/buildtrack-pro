@@ -21,10 +21,11 @@ import { ActivityIndicator,
 
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
+import { GoalsCalendar } from "@/components/goals-calendar";
 
 type Priority = "low" | "medium" | "high";
 type GoalStatus = "pending" | "in_progress" | "completed" | "cancelled";
-type SubTab = "goals" | "punchlist";
+type SubTab = "goals" | "calendar" | "punchlist";
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   low: "#22C55E",
@@ -198,13 +199,13 @@ function DateTimePicker({
 function PunchListSubTab({ colors, employee, canManage }: { colors: any; employee: any; canManage: boolean }) {
   const utils = trpc.useUtils();
   const insets = useSafeAreaInsets();
-  const { data: jobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 30000 });
+  const { data: jobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const { data: punchItems, isLoading: loadingItems, refetch: refetchItems } = trpc.punchList.listForJob.useQuery(
     { jobId: selectedJobId! },
     { enabled: !!selectedJobId }
   );
-  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { staleTime: 30000 });
+  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [bulkText, setBulkText] = useState("");
@@ -693,7 +694,7 @@ export default function GoalsScreen() {
     // CRITICAL: Never fire this query until employee is loaded — prevents data leak
     { enabled: !!employee?.id && !!employee?.role, staleTime: 0 }
   );
-  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { staleTime: 30000 });
+  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
 
   // Offline cache for goals
   const [cachedGoals, setCachedGoals] = useState<any[] | null>(null);
@@ -1228,7 +1229,7 @@ export default function GoalsScreen() {
   // ═══════════════════════════════════════════════════════════════════════════════
   return (
     <ScreenContainer>
-      <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+      <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
 
         {/* Header with title */}
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
@@ -1254,9 +1255,9 @@ export default function GoalsScreen() {
 
         {/* ─── Sub-Tab Switcher ─────────────────────────────────────────────────── */}
         <View style={{ flexDirection: "row", paddingHorizontal: 16, marginTop: 8, marginBottom: 4, gap: 0 }}>
-          {(["goals", "punchlist"] as SubTab[]).map((tab) => {
+          {(["goals", "calendar", "punchlist"] as SubTab[]).map((tab) => {
             const isActive = activeSubTab === tab;
-            const label = tab === "goals" ? "Goals" : "Punch List";
+            const label = tab === "goals" ? "Goals" : tab === "calendar" ? "Calendar" : "Punch List";
             return (
               <TouchableOpacity
                 key={tab}
@@ -1413,6 +1414,29 @@ export default function GoalsScreen() {
               />
             )}
           </View>
+        )}
+
+        {/* ─── Calendar Sub-Tab Content ──────────────────────────────────────── */}
+        {activeSubTab === "calendar" && (
+          <GoalsCalendar
+            goals={filteredGoals}
+            colors={colors}
+            employeeMap={employeeMap}
+            onGoalPress={(goal) => canManage ? openEditModal(goal) : handleStatusCycle(goal)}
+            onStatusChange={(goalId, newStatus) => {
+              if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              updateGoal.mutate({
+                id: goalId,
+                status: newStatus,
+                completedAt: newStatus === "completed" ? new Date().toISOString() : undefined,
+              });
+            }}
+            canUpdateStatus={isOwnerOrManager || isForeman}
+            isOwnerOrManager={isOwnerOrManager}
+            onDeleteGoal={handleDelete}
+            canManage={canManage}
+            employeeId={employee?.id || 0}
+          />
         )}
 
         {/* ─── Punch List Sub-Tab Content ────────────────────────────────────────── */}

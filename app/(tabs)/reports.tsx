@@ -95,7 +95,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
   photosRef.current = photos;
 
   const { data: jobs } = trpc.jobs.listActive.useQuery();
-  const reportsQuery = trpc.reports.recent.useQuery({ limit: 20 }, { staleTime: 30000 });
+  const reportsQuery = trpc.reports.recent.useQuery({ limit: 20 }, { staleTime: 15000, refetchOnMount: "always" });
   const recentReports = reportsQuery.data;
   const { data: allJobs } = trpc.jobs.list.useQuery();
 
@@ -116,7 +116,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
   const displayReports = recentReports || cachedReports;
 
   // Today's scheduled tasks for the selected job
-  const { data: allSchedule } = trpc.schedule.getAll.useQuery(undefined, { staleTime: 30000 });
+  const { data: allSchedule } = trpc.schedule.getAll.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
   const todayScheduledTasks = useMemo(() => {
     if (!allSchedule || !selectedJobId) return [];
     const today = new Date();
@@ -410,7 +410,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
     const RWrapper = embedded ? View : ScreenContainer;
     return (
     <RWrapper style={embedded ? { flex: 1 } : undefined} edges={embedded ? undefined : ["top", "left", "right"]}>
-        <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.15 }}>
+        <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
       <View style={styles.header}>
         <Text style={styles.title}>Field Reports</Text>
         {canSubmitReport && (
