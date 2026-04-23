@@ -24,6 +24,7 @@ import { ActivityIndicator,
   View, ImageBackground } from "react-native";
 
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 
 const STATUS_LABELS: Record<string, string> = {

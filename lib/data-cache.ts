@@ -147,4 +147,13 @@ export const CACHE_KEYS = {
   BUDGET_ALERTS: "budget_alerts",
   CHANGE_ORDERS: "change_orders",
   BUDGET_AUDIT_LOG: "budget_audit_log",
+  // Phase 106: Offline cache for remaining tabs
+  CLOCK_STATUS: "clock_status",
+  CLOCK_ENTRIES: "clock_entries",
+  SCHEDULE_ALL: "schedule_all",
+  TEAM_EMPLOYEES: "team_employees",
+  MEETINGS_LIST: "meetings_list",
+  REPORTS_LIST: "reports_list",
+  JOBS_LIST: "jobs_list",
+  GOALS_LIST: "goals_list",
 } as const;

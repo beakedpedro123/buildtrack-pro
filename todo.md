@@ -2094,3 +2094,12 @@
 - [x] If GPS toggle is OFF, hide the map section entirely
 - [x] Schedule↔Goals two-way sync — completing a synced goal auto-completes the schedule task
 - [x] Audit all pages for consistent layout and matching color schemes — fixed gold, purple, owner, foreman colors across all tabs
+
+### Phase 106: Schedule UI Fix + Offline + Pivot Upgrade + Audit + PDFs
+- [x] Fix schedule tab — add multi-week toggle (view 1 week, 2 weeks, or all weeks)
+- [x] Fix smushed text below "Schedule" title on initial job list view
+- [x] Ensure offline capability — audit all tabs for proper caching/fallback
+- [x] Upgrade Pivot AI — improve system prompt, add schedule context + 2 new tools
+- [x] App market readiness audit — honest assessment with gameplan
+- [x] Architecture diagram — how app connects to servers, DB, etc.
+- [x] Generate bilingual feature PDFs (English + Spanish) with clean screenshots

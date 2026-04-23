@@ -1,6 +1,8 @@
 import { ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { CACHE_KEYS } from "@/lib/data-cache";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
 import { useState, useCallback, useMemo } from "react";
@@ -94,6 +96,7 @@ export default function ScheduleScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [calendarSpan, setCalendarSpan] = useState<1 | 2 | 4>(1); // 1 week, 2 weeks, or 4 weeks (month)
 
   // Form state
   const [taskTitle, setTaskTitle] = useState("");
@@ -105,7 +108,9 @@ export default function ScheduleScreen() {
   const isManagement = ["owner", "office_manager", "logistics"].includes(employee?.role || "");
 
   // Queries
-  const { data: allSchedule, isLoading, refetch } = trpc.schedule.getAll.useQuery();
+  const allScheduleQ = trpc.schedule.getAll.useQuery();
+  const { data: allSchedule, isLoading } = useOfflineCache(CACHE_KEYS.SCHEDULE_ALL, allScheduleQ.data, allScheduleQ.isLoading);
+  const refetch = allScheduleQ.refetch;
   const { data: allJobs } = trpc.jobs.list.useQuery();
   const { data: allEmployees } = trpc.employees.list.useQuery();
   const createMutation = trpc.schedule.create.useMutation({ onSuccess: () => { refetch(); utils.schedule.getAll.invalidate(); } });
@@ -195,12 +200,35 @@ export default function ScheduleScreen() {
     return getWeekDates(d);
   }, [weekOffset, today]);
 
+  // Multi-week dates for expanded calendar view
+  const calendarAllWeeks = useMemo(() => {
+    const weeks: Date[][] = [];
+    for (let w = 0; w < calendarSpan; w++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() + (weekOffset + w) * 7);
+      weeks.push(getWeekDates(d));
+    }
+    return weeks;
+  }, [weekOffset, today, calendarSpan]);
+
   const dayTasks = useMemo(() => {
     return jobScheduleItems.filter((item: any) => {
       const d = new Date(item.scheduledDate);
       return isSameDay(d, selectedDate);
     });
   }, [jobScheduleItems, selectedDate]);
+
+  // All tasks for the visible span
+  const spanTasks = useMemo(() => {
+    if (calendarSpan === 1) return dayTasks;
+    const allDates = calendarAllWeeks.flat();
+    const start = allDates[0];
+    const end = allDates[allDates.length - 1];
+    return jobScheduleItems.filter((item: any) => {
+      const d = new Date(item.scheduledDate);
+      return d >= start && d <= end;
+    });
+  }, [calendarSpan, calendarAllWeeks, jobScheduleItems, dayTasks]);
 
   const weekTaskCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -562,7 +590,7 @@ Generate 30-60 tasks spanning 3-6 months for a typical residential framing job. 
         </View>
 
         {/* Job Selector */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 48 }} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 56 }} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>
           <TouchableOpacity
             onPress={() => { setSelectedJobId(null); setViewMode("overview"); }}
             style={{
@@ -704,58 +732,90 @@ Generate 30-60 tasks spanning 3-6 months for a typical residential framing job. 
         ) : viewMode === "calendar" ? (
           /* ═══ CALENDAR VIEW ═══ */
           <>
-            {/* Week Navigation */}
-            <View style={[s.weekNav, { borderBottomColor: colors.border }]}>
-              <TouchableOpacity onPress={() => setWeekOffset((w) => w - 1)} style={s.weekArrow}>
-                <Text style={{ color: colors.primary, fontSize: 20, fontWeight: "700" }}>‹</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setWeekOffset(0)}>
-                <Text style={[s.weekLabel, { color: colors.foreground }]}>
-                  {formatDate(calendarWeekDates[0])} – {formatDate(calendarWeekDates[6])}
-                </Text>
-                {weekOffset === 0 && <Text style={[s.currentWeekBadge, { color: colors.primary }]}>This Week</Text>}
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setWeekOffset((w) => w + 1)} style={s.weekArrow}>
-                <Text style={{ color: colors.primary, fontSize: 20, fontWeight: "700" }}>›</Text>
-              </TouchableOpacity>
-            </View>
-            {/* Day Selector */}
-            <View style={s.dayRow}>
-              {calendarWeekDates.map((d, i) => {
-                const isSelected = isSameDay(d, selectedDate);
-                const isToday = isSameDay(d, today);
-                const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-                const taskCount = weekTaskCounts[key] || 0;
-                const dayNames = ["S", "M", "T", "W", "T", "F", "S"];
+            {/* Span Toggle */}
+            <View style={{ flexDirection: "row", paddingHorizontal: 20, paddingTop: 6, paddingBottom: 4, gap: 6 }}>
+              {([1, 2, 4] as const).map((span) => {
+                const isActive = calendarSpan === span;
+                const label = span === 1 ? "1 Week" : span === 2 ? "2 Weeks" : "Month";
                 return (
                   <TouchableOpacity
-                    key={i}
-                    onPress={() => setSelectedDate(d)}
-                    style={[s.dayCell, {
-                      backgroundColor: isSelected ? colors.primary : "transparent",
-                      borderColor: isToday && !isSelected ? colors.primary : "transparent",
-                      borderWidth: isToday && !isSelected ? 2 : 0,
-                    }]}
+                    key={span}
+                    onPress={() => { setCalendarSpan(span); if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                    style={{
+                      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
+                      backgroundColor: isActive ? colors.primary + "18" : colors.surface,
+                      borderWidth: 1.5, borderColor: isActive ? colors.primary : colors.border,
+                    }}
                   >
-                    <Text style={[s.dayName, { color: isSelected ? "#fff" : colors.muted }]}>{dayNames[d.getDay()]}</Text>
-                    <Text style={[s.dayNum, { color: isSelected ? "#fff" : colors.foreground }]}>{d.getDate()}</Text>
-                    {taskCount > 0 && <View style={[s.dotIndicator, { backgroundColor: isSelected ? "#fff" : colors.primary }]} />}
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: isActive ? colors.primary : colors.muted }}>{label}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
+            {/* Week Navigation */}
+            <View style={[s.weekNav, { borderBottomColor: colors.border }]}>
+              <TouchableOpacity onPress={() => setWeekOffset((w) => w - calendarSpan)} style={s.weekArrow}>
+                <Text style={{ color: colors.primary, fontSize: 20, fontWeight: "700" }}>‹</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setWeekOffset(0)}>
+                <Text style={[s.weekLabel, { color: colors.foreground }]}>
+                  {formatDate(calendarAllWeeks[0][0])} – {formatDate(calendarAllWeeks[calendarAllWeeks.length - 1][6])}
+                </Text>
+                {weekOffset === 0 && <Text style={[s.currentWeekBadge, { color: colors.primary }]}>Current</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setWeekOffset((w) => w + calendarSpan)} style={s.weekArrow}>
+                <Text style={{ color: colors.primary, fontSize: 20, fontWeight: "700" }}>›</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Day Selectors — one row per week */}
+            {calendarAllWeeks.map((weekDates, wi) => (
+              <View key={wi}>
+                {calendarSpan > 1 && (
+                  <Text style={{ fontSize: 10, fontWeight: "600", color: colors.muted, paddingHorizontal: 20, paddingTop: 6 }}>
+                    {formatDate(weekDates[0])} – {formatDate(weekDates[6])}
+                  </Text>
+                )}
+                <View style={s.dayRow}>
+                  {weekDates.map((d, i) => {
+                    const isSelected = isSameDay(d, selectedDate);
+                    const isToday = isSameDay(d, today);
+                    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                    const taskCount = weekTaskCounts[key] || 0;
+                    const dayNames = ["S", "M", "T", "W", "T", "F", "S"];
+                    return (
+                      <TouchableOpacity
+                        key={`${wi}-${i}`}
+                        onPress={() => setSelectedDate(d)}
+                        style={[s.dayCell, {
+                          backgroundColor: isSelected ? colors.primary : "transparent",
+                          borderColor: isToday && !isSelected ? colors.primary : "transparent",
+                          borderWidth: isToday && !isSelected ? 2 : 0,
+                          paddingVertical: calendarSpan > 1 ? 4 : 8,
+                        }]}
+                      >
+                        <Text style={[s.dayName, { color: isSelected ? "#fff" : colors.muted, fontSize: calendarSpan > 1 ? 9 : 11 }]}>{dayNames[d.getDay()]}</Text>
+                        <Text style={[s.dayNum, { color: isSelected ? "#fff" : colors.foreground, fontSize: calendarSpan > 1 ? 13 : 15 }]}>{d.getDate()}</Text>
+                        {taskCount > 0 && <View style={[s.dotIndicator, { backgroundColor: isSelected ? "#fff" : colors.primary }]} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
             <View style={s.dateLabelRow}>
               <Text style={[s.dateLabel, { color: colors.foreground }]}>{formatDateFull(selectedDate)}</Text>
-              <Text style={[s.taskCount, { color: colors.muted }]}>{dayTasks.length} task{dayTasks.length !== 1 ? "s" : ""}</Text>
+              <Text style={[s.taskCount, { color: colors.muted }]}>
+                {calendarSpan === 1 ? `${dayTasks.length} task${dayTasks.length !== 1 ? "s" : ""}` : `${spanTasks.length} task${spanTasks.length !== 1 ? "s" : ""} in view`}
+              </Text>
             </View>
             <FlatList
-              data={dayTasks}
+              data={calendarSpan === 1 ? dayTasks : spanTasks}
               keyExtractor={(item: any) => item.id.toString()}
               contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}
               renderItem={renderTaskCard}
               ListEmptyComponent={
                 <View style={s.emptyState}>
-                  <Text style={[s.emptyTitle, { color: colors.muted }]}>No tasks for this day</Text>
+                  <Text style={[s.emptyTitle, { color: colors.muted }]}>{calendarSpan === 1 ? "No tasks for this day" : "No tasks in this period"}</Text>
                 </View>
               }
             />

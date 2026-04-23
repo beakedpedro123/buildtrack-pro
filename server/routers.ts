@@ -1322,6 +1322,34 @@ ${employeeRoster || "  No active employees."}
 ${reportsSummary || "  No recent reports."}
 
 `;
+        // Add schedule context
+        try {
+          const allSchedule = await db.getAllScheduleItems();
+          if (allSchedule && allSchedule.length > 0) {
+            const today = new Date();
+            const todayStr = today.toISOString().split("T")[0];
+            const todayTasks = allSchedule.filter((s: any) => s.date && s.date.split("T")[0] === todayStr);
+            const overdueTasks = allSchedule.filter((s: any) => s.date && s.date.split("T")[0] < todayStr && s.status !== "completed");
+            const completedCount = allSchedule.filter((s: any) => s.status === "completed").length;
+            const totalCount = allSchedule.length;
+            const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+            // Group by job
+            const byJob: Record<string, { total: number; completed: number; tasks: string[] }> = {};
+            for (const s of allSchedule) {
+              const jName = (s as any).jobName || `Job #${(s as any).jobId}`;
+              if (!byJob[jName]) byJob[jName] = { total: 0, completed: 0, tasks: [] };
+              byJob[jName].total++;
+              if (s.status === "completed") byJob[jName].completed++;
+            }
+            const jobProgress = Object.entries(byJob).map(([name, d]) =>
+              `  - ${name}: ${d.completed}/${d.total} tasks (${d.total > 0 ? Math.round((d.completed / d.total) * 100) : 0}%)`
+            ).join("\n");
+            const todayTaskList = todayTasks.slice(0, 8).map((t: any) =>
+              `  - ${t.status === "completed" ? "✅" : "⬜"} ${t.title} (${t.jobName || "Job #" + t.jobId})${t.assignedEmployees ? " → " + t.assignedEmployees : ""}`
+            ).join("\n");
+            businessContext += `### Schedule Overview\n- Overall Progress: ${progressPct}% (${completedCount}/${totalCount} tasks)\n- Today's Tasks: ${todayTasks.length}\n- Overdue Tasks: ${overdueTasks.length}\n### Per-Job Schedule Progress\n${jobProgress || "  No schedule data."}\n### Today's Schedule\n${todayTaskList || "  No tasks scheduled for today."}\n`;
+          }
+        } catch {}
       } catch {
         businessContext = "(Business data temporarily unavailable)";
       }
@@ -2154,6 +2182,36 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
           },
         },
       },
+      {
+        type: "function" as const,
+        function: {
+          name: "complete_schedule_task",
+          description: "Mark a schedule task as completed or update its status. Use when the user says 'mark that task done', 'complete the framing task', 'update schedule status', etc.",
+          parameters: {
+            type: "object",
+            properties: {
+              taskTitle: { type: "string", description: "The title or partial title of the schedule task to update." },
+              jobName: { type: "string", description: "The job name the task belongs to. Ask if not clear." },
+              status: { type: "string", enum: ["completed", "in_progress", "skipped"], description: "The new status. Default 'completed'." },
+            },
+            required: ["taskTitle", "jobName"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "get_schedule_status",
+          description: "Get the current schedule status for a specific job or all jobs. Use when the user asks 'what's the schedule for X', 'how is the schedule looking', 'what tasks are due today', etc.",
+          parameters: {
+            type: "object",
+            properties: {
+              jobName: { type: "string", description: "Optional job name to filter. Leave empty for all jobs." },
+            },
+            required: [],
+          },
+        },
+      },
     ];
 
     // ── Call LLM with tool support ──────────────────────────────────────────
@@ -2712,6 +2770,55 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             }
           } catch (msgErr) {
             toolResult = `Failed to send message: ${msgErr instanceof Error ? msgErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "complete_schedule_task") {
+          try {
+            const taskTitle = (args.taskTitle || "").toLowerCase();
+            const jobName = (args.jobName || "").toLowerCase();
+            const newStatus = args.status || "completed";
+            const allSchedule = await db.getAllScheduleItems();
+            const match = allSchedule.find((s: any) =>
+              s.title.toLowerCase().includes(taskTitle) &&
+              (s.jobName || "").toLowerCase().includes(jobName)
+            );
+            if (match) {
+              await db.updateScheduleItem(match.id, { status: newStatus as any });
+              toolResult = `Schedule task "${match.title}" for job "${(match as any).jobName}" has been marked as ${newStatus}.`;
+            } else {
+              const available = allSchedule.filter((s: any) => (s.jobName || "").toLowerCase().includes(jobName)).map((s: any) => s.title).slice(0, 10);
+              toolResult = `Could not find a schedule task matching "${args.taskTitle}" for job "${args.jobName}". Available tasks: ${available.join(", ") || "none"}`;
+            }
+          } catch (err) {
+            toolResult = `Failed to update schedule task: ${err instanceof Error ? err.message : "unknown error"}`;
+          }
+        } else if (toolName === "get_schedule_status") {
+          try {
+            const allSchedule = await db.getAllScheduleItems();
+            const jobFilter = (args.jobName || "").toLowerCase();
+            const filtered = jobFilter ? allSchedule.filter((s: any) => ((s as any).jobName || "").toLowerCase().includes(jobFilter)) : allSchedule;
+            if (filtered.length === 0) {
+              toolResult = jobFilter ? `No schedule tasks found for job "${args.jobName}".` : "No schedule tasks found.";
+            } else {
+              const completed = filtered.filter((s: any) => s.status === "completed").length;
+              const pending = filtered.filter((s: any) => s.status === "pending").length;
+              const inProgress = filtered.filter((s: any) => s.status === "in_progress").length;
+              const today = new Date().toISOString().split("T")[0];
+              const todayTasks = filtered.filter((s: any) => s.scheduledDate && new Date(s.scheduledDate).toISOString().split("T")[0] === today);
+              const overdue = filtered.filter((s: any) => s.scheduledDate && new Date(s.scheduledDate).toISOString().split("T")[0] < today && s.status !== "completed");
+              let result = `Schedule Status${jobFilter ? " for " + args.jobName : " (All Jobs)"}:\n`;
+              result += `- Total: ${filtered.length} tasks\n- Completed: ${completed}\n- In Progress: ${inProgress}\n- Pending: ${pending}\n- Overdue: ${overdue.length}\n`;
+              if (todayTasks.length > 0) {
+                result += `\nToday's Tasks:\n`;
+                todayTasks.forEach((t: any) => { result += `  - ${t.status === "completed" ? "✅" : "⬜"} ${t.title} (${(t as any).jobName || ""})\n`; });
+              }
+              if (overdue.length > 0) {
+                result += `\n⚠️ Overdue Tasks:\n`;
+                overdue.slice(0, 10).forEach((t: any) => { result += `  - ${t.title} (${(t as any).jobName || ""}) — due ${new Date(t.scheduledDate).toLocaleDateString()}\n`; });
+              }
+              toolResult = result;
+            }
+          } catch (err) {
+            toolResult = `Failed to get schedule status: ${err instanceof Error ? err.message : "unknown error"}`;
           }
         }
       } catch (parseErr) {

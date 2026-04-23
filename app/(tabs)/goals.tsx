@@ -20,6 +20,7 @@ import { ActivityIndicator,
   View, ImageBackground } from "react-native";
 
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { GoalsCalendar } from "@/components/goals-calendar";
 
@@ -687,27 +688,17 @@ export default function GoalsScreen() {
   const weekStart = getWeekStart(weekDate);
 
   const utils = trpc.useUtils();
-  const { data: goals, isLoading, refetch } = trpc.goals.list.useQuery({
+  const goalsQ = trpc.goals.list.useQuery({
     weekOf: weekStart.toISOString(),
     employeeId: employee?.id,
     employeeRole: employee?.role },
     // CRITICAL: Never fire this query until employee is loaded — prevents data leak
     { enabled: !!employee?.id && !!employee?.role, staleTime: 0 }
   );
+  const { data: goals, isLoading } = useOfflineCache(CACHE_KEYS.GOALS_LIST, goalsQ.data, goalsQ.isLoading);
+  const refetch = goalsQ.refetch;
   const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
-
-  // Offline cache for goals
-  const [cachedGoals, setCachedGoals] = useState<any[] | null>(null);
-  useEffect(() => {
-    getCached<any[]>(CACHE_KEYS.GOALS).then((d) => { if (d) setCachedGoals(d); });
-  }, []);
-  useEffect(() => {
-    if (goals && goals.length > 0) {
-      setCache(CACHE_KEYS.GOALS, goals).catch(() => {});
-      setCachedGoals(goals);
-    }
-  }, [goals]);
-  const effectiveGoals = goals || cachedGoals || [];
+  const effectiveGoals = goals || [];
 
   const employeeMap = useMemo(() => {
     const map: Record<number, string> = {};
@@ -1416,7 +1407,7 @@ export default function GoalsScreen() {
             </Modal>
 
             {/* Goals List */}
-            {isLoading && !cachedGoals ? (
+            {isLoading && !goals ? (
               <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
                 <ActivityIndicator size="large" color={colors.primary} />
               </View>

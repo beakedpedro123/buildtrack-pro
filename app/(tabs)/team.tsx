@@ -24,6 +24,7 @@ import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { EmployeeTaxInfoModal } from "@/components/employee-tax-info";
 import { useGpsTracking } from "@/hooks/use-gps-tracking";

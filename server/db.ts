@@ -2279,7 +2279,21 @@ export async function getJobSchedule(jobId: number) {
 export async function getAllScheduleItems() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(jobSchedule);
+  return db.select({
+    id: jobSchedule.id,
+    jobId: jobSchedule.jobId,
+    title: jobSchedule.title,
+    description: jobSchedule.description,
+    phase: jobSchedule.phase,
+    scheduledDate: jobSchedule.scheduledDate,
+    endDate: jobSchedule.endDate,
+    status: jobSchedule.status,
+    assignedEmployees: jobSchedule.assignedEmployees,
+    sortOrder: jobSchedule.sortOrder,
+    createdAt: jobSchedule.createdAt,
+    updatedAt: jobSchedule.updatedAt,
+    jobName: jobs.name,
+  }).from(jobSchedule).leftJoin(jobs, eq(jobSchedule.jobId, jobs.id));
 }
 
 export async function getScheduleByDateRange(startDate: Date, endDate: Date) {

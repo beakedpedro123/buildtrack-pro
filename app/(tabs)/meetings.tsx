@@ -33,6 +33,7 @@ import { ActivityIndicator,
   View, ImageBackground } from "react-native";
 
 import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
+import { useOfflineCache } from "@/hooks/use-offline-cache";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
