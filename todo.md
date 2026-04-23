@@ -2103,3 +2103,14 @@
 - [x] App market readiness audit — honest assessment with gameplan
 - [x] Architecture diagram — how app connects to servers, DB, etc.
 - [x] Generate bilingual feature PDFs (English + Spanish) with clean screenshots
+
+### Phase 107: Branded Feature PDFs + Marketing Site Update
+- [x] Redesign English feature PDF with BuildTrack Pro theme (dark bg, gold/green accents)
+- [x] Redesign Spanish feature PDF with BuildTrack Pro theme
+- [x] Update marketing site with all latest features (schedule, goals calendar, GPS, Pivot upgrade)
+- [x] Replace ALL emojis on marketing site with professional SVG icons (features, trade ticker, Pivot section, CTA)
+- [x] Add 3 new feature cards: Multi-Month Scheduling, GPS Crew Map, Construction Calculator
+- [x] Update pricing tiers: $39/$139/$289 with correct feature lists per tier
+- [x] Update How It Works section (multi-month schedules, GPS tracking, analytics)
+- [x] Update Pivot AI description (16+ tools, manages schedules)
+- [x] Re-render both branded PDFs (EN + ES) to final PDF files
