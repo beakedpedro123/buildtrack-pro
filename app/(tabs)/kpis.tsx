@@ -4,6 +4,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useState, useCallback } from "react";
 import { useOfflineCache } from "@/hooks/use-offline-cache";
 import { CACHE_KEYS } from "@/lib/data-cache";
@@ -25,12 +26,12 @@ import { ActivityIndicator,
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
 
 const CATEGORIES = [
-  { key: "revenue", label: "Revenue", icon: "💰" },
-  { key: "labor", label: "Labor", icon: "👷" },
-  { key: "jobs", label: "Jobs", icon: "🏗️" },
-  { key: "safety", label: "Safety", icon: "🛡️" },
-  { key: "schedule", label: "Schedule", icon: "📅" },
-  { key: "custom", label: "Custom", icon: "📊" },
+  { key: "revenue", label: "Revenue", icon: "attach-money" },
+  { key: "labor", label: "Labor", icon: "people" },
+  { key: "jobs", label: "Jobs", icon: "business" },
+  { key: "safety", label: "Safety", icon: "verified-user" },
+  { key: "schedule", label: "Schedule", icon: "event" },
+  { key: "custom", label: "Custom", icon: "bar-chart" },
 ] as const;
 
 const PERIODS = [
@@ -126,7 +127,7 @@ export default function KPIsScreen() {
     return acc;
   }, {} as Record<string, typeof filteredKpis>);
 
-  const getCategoryInfo = (cat: string) => CATEGORIES.find((c) => c.key === cat) || { key: cat, label: cat, icon: "📊" };
+  const getCategoryInfo = (cat: string) => CATEGORIES.find((c) => c.key === cat) || { key: cat, label: cat, icon: "bar-chart" as const };
 
   const getProgressPct = (kpi: any) => {
     const current = parseFloat(kpi.currentValue || "0");
@@ -160,7 +161,7 @@ export default function KPIsScreen() {
     return (
       <ScreenContainer className="p-6">
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ fontSize: 40, marginBottom: 12 }}>🔒</Text>
+          <MaterialIcons name="lock" size={40} color={colors.muted} style={{ marginBottom: 12 }} />
           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>KPIs</Text>
           <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center", marginTop: 8 }}>
             KPI tracking is available to management roles only.
@@ -196,7 +197,7 @@ export default function KPIsScreen() {
             style={[styles.filterChip, { borderColor: filterCat === cat.key ? colors.primary : colors.border, backgroundColor: filterCat === cat.key ? colors.primary + "15" : colors.surface }]}
             onPress={() => setFilterCat(cat.key)}
           >
-            <Text style={[styles.filterText, { color: filterCat === cat.key ? colors.primary : colors.muted }]}>{cat.icon} {cat.label}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><MaterialIcons name={cat.icon as any} size={13} color={filterCat === cat.key ? colors.primary : colors.muted} /><Text style={[styles.filterText, { color: filterCat === cat.key ? colors.primary : colors.muted }]}>{cat.label}</Text></View>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -215,7 +216,7 @@ export default function KPIsScreen() {
             return (
               <View style={{ marginBottom: 16 }}>
                 <Text style={{ fontSize: 14, fontWeight: "700", color: colors.muted, marginBottom: 8 }}>
-                  {catInfo.icon} {catInfo.label.toUpperCase()}
+                  {catInfo.label.toUpperCase()}
                 </Text>
                 {items.map((kpi) => {
                   const pct = getProgressPct(kpi);
@@ -261,7 +262,7 @@ export default function KPIsScreen() {
           }}
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 60 }}>
-              <Text style={{ fontSize: 40, marginBottom: 12 }}>📊</Text>
+              <MaterialIcons name="lock" size={40} color={colors.muted} style={{ marginBottom: 12 }} />
               <Text style={{ color: colors.muted, fontSize: 16 }}>No KPIs yet</Text>
               {canEdit && <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>Tap "+ New KPI" to create one</Text>}
             </View>
@@ -276,7 +277,7 @@ export default function KPIsScreen() {
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>{selectedKpi.name}</Text>
-                <Text style={{ color: colors.muted, fontSize: 13 }}>{getCategoryInfo(selectedKpi.category).icon} {getCategoryInfo(selectedKpi.category).label} · {selectedKpi.period}</Text>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>{getCategoryInfo(selectedKpi.category).label} · {selectedKpi.period}</Text>
               </View>
               <TouchableOpacity onPress={() => setSelectedKpi(null)}>
                 <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "600" }}>Done</Text>
@@ -427,7 +428,7 @@ export default function KPIsScreen() {
                   style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, borderWidth: 1.5, borderColor: kpiCategory === cat.key ? colors.primary : colors.border, backgroundColor: kpiCategory === cat.key ? colors.primary + "15" : colors.surface }}
                   onPress={() => setKpiCategory(cat.key)}
                 >
-                  <Text style={{ fontSize: 13, color: kpiCategory === cat.key ? colors.primary : colors.foreground }}>{cat.icon} {cat.label}</Text>
+                  <Text style={{ fontSize: 13, color: kpiCategory === cat.key ? colors.primary : colors.foreground }}>{cat.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>

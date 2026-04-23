@@ -38,6 +38,7 @@ import {
   RecordingPresets,
 } from "expo-audio";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { trpc } from "@/lib/trpc";
 import { useAppAuth } from "@/lib/auth-context";
 import { getApiBaseUrl } from "@/constants/oauth";
@@ -142,14 +143,14 @@ const ROLE_ACCESS: Record<Role, {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getFileIcon(type: Attachment["type"]): string {
+function getFileIconName(type: Attachment["type"]): "image" | "picture-as-pdf" | "description" | "table-chart" | "link" | "attach-file" {
   switch (type) {
-    case "image": return "🖼️";
-    case "pdf": return "📄";
-    case "document": return "📝";
-    case "spreadsheet": return "📊";
-    case "url": return "🔗";
-    default: return "📎";
+    case "image": return "image";
+    case "pdf": return "picture-as-pdf";
+    case "document": return "description";
+    case "spreadsheet": return "table-chart";
+    case "url": return "link";
+    default: return "attach-file";
   }
 }
 
@@ -529,7 +530,7 @@ export function PivotChat() {
     <View>
       {item.attachments?.map((att, ai) => (
         <View key={ai} style={[s.attachmentChip, { alignSelf: item.role === "user" ? "flex-end" : "flex-start" }]}>
-          <Text>{getFileIcon(att.type)}</Text>
+          <MaterialIcons name={getFileIconName(att.type)} size={16} color={colors.primary} />
           <Text style={[s.attachmentChipText, { color: colors.foreground }]} numberOfLines={1}>{att.name}</Text>
         </View>
       ))}
@@ -806,7 +807,7 @@ export function PivotChat() {
                     onPress={() => { Keyboard.dismiss(); setOpen(false); }}
                     style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#ffffff18", alignItems: "center", justifyContent: "center" }}
                   >
-                    <Text style={{ fontSize: 16, color: colors.muted }}>✕</Text>
+                    <Text style={{ fontSize: 16, color: colors.muted }}>×</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -852,7 +853,7 @@ export function PivotChat() {
                       )}
                       {isTranscribing && (
                         <View style={[s.userBubble, { backgroundColor: "#D4AF3733" }]}>
-                          <Text style={{ color: "#D4AF37", fontSize: 13 }}>🎤 Transcribing your voice...</Text>
+                          <Text style={{ color: "#D4AF37", fontSize: 13 }}> Transcribing your voice...</Text>
                         </View>
                       )}
                     </>
@@ -880,9 +881,9 @@ export function PivotChat() {
                       style={s.attachmentChip}
                       onPress={() => setPendingAttachments((prev) => prev.filter((_, j) => j !== i))}
                     >
-                      <Text>{getFileIcon(att.type)}</Text>
+                      <MaterialIcons name={getFileIconName(att.type)} size={16} color={colors.primary} />
                       <Text style={[s.attachmentChipText, { color: colors.foreground }]} numberOfLines={1}>{att.name}</Text>
-                      <Text style={{ fontSize: 10, color: colors.muted }}>✕</Text>
+                      <Text style={{ fontSize: 10, color: colors.muted }}>×</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -892,7 +893,7 @@ export function PivotChat() {
               {isRecording && (
                 <View style={s.recordingBanner}>
                   <View style={s.recordingDot} />
-                  <Text style={s.recordingText}>Recording... tap 🔴 to stop</Text>
+                  <Text style={s.recordingText}>Recording... tap  to stop</Text>
                 </View>
               )}
 
@@ -904,7 +905,7 @@ export function PivotChat() {
                     onPress={() => { setAttachMenuOpen(false); takePhoto(); }}
                     disabled={uploading}
                   >
-                    <View style={s.attachMenuIcon}><Text style={{ fontSize: 20 }}>📷</Text></View>
+                    <View style={s.attachMenuIcon}><MaterialIcons name="photo-camera" size={20} color={colors.primary} /></View>
                     <Text style={[s.attachMenuLabel, { color: colors.foreground }]}>Camera</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -912,7 +913,7 @@ export function PivotChat() {
                     onPress={() => { setAttachMenuOpen(false); pickImage(); }}
                     disabled={uploading}
                   >
-                    <View style={s.attachMenuIcon}><Text style={{ fontSize: 20 }}>🖼️</Text></View>
+                    <View style={s.attachMenuIcon}><MaterialIcons name="photo-camera" size={20} color={colors.primary} /></View>
                     <Text style={[s.attachMenuLabel, { color: colors.foreground }]}>Gallery</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -920,7 +921,7 @@ export function PivotChat() {
                     onPress={() => { setAttachMenuOpen(false); pickDocument(); }}
                     disabled={uploading}
                   >
-                    <View style={s.attachMenuIcon}><Text style={{ fontSize: 20 }}>📎</Text></View>
+                    <View style={s.attachMenuIcon}><MaterialIcons name="photo-camera" size={20} color={colors.primary} /></View>
                     <Text style={[s.attachMenuLabel, { color: colors.foreground }]}>File</Text>
                   </TouchableOpacity>
                 </View>
@@ -962,7 +963,7 @@ export function PivotChat() {
                     onPress={isRecording ? stopRecording : startRecording}
                     disabled={isTranscribing || loading}
                   >
-                    <Text style={{ fontSize: 18 }}>{isTranscribing ? "⏳" : isRecording ? "🔴" : "🎤"}</Text>
+                    <Text style={{ fontSize: 18 }}>{isTranscribing ? "⏳" : isRecording ? "" : ""}</Text>
                   </TouchableOpacity>
                 )}
 

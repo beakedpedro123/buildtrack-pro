@@ -5,9 +5,10 @@
  */
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Linking, ScrollView } from "react-native";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: "#E8500A",
+  owner: "#1E3A5F",
   office_manager: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#F59E0B",
@@ -49,7 +50,7 @@ export function CrewMap({ clockedIn, colors }: CrewMapProps) {
   if (membersWithGps.length === 0) {
     return (
       <View style={[styles.emptyContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={{ fontSize: 28, marginBottom: 8 }}>📍</Text>
+        <MaterialIcons name="location-on" size={28} color={colors.muted} style={{ marginBottom: 8 }} />
         <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>
           No GPS data available yet.{"\n"}Locations appear when crew clocks in with GPS enabled.
         </Text>
@@ -88,7 +89,7 @@ export function CrewMap({ clockedIn, colors }: CrewMapProps) {
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <Text style={{ fontSize: 10, color: colors.muted }}>
-                  📍 {lat.toFixed(4)}, {lng.toFixed(4)}
+                   {lat.toFixed(4)}, {lng.toFixed(4)}
                 </Text>
                 <Text style={{ fontSize: 10, color: colors.primary, fontWeight: "600" }}>Open Map →</Text>
               </View>

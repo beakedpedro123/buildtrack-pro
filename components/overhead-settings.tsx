@@ -217,7 +217,7 @@ export function OverheadSettings({ employeeId, onClose }: OverheadSettingsProps)
                       <IconSymbol name="chevron.right" size={16} color={colors.muted} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => handleDelete(item)} style={styles.actionBtn}>
-                      <Text style={{ color: colors.error, fontSize: 16 }}>✕</Text>
+                      <Text style={{ color: colors.error, fontSize: 16 }}>×</Text>
                     </TouchableOpacity>
                   </View>
                 </View>

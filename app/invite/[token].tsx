@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 const companyLogo = require("@/assets/images/company-logo.png");
 
@@ -95,7 +96,7 @@ export default function InviteScreen() {
     return (
       <ScreenContainer edges={["top", "bottom", "left", "right"]}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
-          <Text style={{ fontSize: 48, marginBottom: 16 }}>🔗</Text>
+          <MaterialIcons name="link" size={48} color={colors.muted} style={{ marginBottom: 16 }} />
           <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground, textAlign: "center", marginBottom: 8 }}>
             Invalid or Expired Invite
           </Text>
@@ -115,7 +116,7 @@ export default function InviteScreen() {
       <ScreenContainer edges={["top", "bottom", "left", "right"]}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
           <Image source={companyLogo} style={{ width: 100, height: 100, resizeMode: "contain", marginBottom: 20 }} />
-          <Text style={{ fontSize: 48, marginBottom: 16 }}>✅</Text>
+          <MaterialIcons name="link" size={48} color={colors.muted} style={{ marginBottom: 16 }} />
           <Text style={{ fontSize: 22, fontWeight: "800", color: colors.foreground, textAlign: "center", marginBottom: 8 }}>
             Welcome to the Team!
           </Text>

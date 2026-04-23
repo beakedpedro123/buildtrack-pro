@@ -21,6 +21,7 @@ import {
   View,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { formatTime12, formatDateTime12, formatTimeForEdit, parse12HrTime } from "@/lib/utils";
 import {
   getCurrentPayrollPeriod,
@@ -505,7 +506,7 @@ export default function TimecardScreen() {
                 }}
               >
                 <Text style={{ color: "#000", fontWeight: "700", fontSize: 14 }}>
-                  📄 Download Timecard PDF
+                   Download Timecard PDF
                 </Text>
               </TouchableOpacity>
             </View>
@@ -576,7 +577,7 @@ export default function TimecardScreen() {
                       style={styles.deleteBtn}
                       onPress={() => handleDeleteEntry(entry)}
                     >
-                      <Text style={{ fontSize: 12, color: colors.error, fontWeight: "600" }}>🗑 Delete Entry</Text>
+                      <Text style={{ fontSize: 12, color: colors.error, fontWeight: "600" }}> Delete Entry</Text>
                     </TouchableOpacity>
                   )}
 
@@ -605,7 +606,7 @@ export default function TimecardScreen() {
                   )}
 
                   {entry.isOfflineEntry && (
-                    <Text style={{ fontSize: 10, color: colors.warning, marginTop: 4 }}>⚡ Synced from offline</Text>
+                    <Text style={{ fontSize: 10, color: colors.warning, marginTop: 4 }}> Synced from offline</Text>
                   )}
                 </View>
               ))}
@@ -613,7 +614,7 @@ export default function TimecardScreen() {
           )}
           ListEmptyComponent={
             <View style={{ alignItems: "center", padding: 40 }}>
-              <Text style={{ fontSize: 40 }}>📋</Text>
+              <MaterialIcons name="receipt" size={40} color={colors.muted} />
               <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginTop: 12 }}>
                 No hours recorded
               </Text>

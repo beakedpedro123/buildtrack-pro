@@ -4,6 +4,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useState, useCallback } from "react";
 import { ActivityIndicator,
   Alert,
@@ -32,7 +33,7 @@ const ROLE_LABELS: Record<string, string> = {
   laborer: "Laborer" };
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: "#E8500A",
+  owner: "#1E3A5F",
   office_manager: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#F59E0B",
@@ -207,7 +208,7 @@ export default function ProfileScreen() {
                 style={[tabStyles.subTab, { backgroundColor: "transparent", borderColor: colors.border }]}
                 activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 14 }}>👤</Text>
+                <MaterialIcons name="person" size={14} color={colors.muted} />
                 <Text style={[tabStyles.subTabText, { color: colors.muted }]}>My Profile</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -215,7 +216,7 @@ export default function ProfileScreen() {
                 style={[tabStyles.subTab, { backgroundColor: colors.primary, borderColor: colors.primary }]}
                 activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 14 }}>✉️</Text>
+                <MaterialIcons name="person" size={14} color={colors.muted} />
                 <Text style={[tabStyles.subTabText, { color: "#000", fontWeight: "700" }]}>
                   Messages{unreadMsgCount > 0 ? ` (${unreadMsgCount})` : ""}
                 </Text>
@@ -242,7 +243,7 @@ export default function ProfileScreen() {
                 style={[tabStyles.subTab, { backgroundColor: colors.primary, borderColor: colors.primary }]}
                 activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 14 }}>👤</Text>
+                <MaterialIcons name="person" size={14} color={colors.muted} />
                 <Text style={[tabStyles.subTabText, { color: "#000", fontWeight: "700" }]}>My Profile</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -250,7 +251,7 @@ export default function ProfileScreen() {
                 style={[tabStyles.subTab, { backgroundColor: "transparent", borderColor: colors.border }]}
                 activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 14 }}>✉️</Text>
+                <MaterialIcons name="person" size={14} color={colors.muted} />
                 <Text style={[tabStyles.subTabText, { color: colors.muted }]}>
                   Messages{unreadMsgCount > 0 ? ` (${unreadMsgCount})` : ""}
                 </Text>
@@ -433,7 +434,7 @@ export default function ProfileScreen() {
               </View>
               <View style={styles.rowLast}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-                  <Text style={{ fontSize: 18 }}>📍</Text>
+                  <MaterialIcons name="settings" size={18} color={colors.foreground} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>GPS Tracking</Text>
                     <Text style={{ fontSize: 12, color: colors.muted }}>Capture location on clock-in/out</Text>
@@ -463,7 +464,7 @@ export default function ProfileScreen() {
                 }}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <Text style={{ fontSize: 18 }}>💰</Text>
+                  <MaterialIcons name="settings" size={18} color={colors.foreground} />
                   <View>
                     <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Overhead & Expenses</Text>
                     <Text style={{ fontSize: 12, color: colors.muted }}>Set monthly business costs for accurate job costing</Text>

@@ -25,6 +25,7 @@ import {
   RecordingPresets,
 } from "expo-audio";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { trpc } from "@/lib/trpc";
 import { useAppAuth } from "@/lib/auth-context";
@@ -266,7 +267,7 @@ export function VoiceGoalCreator({ visible, onClose, onGoalsCreated }: VoiceGoal
                   }}
                   onPress={isRecording ? stopRecording : startRecording}
                 >
-                  <Text style={{ fontSize: 40 }}>{isRecording ? "⏹" : "🎤"}</Text>
+                  <Text style={{ fontSize: 40 }}>{isRecording ? "⏹" : ""}</Text>
                 </TouchableOpacity>
 
                 {isRecording && (
@@ -338,7 +339,7 @@ export function VoiceGoalCreator({ visible, onClose, onGoalsCreated }: VoiceGoal
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
                       <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, flex: 1 }}>{goal.title}</Text>
                       <TouchableOpacity onPress={() => removeGoal(i)} style={{ padding: 4 }}>
-                        <Text style={{ color: colors.error, fontSize: 16 }}>✕</Text>
+                        <Text style={{ color: colors.error, fontSize: 16 }}>×</Text>
                       </TouchableOpacity>
                     </View>
                     {goal.description ? (
@@ -398,7 +399,7 @@ export function VoiceGoalCreator({ visible, onClose, onGoalsCreated }: VoiceGoal
             {/* Step 5: Done */}
             {step === "done" && (
               <View style={{ alignItems: "center", paddingTop: 40 }}>
-                <Text style={{ fontSize: 60, marginBottom: 16 }}>✅</Text>
+                <MaterialIcons name="check-circle" size={60} color={colors.success} style={{ marginBottom: 16 }} />
                 <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground, marginBottom: 8 }}>
                   Goals Created!
                 </Text>

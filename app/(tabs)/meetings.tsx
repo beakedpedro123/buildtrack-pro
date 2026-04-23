@@ -15,6 +15,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState } from "expo-audio";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -531,7 +532,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
           <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: colors.error + "22", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
             <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: colors.error, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 32 }}>🎙</Text>
+              <MaterialIcons name="mic" size={32} color={colors.primary} />
             </View>
           </View>
           <Text style={{ fontSize: 22, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>
@@ -591,7 +592,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
           {selectedMeeting.status === "scheduled" && canManage && (
             <View style={{ paddingHorizontal: 16, marginBottom: 16, gap: 10 }}>
               <TouchableOpacity style={styles.primaryBtn} onPress={() => handleStartRecording(selectedMeeting.id)} disabled={startRecording.isPending}>
-                {startRecording.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>🎙 Start Recording</Text>}
+                {startRecording.isPending ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}> Start Recording</Text>}
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.outlineBtn, { borderColor: colors.error }]}
@@ -616,7 +617,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
                     <Text style={{ color: "#fff", fontWeight: "700" }}>Processing…</Text>
                   </View>
                 ) : (
-                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>🤖 Transcribe & Summarize</Text>
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}> Transcribe & Summarize</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -652,7 +653,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
                     <Text style={{ color: "#fff", fontWeight: "700" }}>Creating Goals…</Text>
                   </View>
                 ) : (
-                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>🎯 Push {suggestedGoals.length} Goals to This Week</Text>
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}> Push {suggestedGoals.length} Goals to This Week</Text>
                 )}
               </TouchableOpacity>
               <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8, textAlign: "center" }}>Goals will appear in the Goals tab for this week.</Text>
@@ -668,7 +669,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
                     <Text style={{ color: colors.primary, fontWeight: "600" }}>Regenerating…</Text>
                   </View>
                 ) : (
-                  <Text style={{ color: colors.primary, fontWeight: "600" }}>🔄 Regenerate Summary & Goals</Text>
+                  <Text style={{ color: colors.primary, fontWeight: "600" }}> Regenerate Summary & Goals</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -948,7 +949,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
             onPress={handleToggleReminder}
             disabled={reminderLoading}
           >
-            <Text style={{ fontSize: 15 }}>{reminderEnabled ? "🔔" : "🔕"}</Text>
+            <Text style={{ fontSize: 15 }}>{reminderEnabled ? "" : ""}</Text>
             <Text style={{ fontSize: 12, color: reminderEnabled ? colors.primary : colors.muted, fontWeight: "600" }}>{reminderEnabled ? "On" : "Off"}</Text>
           </TouchableOpacity>
         )}
@@ -1041,7 +1042,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
                   }}
                   disabled={createMeeting.isPending}
                 >
-                  <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 15 }}>🎙 Start Recording Now</Text>
+                  <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 15 }}> Start Recording Now</Text>
                 </TouchableOpacity>
               </ScrollView>
             </KeyboardAvoidingView>
@@ -1079,7 +1080,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
               )}
               ListEmptyComponent={
                 <View style={{ alignItems: "center", padding: 40 }}>
-                  <Text style={{ fontSize: 40 }}>📅</Text>
+                  <MaterialIcons name="event" size={40} color={colors.muted} />
                   <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginTop: 12 }}>No meetings yet</Text>
                   <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>
                     Tap "+ New Meeting" to schedule your first Friday management meeting.

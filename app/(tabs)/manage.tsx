@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 // Import the actual screen components
 import TeamScreen from "./team";
@@ -33,12 +34,12 @@ export default function ManageScreen() {
 
   const [activeTab, setActiveTab] = useState<ManageTab>("team");
 
-  const tabs: { key: ManageTab; label: string; icon: string }[] = [
-    { key: "team", label: isForeman ? "Crew" : "Team", icon: "👥" },
-    ...(isManagement ? [{ key: "schedule" as ManageTab, label: "Schedule", icon: "📅" }] : []),
-    ...(isManagement ? [{ key: "meetings" as ManageTab, label: "Meetings", icon: "🎤️" }] : []),
-    ...(canViewPayroll ? [{ key: "payroll" as ManageTab, label: "Payroll", icon: "💰" }] : []),
-    ...(!isManagement ? [{ key: "hours" as ManageTab, label: "My Hours", icon: "⏱️" }] : []),
+  const tabs = [
+    { key: "team" as ManageTab, label: isForeman ? "Crew" : "Team", icon: "people" as const },
+    ...(isManagement ? [{ key: "schedule" as ManageTab, label: "Schedule", icon: "event" as const }] : []),
+    ...(isManagement ? [{ key: "meetings" as ManageTab, label: "Meetings", icon: "mic" as const }] : []),
+    ...(canViewPayroll ? [{ key: "payroll" as ManageTab, label: "Payroll", icon: "attach-money" as const }] : []),
+    ...(!isManagement ? [{ key: "hours" as ManageTab, label: "My Hours", icon: "schedule" as const }] : []),
   ];
 
   const handleTabPress = useCallback((tab: ManageTab) => {
@@ -65,7 +66,7 @@ export default function ManageScreen() {
                   ]}
                   activeOpacity={0.7}
                 >
-                  <Text style={{ fontSize: 14 }}>{tab.icon}</Text>
+                  <MaterialIcons name={tab.icon} size={16} color={isActive ? "#000" : colors.muted} />
                   <Text
                     style={[
                       styles.subTabText,

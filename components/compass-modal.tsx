@@ -16,6 +16,7 @@ import Animated, {
   withSequence,
   Easing,
 } from "react-native-reanimated";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 interface CompassModalProps {
   visible: boolean;
@@ -241,7 +242,7 @@ export function CompassModal({ visible, onClose }: CompassModalProps) {
 
         {!available ? (
           <View style={styles.center}>
-            <Text style={{ fontSize: 48, marginBottom: 16 }}>🧭</Text>
+            <MaterialIcons name="explore" size={48} color={colors.muted} style={{ marginBottom: 16 }} />
             <Text style={[styles.unavailableText, { color: colors.foreground }]}>
               Compass not available
             </Text>
@@ -256,7 +257,7 @@ export function CompassModal({ visible, onClose }: CompassModalProps) {
               <View style={[styles.calibrationBanner, { backgroundColor: colors.warning + "18", borderColor: colors.warning + "40" }]}>
                 <View style={styles.calibrationContent}>
                   <Animated.View style={[styles.figure8Icon, figure8Style]}>
-                    <Text style={{ fontSize: 28 }}>📱</Text>
+                    <MaterialIcons name="smartphone" size={28} color={colors.muted} />
                   </Animated.View>
                   <View style={styles.calibrationTextArea}>
                     <Text style={[styles.calibrationTitle, { color: colors.warning }]}>

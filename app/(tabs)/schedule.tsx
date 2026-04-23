@@ -5,6 +5,7 @@ import { useOfflineCache } from "@/hooks/use-offline-cache";
 import { CACHE_KEYS } from "@/lib/data-cache";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useState, useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
@@ -577,7 +578,7 @@ Generate 30-60 tasks spanning 3-6 months for a typical residential framing job. 
                 onPress={handleGenerateSchedule}
                 style={[s.addBtn, { backgroundColor: colors.success }]}
               >
-                <Text style={s.addBtnText}>⚡ Generate</Text>
+                <Text style={s.addBtnText}> Generate</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => { resetForm(); setShowAddModal(true); }}
@@ -589,35 +590,37 @@ Generate 30-60 tasks spanning 3-6 months for a typical residential framing job. 
           )}
         </View>
 
-        {/* Job Selector */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 56 }} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>
-          <TouchableOpacity
-            onPress={() => { setSelectedJobId(null); setViewMode("overview"); }}
-            style={{
-              paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
-              backgroundColor: !selectedJobId ? colors.primary : colors.surface,
-              borderWidth: 1, borderColor: !selectedJobId ? colors.primary : colors.border,
-            }}
-          >
-            <Text style={{ fontSize: 13, fontWeight: "600", color: !selectedJobId ? "#fff" : colors.foreground }}>All Jobs</Text>
-          </TouchableOpacity>
-          {activeJobs.map((job: any) => {
-            const isActive = selectedJobId === job.id;
-            return (
-              <TouchableOpacity
-                key={job.id}
-                onPress={() => { setSelectedJobId(job.id); setViewMode("tasks"); if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                style={{
-                  paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
-                  backgroundColor: isActive ? colors.primary : colors.surface,
-                  borderWidth: 1, borderColor: isActive ? colors.primary : colors.border,
-                }}
-              >
-                <Text style={{ fontSize: 13, fontWeight: "600", color: isActive ? "#fff" : colors.foreground }} numberOfLines={1}>{job.name}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* Job Selector — only shown when a job is selected, to switch between jobs or go back */}
+        {selectedJobId && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ minHeight: 48 }} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: "center" }}>
+            <TouchableOpacity
+              onPress={() => { setSelectedJobId(null); setViewMode("overview"); }}
+              style={{
+                paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                backgroundColor: colors.surface,
+                borderWidth: 1, borderColor: colors.border,
+              }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>← All Jobs</Text>
+            </TouchableOpacity>
+            {activeJobs.map((job: any) => {
+              const isActive = selectedJobId === job.id;
+              return (
+                <TouchableOpacity
+                  key={job.id}
+                  onPress={() => { setSelectedJobId(job.id); setViewMode("tasks"); if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                  style={{
+                    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                    backgroundColor: isActive ? colors.primary : colors.surface,
+                    borderWidth: 1, borderColor: isActive ? colors.primary : colors.border,
+                  }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: isActive ? "#fff" : colors.foreground }} numberOfLines={1}>{job.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* View Mode Tabs (only when a job is selected) */}
         {selectedJobId && (
@@ -653,7 +656,7 @@ Generate 30-60 tasks spanning 3-6 months for a typical residential framing job. 
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
             ListEmptyComponent={
               <View style={s.emptyState}>
-                <Text style={{ fontSize: 32 }}>📅</Text>
+                <MaterialIcons name="event" size={32} color={colors.muted} />
                 <Text style={[s.emptyTitle, { color: colors.muted }]}>No active jobs</Text>
                 <Text style={[s.emptySubtitle, { color: colors.muted }]}>Create a job first, then generate a schedule.</Text>
               </View>
@@ -829,10 +832,10 @@ Generate 30-60 tasks spanning 3-6 months for a typical residential framing job. 
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
             ListEmptyComponent={
               <View style={s.emptyState}>
-                <Text style={{ fontSize: 32 }}>📅</Text>
+                <MaterialIcons name="event" size={32} color={colors.muted} />
                 <Text style={[s.emptyTitle, { color: colors.muted }]}>No schedule yet</Text>
                 <Text style={[s.emptySubtitle, { color: colors.muted }]}>
-                  {isManagement ? "Tap \"⚡ Generate\" to create a full schedule with Pivot AI." : "No tasks scheduled for this job."}
+                  {isManagement ? "Tap \" Generate\" to create a full schedule with Pivot AI." : "No tasks scheduled for this job."}
                 </Text>
               </View>
             }

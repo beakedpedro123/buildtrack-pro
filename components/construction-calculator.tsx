@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 type CalcMode = "standard" | "area" | "concrete" | "material" | "payroll" | "staircase";
 
@@ -254,13 +255,13 @@ export function ConstructionCalculator({ visible, onClose }: { visible: boolean;
     ]);
   }, [totalRise, riserHeight, treadDepth]);
 
-  const modes: { key: CalcMode; label: string; icon: string }[] = [
-    { key: "standard", label: "Standard", icon: "🔢" },
-    { key: "area", label: "Area", icon: "📐" },
-    { key: "concrete", label: "Concrete", icon: "🏗️" },
-    { key: "material", label: "Framing", icon: "🪵" },
-    { key: "payroll", label: "Payroll", icon: "💰" },
-    { key: "staircase", label: "Stairs", icon: "🪜" },
+  const modes = [
+    { key: "standard" as CalcMode, label: "Standard", icon: "calculate" as const },
+    { key: "area" as CalcMode, label: "Area", icon: "square-foot" as const },
+    { key: "concrete" as CalcMode, label: "Concrete", icon: "view-in-ar" as const },
+    { key: "material" as CalcMode, label: "Framing", icon: "carpenter" as const },
+    { key: "payroll" as CalcMode, label: "Payroll", icon: "attach-money" as const },
+    { key: "staircase" as CalcMode, label: "Stairs", icon: "stairs" as const },
   ];
 
   const switchMode = (m: CalcMode) => {
@@ -511,7 +512,7 @@ export function ConstructionCalculator({ visible, onClose }: { visible: boolean;
                 borderColor: mode === m.key ? colors.primary : "transparent",
               }}
             >
-              <Text style={{ fontSize: 14, marginRight: 4 }}>{m.icon}</Text>
+              <MaterialIcons name={m.icon} size={14} color={mode === m.key ? "#000" : colors.muted} style={{ marginRight: 4 }} />
               <Text style={{ fontSize: 12, fontWeight: "700", color: mode === m.key ? colors.primary : colors.muted }}>{m.label}</Text>
             </TouchableOpacity>
           ))}

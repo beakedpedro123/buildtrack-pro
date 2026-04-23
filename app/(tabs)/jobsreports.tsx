@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import JobsScreen from "./jobs";
 import ReportsScreen from "./reports";
 import ChartsScreen from "./charts";
@@ -21,10 +22,10 @@ export default function JobsReportsScreen() {
   const colors = useColors();
   const [activeTab, setActiveTab] = useState<SubTab>("jobs");
 
-  const tabs: { key: SubTab; label: string; icon: string }[] = [
-    { key: "jobs", label: "Jobs", icon: "🏗️" },
-    { key: "reports", label: "Reports", icon: "📋" },
-    { key: "charts", label: "Charts", icon: "📊" },
+  const tabs = [
+    { key: "jobs", label: "Jobs", icon: "business" as const },
+    { key: "reports", label: "Reports", icon: "description" as const },
+    { key: "charts", label: "Charts", icon: "bar-chart" as const },
   ];
 
   const handleTabPress = useCallback((tab: SubTab) => {
@@ -42,7 +43,7 @@ export default function JobsReportsScreen() {
               return (
                 <TouchableOpacity
                   key={tab.key}
-                  onPress={() => handleTabPress(tab.key)}
+                  onPress={() => handleTabPress(tab.key as SubTab)}
                   style={[
                     styles.subTab,
                     isActive && { backgroundColor: colors.primary, borderColor: colors.primary },
@@ -50,7 +51,7 @@ export default function JobsReportsScreen() {
                   ]}
                   activeOpacity={0.7}
                 >
-                  <Text style={{ fontSize: 14 }}>{tab.icon}</Text>
+                  <MaterialIcons name={tab.icon} size={16} color={isActive ? "#000" : colors.muted} />
                   <Text
                     style={[
                       styles.subTabText,

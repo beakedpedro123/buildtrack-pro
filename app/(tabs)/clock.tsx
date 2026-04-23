@@ -6,6 +6,7 @@ import { useOfflineQueue } from "@/lib/offline-queue";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useClockState } from "@/lib/clock-state-context";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
@@ -316,7 +317,7 @@ export default function ClockScreen() {
       } catch { /* GPS failed — continue */ }
     }
 
-    // ★ OPTIMISTIC: update UI to "Clocked Out" IMMEDIATELY — before any server call
+    // * OPTIMISTIC: update UI to "Clocked Out" IMMEDIATELY — before any server call
     // The context sets an 8-second lock so server responses can't overwrite this
     optimisticClockOut();
     if (mountedRef.current) setSuccessMsg("Clocked out!");
@@ -758,7 +759,7 @@ export default function ClockScreen() {
                       style={styles.editTimeBtn}
                       onPress={() => startEditEntry(entry)}
                     >
-                      <Text style={{ color: colors.primary, fontSize: 11, fontWeight: "700" }}>✏️ Edit</Text>
+                      <Text style={{ color: colors.primary, fontSize: 11, fontWeight: "700" }}>Edit Edit</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.clockOutBtn}
@@ -896,7 +897,7 @@ export default function ClockScreen() {
                     onPress={() => { setTransferJobId(null); setShowJobTransfer(true); }}
                     style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.primary + "15", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, marginBottom: 16, borderWidth: 1, borderColor: colors.primary + "30" }}
                   >
-                    <Text style={{ fontSize: 14 }}>🔄</Text>
+                    
                     <Text style={{ fontSize: 13, fontWeight: "700", color: colors.primary }}>Switch Job</Text>
                   </TouchableOpacity>
                 </>
@@ -1081,7 +1082,7 @@ export default function ClockScreen() {
                         onPress={() => startEditEntry(entry)}
                         style={{ marginLeft: 8, padding: 4 }}
                       >
-                        <Text style={{ fontSize: 14 }}>✏️</Text>
+                        <Text style={{ fontSize: 14 }}>Edit</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -1179,7 +1180,7 @@ export default function ClockScreen() {
           </>
         ) : isManager ? (
           <View style={{ alignItems: "center", padding: 40 }}>
-            <Text style={{ fontSize: 40, marginBottom: 12 }}>⏱️</Text>
+            <MaterialIcons name="schedule" size={40} color={colors.muted} style={{ marginBottom: 12 }} />
             <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>
               Select an employee above to clock them in or out
             </Text>

@@ -4,6 +4,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
@@ -37,7 +38,7 @@ const STATUS_ICONS: Record<GoalStatus, string> = {
   pending: "○",
   in_progress: "◑",
   completed: "●",
-  cancelled: "✕" };
+  cancelled: "×" };
 
 const STATUS_COLORS: Record<GoalStatus, string> = {
   pending: "#9CA3AF",
@@ -331,7 +332,7 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
                 backgroundColor: colors.primary + "18",
                 alignItems: "center", justifyContent: "center", marginRight: 14,
               }}>
-                <Text style={{ fontSize: 18 }}>📋</Text>
+                <MaterialIcons name="edit" size={18} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>{item.name}</Text>
@@ -342,7 +343,7 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
           )}
           ListEmptyComponent={
             <View style={{ alignItems: "center", padding: 40 }}>
-              <Text style={{ fontSize: 40 }}>📋</Text>
+              <MaterialIcons name="flag" size={40} color={colors.muted} />
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginTop: 12 }}>No Active Jobs</Text>
               <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>Create a job first to add punch list items.</Text>
             </View>
@@ -453,7 +454,7 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
           {groupedItems.length === 0 ? (
             <View style={{ alignItems: "center", padding: 40 }}>
-              <Text style={{ fontSize: 40 }}>📋</Text>
+              <MaterialIcons name="flag" size={40} color={colors.muted} />
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginTop: 12 }}>
                 No punch list items yet
               </Text>
@@ -1008,7 +1009,7 @@ export default function GoalsScreen() {
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-          <Text style={{ fontSize: 20 }}>{newGoalRepeatDaily ? "🔁" : "📅"}</Text>
+          <Text style={{ fontSize: 20 }}>{newGoalRepeatDaily ? "" : ""}</Text>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 14, fontWeight: "700", color: newGoalRepeatDaily ? colors.primary : colors.foreground }}>Repeat Daily</Text>
             <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
@@ -1161,7 +1162,7 @@ export default function GoalsScreen() {
                     alignItems: "center", justifyContent: "center", marginLeft: 8,
                   }}
                 >
-                  <Text style={{ fontSize: 13, color: colors.muted }}>✕</Text>
+                  <Text style={{ fontSize: 13, color: colors.muted }}>×</Text>
                 </TouchableOpacity>
               )}
             </TouchableOpacity>
@@ -1260,7 +1261,7 @@ export default function GoalsScreen() {
                 {syncFromSchedule.isPending ? (
                   <ActivityIndicator size="small" color={colors.success} />
                 ) : (
-                  <Text style={{ color: colors.success, fontWeight: "700", fontSize: 12 }}>🔄 Sync</Text>
+                  <Text style={{ color: colors.success, fontWeight: "700", fontSize: 12 }}> Sync</Text>
                 )}
               </TouchableOpacity>
               <TouchableOpacity
@@ -1419,7 +1420,7 @@ export default function GoalsScreen() {
                 renderItem={renderGoalCard}
                 ListEmptyComponent={
                   <View style={{ alignItems: "center", padding: 40 }}>
-                    <Text style={{ fontSize: 40 }}>🎯</Text>
+                    <MaterialIcons name="flag" size={40} color={colors.muted} />
                     <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginTop: 12 }}>
                       {isLaborer ? "No goals assigned to you this week" : "No goals this week"}
                     </Text>

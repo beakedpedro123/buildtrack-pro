@@ -4,6 +4,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useMemo, useState, useCallback } from "react";
 import { useOfflineCache } from "@/hooks/use-offline-cache";
 import { CACHE_KEYS } from "@/lib/data-cache";
@@ -144,7 +145,7 @@ export default function LaborCostsScreen() {
     return (
       <ScreenContainer className="p-6">
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ fontSize: 40, marginBottom: 12 }}>🔒</Text>
+          <MaterialIcons name="lock" size={40} color={colors.muted} style={{ marginBottom: 12 }} />
           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Labor Costs</Text>
           <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center", marginTop: 8 }}>
             Labor cost tracking is available to management roles only.

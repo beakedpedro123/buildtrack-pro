@@ -2114,3 +2114,11 @@
 - [x] Update How It Works section (multi-month schedules, GPS tracking, analytics)
 - [x] Update Pivot AI description (16+ tools, manages schedules)
 - [x] Re-render both branded PDFs (EN + ES) to final PDF files
+
+### Phase 108: Schedule Tab Fix + Owner Color
+- [x] Fix smushed job name pills on Schedule tab (text vertically cropped/cut off)
+- [x] Job selection should filter to show ONLY that job's schedule (not all jobs)
+- [x] Change owner role color from orange (#E8500A) to navy blue (#1E3A5F)
+- [x] Remove ALL emojis across entire app (every screen, every tab, every button)
+- [x] Replace emojis with clean text labels or minimal MaterialIcons (Option B style)
+- [x] Fix missing tab bar icons on iOS (Home and Goals icons not showing)

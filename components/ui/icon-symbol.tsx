@@ -59,13 +59,13 @@ const MAPPING = {
   "cloud.bolt.fill": "cloud-off",
   "timer": "timer",
   "mic.fill": "mic",
-  "target": "track-changes",
+  "target": "adjust",
   "flag.fill": "flag",
   "chart.line.uptrend.xyaxis": "show-chart",
   "dollarsign.square.fill": "payments",
   "shield.fill": "shield" as const,
   "shield.checkmark.fill": "verified-user" as const,
-  "square.grid.2x2.fill": "dashboard" as const,
+  "square.grid.2x2.fill": "apps" as const,
   "envelope.fill": "mail" as const,
   "paperclip": "attach-file" as const,
   "chart.pie.fill": "pie-chart" as const,
@@ -80,10 +80,7 @@ const MAPPING = {
   "person.circle": "account-circle" as const,
   // ─── Option B: Bold modern icons ───
   "building.fill": "domain" as const,
-  "target.fill": "adjust" as const,
-  "apps.fill": "apps" as const,
   "person.crop.circle.fill": "person-outline" as const,
-  "cottage.fill": "cottage" as const,
 } satisfies Record<string, ComponentProps<typeof MaterialIcons>["name"]>;
 
 /**

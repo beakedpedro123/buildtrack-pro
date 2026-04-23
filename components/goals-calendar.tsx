@@ -7,6 +7,7 @@ import {
   Platform,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 type Priority = "low" | "medium" | "high";
 type GoalStatus = "pending" | "in_progress" | "completed" | "cancelled";
@@ -272,7 +273,7 @@ export function GoalsCalendar({
                     marginLeft: 6,
                   }}
                 >
-                  <Text style={{ fontSize: 11, color: colors.muted }}>✕</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted }}>×</Text>
                 </TouchableOpacity>
               )}
             </TouchableOpacity>
@@ -569,7 +570,7 @@ export function GoalsCalendar({
         renderItem={renderGoalItem}
         ListEmptyComponent={
           <View style={{ alignItems: "center", padding: 30 }}>
-            <Text style={{ fontSize: 32 }}>📅</Text>
+            <MaterialIcons name="event" size={32} color={colors.muted} />
             <Text style={{ fontSize: 14, fontWeight: "600", color: colors.muted, marginTop: 8 }}>
               No goals for this day
             </Text>

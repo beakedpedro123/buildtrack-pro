@@ -14,6 +14,7 @@ import { ActivityIndicator,
   Text,
   TouchableOpacity,
   View, ImageBackground } from "react-native";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 import { BG_CLOCK as bg_clock } from "@/constants/bg-urls";
 import { formatTime12 } from "@/lib/utils";
@@ -286,14 +287,14 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
               </View>
               {item.isOfflineEntry && (
                 <View style={{ marginTop: 4 }}>
-                  <Text style={{ fontSize: 11, color: colors.warning }}>⚡ Synced from offline</Text>
+                  <Text style={{ fontSize: 11, color: colors.warning }}> Synced from offline</Text>
                 </View>
               )}
             </View>
           )}
           ListEmptyComponent={
             <View style={{ alignItems: "center", padding: 40 }}>
-              <Text style={{ fontSize: 40 }}>🕐</Text>
+              <MaterialIcons name="schedule" size={40} color={colors.muted} />
               <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginTop: 12 }}>
                 No hours recorded
               </Text>

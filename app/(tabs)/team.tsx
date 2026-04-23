@@ -4,6 +4,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
@@ -31,7 +32,7 @@ import { useGpsTracking } from "@/hooks/use-gps-tracking";
 import { CrewMap } from "@/components/crew-map";
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: "#E8500A",
+  owner: "#1E3A5F",
   office_manager: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#F59E0B",
@@ -356,7 +357,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
       <Wrapper style={embedded ? { flex: 1 } : undefined}>
         <ImageBackground source={bg_jobs} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
-          <Text style={{ fontSize: 40, marginBottom: 16 }}>🔒</Text>
+          <MaterialIcons name="lock" size={40} color={colors.muted} style={{ marginBottom: 16 }} />
           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>Access Restricted</Text>
           <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginTop: 8 }}>Team management is only available to management roles. Use the My Hours tab to view your own shifts.</Text>
         </View>
@@ -411,7 +412,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
             activeOpacity={0.7}
           >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>📍 Crew Locations</Text>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}> Crew Locations</Text>
               <View style={{ backgroundColor: colors.success + "20", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, marginLeft: 8 }}>
                 <Text style={{ fontSize: 11, fontWeight: "600", color: colors.success }}>GPS ON</Text>
               </View>
@@ -480,7 +481,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
           }}
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 60 }}>
-              <Text style={{ fontSize: 40, marginBottom: 12 }}>👷</Text>
+              <MaterialIcons name="people" size={40} color={colors.muted} style={{ marginBottom: 12 }} />
               <Text style={{ color: colors.muted, fontSize: 16 }}>No employees found</Text>
               {canManage && <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>Tap "+ Add Employee" to get started</Text>}
             </View>
@@ -789,7 +790,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
             <ScrollView style={styles.section} keyboardShouldPersistTaps="handled">
               {inviteResult ? (
                 <View style={{ alignItems: "center", paddingVertical: 20 }}>
-                  <Text style={{ fontSize: 48, marginBottom: 16 }}>✅</Text>
+                  <MaterialIcons name="person-add" size={48} color={colors.muted} style={{ marginBottom: 16 }} />
                   <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground, textAlign: "center", marginBottom: 8 }}>Invite Created!</Text>
                   <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginBottom: 20 }}>Share this code with {empName} so they can set up their own PIN and log in.</Text>
                   <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, width: "100%", marginBottom: 8, alignItems: "center" }}>

@@ -5,6 +5,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Print from "expo-print";
 import { shareAsync } from "expo-sharing";
 import { useState, useCallback, useEffect } from "react";
@@ -499,7 +500,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
           )}
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 60 }}>
-              <Text style={{ fontSize: 40, marginBottom: 12 }}>🏗️</Text>
+              <MaterialIcons name="business" size={40} color={colors.muted} style={{ marginBottom: 12 }} />
               <Text style={{ color: colors.muted, fontSize: 16 }}>No {filter} jobs</Text>
               {canManage && <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>Tap "+ New Job" to create one</Text>}
             </View>
@@ -557,7 +558,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                     ) : (
                       <View style={styles.kpiCard}>
                         <Text style={[styles.kpiValue, { fontSize: 16, color: colors.primary }]}>
-                          {selectedJob.status === "active" ? "🟢" : selectedJob.status === "paused" ? "🟡" : "⚫"}
+                          {selectedJob.status === "active" ? "●" : selectedJob.status === "paused" ? "●" : "●"}
                         </Text>
                         <Text style={styles.kpiLabel}>{STATUS_LABELS[selectedJob.status]}</Text>
                       </View>
@@ -1120,7 +1121,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                       activeOpacity={0.7}
                     >
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                        <Text style={{ fontSize: 18 }}>📋</Text>
+                        <MaterialIcons name="description" size={18} color={colors.foreground} />
                         <View>
                           <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Budget History</Text>
                           <Text style={{ fontSize: 12, color: colors.muted }}>Full audit trail of all budget changes</Text>
@@ -1144,10 +1145,10 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                               change_order_deleted: colors.error,
                             };
                             const actionIcons: Record<string, string> = {
-                              budget_edit: "✏️",
-                              change_order_add: "➕",
-                              change_order_deduct: "➖",
-                              change_order_deleted: "🗑️",
+                              budget_edit: "Edit",
+                              change_order_add: "+",
+                              change_order_deduct: "−",
+                              change_order_deleted: "Del",
                             };
                             const accentColor = actionColors[entry.action] || colors.muted;
                             return (
@@ -1165,7 +1166,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                                   borderLeftColor: accentColor,
                                 }}
                               >
-                                <Text style={{ fontSize: 16, marginRight: 10, marginTop: 2 }}>{actionIcons[entry.action] || "🔄"}</Text>
+                                <Text style={{ fontSize: 16, marginRight: 10, marginTop: 2 }}>{actionIcons[entry.action] || "→"}</Text>
                                 <View style={{ flex: 1 }}>
                                   <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{entry.description || entry.action}</Text>
                                   <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
@@ -1247,7 +1248,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                     {(jobPhotos || []).map((photo) => (
                       <View key={photo.id} style={{ width: "31%", aspectRatio: 1, borderRadius: 8, overflow: "hidden", backgroundColor: colors.border }}>
                         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                          <Text style={{ fontSize: 24 }}>📷</Text>
+                          <MaterialIcons name="photo-camera" size={22} color={colors.foreground} />
                           <Text style={{ fontSize: 10, color: colors.muted, textAlign: "center", paddingHorizontal: 4 }} numberOfLines={2}>{photo.caption || new Date(photo.createdAt).toLocaleDateString()}</Text>
                         </View>
                       </View>

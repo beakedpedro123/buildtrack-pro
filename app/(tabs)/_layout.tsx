@@ -63,7 +63,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="cottage.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="house.fill" color={color} />,
         }}
       />
 
@@ -80,7 +80,7 @@ export default function TabLayout() {
         name="goals"
         options={{
           title: "Goals",
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="target.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="target" color={color} />,
         }}
       />
 
@@ -89,7 +89,7 @@ export default function TabLayout() {
         name="manage"
         options={{
           title: "Manage",
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="apps.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="square.grid.2x2.fill" color={color} />,
         }}
       />
 

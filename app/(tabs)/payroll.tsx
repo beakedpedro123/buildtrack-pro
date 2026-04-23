@@ -23,6 +23,7 @@ import { ActivityIndicator,
   TouchableOpacity,
   View, ImageBackground } from "react-native";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
 
@@ -253,7 +254,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
       <PWrapper style={embedded ? { flex: 1 } : undefined}>
         <ImageBackground source={bg_reports} style={{ flex: 1 }} resizeMode="cover" imageStyle={{ opacity: 0.08 }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
-          <Text style={{ fontSize: 48, marginBottom: 16 }}>🔒</Text>
+          <MaterialIcons name="lock" size={48} color={colors.muted} style={{ marginBottom: 16 }} />
           <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>
             Access Restricted
           </Text>
@@ -514,7 +515,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                 {new Date(customStart + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – {new Date(customEnd + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
               </Text>
             </View>
-            <Text style={{ fontSize: 14, color: colors.primary }}>✏️ Edit</Text>
+            <Text style={{ fontSize: 14, color: colors.primary }}> Edit</Text>
           </TouchableOpacity>
         )}
 
@@ -643,7 +644,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                     <ActivityIndicator size="small" color="#000" />
                   ) : (
                     <Text style={{ color: "#000", fontWeight: "700", fontSize: 15 }}>
-                      📄 Download {filterJobId ? "Job Report" : (REPORT_TYPES.find(r => r.key === reportType)?.label || "Report")}
+                       Download {filterJobId ? "Job Report" : (REPORT_TYPES.find(r => r.key === reportType)?.label || "Report")}
                       {billingRate ? ` @ $${billingRate}/hr` : ""}
                     </Text>
                   )}
@@ -654,7 +655,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
             {/* Employee Rows */}
             {sortedRows.length === 0 ? (
               <View style={{ alignItems: "center", padding: 40 }}>
-                <Text style={{ fontSize: 40 }}>📋</Text>
+                <MaterialIcons name="description" size={40} color={colors.muted} />
                 <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginTop: 12 }}>
                   No hours recorded
                 </Text>

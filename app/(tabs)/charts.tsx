@@ -2,6 +2,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Print from "expo-print";
 import { shareAsync } from "expo-sharing";
 import { useState, useCallback, useMemo, useRef } from "react";
@@ -678,12 +679,12 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
   }, [activeSection, profitQuery.data, laborQuery.data, taxQuery.data, scheduleProgressData, overallSchedulePct]);
 
   // ─── Section tabs ───────────────────────────────────────────────────
-  const sections: { key: ChartSection; label: string; icon: string }[] = [
-    { key: "profitability", label: "Profitability", icon: "💰" },
-    { key: "labor", label: "Labor Trends", icon: "👷" },
-    { key: "taxes", label: "Taxes & Ins", icon: "🏛️" },
-    { key: "burndown", label: "Burn-Down", icon: "📉" },
-    { key: "schedule", label: "Schedule", icon: "📅" },
+  const sections = [
+    { key: "profitability" as ChartSection, label: "Profitability", icon: "attach-money" as const },
+    { key: "labor" as ChartSection, label: "Labor Trends", icon: "people" as const },
+    { key: "taxes" as ChartSection, label: "Taxes & Ins", icon: "account-balance" as const },
+    { key: "burndown" as ChartSection, label: "Burn-Down", icon: "trending-down" as const },
+    { key: "schedule" as ChartSection, label: "Schedule", icon: "event" as const },
   ];
 
   const isLoading = profitQuery.isLoading || taxQuery.isLoading || laborQuery.isLoading || scheduleAllQuery.isLoading;
@@ -718,7 +719,7 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
                 ]}
                 activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 13 }}>{s.icon}</Text>
+                <MaterialIcons name={s.icon} size={14} color={isActive ? "#000" : colors.muted} />
                 <Text style={[styles.sectionTabText, { color: isActive ? "#000" : colors.muted }, isActive && { fontWeight: "700" }]}>
                   {s.label}
                 </Text>
@@ -833,7 +834,7 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
               {sharingChart ? (
                 <ActivityIndicator size="small" color={colors.primary} />
               ) : (
-                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>📸 Share Image</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><MaterialIcons name="share" size={13} color={colors.primary} /><Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>Share Image</Text></View>
               )}
             </TouchableOpacity>
             <TouchableOpacity
@@ -842,7 +843,7 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
               style={[styles.shareBtn, { backgroundColor: colors.success + "20", borderColor: colors.success }]}
               activeOpacity={0.7}
             >
-              <Text style={{ fontSize: 12, fontWeight: "600", color: colors.success }}>📄 Share PDF</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><MaterialIcons name="picture-as-pdf" size={13} color={colors.success} /><Text style={{ fontSize: 12, fontWeight: "600", color: colors.success }}>Share PDF</Text></View>
             </TouchableOpacity>
           </View>
         )}
@@ -900,7 +901,7 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
                   </>
                 ) : (
                   <View style={{ padding: 40, alignItems: "center" }}>
-                    <Text style={{ fontSize: 40 }}>🔒</Text>
+                    <MaterialIcons name="bar-chart" size={40} color={colors.muted} />
                     <Text style={{ color: colors.muted, marginTop: 8, textAlign: "center" }}>Financial charts are only visible to owners and office managers.</Text>
                   </View>
                 )}
@@ -1012,7 +1013,7 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
                   </>
                 ) : (
                   <View style={{ padding: 40, alignItems: "center" }}>
-                    <Text style={{ fontSize: 40 }}>🔒</Text>
+                    <MaterialIcons name="bar-chart" size={40} color={colors.muted} />
                     <Text style={{ color: colors.muted, marginTop: 8, textAlign: "center" }}>Tax information is only visible to owners and office managers.</Text>
                   </View>
                 )}
@@ -1153,7 +1154,7 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
                   </>
                 ) : (
                   <View style={{ padding: 40, alignItems: "center" }}>
-                    <Text style={{ fontSize: 40 }}>🔒</Text>
+                    <MaterialIcons name="bar-chart" size={40} color={colors.muted} />
                     <Text style={{ color: colors.muted, marginTop: 8, textAlign: "center" }}>Budget information is only visible to owners and office managers.</Text>
                   </View>
                 )}

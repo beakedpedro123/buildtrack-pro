@@ -23,6 +23,7 @@ import {
   View,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useOfflineQueue } from "@/lib/offline-queue";
 import { useOfflineCache } from "@/hooks/use-offline-cache";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
@@ -35,7 +36,7 @@ const companyLogo = require("@/assets/images/company-logo.png");
 import { BG_HOME as bgHome } from "@/constants/bg-urls";
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: "#E8500A",
+  owner: "#1E3A5F",
   office_manager: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#F59E0B",
@@ -504,7 +505,7 @@ export default function DashboardScreen() {
 
   const getRoleColor = (r: string) => {
     switch (r) {
-      case "owner": return "#E8500A";
+      case "owner": return "#1E3A5F";
       case "office_manager": return "#8B5CF6";
       case "logistics": return "#0EA5E9";
       case "foreman": return "#F59E0B";
@@ -595,15 +596,15 @@ export default function DashboardScreen() {
           {/* Quick Actions */}
           <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
             <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => setShowVoiceGoals(true)}>
-              <Text style={{ fontSize: 24, marginBottom: 6 }}>🎯</Text>
+              <MaterialIcons name="flag" size={22} color={colors.primary} style={{ marginBottom: 6 }} />
               <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>My Goals</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => router.push("/reports" as any)}>
-              <Text style={{ fontSize: 24, marginBottom: 6 }}>📋</Text>
+              <MaterialIcons name="description" size={22} color={colors.foreground} style={{ marginBottom: 6 }} />
               <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>Daily Report</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => router.push("/hours" as any)}>
-              <Text style={{ fontSize: 24, marginBottom: 6 }}>⏰</Text>
+              <MaterialIcons name="schedule" size={22} color={colors.foreground} style={{ marginBottom: 6 }} />
               <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>My Hours</Text>
             </TouchableOpacity>
           </View>
@@ -616,7 +617,7 @@ export default function DashboardScreen() {
                 style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
                 onPress={() => setShowCalculator(true)}
               >
-                <Text style={{ fontSize: 24, marginRight: 12 }}>🧮</Text>
+                <MaterialIcons name="calculate" size={22} color={colors.primary} style={{ marginRight: 12 }} />
                 <View>
                   <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Calculator</Text>
                   <Text style={{ fontSize: 11, color: colors.muted }}>Construction & Payroll</Text>
@@ -626,7 +627,7 @@ export default function DashboardScreen() {
                 style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
                 onPress={() => setShowCompass(true)}
               >
-                <Text style={{ fontSize: 24, marginRight: 12 }}>🧭</Text>
+                <MaterialIcons name="explore" size={22} color={colors.primary} style={{ marginRight: 12 }} />
                 <View>
                   <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Compass</Text>
                   <Text style={{ fontSize: 11, color: colors.muted }}>Direction & Navigation</Text>
@@ -720,19 +721,19 @@ export default function DashboardScreen() {
           {/* Quick Actions */}
           <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
             <TouchableOpacity style={{ flex: 1, backgroundColor: colors.success + "15", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40", alignItems: "center" }} onPress={() => router.push("/manage" as any)}>
-              <Text style={{ fontSize: 24, marginBottom: 6 }}>⏱️</Text>
+              <Text style={{ fontSize: 18, marginBottom: 6, fontWeight: "700", color: colors.success }}>CLK</Text>
               <Text style={{ fontSize: 11, fontWeight: "600", color: colors.success, textAlign: "center" }}>Crew Clock</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => router.push("/reports" as any)}>
-              <Text style={{ fontSize: 24, marginBottom: 6 }}>📋</Text>
+              <MaterialIcons name="description" size={22} color={colors.foreground} style={{ marginBottom: 6 }} />
               <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>Field Report</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => router.push("/safety" as any)}>
-              <Text style={{ fontSize: 24, marginBottom: 6 }}>🛡️</Text>
+              <MaterialIcons name="verified-user" size={22} color={colors.foreground} style={{ marginBottom: 6 }} />
               <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>Safety</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => setShowVoiceGoals(true)}>
-              <Text style={{ fontSize: 24, marginBottom: 6 }}>🎯</Text>
+              <MaterialIcons name="flag" size={22} color={colors.foreground} style={{ marginBottom: 6 }} />
               <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>Goals</Text>
             </TouchableOpacity>
           </View>
@@ -745,7 +746,7 @@ export default function DashboardScreen() {
                 style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
                 onPress={() => setShowCalculator(true)}
               >
-                <Text style={{ fontSize: 24, marginRight: 12 }}>🧮</Text>
+                <MaterialIcons name="calculate" size={22} color={colors.primary} style={{ marginRight: 12 }} />
                 <View>
                   <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Calculator</Text>
                   <Text style={{ fontSize: 11, color: colors.muted }}>Construction & Payroll</Text>
@@ -755,7 +756,7 @@ export default function DashboardScreen() {
                 style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
                 onPress={() => setShowCompass(true)}
               >
-                <Text style={{ fontSize: 24, marginRight: 12 }}>🧭</Text>
+                <MaterialIcons name="explore" size={22} color={colors.primary} style={{ marginRight: 12 }} />
                 <View>
                   <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Compass</Text>
                   <Text style={{ fontSize: 11, color: colors.muted }}>Direction & Navigation</Text>
@@ -879,7 +880,7 @@ export default function DashboardScreen() {
                         {editSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>✓</Text>}
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => setEditingEntryId(null)} style={{ paddingHorizontal: 4 }}>
-                        <Text style={{ color: colors.muted, fontSize: 14 }}>✕</Text>
+                        <Text style={{ color: colors.muted, fontSize: 14 }}>×</Text>
                       </TouchableOpacity>
                     </View>
                   ) : (
@@ -888,7 +889,7 @@ export default function DashboardScreen() {
                       {isManagement && (
                         <>
                           <TouchableOpacity onPress={() => startEditTime(entry.id, entry.clockIn)} style={{ padding: 4 }}>
-                            <Text style={{ fontSize: 14 }}>✏️</Text>
+                            <Text style={{ fontSize: 14 }}>Edit</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() => handleDashboardClockOut(entry.id)}
@@ -1268,7 +1269,7 @@ export default function DashboardScreen() {
             style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
             onPress={() => setShowCalculator(true)}
           >
-            <Text style={{ fontSize: 24, marginRight: 12 }}>🧮</Text>
+            <MaterialIcons name="calculate" size={22} color={colors.primary} style={{ marginRight: 12 }} />
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Construction Calculator</Text>
               <Text style={{ fontSize: 11, color: colors.muted }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Area, Concrete, Framing, Payroll, Stairs</Text>

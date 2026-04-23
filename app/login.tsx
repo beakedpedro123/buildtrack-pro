@@ -29,7 +29,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: "#E8500A",
+  owner: "#1E3A5F",
   office_manager: "#8B5CF6",
   logistics: "#0EA5E9",
   foreman: "#F59E0B",

@@ -6,6 +6,7 @@ import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import { getApiBaseUrl } from "@/constants/oauth";
 import * as Haptics from "expo-haptics";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -547,7 +548,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
         }}
         ListEmptyComponent={
           <View style={{ alignItems: "center", paddingTop: 60 }}>
-            <Text style={{ fontSize: 40, marginBottom: 12 }}>📋</Text>
+            <MaterialIcons name="description" size={40} color={colors.muted} style={{ marginBottom: 12 }} />
             <Text style={{ color: colors.muted, fontSize: 16 }}>No reports yet</Text>
             {canSubmitReport && <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>Tap "New Report" to submit today's field report</Text>}
           </View>
@@ -713,13 +714,13 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
                     style={[styles.addBtn, { flex: 1, justifyContent: "center" }]}
                     onPress={takePhoto}
                   >
-                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>📷 Camera</Text>
+                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}> Camera</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.addBtn, { flex: 1, justifyContent: "center", backgroundColor: colors.foreground }]}
                     onPress={pickPhoto}
                   >
-                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>🖼 Gallery</Text>
+                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}> Gallery</Text>
                   </TouchableOpacity>
                 </View>
                 {photos.length > 0 && (
@@ -736,7 +737,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
                     }}>
                       <Image source={{ uri: p.uri }} style={{ width: "100%", height: "100%" }} />
                       <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 10, width: 20, height: 20, alignItems: "center", justifyContent: "center" }}>
-                        <Text style={{ color: "#fff", fontSize: 12 }}>✕</Text>
+                        <Text style={{ color: "#fff", fontSize: 12 }}>×</Text>
                       </View>
                     </TouchableOpacity>
                   ))}
