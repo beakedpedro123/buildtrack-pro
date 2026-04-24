@@ -2138,3 +2138,10 @@
 - [x] Enhance framing calculator with nails per LF, board feet, plates, sheathing, nail reference (IRC)
 - [x] Improve data sync reliability (staleTime 15s, retry 2 w/ backoff, gcTime 5min, offlineFirst)
 - [x] Fix Gil Warner stopwatch emoji avatar (should show "GW" initials)
+
+### Phase 110: Messages Removal, Collapsible Sections, Clock Relocation, Foreman Permissions
+- [x] Fully remove Messages tab from bottom tab bar (deleted messages.tsx file)
+- [x] Make Today's Schedule section collapsible on Home dashboard (collapsed by default)
+- [x] Make Labor Costs section collapsible on Home dashboard (collapsed by default)
+- [x] Relocate manual clock-in FAB button from team list to Home dashboard (Crew Clock-In quick action)
+- [x] Add foreman permissions to clock in/adjust hours for laborers only (not themselves, foremen, or management)

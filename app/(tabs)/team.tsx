@@ -99,12 +99,13 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
   const canManageTeam = employee?.role === "owner" || employee?.role === "office_manager" || employee?.role === "logistics";
   // Foremen can also clock crew in/out (but can't add/edit employees or see pay)
   const canManage = canManageTeam || employee?.role === "foreman";
+  const isForeman = employee?.role === "foreman";
   // Foremen and above can view the team list
-  const canViewTeam = canManageTeam || employee?.role === "foreman";
+  const canViewTeam = canManageTeam || isForeman;
   // Only owner/office_manager can see hourly rates
   const canSeeRates = employee?.role === "owner" || employee?.role === "office_manager";
-  // Owner, office_manager, logistics can alter time entries
-  const canAlterTime = employee?.role === "owner" || employee?.role === "office_manager" || employee?.role === "logistics";
+  // Owner, office_manager, logistics can alter all time entries; foremen can alter laborers only
+  const canAlterTime = canManageTeam || isForeman;
   // Foremen and above can view other employees' cards
   const canViewOthers = canViewTeam;
 
@@ -225,8 +226,13 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
 
   const notClockedInEmployees = useMemo(() => {
     const clockedInIds = new Set((clockedIn || []).map((e: any) => e.employeeId));
-    return (employees || cachedEmployees || []).filter((e: any) => e.isActive && !clockedInIds.has(e.id));
-  }, [employees, clockedIn]);
+    const allActive = (employees || cachedEmployees || []).filter((e: any) => e.isActive && !clockedInIds.has(e.id));
+    // Foremen can only clock in laborers (not themselves, other foremen, or management)
+    if (isForeman && employee) {
+      return allActive.filter((e: any) => e.role === "laborer");
+    }
+    return allActive;
+  }, [employees, clockedIn, isForeman, employee]);
 
   const createEmployee = trpc.employees.create.useMutation({
     onSuccess: () => {
@@ -869,31 +875,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
           </KeyboardAvoidingView>
         </View>
       </Modal>
-      {/* Clock-In FAB */}
-      {canManage && (
-        <TouchableOpacity
-          style={{
-            position: "absolute",
-            bottom: embedded ? 20 : Math.max(insets.bottom + 8, 20),
-            left: 20,
-            backgroundColor: colors.success,
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            alignItems: "center",
-            justifyContent: "center",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 6,
-            elevation: 8,
-          }}
-          onPress={() => setShowClockIn(true)}
-          activeOpacity={0.8}
-        >
-          <MaterialIcons name="schedule" size={26} color="#fff" />
-        </TouchableOpacity>
-      )}
+      {/* Crew Clock-In button moved to Home dashboard */}
 
       {/* Quick Clock-In Modal */}
       <Modal visible={showClockIn} animationType="slide" presentationStyle="pageSheet">

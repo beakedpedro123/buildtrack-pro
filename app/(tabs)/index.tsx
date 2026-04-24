@@ -247,10 +247,12 @@ export default function DashboardScreen() {
   const [laborPeriod, setLaborPeriod] = useState<LaborPeriod>("week");
   const [showActiveJobs, setShowActiveJobs] = useState(false);
   const [showByEmployee, setShowByEmployee] = useState(true);
+  const [showTodaySchedule, setShowTodaySchedule] = useState(false);
   const [showBudgetAlerts, setShowBudgetAlerts] = useState(true);
+  const [showHourlyProfit, setShowHourlyProfit] = useState(false);
+  const [showLaborCosts, setShowLaborCosts] = useState(false);
   const [showWeeklyTrend, setShowWeeklyTrend] = useState(false);
   const [showCostByJob, setShowCostByJob] = useState(false);
-  const [showHourlyProfit, setShowHourlyProfit] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [showCompass, setShowCompass] = useState(false);
 
@@ -608,6 +610,15 @@ export default function DashboardScreen() {
               <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground, textAlign: "center" }}>My Hours</Text>
             </TouchableOpacity>
           </View>
+          <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
+            <TouchableOpacity style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.success + "18", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40" }} onPress={() => router.push("/manage" as any)}>
+              <MaterialIcons name="person-add" size={22} color={colors.success} style={{ marginRight: 12 }} />
+              <View>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Crew Clock-In</Text>
+                <Text style={{ fontSize: 11, color: colors.muted }}>Manual clock in/out</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
 
           {/* Tools: Calculator + Compass */}
           <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
@@ -912,13 +923,14 @@ export default function DashboardScreen() {
         {/* ═══ TODAY'S SCHEDULE — COLLAPSIBLE ═══ */}
         {isManagement && todayTasks.length > 0 && (
           <>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 10 }}>
-              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Today's Schedule ({todayTasks.length})</Text>
-              <TouchableOpacity onPress={() => router.push("/manage" as any)}>
-                <Text style={{ fontSize: 14, color: colors.primary, fontWeight: "600" }}>View All</Text>
-              </TouchableOpacity>
-            </View>
-            {todayTasks.slice(0, 5).map((task: any) => {
+            <CollapsibleHeader
+              title={`Today's Schedule (${todayTasks.length})`}
+              expanded={showTodaySchedule}
+              onToggle={() => setShowTodaySchedule(!showTodaySchedule)}
+              rightAction={{ label: "View All", onPress: () => router.push("/manage" as any) }}
+              colors={colors}
+            />
+            {showTodaySchedule && todayTasks.slice(0, 5).map((task: any) => {
               const jobName = (activeJobs || []).find((j: any) => j.id === task.jobId)?.name || "Unknown Job";
               const statusColors: Record<string, { bg: string; text: string; label: string }> = {
                 pending: { bg: "#F59E0B22", text: "#F59E0B", label: "Pending" },
@@ -939,7 +951,7 @@ export default function DashboardScreen() {
                 </View>
               );
             })}
-            {todayTasks.length > 5 && (
+            {showTodaySchedule && todayTasks.length > 5 && (
               <TouchableOpacity onPress={() => router.push("/manage" as any)} style={{ alignItems: "center", paddingVertical: 6 }}>
                 <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>+{todayTasks.length - 5} more tasks</Text>
               </TouchableOpacity>
@@ -1029,12 +1041,16 @@ export default function DashboardScreen() {
           </>
         )}
 
-        {/* ═══ LABOR COST DASHBOARD ═══ */}
+        {/* ═══ LABOR COST DASHBOARD — COLLAPSIBLE ═══ */}
         <>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 10 }}>
-            <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>{canSeeDollars ? "Labor Costs" : "Labor Overview"}</Text>
-          </View>
+          <CollapsibleHeader
+            title={canSeeDollars ? "Labor Costs" : "Labor Overview"}
+            expanded={showLaborCosts}
+            onToggle={() => setShowLaborCosts(!showLaborCosts)}
+            colors={colors}
+          />
 
+          {showLaborCosts && <>
           {/* Period Selector */}
           <View style={{ flexDirection: "row", paddingHorizontal: 20, marginBottom: 12, gap: 8 }}>
             {(["week", "month", "30days"] as LaborPeriod[]).map((p) => {
@@ -1216,6 +1232,7 @@ export default function DashboardScreen() {
               )}
             </>
           )}
+        </>}
         </>
 
         {/* ═══ ACTIVE JOBS (collapsible) ═══ */}

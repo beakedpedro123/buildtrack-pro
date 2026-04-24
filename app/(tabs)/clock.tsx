@@ -184,8 +184,13 @@ export default function ClockScreen() {
   );
 
   const activeEmployees = useMemo(() => {
-    return effectiveEmployees.filter((e: any) => e.isActive);
-  }, [effectiveEmployees]);
+    const active = effectiveEmployees.filter((e: any) => e.isActive);
+    // Foremen can only clock in/manage laborers (not themselves, other foremen, or management)
+    if (isForeman && employee) {
+      return active.filter((e: any) => e.role === "laborer");
+    }
+    return active;
+  }, [effectiveEmployees, isForeman, employee]);
 
   const selectedEmployee = useMemo(() => {
     if (!canClockCrew) return employee;
@@ -759,7 +764,7 @@ export default function ClockScreen() {
                       style={styles.editTimeBtn}
                       onPress={() => startEditEntry(entry)}
                     >
-                      <Text style={{ color: colors.primary, fontSize: 11, fontWeight: "700" }}>Edit Edit</Text>
+                      <Text style={{ color: colors.primary, fontSize: 11, fontWeight: "700" }}>Edit</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.clockOutBtn}
