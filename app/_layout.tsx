@@ -124,17 +124,21 @@ export default function RootLayout() {
             refetchOnMount: true,
             // Refetch when network reconnects
             refetchOnReconnect: true,
-            // Retry failed requests once
-            retry: 1,
-            // Data stays fresh for 30 seconds — ensures tabs show updated data quickly
-            // while still preventing excessive refetches on rapid navigation
-            staleTime: 30_000,
-            // Keep unused query data in cache for 3 minutes
-            gcTime: 3 * 60_000,
+            // Retry failed requests with exponential backoff
+            retry: 2,
+            retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 10000),
+            // Data stays fresh for 15 seconds — ensures tabs show updated data quickly
+            // especially for job lists and employee data that Pedro needs up-to-date
+            staleTime: 15_000,
+            // Keep unused query data in cache for 5 minutes (longer cache = less blank screens)
+            gcTime: 5 * 60_000,
+            // Use network-first but show stale data while refetching
+            networkMode: "offlineFirst" as const,
           },
           mutations: {
             // Never retry mutations — fail fast so offline queue catches immediately
             retry: 0,
+            networkMode: "offlineFirst" as const,
           },
         },
       });

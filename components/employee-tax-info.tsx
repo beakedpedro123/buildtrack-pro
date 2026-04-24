@@ -319,7 +319,9 @@ export function EmployeeTaxInfoModal({ visible, onClose, employeeId, employeeNam
                     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   }}
                 >
-                  <Text style={{ fontSize: 22, marginRight: 12 }}>{i9Verified ? "" : "⬜"}</Text>
+                  <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: i9Verified ? colors.success : colors.border, backgroundColor: i9Verified ? colors.success : "transparent", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                    {i9Verified && <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>✓</Text>}
+                  </View>
                   <View>
                     <Text style={{ fontSize: 15, fontWeight: "700", color: i9Verified ? colors.success : colors.foreground }}>
                       I-9 Verified

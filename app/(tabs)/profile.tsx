@@ -16,13 +16,15 @@ import { ActivityIndicator,
   Text,
   TextInput,
   TouchableOpacity,
-  View, ImageBackground } from "react-native";
+  View, ImageBackground, Modal } from "react-native";
 
 import { BG_MORE as bg_more } from "@/constants/bg-urls";
 import { useLanguage, type AppLanguage } from "@/lib/language-context";
-import MessagesScreen from "./messages";
+// Messages feature removed
 import { OverheadSettings } from "@/components/overhead-settings";
 import { useGpsTracking } from "@/hooks/use-gps-tracking";
+import { useLunchSettings } from "@/hooks/use-lunch-settings";
+import { useCompanyTrade, TRADE_OPTIONS } from "@/hooks/use-company-trade";
 import { Switch } from "react-native";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -48,7 +50,7 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
-type ProfileTab = "profile" | "messages" | "overhead";
+type ProfileTab = "profile" | "overhead";
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -71,11 +73,11 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const { language, setLanguage } = useLanguage();
   const { gpsEnabled, toggleGps } = useGpsTracking();
+  const { lunchSettings, updateSettings: updateLunchSettings } = useLunchSettings();
+  const { trade: companyTrade, updateTrade } = useCompanyTrade();
+  const [showTradePicker, setShowTradePicker] = useState(false);
 
-  // Unread message count for badge
   const empId = (employee as any)?.id ?? 0;
-  const unreadQuery = trpc.messages.unreadCount.useQuery({ employeeId: empId }, { enabled: empId > 0, refetchInterval: 30000 });
-  const unreadMsgCount = unreadQuery.data ?? 0;
 
   const updateEmployee = trpc.employees.update.useMutation({
     onSuccess: () => {
@@ -187,7 +189,7 @@ export default function ProfileScreen() {
     setActiveTab(tab);
   };
 
-  // If showing messages, render the messages screen embedded
+
   if (activeTab === "overhead") {
     return (
       <ScreenContainer>
@@ -196,38 +198,7 @@ export default function ProfileScreen() {
     );
   }
 
-  if (activeTab === "messages") {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-        {/* Sub-tab bar */}
-        <ScreenContainer edges={["top"]} className="flex-0">
-          <View style={tabStyles.subTabBar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={tabStyles.subTabScroll}>
-              <TouchableOpacity
-                onPress={() => handleTabPress("profile")}
-                style={[tabStyles.subTab, { backgroundColor: "transparent", borderColor: colors.border }]}
-                activeOpacity={0.7}
-              >
-                <MaterialIcons name="person" size={14} color={colors.muted} />
-                <Text style={[tabStyles.subTabText, { color: colors.muted }]}>My Profile</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => handleTabPress("messages")}
-                style={[tabStyles.subTab, { backgroundColor: colors.primary, borderColor: colors.primary }]}
-                activeOpacity={0.7}
-              >
-                <MaterialIcons name="person" size={14} color={colors.muted} />
-                <Text style={[tabStyles.subTabText, { color: "#000", fontWeight: "700" }]}>
-                  Messages{unreadMsgCount > 0 ? ` (${unreadMsgCount})` : ""}
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </ScreenContainer>
-        <MessagesScreen embedded />
-      </View>
-    );
-  }
+  // Messages feature removed
 
   return (
     <ScreenContainer>
@@ -246,16 +217,7 @@ export default function ProfileScreen() {
                 <MaterialIcons name="person" size={14} color={colors.muted} />
                 <Text style={[tabStyles.subTabText, { color: "#000", fontWeight: "700" }]}>My Profile</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => handleTabPress("messages")}
-                style={[tabStyles.subTab, { backgroundColor: "transparent", borderColor: colors.border }]}
-                activeOpacity={0.7}
-              >
-                <MaterialIcons name="person" size={14} color={colors.muted} />
-                <Text style={[tabStyles.subTabText, { color: colors.muted }]}>
-                  Messages{unreadMsgCount > 0 ? ` (${unreadMsgCount})` : ""}
-                </Text>
-              </TouchableOpacity>
+
             </ScrollView>
           </View>
 
@@ -426,12 +388,29 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* GPS Tracking Toggle — Owner Only */}
+          {/* Company Trade & Settings — Owner Only */}
           {employee.role === "owner" && (
             <View style={styles.section}>
               <View style={styles.row}>
                 <Text style={{ fontSize: 13, color: colors.muted, fontWeight: "600" }}>COMPANY SETTINGS</Text>
               </View>
+              {/* Company Trade Selector */}
+              <TouchableOpacity
+                style={[styles.row, { justifyContent: "space-between" }]}
+                onPress={() => setShowTradePicker(true)}
+                activeOpacity={0.6}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                  <MaterialIcons name="construction" size={18} color={colors.foreground} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Company Trade</Text>
+                    <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
+                      {TRADE_OPTIONS.find((t) => t.key === companyTrade)?.label || "Framing"}
+                    </Text>
+                  </View>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={colors.muted} />
+              </TouchableOpacity>
               <View style={styles.rowLast}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
                   <MaterialIcons name="settings" size={18} color={colors.foreground} />
@@ -450,6 +429,122 @@ export default function ProfileScreen() {
                   thumbColor={gpsEnabled ? colors.primary : colors.muted}
                 />
               </View>
+            </View>
+          )}
+
+          {/* Lunch/Break Deduction — Owner Only */}
+          {employee.role === "owner" && (
+            <View style={styles.section}>
+              <View style={styles.row}>
+                <Text style={{ fontSize: 13, color: colors.muted, fontWeight: "600" }}>LUNCH / BREAK DEDUCTION</Text>
+              </View>
+              {/* Enable toggle */}
+              <View style={[styles.row, { justifyContent: "space-between" }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                  <MaterialIcons name="restaurant" size={18} color={colors.foreground} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Auto-Deduct Lunch</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Deduct break time from payroll reports</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={lunchSettings.enabled}
+                  onValueChange={(val) => {
+                    updateLunchSettings({ enabled: val });
+                    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  }}
+                  trackColor={{ false: colors.border, true: colors.primary + "80" }}
+                  thumbColor={lunchSettings.enabled ? colors.primary : colors.muted}
+                />
+              </View>
+              {lunchSettings.enabled && (
+                <>
+                  {/* Deduction amount */}
+                  <View style={styles.row}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                      <MaterialIcons name="schedule" size={18} color={colors.muted} />
+                      <Text style={{ fontSize: 14, color: colors.foreground }}>Deduct per day</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      {[15, 30, 45, 60].map((mins) => (
+                        <TouchableOpacity
+                          key={mins}
+                          onPress={() => {
+                            updateLunchSettings({ deductMinutes: mins });
+                            if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          }}
+                          style={{
+                            paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
+                            backgroundColor: lunchSettings.deductMinutes === mins ? colors.primary : colors.surface,
+                            borderWidth: 1, borderColor: lunchSettings.deductMinutes === mins ? colors.primary : colors.border,
+                          }}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: "700", color: lunchSettings.deductMinutes === mins ? "#fff" : colors.foreground }}>{mins}m</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  {/* Min shift length */}
+                  <View style={styles.row}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                      <MaterialIcons name="timer" size={18} color={colors.muted} />
+                      <Text style={{ fontSize: 14, color: colors.foreground }}>Min shift to qualify</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      {[{ label: "4h", val: 240 }, { label: "5h", val: 300 }, { label: "6h", val: 360 }, { label: "7h", val: 420 }].map((opt) => (
+                        <TouchableOpacity
+                          key={opt.val}
+                          onPress={() => {
+                            updateLunchSettings({ minShiftMinutes: opt.val });
+                            if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          }}
+                          style={{
+                            paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
+                            backgroundColor: lunchSettings.minShiftMinutes === opt.val ? colors.primary : colors.surface,
+                            borderWidth: 1, borderColor: lunchSettings.minShiftMinutes === opt.val ? colors.primary : colors.border,
+                          }}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: "700", color: lunchSettings.minShiftMinutes === opt.val ? "#fff" : colors.foreground }}>{opt.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  {/* Skip days */}
+                  <View style={styles.rowLast}>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                        <MaterialIcons name="event-busy" size={18} color={colors.muted} />
+                        <Text style={{ fontSize: 14, color: colors.foreground }}>Skip deduction on</Text>
+                      </View>
+                      <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, idx) => {
+                          const isSkipped = lunchSettings.skipDays.includes(idx);
+                          return (
+                            <TouchableOpacity
+                              key={day}
+                              onPress={() => {
+                                const newSkip = isSkipped
+                                  ? lunchSettings.skipDays.filter((d) => d !== idx)
+                                  : [...lunchSettings.skipDays, idx];
+                                updateLunchSettings({ skipDays: newSkip });
+                                if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              }}
+                              style={{
+                                paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
+                                backgroundColor: isSkipped ? colors.warning + "20" : colors.surface,
+                                borderWidth: 1, borderColor: isSkipped ? colors.warning : colors.border,
+                              }}
+                            >
+                              <Text style={{ fontSize: 12, fontWeight: "600", color: isSkipped ? colors.warning : colors.muted }}>{day}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>Fridays skipped by default (short day, no lunch)</Text>
+                    </View>
+                  </View>
+                </>
+              )}
             </View>
           )}
 
@@ -492,6 +587,47 @@ export default function ProfileScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </ImageBackground>
+
+    {/* Trade Picker Modal */}
+    <Modal visible={showTradePicker} transparent animationType="slide">
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}>
+        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "70%" }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Select Your Trade</Text>
+            <TouchableOpacity onPress={() => setShowTradePicker(false)}>
+              <MaterialIcons name="close" size={24} color={colors.muted} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ padding: 16 }}>
+            {TRADE_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.key}
+                onPress={() => {
+                  updateTrade(opt.key);
+                  setShowTradePicker(false);
+                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+                style={{
+                  flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 16,
+                  borderRadius: 12, marginBottom: 8,
+                  backgroundColor: companyTrade === opt.key ? colors.primary + "15" : "transparent",
+                  borderWidth: companyTrade === opt.key ? 1.5 : 1,
+                  borderColor: companyTrade === opt.key ? colors.primary : colors.border,
+                }}
+                activeOpacity={0.6}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: companyTrade === opt.key ? colors.primary : colors.foreground }}>{opt.label}</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>{opt.description}</Text>
+                </View>
+                {companyTrade === opt.key && <MaterialIcons name="check-circle" size={22} color={colors.primary} />}
+              </TouchableOpacity>
+            ))}
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
     </ScreenContainer>
   );
 }

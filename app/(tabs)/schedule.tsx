@@ -2,6 +2,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { useCompanyTrade, getTradeSchedulePhases, getTradePromptContext, TRADE_OPTIONS } from "@/hooks/use-company-trade";
 import { CACHE_KEYS } from "@/lib/data-cache";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
@@ -87,6 +88,7 @@ type ViewMode = "overview" | "calendar" | "tasks";
 export default function ScheduleScreen() {
   const colors = useColors();
   const { employee } = useAppAuth();
+  const { trade: companyTrade } = useCompanyTrade();
   const utils = trpc.useUtils();
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
@@ -359,16 +361,19 @@ export default function ScheduleScreen() {
 
       // Build a prompt for Pivot to generate the schedule
       const startDate = job.startDate ? new Date(job.startDate) : new Date();
-      const jobType = "residential framing"; // Pedro's business
+      const tradeContext = getTradePromptContext(companyTrade);
+      const tradeLabel = TRADE_OPTIONS.find((t) => t.key === companyTrade)?.label || companyTrade;
       const prompt = `Generate a detailed construction schedule for this job:
 Job: ${job.name}
 Address: ${job.address || "N/A"}
 Budget: $${job.totalBudget || "0"}
 Start Date: ${startDate.toISOString().split("T")[0]}
-Type: ${jobType}
+Trade: ${tradeLabel}
+
+${tradeContext}
 
 Create a realistic multi-month schedule with construction phases. For each task, provide:
-- phase (e.g., "Site Prep", "Foundation", "Framing", "Roofing", etc.)
+- phase (e.g., "Site Prep", "Layout", "Framing", etc.)
 - title (specific task name)
 - description (brief details)
 - scheduledDate (ISO date string)
@@ -377,7 +382,7 @@ Create a realistic multi-month schedule with construction phases. For each task,
 Return ONLY a valid JSON array of objects with these fields. No markdown, no explanation. Example:
 [{"phase":"Site Prep","title":"Clear lot","description":"Remove debris and grade","scheduledDate":"2026-05-01","durationDays":2}]
 
-Generate 30-60 tasks spanning 3-6 months for a typical residential framing job. Include all major phases from site prep through final inspection.`;
+Generate 25-50 tasks spanning the appropriate duration for a typical ${tradeLabel.toLowerCase()} job. ONLY include phases relevant to ${tradeLabel.toLowerCase()} work.`;
 
       // Call Pivot via the server's LLM
       const response = await fetch("http://127.0.0.1:3000/api/pivot-generate-schedule", {
@@ -436,27 +441,10 @@ Generate 30-60 tasks spanning 3-6 months for a typical residential framing job. 
     setShowGenerateModal(false);
   };
 
-  // Template schedule generator (fallback)
+  // Template schedule generator (fallback) — uses company trade
   function generateTemplateSchedule(startDate: Date): any[] {
     const tasks: any[] = [];
-    const phases = [
-      { name: "Site Prep", tasks: ["Clear & grade lot", "Set up temp utilities", "Survey & stake"], days: 5 },
-      { name: "Foundation", tasks: ["Excavate footings", "Form & pour footings", "Foundation walls", "Waterproofing", "Backfill"], days: 14 },
-      { name: "Framing", tasks: ["Sill plates & floor joists", "Subfloor sheathing", "Wall framing – 1st floor", "Wall framing – 2nd floor", "Roof trusses", "Roof sheathing", "Window & door openings"], days: 21 },
-      { name: "Roofing", tasks: ["Underlayment & flashing", "Shingle installation", "Ridge vents & caps"], days: 7 },
-      { name: "Plumbing Rough-In", tasks: ["Drain/waste/vent rough", "Water supply rough", "Gas line rough"], days: 7 },
-      { name: "Electrical Rough-In", tasks: ["Panel installation", "Wire runs & boxes", "Low voltage rough"], days: 7 },
-      { name: "HVAC", tasks: ["Ductwork installation", "Unit placement", "Vent terminations"], days: 5 },
-      { name: "Insulation", tasks: ["Exterior wall insulation", "Attic insulation", "Vapor barrier"], days: 5 },
-      { name: "Drywall", tasks: ["Hang drywall", "Tape & mud", "Sand & prime"], days: 10 },
-      { name: "Interior Trim", tasks: ["Door casings & baseboards", "Crown molding", "Stair railings"], days: 7 },
-      { name: "Painting", tasks: ["Interior primer", "Interior paint – 2 coats", "Touch-up & detail"], days: 7 },
-      { name: "Flooring", tasks: ["Tile installation", "Hardwood installation", "Carpet installation"], days: 7 },
-      { name: "Final Mechanical", tasks: ["Plumbing fixtures", "Electrical fixtures & devices", "HVAC commissioning"], days: 5 },
-      { name: "Exterior Finish", tasks: ["Siding installation", "Exterior paint/stain", "Gutters & downspouts"], days: 10 },
-      { name: "Punch List", tasks: ["Walk-through inspection", "Deficiency corrections", "Final clean"], days: 5 },
-      { name: "Final Inspection", tasks: ["Building dept inspection", "Certificate of occupancy", "Client walk-through"], days: 3 },
-    ];
+    const phases = getTradeSchedulePhases(companyTrade);
 
     let currentDate = new Date(startDate);
     for (const phase of phases) {
@@ -592,7 +580,7 @@ Generate 30-60 tasks spanning 3-6 months for a typical residential framing job. 
 
         {/* Job Selector — only shown when a job is selected, to switch between jobs or go back */}
         {selectedJobId && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ minHeight: 48 }} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: "center" }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ minHeight: 52, marginTop: 4 }} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: "center" }}>
             <TouchableOpacity
               onPress={() => { setSelectedJobId(null); setViewMode("overview"); }}
               style={{
@@ -610,12 +598,13 @@ Generate 30-60 tasks spanning 3-6 months for a typical residential framing job. 
                   key={job.id}
                   onPress={() => { setSelectedJobId(job.id); setViewMode("tasks"); if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
                   style={{
-                    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
                     backgroundColor: isActive ? colors.primary : colors.surface,
                     borderWidth: 1, borderColor: isActive ? colors.primary : colors.border,
+                    maxWidth: 160,
                   }}
                 >
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: isActive ? "#fff" : colors.foreground }} numberOfLines={1}>{job.name}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: isActive ? "#fff" : colors.foreground, lineHeight: 18 }} numberOfLines={1}>{job.name}</Text>
                 </TouchableOpacity>
               );
             })}

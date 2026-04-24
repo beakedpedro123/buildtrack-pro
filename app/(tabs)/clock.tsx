@@ -903,26 +903,54 @@ export default function ClockScreen() {
                 </>
               )}
 
-              <TouchableOpacity
-                style={[styles.clockBtn, {
-                  backgroundColor: isClockedIn ? colors.error : colors.success,
-                  opacity: loading ? 0.7 : 1,
-                }]}
-                onPress={isClockedIn ? handleClockOut : handleClockIn}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                {loading ? (
-                  <View style={{ alignItems: "center" }}>
-                    <ActivityIndicator color="#fff" size="large" />
-                    <Text style={{ color: "#fff", fontSize: 11, marginTop: 6, fontWeight: "600" }}>
-                      {isClockedIn ? "Clocking Out..." : "Clocking In..."}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.clockBtnText}>{isClockedIn ? "CLOCK\nOUT" : "CLOCK\nIN"}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 20 }}>
+                {/* Lunch Break button — only when clocked in */}
+                {isClockedIn && (
+                  <TouchableOpacity
+                    style={{
+                      width: 64, height: 64, borderRadius: 32,
+                      backgroundColor: colors.warning + "20",
+                      borderWidth: 2, borderColor: colors.warning,
+                      alignItems: "center", justifyContent: "center",
+                    }}
+                    onPress={() => {
+                      Alert.alert(
+                        "Start Break",
+                        "This will clock you out for a break. Clock back in when you return.",
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Start Break", onPress: handleClockOut },
+                        ]
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="restaurant" size={22} color={colors.warning} />
+                    <Text style={{ fontSize: 9, fontWeight: "700", color: colors.warning, marginTop: 2 }}>BREAK</Text>
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.clockBtn, {
+                    backgroundColor: isClockedIn ? colors.error : colors.success,
+                    opacity: loading ? 0.7 : 1,
+                  }]}
+                  onPress={isClockedIn ? handleClockOut : handleClockIn}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <View style={{ alignItems: "center" }}>
+                      <ActivityIndicator color="#fff" size="large" />
+                      <Text style={{ color: "#fff", fontSize: 11, marginTop: 6, fontWeight: "600" }}>
+                        {isClockedIn ? "Clocking Out..." : "Clocking In..."}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.clockBtnText}>{isClockedIn ? "CLOCK\nOUT" : "CLOCK\nIN"}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Job Selector (only when clocked out) — full-screen modal picker */}

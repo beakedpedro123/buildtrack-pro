@@ -383,7 +383,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
         )}
         {!canManageTeam && canManage && (
           <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.success }]} onPress={() => setShowClockIn(true)}>
-            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>⏱ Clock In</Text>
+            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>Clock In</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -891,7 +891,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
           onPress={() => setShowClockIn(true)}
           activeOpacity={0.8}
         >
-          <Text style={{ fontSize: 24 }}>⏱</Text>
+          <MaterialIcons name="schedule" size={26} color="#fff" />
         </TouchableOpacity>
       )}
 

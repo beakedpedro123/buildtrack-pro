@@ -48,6 +48,9 @@ export function ConstructionCalculator({ visible, onClose }: { visible: boolean;
   const [boardWidth, setBoardWidth] = useState("");
   const [spacing, setSpacing] = useState("16");
   const [wastePct, setWastePct] = useState("10");
+  const [wallHeight, setWallHeight] = useState("8");
+  const [lumberSize, setLumberSize] = useState<"2x4" | "2x6">("2x4");
+  const [includeSheathing, setIncludeSheathing] = useState(true);
 
   // Payroll inputs
   const [hourlyRate, setHourlyRate] = useState("");
@@ -183,28 +186,74 @@ export function ConstructionCalculator({ visible, onClose }: { visible: boolean;
   // ─── Material/Framing Calculator ───
   const calcMaterial = useCallback(() => {
     haptic();
-    const l = parseFloat(boardLength) || 0;
-    const w = parseFloat(boardWidth) || 0;
+    const l = parseFloat(boardLength) || 0; // wall length in feet
+    const h = parseFloat(wallHeight) || 8; // wall height in feet
     const sp = parseFloat(spacing) || 16;
     const waste = parseFloat(wastePct) || 10;
-    const area = l * w;
-    // Studs/joists needed
-    const count = Math.ceil((l * 12) / sp) + 1;
-    const withWaste = Math.ceil(count * (1 + waste / 100));
-    // Board feet
-    const boardFeet = (l * w * (1.5 / 12)); // rough estimate for 2x material
-    // Sheets of plywood (4x8)
-    const sheets = Math.ceil(area / 32);
-    const sheetsWithWaste = Math.ceil(sheets * (1 + waste / 100));
-    setResults([
-      { label: "Area", value: area.toFixed(1), unit: "ft²" },
-      { label: `Studs/Joists (${sp}" OC)`, value: String(count) },
-      { label: `With ${waste}% Waste`, value: String(withWaste), unit: "pieces" },
-      { label: "Plywood Sheets (4×8)", value: String(sheets) },
-      { label: `Sheets w/ Waste`, value: String(sheetsWithWaste) },
-      { label: "Linear Feet", value: (count * w).toFixed(0), unit: "LF" },
-    ]);
-  }, [boardLength, boardWidth, spacing, wastePct]);
+    const wf = 1 + waste / 100;
+    const is2x6 = lumberSize === "2x6";
+    const lumberDepth = is2x6 ? 5.5 : 3.5; // actual depth in inches
+    const lumberNomW = is2x6 ? 6 : 4;
+
+    // --- STUDS ---
+    const studCount = Math.ceil((l * 12) / sp) + 1;
+    const studsWithWaste = Math.ceil(studCount * wf);
+
+    // --- PLATES ---
+    // 1 bottom plate + 2 top plates (double top plate per IRC)
+    const plateLF = l * 3;
+    const platePieces = Math.ceil(plateLF / 8); // assuming 8' lumber
+    const platesWithWaste = Math.ceil(platePieces * wf);
+
+    // --- BOARD FEET ---
+    // Each stud: (1.5 x lumberDepth x (h*12)) / 144
+    const bfPerStud = (1.5 * lumberDepth * (h * 12)) / 144;
+    const bfStuds = studCount * bfPerStud;
+    const bfPerPlateFt = (1.5 * lumberDepth) / 12;
+    const bfPlates = plateLF * bfPerPlateFt;
+    const totalBF = Math.ceil((bfStuds + bfPlates) * wf);
+
+    // --- NAILS ---
+    // Framing nails (16d): 4-5 per stud (top+bottom), ~5 per LF of plate
+    const framingNails16d = Math.ceil((studCount * 5) + (plateLF * 2));
+    const framingNailsWithWaste = Math.ceil(framingNails16d * 1.1);
+    // Boxes of 16d (2000/box for collated, 50/lb loose ~30 nails/lb)
+    const nailBoxes = Math.ceil(framingNailsWithWaste / 2000);
+
+    // --- SHEATHING ---
+    const wallArea = l * h;
+    const sheetsNeeded = Math.ceil(wallArea / 32); // 4x8 = 32 sqft
+    const sheetsWithWaste = Math.ceil(sheetsNeeded * wf);
+    // Sheathing nails (8d): 6" OC edges, 12" OC field = ~60-80 per sheet
+    const sheathingNails8d = sheetsNeeded * 70;
+    const sheathingNailBoxes = Math.ceil(sheathingNails8d / 2000);
+
+    // --- NAILS PER LINEAL FOOT ---
+    const nailsPerLF = Math.ceil(framingNails16d / l);
+    const totalNailsPerLF = Math.ceil((framingNails16d + (includeSheathing ? sheathingNails8d : 0)) / l);
+
+    const res: CalcResult[] = [
+      { label: "Wall Area", value: wallArea.toFixed(0), unit: "ft\u00b2" },
+      { label: `Studs (${lumberSize}x${h === 8 ? "96" : Math.round(h * 12)}", ${sp}" OC)`, value: String(studCount) },
+      { label: `Studs w/ ${waste}% Waste`, value: String(studsWithWaste), unit: "pcs" },
+      { label: `Plates (${lumberSize}, 3 rows)`, value: String(platePieces), unit: "8' pcs" },
+      { label: "Plates w/ Waste", value: String(platesWithWaste), unit: "pcs" },
+      { label: "Total Board Feet", value: String(totalBF), unit: "BF" },
+      { label: "16d Framing Nails", value: String(framingNailsWithWaste), unit: `(${nailBoxes} box)` },
+      { label: "Nails per LF (framing)", value: String(nailsPerLF), unit: "/LF" },
+    ];
+
+    if (includeSheathing) {
+      res.push(
+        { label: "OSB/Plywood Sheets (4x8)", value: String(sheetsNeeded) },
+        { label: "Sheets w/ Waste", value: String(sheetsWithWaste) },
+        { label: "8d Sheathing Nails", value: String(sheathingNails8d), unit: `(${sheathingNailBoxes} box)` },
+        { label: "Total Nails per LF", value: String(totalNailsPerLF), unit: "/LF" },
+      );
+    }
+
+    setResults(res);
+  }, [boardLength, wallHeight, spacing, wastePct, lumberSize, includeSheathing]);
 
   // ─── Payroll Calculator ───
   const calcPayroll = useCallback(() => {
@@ -442,15 +491,42 @@ export function ConstructionCalculator({ visible, onClose }: { visible: boolean;
 
   const renderMaterialCalc = () => (
     <View>
-      <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10 }}>Wall/floor framing estimator</Text>
-      {renderInput("Wall/Floor Length", boardLength, setBoardLength, "0", "ft")}
-      {renderInput("Wall/Floor Width", boardWidth, setBoardWidth, "0", "ft")}
-      {renderInput("Stud/Joist Spacing", spacing, setSpacing, "16", "in OC")}
+      <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10 }}>Wall framing material estimator (studs, plates, nails, sheathing)</Text>
+      {/* Lumber size toggle */}
+      <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+        {(["2x4", "2x6"] as const).map((sz) => (
+          <TouchableOpacity key={sz} onPress={() => { haptic(); setLumberSize(sz); }} style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: lumberSize === sz ? colors.primary + "20" : colors.surface, borderWidth: 1, borderColor: lumberSize === sz ? colors.primary : colors.border, alignItems: "center" }}>
+            <Text style={{ fontWeight: "700", color: lumberSize === sz ? colors.primary : colors.muted }}>{sz}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {renderInput("Wall Length", boardLength, setBoardLength, "12", "ft")}
+      {renderInput("Wall Height", wallHeight, setWallHeight, "8", "ft")}
+      {renderInput("Stud Spacing", spacing, setSpacing, "16", "in OC")}
       {renderInput("Waste Factor", wastePct, setWastePct, "10", "%")}
+      {/* Sheathing toggle */}
+      <TouchableOpacity onPress={() => { haptic(); setIncludeSheathing(!includeSheathing); }} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, paddingVertical: 8 }}>
+        <View style={{ width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: includeSheathing ? colors.primary : colors.muted, backgroundColor: includeSheathing ? colors.primary + "20" : "transparent", alignItems: "center", justifyContent: "center" }}>
+          {includeSheathing && <MaterialIcons name="check" size={14} color={colors.primary} />}
+        </View>
+        <Text style={{ fontSize: 14, color: colors.foreground, fontWeight: "600" }}>Include Sheathing (OSB/Plywood)</Text>
+      </TouchableOpacity>
       <TouchableOpacity onPress={calcMaterial} style={{ backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 4 }}>
         <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Calculate</Text>
       </TouchableOpacity>
       {renderResults()}
+      {/* Reference info */}
+      {results.length > 0 && (
+        <View style={{ marginTop: 16, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}>
+          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, marginBottom: 6 }}>Nail Reference (IRC)</Text>
+          <Text style={{ fontSize: 11, color: colors.muted, lineHeight: 18 }}>
+            16d (3.5") - Studs to plates, end-nailing{"\n"}
+            10d (3") - Toenailing, joist hangers{"\n"}
+            8d (2.5") - Sheathing (6" OC edges, 12" field){"\n"}
+            Collated box = 2,000-3,000 nails
+          </Text>
+        </View>
+      )}
     </View>
   );
 

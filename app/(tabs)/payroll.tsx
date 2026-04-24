@@ -26,6 +26,7 @@ import * as Haptics from "expo-haptics";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
+import { useLunchSettings, applyLunchDeductions } from "@/hooks/use-lunch-settings";
 
 type Period = "week" | "biweek" | "month" | "custom";
 
@@ -243,6 +244,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
   const [customEnd, setCustomEnd] = useState(today.toISOString().slice(0, 10));
 
   const range = getDateRange(period, customStart, customEnd, periodOffset);
+  const { lunchSettings } = useLunchSettings();
 
   // RBAC: payroll screen is for owner/office_manager/logistics only
   const canAccessPayroll = employee?.role === "owner" || employee?.role === "office_manager";
@@ -318,8 +320,21 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
     (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)
   );
 
+  // Apply lunch deductions
+  const lunchDeductions = applyLunchDeductions(sortedRows, lunchSettings);
+  const adjustedRows = sortedRows.map((row, i) => ({
+    ...row,
+    displayMinutes: lunchDeductions[i].adjustedMinutes,
+    deductedMinutes: lunchDeductions[i].deductedMinutes,
+  }));
+
   const totalPayroll = canSeeRates
-    ? sortedRows.reduce((sum, r) => sum + calcPayNum(r), 0)
+    ? adjustedRows.reduce((sum, r) => {
+        if (r.payType === "salary") return sum + (r.salaryAmount ? parseFloat(r.salaryAmount) : 0);
+        if (!r.hourlyRate) return sum;
+        const rate = parseFloat(r.hourlyRate);
+        return sum + (r.displayMinutes / 60) * rate;
+      }, 0)
     : 0;
 
   const REPORT_TYPES: { key: typeof reportType; label: string; desc: string }[] = [
@@ -539,9 +554,9 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                 </View>
                 <View style={{ flex: 1, alignItems: "center" }}>
                   <Text style={{ fontSize: 28, fontWeight: "800", color: colors.foreground }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
-                    {formatDuration(sortedRows.reduce((s, r) => s + r.totalMinutes, 0))}
+                    {formatDuration(adjustedRows.reduce((s, r) => s + r.displayMinutes, 0))}
                   </Text>
-                  <Text style={{ fontSize: 12, color: colors.muted }}>total hours</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>{lunchSettings.enabled ? "adj. hours" : "total hours"}</Text>
                 </View>
                 {canSeeRates && (
                   <View style={{ flex: 1, alignItems: "flex-end" }}>
@@ -664,7 +679,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                 </Text>
               </View>
             ) : (
-              sortedRows.map((row) => (
+              adjustedRows.map((row) => (
                 <TouchableOpacity key={row.employeeId} style={styles.card} onPress={() => { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/timecard/${row.employeeId}` as any); }} activeOpacity={0.6}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <View style={{ flex: 1 }}>
@@ -701,9 +716,14 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                       {row.payType === "salary" ? (
                         <Text style={{ fontSize: 11, color: colors.muted, fontStyle: "italic" }}>salaried</Text>
                       ) : (
-                        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.primary }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                          {formatDuration(row.totalMinutes)}
-                        </Text>
+                        <>
+                          <Text style={{ fontSize: 18, fontWeight: "700", color: colors.primary }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                            {formatDuration(row.displayMinutes)}
+                          </Text>
+                          {row.deductedMinutes > 0 && (
+                            <Text style={{ fontSize: 10, color: colors.warning }}>-{row.deductedMinutes}m lunch</Text>
+                          )}
+                        </>
                       )}
                       {canSeeRates && (
                         <Text style={{ fontSize: 15, fontWeight: "700", color: colors.success, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
@@ -729,7 +749,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                           {row.entries.length} shifts
                         </Text>
                         <Text style={{ fontSize: 12, color: colors.muted }}>
-                          {(row.totalMinutes / 60).toFixed(1)} hrs total
+                          {(row.displayMinutes / 60).toFixed(1)} hrs{row.deductedMinutes > 0 ? " (adj)" : " total"}
                         </Text>
                       </>
                     )}

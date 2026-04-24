@@ -2122,3 +2122,19 @@
 - [x] Remove ALL emojis across entire app (every screen, every tab, every button)
 - [x] Replace emojis with clean text labels or minimal MaterialIcons (Option B style)
 - [x] Fix missing tab bar icons on iOS (Home and Goals icons not showing)
+
+### Phase 109: Lunch Deduction, Pivot Trade Schedules, UI Fixes, Calculator Enhancements
+- [x] Add lunch/break deduction setting on reports (30min default, configurable per day, Fridays skip)
+- [x] Add lunch/break option on the timer for field crews
+- [x] Fix Pivot to generate ONLY trade-specific schedule phases (framing for Pedro, not plumbing/HVAC/etc.)
+- [x] Pivot should offer estimate upload option and help create/push schedule
+- [x] Fix schedule UI spacing - lower phase boxes, give pills more space at top
+- [x] Pivot push schedule to Goals, Tasks, Punchlist for each job and assigned people
+- [x] Fix Tax Information button on employee profile (verified working, migration applied)
+- [x] Fix Pivot record/mic button missing from chat interface
+- [x] Fix Pivot markdown rendering (raw asterisks showing instead of bold)
+- [x] Replace green clock emoji button with professional icon, better position
+- [x] Remove Messages feature entirely
+- [x] Enhance framing calculator with nails per LF, board feet, plates, sheathing, nail reference (IRC)
+- [x] Improve data sync reliability (staleTime 15s, retry 2 w/ backoff, gcTime 5min, offlineFirst)
+- [x] Fix Gil Warner stopwatch emoji avatar (should show "GW" initials)

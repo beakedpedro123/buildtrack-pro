@@ -33,11 +33,10 @@ export default function TabLayout() {
   const isLogistics = role === "logistics";
 
   // ─── Role Access Matrix ───────────────────────────────────────────────
-  // Owner/Office Manager/Logistics: Home, Jobs, Goals, Manage, Profile (with Messages)
-  // Foreman: Home, Jobs, Goals, Manage, Profile (with Messages)
-  // Laborer: Home, Jobs, Goals, Manage, Profile (with Messages)
+  // Owner/Office Manager/Logistics: Home, Jobs, Goals, Manage, Profile
+  // Foreman: Home, Jobs, Goals, Manage, Profile
+  // Laborer: Home, Jobs, Goals, Manage, Profile
   // All roles now get Manage tab — laborers see My Hours there
-  // Messages are embedded in Profile tab for all roles
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -93,7 +92,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ─── Profile tab (now includes Messages) ─── */}
+      {/* ─── Profile tab ─── */}
       <Tabs.Screen
         name="profile"
         options={{
@@ -107,10 +106,7 @@ export default function TabLayout() {
         name="hours"
         options={{ href: null, title: "My Hours" }}
       />
-      <Tabs.Screen
-        name="messages"
-        options={{ href: null, title: "Messages" }}
-      />
+
       <Tabs.Screen
         name="jobs"
         options={{ href: null, title: "Jobs" }}

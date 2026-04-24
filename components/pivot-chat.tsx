@@ -456,6 +456,30 @@ export function PivotChat() {
 
   // ─── Render message content with inline image support ─────────────────────────
 
+  /** Parse a single text line into styled <Text> spans (bold, inline code) */
+  const renderStyledLine = (line: string, baseStyle: any, key: number) => {
+    // Split on **bold** and `code` patterns
+    const parts: React.ReactNode[] = [];
+    const regex = /(\*\*(.+?)\*\*)|(`(.+?)`)/g;
+    let last = 0;
+    let m;
+    let pk = 0;
+    while ((m = regex.exec(line)) !== null) {
+      if (m.index > last) parts.push(<Text key={`${key}-${pk++}`} style={baseStyle}>{line.slice(last, m.index)}</Text>);
+      if (m[2]) {
+        // Bold
+        parts.push(<Text key={`${key}-${pk++}`} style={[baseStyle, { fontWeight: "800" }]}>{m[2]}</Text>);
+      } else if (m[4]) {
+        // Inline code
+        parts.push(<Text key={`${key}-${pk++}`} style={[baseStyle, { fontFamily: "monospace", backgroundColor: colors.surface, paddingHorizontal: 4, borderRadius: 4, fontSize: 13 }]}>{m[4]}</Text>);
+      }
+      last = m.index + m[0].length;
+    }
+    if (last < line.length) parts.push(<Text key={`${key}-${pk++}`} style={baseStyle}>{line.slice(last)}</Text>);
+    if (parts.length === 0) return <Text key={key} style={baseStyle}>{line}</Text>;
+    return <Text key={key}>{parts}</Text>;
+  };
+
   const renderMessageContent = (content: string, role: "user" | "assistant") => {
     // Parse markdown images: ![alt](url)
     const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
@@ -469,17 +493,12 @@ export function PivotChat() {
       if (match.index > lastIndex) {
         const textBefore = content.slice(lastIndex, match.index).trim();
         if (textBefore) {
-          parts.push(
-            <Text key={partKey++} style={role === "user" ? s2.userText : [s2.aiText, { color: colors.foreground }]}>
-              {textBefore}
-            </Text>
-          );
+          parts.push(renderMarkdownBlock(textBefore, role, partKey++));
         }
       }
       // Add the image
       const altText = match[1];
       let imageUrl = match[2];
-      // Resolve relative URLs (e.g., /api/beam-diagram) to absolute using API base
       if (imageUrl.startsWith("/api/")) {
         imageUrl = `${getApiBaseUrl()}${imageUrl}`;
       }
@@ -502,20 +521,82 @@ export function PivotChat() {
     if (lastIndex < content.length) {
       const remaining = content.slice(lastIndex).trim();
       if (remaining) {
-        parts.push(
-          <Text key={partKey++} style={role === "user" ? s2.userText : [s2.aiText, { color: colors.foreground }]}>
-            {remaining}
+        parts.push(renderMarkdownBlock(remaining, role, partKey++));
+      }
+    }
+
+    // If no images found, render as markdown block
+    if (parts.length === 0) {
+      return renderMarkdownBlock(content, role, 0);
+    }
+
+    return <View>{parts}</View>;
+  };
+
+  /** Render a text block with markdown formatting (bold, headers, bullets, numbered lists) */
+  const renderMarkdownBlock = (text: string, role: "user" | "assistant", blockKey: number) => {
+    const baseStyle = role === "user" ? s2.userText : [s2.aiText, { color: colors.foreground }];
+    const lines = text.split("\n");
+    const elements: React.ReactNode[] = [];
+    let lineKey = 0;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        elements.push(<View key={`${blockKey}-${lineKey++}`} style={{ height: 8 }} />);
+        continue;
+      }
+      // Headers: ### or ##
+      if (trimmed.startsWith("### ")) {
+        elements.push(
+          <Text key={`${blockKey}-${lineKey++}`} style={[baseStyle, { fontWeight: "800", fontSize: 15, marginTop: 8, marginBottom: 4 } as any]}>
+            {trimmed.slice(4)}
           </Text>
+        );
+      } else if (trimmed.startsWith("## ")) {
+        elements.push(
+          <Text key={`${blockKey}-${lineKey++}`} style={[baseStyle, { fontWeight: "800", fontSize: 16, marginTop: 10, marginBottom: 4 } as any]}>
+            {trimmed.slice(3)}
+          </Text>
+        );
+      } else if (trimmed.startsWith("# ")) {
+        elements.push(
+          <Text key={`${blockKey}-${lineKey++}`} style={[baseStyle, { fontWeight: "800", fontSize: 17, marginTop: 10, marginBottom: 4 } as any]}>
+            {trimmed.slice(2)}
+          </Text>
+        );
+      }
+      // Bullet points: - or *
+      else if (/^[-*]\s/.test(trimmed)) {
+        elements.push(
+          <View key={`${blockKey}-${lineKey++}`} style={{ flexDirection: "row", paddingLeft: 8, marginBottom: 3 }}>
+            <Text style={[baseStyle, { marginRight: 6 } as any]}>{"\u2022"}</Text>
+            <View style={{ flex: 1 }}>{renderStyledLine(trimmed.slice(2), baseStyle, lineKey)}</View>
+          </View>
+        );
+      }
+      // Numbered list: 1. 2. etc.
+      else if (/^\d+\.\s/.test(trimmed)) {
+        const num = trimmed.match(/^(\d+)\.\s/);
+        const rest = trimmed.replace(/^\d+\.\s/, "");
+        elements.push(
+          <View key={`${blockKey}-${lineKey++}`} style={{ flexDirection: "row", paddingLeft: 8, marginBottom: 3 }}>
+            <Text style={[baseStyle, { marginRight: 6, fontWeight: "700" } as any]}>{num ? num[1] + "." : ""}</Text>
+            <View style={{ flex: 1 }}>{renderStyledLine(rest, baseStyle, lineKey)}</View>
+          </View>
+        );
+      }
+      // Regular text with inline formatting
+      else {
+        elements.push(
+          <View key={`${blockKey}-${lineKey++}`} style={{ marginBottom: 2 }}>
+            {renderStyledLine(trimmed, baseStyle, lineKey)}
+          </View>
         );
       }
     }
 
-    // If no images found, just render as plain text
-    if (parts.length === 0) {
-      return <Text style={role === "user" ? s2.userText : [s2.aiText, { color: colors.foreground }]}>{content}</Text>;
-    }
-
-    return <View>{parts}</View>;
+    return <View key={blockKey}>{elements}</View>;
   };
 
   // Inline text styles for renderMessageContent (defined before StyleSheet.create)
@@ -963,7 +1044,7 @@ export function PivotChat() {
                     onPress={isRecording ? stopRecording : startRecording}
                     disabled={isTranscribing || loading}
                   >
-                    <Text style={{ fontSize: 18 }}>{isTranscribing ? "⏳" : isRecording ? "" : ""}</Text>
+                    <MaterialIcons name={isTranscribing ? "hourglass-top" : isRecording ? "stop" : "mic"} size={20} color={isRecording ? "#fff" : colors.foreground} />
                   </TouchableOpacity>
                 )}
 
