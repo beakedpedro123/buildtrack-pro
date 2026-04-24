@@ -82,7 +82,7 @@ const ROLE_ACCESS: Record<Role, {
     suggestions: [
       "Sup Pivot, what's going on today?",
       "Analyze my labor costs this week",
-      "Help me create a KPI",
+      "Calculate a 7/12 roof pitch angle",
       "Draft a safety talk",
     ],
   },
@@ -119,6 +119,7 @@ const ROLE_ACCESS: Record<Role, {
     suggestions: [
       "Sup Pivot, what are my goals?",
       "Safety tips for framing",
+      "Calculate rafter length for 8/12 pitch",
       "Best practices for steel erection",
     ],
   },

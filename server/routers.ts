@@ -1455,7 +1455,8 @@ ${getKnowledgeSummary()}
 
     const calculationBlock = `
 ## Advanced Calculation Capabilities
-You can perform complex construction calculations. When asked, show your work step by step:
+You can perform complex construction calculations. When asked, show your work step by step.
+For ANY math involving roof pitches, angles, rafter lengths, compound angles, or trigonometry — you MUST use the construction_math tool. NEVER do trig in your head. The tool gives exact answers.
 
 **Steel Calculations:**
 - Weight per linear foot for common steel sections
@@ -1475,6 +1476,95 @@ You can perform complex construction calculations. When asked, show your work st
 - Break down cost per square foot
 
 Always show your math clearly and explain each step.
+
+## 🔥 CONSTRUCTION MATH POWERHOUSE — Roof Geometry, Angles & Pythagorean Theorem
+You are a construction math expert. For ALL calculations involving angles, pitches, lengths, or trigonometry, you MUST use the construction_math tool. This gives you exact answers — no rounding errors, no guessing.
+
+### Roof Pitch Fundamentals
+Roof pitch = inches of rise per 12 inches of horizontal run. Written as X/12.
+- Pitch is the "common number" on a speed square
+- To convert pitch to degrees: angle = arctan(pitch / 12)
+- To convert degrees to pitch: pitch = tan(angle) × 12
+
+### Speed Square Reference (Pedro uses the degree scale for accuracy)
+The speed square has two scales:
+1. **Common scale** — numbers 1-12+ representing pitch (rise per 12" run)
+2. **Degree scale** — 0° to 90° along the bottom edge
+
+Quick reference (use construction_math tool for exact values):
+| Pitch | Degrees | Common Rafter/ft | Hip-Valley/ft |
+|-------|---------|-------------------|---------------|
+| 4/12  | 18.43°  | 12.65"            | 17.44"        |
+| 5/12  | 22.62°  | 13.00"            | 17.69"        |
+| 6/12  | 26.57°  | 13.42"            | 18.00"        |
+| 7/12  | 30.26°  | 13.89"            | 18.36"        |
+| 8/12  | 33.69°  | 14.42"            | 18.76"        |
+| 9/12  | 36.87°  | 15.00"            | 19.21"        |
+| 10/12 | 39.81°  | 15.62"            | 19.70"        |
+| 12/12 | 45.00°  | 16.97"            | 20.78"        |
+
+### Compound Angles — When Two Roofs Meet (Pedro's Method)
+This is the KEY calculation for valleys and hips where two roof planes intersect.
+
+**Step 1:** Convert each roof's pitch to degrees: angle = arctan(pitch/12)
+**Step 2 (same direction/parallel ridges):** Subtract the smaller angle from the larger → subtract result from 90°
+**Step 2 (opposite direction/converging ridges):** Add the two angles → subtract sum from 90°
+
+Example: 6/12 meets 8/12 going same direction:
+- 6/12 = 26.57°, 8/12 = 33.69°
+- Difference = 33.69° - 26.57° = 7.12°
+- Cut angle = 90° - 7.12° = 82.88°
+
+Example: 6/12 meets 8/12 going opposite direction:
+- Sum = 26.57° + 33.69° = 60.26°
+- Cut angle = 90° - 60.26° = 29.74°
+
+### Irregular Valley (Unequal Pitches) — Advanced
+When two roofs of different pitches meet:
+- Plan angle = arctan(shallow_pitch / steeper_pitch)
+- Cheek-cut angle = 180° - (plan_angle × 2), then subtract 90°
+- Plumb-cut angle: find true run = roof_run / sin(plan_angle), then arccos(true_run / valley_length)
+- Top bevel angle = arctan(sin(plan_angle) × pitch/12) — calculate for BOTH sides
+
+### Pythagorean Theorem — The Foundation of ALL Framing Math
+c = √(a² + b²) — hypotenuse of a right triangle
+
+Applications:
+- **Rafter length** = √(run² + rise²), or run × multiplier factor
+- **Hip/valley rafter length** = √(run² + rise²) where run is the diagonal (17" per foot instead of 12")
+- **Stair stringer** = √(total_run² + total_rise²)
+- **Diagonal bracing** = √(horizontal² + vertical²)
+- **Squaring corners (3-4-5)**: measure 3' on one wall, 4' on the other, diagonal must be exactly 5'
+
+### Rafter Length Formulas
+- Common rafter per foot of run = √(144 + pitch²) / 12 (multiplier)
+- Hip/valley per foot of run = √(289 + pitch²) / 12
+- Total rafter length = (building_width / 2) × multiplier + overhang
+
+### Jack Rafter Differences
+Jack rafters decrease in length at a constant rate:
+- At 16" OC: difference = (16/12) × common_rafter_length_per_foot
+- At 24" OC: difference = (24/12) × common_rafter_length_per_foot
+
+### Stair Calculations
+- IRC max riser: 7-3/4", min tread: 10"
+- Stringer length = √(total_rise² + total_run²)
+- Stringer angle = arctan(total_rise / total_run)
+- Number of risers = total_rise / desired_riser_height (round to nearest whole number)
+
+### Ridge Height
+ridge_height = wall_height + (building_width / 2) × (pitch / 12)
+
+### Wall Angle Calculations
+- For angled walls: use arctan(offset / run) to find the angle
+- For bay windows: common angles are 30°, 45°, 60° from the wall plane
+- For rake walls: the angle matches the roof pitch
+
+### CRITICAL RULE: Always Use the construction_math Tool
+NEVER calculate trig functions (sin, cos, tan, arctan, sqrt) in your head or by estimation.
+ALWAYS call the construction_math tool with the specific calculation type.
+The tool returns exact decimal results that you then present to the user.
+This is what makes you 95%+ accurate — the tool does the math, you explain the results.
 
 ## Structural Plan Reading — Steel & Timber Identification
 When the user uploads structural plans (PDF or screenshots), you are a plan reading assistant. Your job is IDENTIFICATION ONLY — counts, sizes, lengths, locations. Do NOT calculate prices.
@@ -1763,8 +1853,22 @@ ${calculationBlock}
 - Daily motivation and team management tips
 - Explain how to use BuildTrack Pro features
 - Perform construction calculations (steel lookups, material estimates, labor projections)
+- **CONSTRUCTION MATH POWERHOUSE** — Exact roof pitch conversions, rafter lengths, compound angles, stair stringers, Pythagorean theorem, speed square reference. Use the construction_math tool for ALL trig calculations.
 - Voice-to-goals: when the foreman speaks their goals to you, summarize them clearly and use the create_goal tool to push them directly to the Goals tab after confirmation
 - Look up AISC steel beam data (W-shapes) — use construction_lookup with type="steel_profile" for any beam question
+
+## Construction Math Tool — Roof Pitches, Angles & Pythagorean Theorem
+You have a construction_math tool that performs EXACT trigonometry calculations. ALWAYS use it for:
+- **Pitch to degrees**: "What's 7/12 in degrees?" → construction_math with calc_type="pitch_to_degrees", pitch1=7
+- **Compound angles**: "Two roofs meet, 6/12 and 8/12 going same direction" → construction_math with calc_type="compound_angle_same_direction", pitch1=6, pitch2=8
+- **Rafter lengths**: "How long is a common rafter for 8/12 pitch, 14' run?" → construction_math with calc_type="common_rafter_length", pitch1=8, run_ft=14
+- **Hip/valley rafters**: Same but calc_type="hip_valley_rafter_length"
+- **Stair stringers**: calc_type="stair_stringer" with total_rise_inches and riser_height
+- **Pythagorean theorem**: calc_type="pythagorean" with side_a and side_b
+- **Speed square lookup**: calc_type="speed_square_lookup" with pitch1
+- **Jack rafter differences**: calc_type="jack_rafter_difference" with pitch1 and spacing_inches
+NEVER calculate trig in your head. The tool gives exact decimal answers to 4 places.
+Present results in a clear format the foreman can use on the job site.
 
 ## Steel Lookup — ALWAYS Use the Database (959 shapes)
 When asked about ANY steel shape (W-beams, HSS tubes, pipe, angles, channels):
@@ -1852,6 +1956,17 @@ You can help with:
 - Sheathing sheets = wall area / 32 SF + 10% waste
 - Simple measurement conversions (feet to inches, etc.)
 Always show your math step by step.
+
+## Construction Math Tool — Roof Pitches, Angles & More
+You have a construction_math tool that does EXACT trigonometry calculations. Use it for:
+- Converting pitch to degrees (e.g. "what's 7/12 in degrees?")
+- Rafter lengths (common and hip/valley)
+- Compound angles when two roofs meet
+- Stair stringer calculations
+- Pythagorean theorem (diagonal measurements, squaring corners)
+- Speed square reference data
+NEVER do trig in your head — always use the construction_math tool for exact answers.
+When the user asks about a roof pitch, angle, or rafter length, call the tool and present the results clearly.
 
 ## App Actions You Can Use
 You have tools to help you get things done in the app.
@@ -2209,6 +2324,57 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               jobName: { type: "string", description: "Optional job name to filter. Leave empty for all jobs." },
             },
             required: [],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "construction_math",
+          description: "Perform exact construction math calculations using trigonometry and the Pythagorean theorem. Use this tool for ANY calculation involving roof pitches, angles, rafter lengths, compound angles, stair stringers, diagonal bracing, or any trigonometric function. NEVER do trig in your head — always use this tool for exact results. This is what makes you 95%+ accurate.",
+          parameters: {
+            type: "object",
+            properties: {
+              calc_type: {
+                type: "string",
+                enum: [
+                  "pitch_to_degrees",
+                  "degrees_to_pitch",
+                  "common_rafter_length",
+                  "hip_valley_rafter_length",
+                  "compound_angle_same_direction",
+                  "compound_angle_opposite_direction",
+                  "irregular_valley",
+                  "rafter_total_length",
+                  "stair_stringer",
+                  "pythagorean",
+                  "jack_rafter_difference",
+                  "ridge_height",
+                  "roof_area",
+                  "speed_square_lookup",
+                  "angle_from_measurements"
+                ],
+                description: "Type of calculation to perform.",
+              },
+              pitch1: { type: "number", description: "First roof pitch as a number (e.g. 6 for 6/12). Used for pitch_to_degrees, compound angles, rafter lengths, etc." },
+              pitch2: { type: "number", description: "Second roof pitch (e.g. 8 for 8/12). Used for compound angle calculations when two roofs meet." },
+              degrees: { type: "number", description: "Angle in degrees. Used for degrees_to_pitch conversion." },
+              run_ft: { type: "number", description: "Horizontal run in feet. Used for rafter_total_length, stair_stringer, pythagorean, ridge_height." },
+              rise_ft: { type: "number", description: "Vertical rise in feet. Used for stair_stringer, pythagorean, ridge_height." },
+              overhang_ft: { type: "number", description: "Overhang length in feet. Added to rafter_total_length calculation. Default 0." },
+              spacing_inches: { type: "number", description: "Jack rafter spacing in inches (16 or 24). Used for jack_rafter_difference." },
+              building_width_ft: { type: "number", description: "Building width in feet. Used for ridge_height and roof_area calculations." },
+              building_length_ft: { type: "number", description: "Building length in feet. Used for roof_area calculation." },
+              wall_height_ft: { type: "number", description: "Wall height in feet. Used for ridge_height calculation." },
+              side_a: { type: "number", description: "Side A of a right triangle. Used for pythagorean calculation." },
+              side_b: { type: "number", description: "Side B of a right triangle. Used for pythagorean calculation." },
+              total_rise_inches: { type: "number", description: "Total rise in inches for stair_stringer calculation." },
+              total_run_inches: { type: "number", description: "Total run in inches for stair_stringer calculation." },
+              riser_height: { type: "number", description: "Desired riser height in inches for stair calculation." },
+              tread_depth: { type: "number", description: "Desired tread depth in inches for stair calculation." },
+              roof_run_ft: { type: "number", description: "Run of the roof section in feet. Used for irregular_valley." },
+            },
+            required: ["calc_type"],
           },
         },
       },
@@ -2819,6 +2985,358 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             }
           } catch (err) {
             toolResult = `Failed to get schedule status: ${err instanceof Error ? err.message : "unknown error"}`;
+          }
+        } else if (toolName === "construction_math") {
+          // ── Construction Math Engine ── Exact trigonometry calculations ─────────────────
+          try {
+            const calcType = args.calc_type || "";
+            const p1 = args.pitch1 || 0;
+            const p2 = args.pitch2 || 0;
+            const deg = args.degrees || 0;
+            const runFt = args.run_ft || 0;
+            const riseFt = args.rise_ft || 0;
+            const overhangFt = args.overhang_ft || 0;
+            const spacingIn = args.spacing_inches || 16;
+            const bldgWidth = args.building_width_ft || 0;
+            const bldgLength = args.building_length_ft || 0;
+            const wallHeight = args.wall_height_ft || 0;
+            const sideA = args.side_a || 0;
+            const sideB = args.side_b || 0;
+            const totalRiseIn = args.total_rise_inches || 0;
+            const totalRunIn = args.total_run_inches || 0;
+            const riserH = args.riser_height || 7.5;
+            const treadD = args.tread_depth || 10;
+            const roofRunFt = args.roof_run_ft || 0;
+
+            const toRad = (d: number) => d * Math.PI / 180;
+            const toDeg = (r: number) => r * 180 / Math.PI;
+            const round4 = (n: number) => Math.round(n * 10000) / 10000;
+            const toFeetInches = (totalInches: number) => {
+              const ft = Math.floor(totalInches / 12);
+              const inches = totalInches - ft * 12;
+              const wholeIn = Math.floor(inches);
+              const frac = inches - wholeIn;
+              // Convert fraction to nearest 1/16
+              const sixteenths = Math.round(frac * 16);
+              if (sixteenths === 0) return `${ft}' ${wholeIn}"`;
+              if (sixteenths === 16) return `${ft}' ${wholeIn + 1}"`;
+              // Simplify fraction
+              let num = sixteenths, den = 16;
+              while (num % 2 === 0 && den % 2 === 0) { num /= 2; den /= 2; }
+              return `${ft}' ${wholeIn}-${num}/${den}"`;
+            };
+
+            if (calcType === "pitch_to_degrees") {
+              const angle = toDeg(Math.atan(p1 / 12));
+              const commonPerFt = Math.sqrt(144 + p1 * p1);
+              const hipPerFt = Math.sqrt(289 + p1 * p1);
+              const multiplier = commonPerFt / 12;
+              toolResult = `✅ Pitch ${p1}/12 Conversion:\n`;
+              toolResult += `• Angle: ${round4(angle)}°\n`;
+              toolResult += `• Common rafter length per foot of run: ${round4(commonPerFt)}" (multiplier: ${round4(multiplier)})\n`;
+              toolResult += `• Hip/valley rafter length per foot of run: ${round4(hipPerFt)}"\n`;
+              toolResult += `• Plumb cut angle: ${round4(angle)}° from horizontal\n`;
+              toolResult += `• Seat cut angle: ${round4(90 - angle)}° from horizontal\n`;
+              toolResult += `• Rise per foot of run: ${p1}"\n`;
+              toolResult += `• Speed square setting: align ${p1} on the common scale, or set ${round4(angle)}° on the degree scale`;
+
+            } else if (calcType === "degrees_to_pitch") {
+              const pitch = Math.tan(toRad(deg)) * 12;
+              toolResult = `✅ ${round4(deg)}° to Pitch Conversion:\n`;
+              toolResult += `• Pitch: ${round4(pitch)}/12\n`;
+              toolResult += `• Nearest standard pitch: ${Math.round(pitch)}/12\n`;
+              toolResult += `• Rise per foot of run: ${round4(pitch)}"\n`;
+              toolResult += `• Speed square common number: ${round4(pitch)}`;
+
+            } else if (calcType === "common_rafter_length") {
+              const lengthPerFt = Math.sqrt(144 + p1 * p1);
+              const multiplier = lengthPerFt / 12;
+              const angle = toDeg(Math.atan(p1 / 12));
+              if (runFt > 0) {
+                const totalLength = runFt * multiplier;
+                const totalWithOverhang = totalLength + (overhangFt * multiplier);
+                toolResult = `✅ Common Rafter Length (${p1}/12 pitch, ${runFt}' run${overhangFt > 0 ? `, ${overhangFt}' overhang` : ""}):\n`;
+                toolResult += `• Rafter length: ${round4(totalLength)}' = ${toFeetInches(totalLength * 12)}\n`;
+                if (overhangFt > 0) {
+                  toolResult += `• With overhang: ${round4(totalWithOverhang)}' = ${toFeetInches(totalWithOverhang * 12)}\n`;
+                }
+                toolResult += `• Multiplier: ${round4(multiplier)} per foot of run\n`;
+                toolResult += `• Pitch angle: ${round4(angle)}°\n`;
+                toolResult += `• Total rise: ${round4(runFt * p1 / 12)}' = ${toFeetInches(runFt * p1)}`;
+              } else {
+                toolResult = `✅ Common Rafter Data (${p1}/12 pitch):\n`;
+                toolResult += `• Length per foot of run: ${round4(lengthPerFt)}"\n`;
+                toolResult += `• Multiplier: ${round4(multiplier)}\n`;
+                toolResult += `• Pitch angle: ${round4(angle)}°\n`;
+                toolResult += `• To get total length: multiply run (in feet) by ${round4(multiplier)}`;
+              }
+
+            } else if (calcType === "hip_valley_rafter_length") {
+              const lengthPerFt = Math.sqrt(289 + p1 * p1);
+              const hipMultiplier = lengthPerFt / 12;
+              const hipAngle = toDeg(Math.atan(p1 / 16.97));
+              // Side cut angle for hip/valley
+              const sideCut = toDeg(Math.atan(12 / Math.sqrt(289 + p1 * p1)));
+              if (runFt > 0) {
+                const totalLength = runFt * hipMultiplier;
+                toolResult = `✅ Hip/Valley Rafter Length (${p1}/12 pitch, ${runFt}' run):\n`;
+                toolResult += `• Rafter length: ${round4(totalLength)}' = ${toFeetInches(totalLength * 12)}\n`;
+                toolResult += `• Multiplier: ${round4(hipMultiplier)} per foot of common run\n`;
+                toolResult += `• Plumb cut angle: ${round4(hipAngle)}°\n`;
+                toolResult += `• Side cut (cheek cut) angle: ${round4(sideCut)}°\n`;
+                toolResult += `• Note: Hip/valley runs at 45° to common rafters, so 17" diagonal per 12" of common run`;
+              } else {
+                toolResult = `✅ Hip/Valley Rafter Data (${p1}/12 pitch):\n`;
+                toolResult += `• Length per foot of common run: ${round4(lengthPerFt)}"\n`;
+                toolResult += `• Multiplier: ${round4(hipMultiplier)}\n`;
+                toolResult += `• Plumb cut angle: ${round4(hipAngle)}°\n`;
+                toolResult += `• Side cut (cheek cut) angle: ${round4(sideCut)}°`;
+              }
+
+            } else if (calcType === "compound_angle_same_direction") {
+              const angle1 = toDeg(Math.atan(p1 / 12));
+              const angle2 = toDeg(Math.atan(p2 / 12));
+              const larger = Math.max(angle1, angle2);
+              const smaller = Math.min(angle1, angle2);
+              const diff = larger - smaller;
+              const cutAngle = 90 - diff;
+              toolResult = `✅ Compound Angle — Same Direction (parallel ridges):\n`;
+              toolResult += `• Roof 1: ${p1}/12 = ${round4(angle1)}°\n`;
+              toolResult += `• Roof 2: ${p2}/12 = ${round4(angle2)}°\n`;
+              toolResult += `• Difference: ${round4(larger)}° - ${round4(smaller)}° = ${round4(diff)}°\n`;
+              toolResult += `• 🎯 CUT ANGLE: 90° - ${round4(diff)}° = ${round4(cutAngle)}°\n`;
+              toolResult += `• Set your speed square to ${round4(cutAngle)}° on the degree scale\n`;
+              toolResult += `• Method: When two roofs go the same direction, subtract the angles then subtract from 90°`;
+
+            } else if (calcType === "compound_angle_opposite_direction") {
+              const angle1 = toDeg(Math.atan(p1 / 12));
+              const angle2 = toDeg(Math.atan(p2 / 12));
+              const sum = angle1 + angle2;
+              const cutAngle = 90 - sum;
+              toolResult = `✅ Compound Angle — Opposite Direction (converging ridges):\n`;
+              toolResult += `• Roof 1: ${p1}/12 = ${round4(angle1)}°\n`;
+              toolResult += `• Roof 2: ${p2}/12 = ${round4(angle2)}°\n`;
+              toolResult += `• Sum: ${round4(angle1)}° + ${round4(angle2)}° = ${round4(sum)}°\n`;
+              toolResult += `• 🎯 CUT ANGLE: 90° - ${round4(sum)}° = ${round4(cutAngle)}°\n`;
+              if (cutAngle < 0) {
+                toolResult += `• ⚠️ Negative angle means the combined pitch exceeds 90° — this is an unusual geometry. Double-check your pitches.\n`;
+              }
+              toolResult += `• Set your speed square to ${round4(Math.abs(cutAngle))}° on the degree scale\n`;
+              toolResult += `• Method: When two roofs go opposite directions, add the angles then subtract from 90°`;
+
+            } else if (calcType === "irregular_valley") {
+              // Two roofs of different pitches meeting
+              const shallowPitch = Math.min(p1, p2);
+              const steepPitch = Math.max(p1, p2);
+              const planAngleRad = Math.atan(shallowPitch / steepPitch);
+              const planAngleDeg = toDeg(planAngleRad);
+              const complementDeg = 90 - planAngleDeg;
+              // Cheek cut
+              const cheekAngle = 180 - (planAngleDeg * 2);
+              const cheekCut = cheekAngle - 90;
+              // Top bevel angles for each side
+              const bevelShallow = toDeg(Math.atan(Math.sin(planAngleRad) * shallowPitch / 12));
+              const bevelSteep = toDeg(Math.atan(Math.sin(toRad(complementDeg)) * steepPitch / 12));
+              toolResult = `✅ Irregular Valley — ${shallowPitch}/12 meets ${steepPitch}/12:\n`;
+              toolResult += `• Plan angle: ${round4(planAngleDeg)}° (from steeper roof side)\n`;
+              toolResult += `• Complement: ${round4(complementDeg)}° (from shallower roof side)\n`;
+              toolResult += `• Cheek-cut angle: ${round4(cheekCut)}°\n`;
+              toolResult += `• Top bevel (shallow side): ${round4(bevelShallow)}°\n`;
+              toolResult += `• Top bevel (steep side): ${round4(bevelSteep)}°\n`;
+              if (roofRunFt > 0) {
+                const trueRun = roofRunFt / Math.sin(planAngleRad);
+                const rise = roofRunFt * shallowPitch / 12;
+                const valleyLength = Math.sqrt(trueRun * trueRun + rise * rise);
+                const plumbAngle = toDeg(Math.acos(trueRun / valleyLength));
+                toolResult += `• True valley run: ${round4(trueRun)}' = ${toFeetInches(trueRun * 12)}\n`;
+                toolResult += `• Valley rafter length: ${round4(valleyLength)}' = ${toFeetInches(valleyLength * 12)}\n`;
+                toolResult += `• Plumb-cut angle: ${round4(plumbAngle)}°\n`;
+              }
+              toolResult += `• Note: The valley does NOT run at 45° when pitches are unequal`;
+
+            } else if (calcType === "rafter_total_length") {
+              if (bldgWidth > 0 && p1 > 0) {
+                const run = bldgWidth / 2;
+                const multiplier = Math.sqrt(144 + p1 * p1) / 12;
+                const rafterLen = run * multiplier;
+                const totalLen = rafterLen + (overhangFt * multiplier);
+                const rise = run * p1 / 12;
+                toolResult = `✅ Total Rafter Length (${p1}/12 pitch, ${bldgWidth}' wide building${overhangFt > 0 ? `, ${overhangFt}' overhang` : ""}):\n`;
+                toolResult += `• Run (half building width): ${round4(run)}'\n`;
+                toolResult += `• Rise: ${round4(rise)}' = ${toFeetInches(rise * 12)}\n`;
+                toolResult += `• Rafter length (no overhang): ${round4(rafterLen)}' = ${toFeetInches(rafterLen * 12)}\n`;
+                if (overhangFt > 0) {
+                  toolResult += `• Rafter length (with ${overhangFt}' overhang): ${round4(totalLen)}' = ${toFeetInches(totalLen * 12)}\n`;
+                }
+                toolResult += `• Multiplier used: ${round4(multiplier)}`;
+              } else if (runFt > 0 && p1 > 0) {
+                const multiplier = Math.sqrt(144 + p1 * p1) / 12;
+                const rafterLen = runFt * multiplier;
+                const totalLen = rafterLen + (overhangFt * multiplier);
+                toolResult = `✅ Total Rafter Length (${p1}/12 pitch, ${runFt}' run${overhangFt > 0 ? `, ${overhangFt}' overhang` : ""}):\n`;
+                toolResult += `• Rafter length: ${round4(rafterLen)}' = ${toFeetInches(rafterLen * 12)}\n`;
+                if (overhangFt > 0) {
+                  toolResult += `• With overhang: ${round4(totalLen)}' = ${toFeetInches(totalLen * 12)}\n`;
+                }
+                toolResult += `• Multiplier: ${round4(multiplier)}`;
+              } else {
+                toolResult = `❌ Need either building_width_ft or run_ft plus pitch1 to calculate rafter length.`;
+              }
+
+            } else if (calcType === "stair_stringer") {
+              let tRise = totalRiseIn;
+              let tRun = totalRunIn;
+              let numRisers = 0;
+              let numTreads = 0;
+              let actualRiser = riserH;
+              let actualTread = treadD;
+              if (tRise > 0 && riserH > 0) {
+                numRisers = Math.round(tRise / riserH);
+                actualRiser = tRise / numRisers;
+                numTreads = numRisers - 1;
+                if (tRun === 0) tRun = numTreads * treadD;
+                actualTread = tRun / numTreads;
+              }
+              if (tRise > 0 && tRun > 0) {
+                const stringerLen = Math.sqrt(tRise * tRise + tRun * tRun);
+                const stringerAngle = toDeg(Math.atan(tRise / tRun));
+                toolResult = `✅ Stair Stringer Calculation:\n`;
+                toolResult += `• Total rise: ${round4(tRise)}" = ${toFeetInches(tRise)}\n`;
+                toolResult += `• Total run: ${round4(tRun)}" = ${toFeetInches(tRun)}\n`;
+                toolResult += `• Stringer length: ${round4(stringerLen)}" = ${toFeetInches(stringerLen)}\n`;
+                toolResult += `• Stringer angle: ${round4(stringerAngle)}°\n`;
+                if (numRisers > 0) {
+                  toolResult += `• Number of risers: ${numRisers}\n`;
+                  toolResult += `• Actual riser height: ${round4(actualRiser)}"\n`;
+                  toolResult += `• Number of treads: ${numTreads}\n`;
+                  toolResult += `• Actual tread depth: ${round4(actualTread)}"\n`;
+                  if (actualRiser > 7.75) toolResult += `• ⚠️ Riser exceeds IRC max of 7-3/4" — add more risers\n`;
+                  if (actualTread < 10) toolResult += `• ⚠️ Tread is below IRC min of 10" — increase run or reduce treads\n`;
+                }
+              } else {
+                toolResult = `❌ Need total_rise_inches and either total_run_inches or riser_height to calculate stairs.`;
+              }
+
+            } else if (calcType === "pythagorean") {
+              const a = sideA || runFt || 0;
+              const b = sideB || riseFt || 0;
+              if (a > 0 && b > 0) {
+                const c = Math.sqrt(a * a + b * b);
+                const angleA = toDeg(Math.atan(b / a));
+                const angleB = 90 - angleA;
+                toolResult = `✅ Pythagorean Theorem:\n`;
+                toolResult += `• Side A: ${round4(a)}\n`;
+                toolResult += `• Side B: ${round4(b)}\n`;
+                toolResult += `• Hypotenuse (C): ${round4(c)}\n`;
+                toolResult += `• Angle at A: ${round4(angleA)}°\n`;
+                toolResult += `• Angle at B: ${round4(angleB)}°\n`;
+                toolResult += `• Formula: C = √(${round4(a)}² + ${round4(b)}²) = √(${round4(a*a)} + ${round4(b*b)}) = ${round4(c)}`;
+              } else {
+                toolResult = `❌ Need two sides (side_a and side_b, or run_ft and rise_ft) to calculate.`;
+              }
+
+            } else if (calcType === "jack_rafter_difference") {
+              const commonPerFt = Math.sqrt(144 + p1 * p1);
+              const spacing = spacingIn || 16;
+              const diff = (spacing / 12) * commonPerFt;
+              const sideCutAngle = toDeg(Math.atan(12 / commonPerFt));
+              toolResult = `✅ Jack Rafter Difference (${p1}/12 pitch, ${spacing}" OC):\n`;
+              toolResult += `• Difference between jacks: ${round4(diff)}" = ${toFeetInches(diff)}\n`;
+              toolResult += `• Common rafter length per foot: ${round4(commonPerFt)}"\n`;
+              toolResult += `• Side cut angle: ${round4(sideCutAngle)}°\n`;
+              toolResult += `• Each jack is ${toFeetInches(diff)} shorter/longer than the previous one\n`;
+              // Also show at other spacing
+              const otherSpacing = spacing === 16 ? 24 : 16;
+              const otherDiff = (otherSpacing / 12) * commonPerFt;
+              toolResult += `• At ${otherSpacing}" OC: difference would be ${round4(otherDiff)}" = ${toFeetInches(otherDiff)}`;
+
+            } else if (calcType === "ridge_height") {
+              if (bldgWidth > 0 && p1 > 0) {
+                const run = bldgWidth / 2;
+                const rise = run * p1 / 12;
+                const ridgeH = (wallHeight || 0) + rise;
+                toolResult = `✅ Ridge Height Calculation:\n`;
+                toolResult += `• Building width: ${bldgWidth}'\n`;
+                toolResult += `• Run (half width): ${round4(run)}'\n`;
+                toolResult += `• Pitch: ${p1}/12\n`;
+                toolResult += `• Total rise: ${round4(rise)}' = ${toFeetInches(rise * 12)}\n`;
+                if (wallHeight > 0) {
+                  toolResult += `• Wall height: ${wallHeight}'\n`;
+                  toolResult += `• 🎯 Ridge height from floor: ${round4(ridgeH)}' = ${toFeetInches(ridgeH * 12)}\n`;
+                } else {
+                  toolResult += `• Ridge height above top plate: ${round4(rise)}' = ${toFeetInches(rise * 12)}\n`;
+                  toolResult += `• Add your wall height to get total ridge height from floor`;
+                }
+              } else {
+                toolResult = `❌ Need building_width_ft and pitch1 to calculate ridge height.`;
+              }
+
+            } else if (calcType === "roof_area") {
+              if (bldgWidth > 0 && bldgLength > 0 && p1 > 0) {
+                const run = bldgWidth / 2;
+                const multiplier = Math.sqrt(144 + p1 * p1) / 12;
+                const rafterLen = run * multiplier;
+                // Simple gable roof: 2 sides
+                const areaPerSide = rafterLen * bldgLength;
+                const totalArea = areaPerSide * 2;
+                const sheetsNeeded = Math.ceil(totalArea / 32); // 4x8 = 32 SF
+                toolResult = `✅ Roof Area Calculation (${p1}/12 pitch, ${bldgWidth}' x ${bldgLength}' gable roof):\n`;
+                toolResult += `• Rafter length (slope distance): ${round4(rafterLen)}'\n`;
+                toolResult += `• Area per side: ${round4(rafterLen)}' × ${bldgLength}' = ${round4(areaPerSide)} SF\n`;
+                toolResult += `• Total roof area (both sides): ${round4(totalArea)} SF\n`;
+                toolResult += `• Roof area multiplier: ${round4(multiplier)} (flat area × this = slope area)\n`;
+                toolResult += `• Sheathing (4×8 sheets): ~${sheetsNeeded} sheets (add 10% waste = ~${Math.ceil(sheetsNeeded * 1.1)} sheets)\n`;
+                toolResult += `• Squares (roofing): ${round4(totalArea / 100)} squares`;
+              } else {
+                toolResult = `❌ Need building_width_ft, building_length_ft, and pitch1 to calculate roof area.`;
+              }
+
+            } else if (calcType === "speed_square_lookup") {
+              // Return full speed square reference for a pitch
+              const pitch = p1 || Math.round(Math.tan(toRad(deg)) * 12) || 0;
+              if (pitch > 0 && pitch <= 24) {
+                const angle = toDeg(Math.atan(pitch / 12));
+                const commonPerFt = Math.sqrt(144 + pitch * pitch);
+                const hipPerFt = Math.sqrt(289 + pitch * pitch);
+                const multiplier = commonPerFt / 12;
+                const hipMultiplier = hipPerFt / 12;
+                toolResult = `✅ Speed Square Reference — ${pitch}/12 Pitch:\n`;
+                toolResult += `• Common number: ${pitch}\n`;
+                toolResult += `• Degree scale: ${round4(angle)}°\n`;
+                toolResult += `• Common rafter per foot: ${round4(commonPerFt)}" (multiplier: ${round4(multiplier)})\n`;
+                toolResult += `• Hip/valley per foot: ${round4(hipPerFt)}" (multiplier: ${round4(hipMultiplier)})\n`;
+                toolResult += `• Jack rafter diff at 16" OC: ${round4((16/12) * commonPerFt)}"\n`;
+                toolResult += `• Jack rafter diff at 24" OC: ${round4((24/12) * commonPerFt)}"\n`;
+                toolResult += `• Plumb cut: set ${round4(angle)}° on degree scale\n`;
+                toolResult += `• Seat cut: set ${round4(90 - angle)}° on degree scale\n`;
+                toolResult += `• Hip side cut angle: ${round4(toDeg(Math.atan(12 / hipPerFt)))}°`;
+              } else {
+                toolResult = `❌ Provide pitch1 (1-24) or degrees to look up speed square data.`;
+              }
+
+            } else if (calcType === "angle_from_measurements") {
+              // Given two measurements, calculate the angle
+              const a = sideA || runFt || 0;
+              const b = sideB || riseFt || 0;
+              if (a > 0 && b > 0) {
+                const angle = toDeg(Math.atan(b / a));
+                const pitchEquiv = (b / a) * 12;
+                toolResult = `✅ Angle From Measurements:\n`;
+                toolResult += `• Horizontal: ${round4(a)}\n`;
+                toolResult += `• Vertical: ${round4(b)}\n`;
+                toolResult += `• Angle: ${round4(angle)}°\n`;
+                toolResult += `• Equivalent pitch: ${round4(pitchEquiv)}/12\n`;
+                toolResult += `• Nearest standard pitch: ${Math.round(pitchEquiv)}/12\n`;
+                toolResult += `• Hypotenuse (diagonal): ${round4(Math.sqrt(a*a + b*b))}`;
+              } else {
+                toolResult = `❌ Need two measurements (side_a/run_ft and side_b/rise_ft) to calculate angle.`;
+              }
+
+            } else {
+              toolResult = `❌ Unknown calc_type: ${calcType}. Available types: pitch_to_degrees, degrees_to_pitch, common_rafter_length, hip_valley_rafter_length, compound_angle_same_direction, compound_angle_opposite_direction, irregular_valley, rafter_total_length, stair_stringer, pythagorean, jack_rafter_difference, ridge_height, roof_area, speed_square_lookup, angle_from_measurements`;
+            }
+          } catch (mathErr) {
+            toolResult = `Math calculation error: ${mathErr instanceof Error ? mathErr.message : "unknown error"}. Check your input values.`;
           }
         }
       } catch (parseErr) {

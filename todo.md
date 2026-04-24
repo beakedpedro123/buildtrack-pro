@@ -2145,3 +2145,15 @@
 - [x] Make Labor Costs section collapsible on Home dashboard (collapsed by default)
 - [x] Relocate manual clock-in FAB button from team list to Home dashboard (Crew Clock-In quick action)
 - [x] Add foreman permissions to clock in/adjust hours for laborers only (not themselves, foremen, or management)
+
+### Phase 111: Pivot Construction Math Powerhouse
+- [x] Research roof pitch math (common numbers, degrees, rise/run, pitch-to-angle conversion)
+- [x] Research compound angle calculations (valleys, hips, intersecting roofs same/opposite direction)
+- [x] Research speed square usage (common numbers, degree scale, rafter calculations)
+- [x] Research Pythagorean theorem applications in framing (rafter lengths, diagonal bracing, stair stringers)
+- [x] Build comprehensive construction math knowledge base for Pivot system prompt
+- [x] Add dedicated math calculation tools to Pivot (roof_pitch_calc, compound_angle_calc, rafter_calc, pythagorean_calc)
+- [x] Add speed square reference data (common rafter, hip/valley, jack rafter tables)
+- [x] Ensure Pivot can handle voice-described measurements and return accurate calculations
+- [x] Test with real-world compound roof scenarios (same direction + opposite direction intersections)
+- [x] Make Pivot's math knowledge extensible for future upgrades
