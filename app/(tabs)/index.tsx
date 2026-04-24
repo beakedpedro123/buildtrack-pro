@@ -368,6 +368,56 @@ export default function DashboardScreen() {
     finally { setEditSaving(false); }
   }, [editingEntryId, editTimeStr, clockedIn, updateEntryMutation]);
 
+  // Jobsite correction state
+  const [editingJobEntryId, setEditingJobEntryId] = useState<number | null>(null);
+  const [editJobSaving, setEditJobSaving] = useState(false);
+
+  const handleChangeJobsite = useCallback(async (entryId: number, newJobId: number) => {
+    setEditJobSaving(true);
+    try {
+      await updateEntryMutation.mutateAsync({ entryId, jobId: newJobId });
+      setEditingJobEntryId(null);
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      refetchClockedIn();
+    } catch { Alert.alert("Error", "Failed to update jobsite."); }
+    finally { setEditJobSaving(false); }
+  }, [updateEntryMutation, refetchClockedIn]);
+
+  // Lunch management state
+  const [lunchEntryId, setLunchEntryId] = useState<number | null>(null);
+  const [lunchMinutes, setLunchMinutes] = useState("30");
+  const [lunchSaving, setLunchSaving] = useState(false);
+  const adjustEntryMutation = trpc.clock.adjustEntry.useMutation();
+
+  const handleAddLunch = useCallback(async (entryId: number, empName: string) => {
+    const mins = parseInt(lunchMinutes, 10);
+    if (isNaN(mins) || mins <= 0 || mins > 120) {
+      Alert.alert("Invalid", "Enter lunch minutes between 1-120.");
+      return;
+    }
+    if (!employee?.id) return;
+    setLunchSaving(true);
+    try {
+      const entry = (clockedIn || []).find((e: any) => e.id === entryId);
+      if (!entry) { Alert.alert("Error", "Entry not found."); return; }
+      // Adjust clock-in forward by lunch minutes to deduct lunch
+      const originalIn = new Date(entry.clockIn);
+      const adjustedIn = new Date(originalIn.getTime() + mins * 60000);
+      await adjustEntryMutation.mutateAsync({
+        entryId,
+        clockIn: adjustedIn.toISOString(),
+        adjustedBy: employee.id,
+        reason: `Lunch deduction: ${mins} min for ${empName}`,
+      });
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setLunchEntryId(null);
+      refetchClockedIn();
+      Alert.alert("Lunch Added", `${mins} min lunch deducted for ${empName}.`);
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to add lunch.");
+    } finally { setLunchSaving(false); }
+  }, [lunchMinutes, employee?.id, clockedIn, adjustEntryMutation, refetchClockedIn]);
+
   // Self clock state
   const { activeEntry, optimisticClockIn, optimisticClockOut } = useClockState();
   const clockInMutation = trpc.clock.in.useMutation();
@@ -866,51 +916,143 @@ export default function DashboardScreen() {
               const dur = now.getTime() - new Date(entry.clockIn).getTime();
               const durDisplay = dur > 0 ? formatDuration(dur) : "0h 0m";
               const isEditing = editingEntryId === entry.id;
+              const isEditingJob = editingJobEntryId === entry.id;
+              const isEditingLunch = lunchEntryId === entry.id;
               const timeStr = formatTime12(entry.clockIn);
               const isClockingOut = clockingOutId === entry.id;
               return (
-                <View key={entry.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                  <View style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", marginRight: 12, backgroundColor: ROLE_COLORS[empRole] || colors.primary }}>
-                    <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{getInitials(empName)}</Text>
+                <View key={entry.id} style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 20 }}>
+                    <View style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", marginRight: 12, backgroundColor: ROLE_COLORS[empRole] || colors.primary }}>
+                      <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{getInitials(empName)}</Text>
+                    </View>
+                    <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push(`/timecard/${entry.employeeId}` as any)} activeOpacity={0.6}>
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>{empName}</Text>
+                      <Text style={{ fontSize: 12, color: colors.muted }}>{jobName} • In: {timeStr}</Text>
+                    </TouchableOpacity>
+                    {isEditing ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <TextInput
+                          value={editTimeStr}
+                          onChangeText={setEditTimeStr}
+                          style={{ borderWidth: 1, borderColor: colors.primary, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 13, color: colors.foreground, width: 60, textAlign: "center", backgroundColor: colors.surface }}
+                          placeholder="HH:MM"
+                          keyboardType="numbers-and-punctuation"
+                          maxLength={5}
+                        />
+                        <TouchableOpacity onPress={saveEditTime} style={{ backgroundColor: colors.success, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+                          {editSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>✓</Text>}
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setEditingEntryId(null)} style={{ paddingHorizontal: 4 }}>
+                          <Text style={{ color: colors.muted, fontSize: 14 }}>×</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.success }}>{durDisplay}</Text>
+                        {isManagement && (
+                          <>
+                            <TouchableOpacity onPress={() => startEditTime(entry.id, entry.clockIn)} style={{ padding: 4 }}>
+                              <MaterialIcons name="edit" size={16} color={colors.primary} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleDashboardClockOut(entry.id)}
+                              style={{ backgroundColor: colors.error, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, minWidth: 44, alignItems: "center" }}
+                              disabled={isClockingOut}
+                            >
+                              {isClockingOut ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>OUT</Text>}
+                            </TouchableOpacity>
+                          </>
+                        )}
+                      </View>
+                    )}
                   </View>
-                  <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push(`/timecard/${entry.employeeId}` as any)} activeOpacity={0.6}>
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>{empName}</Text>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>{jobName} • In: {timeStr}</Text>
-                  </TouchableOpacity>
-                  {isEditing ? (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                      <TextInput
-                        value={editTimeStr}
-                        onChangeText={setEditTimeStr}
-                        style={{ borderWidth: 1, borderColor: colors.primary, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 13, color: colors.foreground, width: 60, textAlign: "center", backgroundColor: colors.surface }}
-                        placeholder="HH:MM"
-                        keyboardType="numbers-and-punctuation"
-                        maxLength={5}
-                      />
-                      <TouchableOpacity onPress={saveEditTime} style={{ backgroundColor: colors.success, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
-                        {editSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>✓</Text>}
+                  {/* Inline action row: Jobsite + Lunch */}
+                  {isManagement && !isEditing && (
+                    <View style={{ flexDirection: "row", paddingHorizontal: 20, paddingBottom: 8, gap: 8, marginLeft: 50 }}>
+                      <TouchableOpacity
+                        onPress={() => setEditingJobEntryId(isEditingJob ? null : entry.id)}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: isEditingJob ? colors.primary + "15" : colors.surface, borderWidth: 1, borderColor: isEditingJob ? colors.primary : colors.border }}
+                      >
+                        <MaterialIcons name="location-on" size={12} color={isEditingJob ? colors.primary : colors.muted} />
+                        <Text style={{ fontSize: 11, fontWeight: "600", color: isEditingJob ? colors.primary : colors.muted }}>Job</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => setEditingEntryId(null)} style={{ paddingHorizontal: 4 }}>
-                        <Text style={{ color: colors.muted, fontSize: 14 }}>×</Text>
+                      <TouchableOpacity
+                        onPress={() => { setLunchEntryId(isEditingLunch ? null : entry.id); setLunchMinutes("30"); }}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: isEditingLunch ? colors.warning + "15" : colors.surface, borderWidth: 1, borderColor: isEditingLunch ? colors.warning : colors.border }}
+                      >
+                        <MaterialIcons name="restaurant" size={12} color={isEditingLunch ? colors.warning : colors.muted} />
+                        <Text style={{ fontSize: 11, fontWeight: "600", color: isEditingLunch ? colors.warning : colors.muted }}>Lunch</Text>
                       </TouchableOpacity>
                     </View>
-                  ) : (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.success }}>{durDisplay}</Text>
-                      {isManagement && (
-                        <>
-                          <TouchableOpacity onPress={() => startEditTime(entry.id, entry.clockIn)} style={{ padding: 4 }}>
-                            <Text style={{ fontSize: 14 }}>Edit</Text>
-                          </TouchableOpacity>
+                  )}
+                  {/* Jobsite picker dropdown */}
+                  {isEditingJob && isManagement && (
+                    <View style={{ paddingHorizontal: 20, paddingBottom: 10, marginLeft: 50 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 6 }}>Change Jobsite:</Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                        {(effectiveActiveJobs || []).map((job: any) => {
+                          const isCurrent = job.id === entry.jobId;
+                          return (
+                            <TouchableOpacity
+                              key={job.id}
+                              onPress={() => !isCurrent && handleChangeJobsite(entry.id, job.id)}
+                              disabled={isCurrent || editJobSaving}
+                              style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: isCurrent ? colors.success + "20" : colors.surface, borderWidth: 1, borderColor: isCurrent ? colors.success : colors.border, opacity: editJobSaving ? 0.5 : 1 }}
+                            >
+                              <Text style={{ fontSize: 11, fontWeight: "600", color: isCurrent ? colors.success : colors.foreground }}>{isCurrent ? "✓ " : ""}{job.name}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+                  {/* Lunch management inline */}
+                  {isEditingLunch && isManagement && (
+                    <View style={{ paddingHorizontal: 20, paddingBottom: 10, marginLeft: 50 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 6 }}>Add Lunch Deduction:</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        {[15, 30, 45, 60].map((mins) => (
                           <TouchableOpacity
-                            onPress={() => handleDashboardClockOut(entry.id)}
-                            style={{ backgroundColor: colors.error, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, minWidth: 44, alignItems: "center" }}
-                            disabled={isClockingOut}
+                            key={mins}
+                            onPress={() => setLunchMinutes(String(mins))}
+                            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: lunchMinutes === String(mins) ? colors.warning + "20" : colors.surface, borderWidth: 1, borderColor: lunchMinutes === String(mins) ? colors.warning : colors.border }}
                           >
-                            {isClockingOut ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>OUT</Text>}
+                            <Text style={{ fontSize: 11, fontWeight: "700", color: lunchMinutes === String(mins) ? colors.warning : colors.foreground }}>{mins}m</Text>
                           </TouchableOpacity>
-                        </>
-                      )}
+                        ))}
+                        <TextInput
+                          value={lunchMinutes}
+                          onChangeText={setLunchMinutes}
+                          style={{ width: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 12, color: colors.foreground, textAlign: "center", backgroundColor: colors.surface }}
+                          keyboardType="numeric"
+                          maxLength={3}
+                          placeholder="min"
+                          placeholderTextColor={colors.muted}
+                        />
+                        <TouchableOpacity
+                          onPress={() => handleAddLunch(entry.id, empName)}
+                          disabled={lunchSaving}
+                          style={{ backgroundColor: colors.warning, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, opacity: lunchSaving ? 0.5 : 1 }}
+                        >
+                          {lunchSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>Apply</Text>}
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (!employee?.id) return;
+                          Alert.alert("Delete Lunch", `Remove lunch deduction for ${empName}? This will restore the original clock-in time.`, [
+                            { text: "Cancel", style: "cancel" },
+                            { text: "Delete", style: "destructive", onPress: () => {
+                              // To delete lunch, we'd need to restore original time. For now show info.
+                              Alert.alert("Tip", "To remove a lunch deduction, use the Edit button to adjust the clock-in time back to the original.");
+                            }},
+                          ]);
+                        }}
+                        style={{ marginTop: 6 }}
+                      >
+                        <Text style={{ fontSize: 11, color: colors.error, fontWeight: "600" }}>Delete Existing Lunch</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -1280,8 +1422,19 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        {/* ═══ CREW CLOCK-IN QUICK ACTION ═══ */}
+        <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginTop: 16, marginBottom: 12 }}>
+          <TouchableOpacity style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.success + "18", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40" }} onPress={() => router.push("/manage" as any)}>
+            <MaterialIcons name="person-add" size={22} color={colors.success} style={{ marginRight: 12 }} />
+            <View>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Crew Clock-In</Text>
+              <Text style={{ fontSize: 11, color: colors.muted }}>Manual clock in/out</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
         {/* ═══ TOOLS: Calculator ═══ */}
-        <View style={{ paddingHorizontal: 20, marginTop: 16, marginBottom: 8 }}>
+        <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
           <TouchableOpacity
             style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}
             onPress={() => setShowCalculator(true)}

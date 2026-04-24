@@ -66,6 +66,56 @@ interface MaterialRow {
   supplier: string;
 }
 
+// ═══ Report Archive Helpers ═══
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+interface MonthFolder {
+  key: string; // "2026-04"
+  label: string; // "April 2026"
+  year: number;
+  month: number;
+  reports: any[];
+  isArchived: boolean;
+}
+
+function groupReportsByMonth(reports: any[]): MonthFolder[] {
+  const map = new Map<string, any[]>();
+  for (const r of reports) {
+    const d = new Date(r.reportDate);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(r);
+  }
+  const now = new Date();
+  const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return Array.from(map.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, reps]) => {
+      const [y, m] = key.split("-").map(Number);
+      // Archive if older than current month
+      const isArchived = key < currentKey;
+      return {
+        key,
+        label: `${MONTH_NAMES[m - 1]} ${y}`,
+        year: y,
+        month: m,
+        reports: reps.sort((a: any, b: any) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime()),
+        isArchived,
+      };
+    });
+}
+
+function groupFoldersByYear(folders: MonthFolder[]): { year: number; folders: MonthFolder[]; totalReports: number }[] {
+  const map = new Map<number, MonthFolder[]>();
+  for (const f of folders) {
+    if (!map.has(f.year)) map.set(f.year, []);
+    map.get(f.year)!.push(f);
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => b[0] - a[0])
+    .map(([year, flds]) => ({ year, folders: flds, totalReports: flds.reduce((s, f) => s + f.reports.length, 0) }));
+}
+
 export default function ReportsScreen({ embedded }: { embedded?: boolean } = {}) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -143,6 +193,20 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
   const savePhotoRecord = trpc.reports.uploadPhoto.useMutation();
 
   const canSubmitReport = employee?.role === "foreman" || employee?.role === "laborer" || employee?.role === "logistics" || employee?.role === "owner" || employee?.role === "office_manager";
+
+  // ═══ Archive State ═══
+  const [viewMode, setViewMode] = useState<"recent" | "archive">("recent");
+  const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
+  const [expandedYear, setExpandedYear] = useState<number | null>(null);
+
+  const monthFolders = useMemo(() => groupReportsByMonth(displayReports || []), [displayReports]);
+  const yearGroups = useMemo(() => groupFoldersByYear(monthFolders), [monthFolders]);
+  const currentMonthKey = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+  const archivedFolders = useMemo(() => monthFolders.filter(f => f.isArchived), [monthFolders]);
+  const currentMonthReports = useMemo(() => monthFolders.find(f => f.key === currentMonthKey)?.reports || [], [monthFolders, currentMonthKey]);
 
   // Request permissions on mount
   useEffect(() => {
@@ -423,6 +487,118 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
         )}
       </View>
 
+      {/* View Mode Toggle */}
+      <View style={{ flexDirection: "row", paddingHorizontal: 20, paddingBottom: 10, gap: 8 }}>
+        <TouchableOpacity
+          onPress={() => setViewMode("recent")}
+          style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: "center", backgroundColor: viewMode === "recent" ? colors.primary : colors.surface, borderWidth: 1, borderColor: viewMode === "recent" ? colors.primary : colors.border }}
+        >
+          <Text style={{ fontSize: 13, fontWeight: "700", color: viewMode === "recent" ? "#fff" : colors.foreground }}>Recent</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setViewMode("archive")}
+          style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: "center", backgroundColor: viewMode === "archive" ? colors.primary : colors.surface, borderWidth: 1, borderColor: viewMode === "archive" ? colors.primary : colors.border }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <MaterialIcons name="folder" size={14} color={viewMode === "archive" ? "#fff" : colors.foreground} />
+            <Text style={{ fontSize: 13, fontWeight: "700", color: viewMode === "archive" ? "#fff" : colors.foreground }}>Archive</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {viewMode === "archive" ? (
+        <ScrollView
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 24 }}
+        >
+          {yearGroups.map((yg) => {
+            const isYearExpanded = expandedYear === yg.year;
+            return (
+              <View key={yg.year} style={{ marginHorizontal: 20, marginBottom: 12 }}>
+                <TouchableOpacity
+                  onPress={() => setExpandedYear(isYearExpanded ? null : yg.year)}
+                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <MaterialIcons name="folder" size={24} color={colors.primary} />
+                    <View>
+                      <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>{yg.year}</Text>
+                      <Text style={{ fontSize: 12, color: colors.muted }}>{yg.totalReports} reports · {yg.folders.length} months</Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    {yg.year < new Date().getFullYear() && (
+                      <View style={{ backgroundColor: colors.warning + "20", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                        <Text style={{ fontSize: 10, fontWeight: "700", color: colors.warning }}>ARCHIVED</Text>
+                      </View>
+                    )}
+                    <Text style={{ color: colors.muted, fontSize: 18 }}>{isYearExpanded ? "▲" : "▼"}</Text>
+                  </View>
+                </TouchableOpacity>
+                {isYearExpanded && (
+                  <View style={{ marginTop: 8 }}>
+                    {yg.folders.map((folder) => {
+                      const isMonthExpanded = expandedMonth === folder.key;
+                      return (
+                        <View key={folder.key} style={{ marginBottom: 8 }}>
+                          <TouchableOpacity
+                            onPress={() => setExpandedMonth(isMonthExpanded ? null : folder.key)}
+                            style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.background, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: colors.border, marginLeft: 12 }}
+                          >
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                              <MaterialIcons name={folder.isArchived ? "folder" : "folder-open"} size={18} color={folder.isArchived ? colors.muted : colors.success} />
+                              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>{folder.label}</Text>
+                            </View>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                              <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>{folder.reports.length}</Text>
+                              <Text style={{ color: colors.muted, fontSize: 14 }}>{isMonthExpanded ? "▲" : "▼"}</Text>
+                            </View>
+                          </TouchableOpacity>
+                          {isMonthExpanded && (
+                            <View style={{ marginLeft: 24, marginTop: 4 }}>
+                              {folder.reports.map((item: any) => {
+                                const parsedWorkItems = (() => { try { return JSON.parse(item.workCompleted || "[]"); } catch { return []; } })();
+                                return (
+                                  <View key={item.id} style={{ backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 6 }}>
+                                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.primary }}>
+                                        {new Date(item.reportDate).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
+                                      </Text>
+                                      <Text style={{ fontSize: 11, color: colors.muted }}>{item.crewCount} crew</Text>
+                                    </View>
+                                    <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground, marginTop: 4 }}>{getJobName(item.jobId)}</Text>
+                                    {parsedWorkItems.length > 0 && (
+                                      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }} numberOfLines={2}>{parsedWorkItems.join(", ")}</Text>
+                                    )}
+                                    {item.seenByOwner && (
+                                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+                                        <Text style={{ fontSize: 10 }}>✅</Text>
+                                        <Text style={{ fontSize: 10, color: colors.success, fontWeight: "600" }}>Reviewed</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                );
+                              })}
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            );
+          })}
+          {yearGroups.length === 0 && (
+            <View style={{ alignItems: "center", paddingTop: 60 }}>
+              <MaterialIcons name="folder-off" size={40} color={colors.muted} style={{ marginBottom: 12 }} />
+              <Text style={{ color: colors.muted, fontSize: 16 }}>No archived reports yet</Text>
+              <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>Reports are organized by month automatically</Text>
+            </View>
+          )}
+        </ScrollView>
+      ) : (
       <FlatList
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
         data={displayReports || []}
@@ -554,6 +730,8 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
           </View>
         }
       />
+
+      )}
 
       {/* New Report Modal */}
       <Modal visible={showNewReport} animationType="slide" presentationStyle="pageSheet">

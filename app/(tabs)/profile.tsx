@@ -5,7 +5,7 @@ import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
@@ -26,6 +26,7 @@ import { useGpsTracking } from "@/hooks/use-gps-tracking";
 import { useLunchSettings } from "@/hooks/use-lunch-settings";
 import { useCompanyTrade, TRADE_OPTIONS } from "@/hooks/use-company-trade";
 import { Switch } from "react-native";
+// Crew clock-in uses trpc queries directly, no extra cache imports needed
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
@@ -78,6 +79,76 @@ export default function ProfileScreen() {
   const [showTradePicker, setShowTradePicker] = useState(false);
 
   const empId = (employee as any)?.id ?? 0;
+
+  // ═══ Crew Clock-In State ═══
+  const canManageCrew = employee?.role === "owner" || employee?.role === "office_manager" || employee?.role === "logistics" || employee?.role === "foreman";
+  const isForeman = employee?.role === "foreman";
+  const [showCrewClockIn, setShowCrewClockIn] = useState(false);
+  const [clockEmpId, setClockEmpId] = useState<number | null>(null);
+  const [clockJobId, setClockJobId] = useState<number | null>(null);
+  const [clockLoading, setClockLoading] = useState(false);
+  const [useCustomClockTime, setUseCustomClockTime] = useState(false);
+  const [customClockTime, setCustomClockTime] = useState("");
+  const [customClockAmpm, setCustomClockAmpm] = useState("AM");
+
+  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { enabled: canManageCrew, staleTime: 15000 });
+  const { data: clockedIn, refetch: refetchClockedIn } = trpc.clock.allClockedIn.useQuery(undefined, { enabled: canManageCrew, staleTime: 0, refetchInterval: 15000 });
+  const { data: activeJobs } = trpc.jobs.listActive.useQuery(undefined, { enabled: canManageCrew, staleTime: 15000 });
+  const clockInMutation = trpc.clock.in.useMutation();
+
+  const notClockedInEmployees = useMemo(() => {
+    const clockedInIds = new Set((clockedIn || []).map((e: any) => e.employeeId));
+    const allActive = (allEmployees || []).filter((e: any) => e.isActive && !clockedInIds.has(e.id));
+    if (isForeman && employee) {
+      return allActive.filter((e: any) => e.role === "laborer");
+    }
+    return allActive;
+  }, [allEmployees, clockedIn, isForeman, employee]);
+
+  const handleCrewClockIn = useCallback(async () => {
+    if (!clockEmpId || !clockJobId) {
+      Alert.alert("Select Both", "Please select an employee and a job.");
+      return;
+    }
+    if (clockLoading) return;
+    setClockLoading(true);
+    try {
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      let clockInTime = new Date().toISOString();
+      if (useCustomClockTime && customClockTime) {
+        const parts = customClockTime.split(":");
+        if (parts.length === 2) {
+          let hours = parseInt(parts[0], 10);
+          const mins = parseInt(parts[1], 10);
+          if (!isNaN(hours) && !isNaN(mins)) {
+            if (customClockAmpm === "PM" && hours < 12) hours += 12;
+            if (customClockAmpm === "AM" && hours === 12) hours = 0;
+            const customDate = new Date();
+            customDate.setHours(hours, mins, 0, 0);
+            clockInTime = customDate.toISOString();
+          }
+        }
+      }
+      await clockInMutation.mutateAsync({ employeeId: clockEmpId, jobId: clockJobId, clockIn: clockInTime, isOfflineEntry: false });
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await Promise.all([
+        utils.clock.allClockedIn.invalidate(),
+        utils.clock.activeEntry.invalidate(),
+        utils.clock.history.invalidate(),
+      ]);
+      await refetchClockedIn();
+      setShowCrewClockIn(false);
+      setClockEmpId(null);
+      setClockJobId(null);
+      setUseCustomClockTime(false);
+      setCustomClockTime("");
+      Alert.alert("Clocked In", "Employee has been clocked in successfully.");
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Could not clock in. Please try again.");
+    } finally {
+      setClockLoading(false);
+    }
+  }, [clockEmpId, clockJobId, clockLoading, clockInMutation, utils, refetchClockedIn, useCustomClockTime, customClockTime, customClockAmpm]);
 
   const updateEmployee = trpc.employees.update.useMutation({
     onSuccess: () => {
@@ -570,6 +641,29 @@ export default function ProfileScreen() {
             </View>
           )}
 
+          {/* ═══ Crew Clock-In Section ═══ */}
+          {canManageCrew && (
+            <View style={styles.section}>
+              <View style={styles.row}>
+                <Text style={{ fontSize: 13, color: colors.muted, fontWeight: "600" }}>CREW CLOCK-IN</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.rowLast, { justifyContent: "flex-start", gap: 12 }]}
+                onPress={() => setShowCrewClockIn(true)}
+                activeOpacity={0.6}
+              >
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.success + "20", alignItems: "center", justifyContent: "center" }}>
+                  <MaterialIcons name="person-add" size={20} color={colors.success} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Manual Clock-In</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>Clock in crew members who missed their punch</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Sign Out */}
           <View style={{ paddingHorizontal: 16 }}>
             <TouchableOpacity
@@ -587,6 +681,118 @@ export default function ProfileScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </ImageBackground>
+
+    {/* Crew Clock-In Modal */}
+    {canManageCrew && (
+      <Modal visible={showCrewClockIn} animationType="slide" presentationStyle="pageSheet">
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Clock In Employee</Text>
+            <TouchableOpacity onPress={() => { setShowCrewClockIn(false); setClockEmpId(null); setClockJobId(null); setUseCustomClockTime(false); setCustomClockTime(""); }}>
+              <Text style={{ color: colors.error, fontSize: 16, fontWeight: "600" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Select Employee</Text>
+            {notClockedInEmployees.map((emp: any) => {
+              const isSelected = clockEmpId === emp.id;
+              const empRoleColor = ROLE_COLORS[emp.role] || colors.primary;
+              return (
+                <TouchableOpacity
+                  key={emp.id}
+                  style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1.5, borderColor: isSelected ? colors.success : colors.border, backgroundColor: isSelected ? colors.success + "15" : colors.surface }}
+                  onPress={() => setClockEmpId(emp.id)}
+                >
+                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: empRoleColor, alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+                    <Text style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}>{getInitials(emp.name)}</Text>
+                  </View>
+                  <Text style={{ fontSize: 14, fontWeight: "600", flex: 1, color: isSelected ? colors.success : colors.foreground }}>{emp.name}</Text>
+                  {isSelected && <Text style={{ color: colors.success, fontWeight: "700", fontSize: 18 }}>✓</Text>}
+                </TouchableOpacity>
+              );
+            })}
+            {notClockedInEmployees.length === 0 && (
+              <View style={{ alignItems: "center", paddingVertical: 20 }}>
+                <Text style={{ fontSize: 14, color: colors.muted }}>All employees are currently clocked in</Text>
+              </View>
+            )}
+
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginTop: 24, marginBottom: 12 }}>Select Job Site</Text>
+            {(activeJobs || []).filter((j: any) => j.status === "active").map((job: any) => {
+              const isSelected = clockJobId === job.id;
+              return (
+                <TouchableOpacity
+                  key={job.id}
+                  style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1.5, borderColor: isSelected ? colors.success : colors.border, backgroundColor: isSelected ? colors.success + "15" : colors.surface }}
+                  onPress={() => setClockJobId(job.id)}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "600", flex: 1, color: isSelected ? colors.success : colors.foreground }}>{job.name}</Text>
+                  {isSelected && <Text style={{ color: colors.success, fontWeight: "700", fontSize: 18, marginLeft: 8 }}>✓</Text>}
+                </TouchableOpacity>
+              );
+            })}
+
+            {/* Custom Clock-In Time */}
+            <View style={{ marginTop: 24, marginBottom: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Clock-In Time</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    const next = !useCustomClockTime;
+                    setUseCustomClockTime(next);
+                    if (next) {
+                      const now2 = new Date();
+                      let h = now2.getHours();
+                      const m = now2.getMinutes();
+                      const ampm = h >= 12 ? "PM" : "AM";
+                      if (h > 12) h -= 12;
+                      if (h === 0) h = 12;
+                      setCustomClockTime(`${h}:${m.toString().padStart(2, "0")}`);
+                      setCustomClockAmpm(ampm);
+                    }
+                  }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: useCustomClockTime ? colors.primary + "15" : colors.surface, borderWidth: 1, borderColor: useCustomClockTime ? colors.primary : colors.border }}
+                >
+                  <MaterialIcons name="schedule" size={16} color={useCustomClockTime ? colors.primary : colors.muted} />
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: useCustomClockTime ? colors.primary : colors.muted }}>{useCustomClockTime ? "Custom" : "Now"}</Text>
+                </TouchableOpacity>
+              </View>
+              {useCustomClockTime && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <TextInput
+                    value={customClockTime}
+                    onChangeText={setCustomClockTime}
+                    style={{ flex: 1, borderWidth: 1, borderColor: colors.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, fontWeight: "700", color: colors.foreground, backgroundColor: colors.surface, textAlign: "center" }}
+                    placeholder="H:MM"
+                    placeholderTextColor={colors.muted}
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={5}
+                  />
+                  {["AM", "PM"].map((ap) => (
+                    <TouchableOpacity
+                      key={ap}
+                      onPress={() => setCustomClockAmpm(ap)}
+                      style={{ paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, backgroundColor: customClockAmpm === ap ? colors.primary : colors.surface, borderWidth: 1, borderColor: customClockAmpm === ap ? colors.primary : colors.border }}
+                    >
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: customClockAmpm === ap ? "#fff" : colors.foreground }}>{ap}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={{ backgroundColor: colors.success, borderRadius: 12, paddingVertical: 16, alignItems: "center", marginTop: 16, opacity: (!clockEmpId || !clockJobId || clockLoading) ? 0.5 : 1 }}
+              onPress={handleCrewClockIn}
+              disabled={!clockEmpId || !clockJobId || clockLoading}
+            >
+              {clockLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Clock In</Text>}
+            </TouchableOpacity>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </Modal>
+    )}
 
     {/* Trade Picker Modal */}
     <Modal visible={showTradePicker} transparent animationType="slide">

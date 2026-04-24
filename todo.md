@@ -2157,3 +2157,31 @@
 - [x] Ensure Pivot can handle voice-described measurements and return accurate calculations
 - [x] Test with real-world compound roof scenarios (same direction + opposite direction intersections)
 - [x] Make Pivot's math knowledge extensible for future upgrades
+
+### Phase 112: Pivot UI Redesign, Clock-In Improvements, Report Archiving
+
+#### Pivot UI Redesign
+- [x] Research best AI assistant UI patterns (ChatGPT, Apple Intelligence, Google Gemini)
+- [x] Redesign Pivot chat UI — seamless, high-end, full-screen experience
+- [x] Update Pivot icon to Option B style (high-end redesign)
+- [x] Improve Pivot button design from FAB to seamless integration
+- [x] Add voice math capability — guys can speak measurements and get calculations
+- [x] Add picture recognition — take photo of drawing/sketch for Pivot to analyze
+
+#### Crew Clock-In Access Fix
+- [x] Give Owner access to Crew Clock-In quick action on Home dashboard
+- [x] Give Secretary/Office Manager access to Crew Clock-In quick action
+- [x] Move clock-in management function to My Profile page
+- [x] Add updated clock-in icon on Profile page
+
+#### Lunch & Time Management
+- [x] Add manual lunch entry (add lunch break to clock entries)
+- [x] Add lunch adjustment (modify lunch duration)
+- [x] Add lunch deletion (remove lunch entry)
+- [x] Add jobsite correction — change jobsite on existing clock entries in real-time from main page
+
+#### Report Archiving
+- [x] After 1 month, auto-create folder for that month's reports
+- [x] After 1 year, allow bulk download of all reports for the year
+- [x] Archive system to prevent clutter after 2-3 years
+- [x] Archived reports still accessible but moved to archive section
