@@ -503,8 +503,8 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          {/* Lunch/Break Deduction — Owner Only */}
-          {employee.role === "owner" && (
+          {/* Lunch/Break Deduction — Owner/Office Manager */}
+          {(employee.role === "owner" || employee.role === "office_manager") && (
             <View style={styles.section}>
               <View style={styles.row}>
                 <Text style={{ fontSize: 13, color: colors.muted, fontWeight: "600" }}>LUNCH / BREAK DEDUCTION</Text>

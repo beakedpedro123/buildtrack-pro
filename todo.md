@@ -2185,3 +2185,9 @@
 - [x] After 1 year, allow bulk download of all reports for the year
 - [x] Archive system to prevent clutter after 2-3 years
 - [x] Archived reports still accessible but moved to archive section
+
+### Phase 113: Office Manager Payroll Access
+- [x] Give office managers access to input/edit employee tax info (W-4, filing status, etc.)
+- [x] Give office managers access to view/edit hourly rates on employee profiles
+- [x] Give office managers access to payroll adjustments and settings
+- [x] Give office managers same payroll-related access as owner

@@ -1144,8 +1144,8 @@ export default function DashboardScreen() {
           </>
         )}
 
-        {/* ═══ HOURLY JOB PROFIT (owner only) — COLLAPSIBLE ═══ */}
-        {isOwner && hourlyJobProfits.length > 0 && (
+        {/* ═══ HOURLY JOB PROFIT (owner + office_manager) — COLLAPSIBLE ═══ */}
+        {(isOwner || isSecretary) && hourlyJobProfits.length > 0 && (
           <>
             <CollapsibleHeader
               title={`Hourly Job Profit (${hourlyJobProfits.length})`}

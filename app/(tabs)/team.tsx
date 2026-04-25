@@ -731,8 +731,8 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
                   <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 15 }}>View Full Timecard</Text>
                 </TouchableOpacity>
 
-                {/* Tax Info Button — Owner only */}
-                {employee?.role === "owner" && (
+                {/* Tax Info Button — Owner/Office Manager */}
+                {(employee?.role === "owner" || employee?.role === "office_manager") && (
                   <TouchableOpacity
                     style={{ backgroundColor: "#8B5CF615", borderRadius: 12, padding: 14, alignItems: "center", marginTop: 10, borderWidth: 1, borderColor: "#8B5CF640" }}
                     onPress={() => setShowTaxInfo(true)}
