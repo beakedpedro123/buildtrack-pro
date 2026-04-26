@@ -59,6 +59,14 @@ import {
   InsertEmployeeTaxInfo,
   companies,
   InsertCompany,
+  supportTickets,
+  InsertSupportTicket,
+  supportTicketReplies,
+  InsertSupportTicketReply,
+  knowledgeBase,
+  InsertKnowledgeBaseArticle,
+  pivotSupportLearning,
+  InsertPivotSupportLearningEntry,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -2431,4 +2439,183 @@ export async function upsertEmployeeTaxInfo(employeeId: number, data: Partial<In
     const result = await db.insert(employeeTaxInfo).values({ employeeId, updatedBy: data.updatedBy || 0, ...data } as InsertEmployeeTaxInfo);
     return result[0].insertId;
   }
+}
+
+// ─── Support Tickets ─────────────────────────────────────────────────────────
+export async function createSupportTicket(data: Omit<InsertSupportTicket, "id" | "createdAt" | "updatedAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const result = await db.insert(supportTickets).values(data);
+  return result[0].insertId;
+}
+
+export async function getSupportTickets(companyId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  if (companyId) {
+    return db.select().from(supportTickets).where(eq(supportTickets.companyId, companyId)).orderBy(desc(supportTickets.createdAt));
+  }
+  return db.select().from(supportTickets).orderBy(desc(supportTickets.createdAt));
+}
+
+export async function getSupportTicketById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(supportTickets).where(eq(supportTickets.id, id)).limit(1);
+  return rows[0] || null;
+}
+
+export async function updateSupportTicket(id: number, data: Partial<InsertSupportTicket>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(supportTickets).set(data).where(eq(supportTickets.id, id));
+}
+
+export async function getSupportTicketsByStatus(status: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(supportTickets).where(eq(supportTickets.status, status as any)).orderBy(desc(supportTickets.createdAt));
+}
+
+// ─── Support Ticket Replies ──────────────────────────────────────────────────
+export async function createTicketReply(data: Omit<InsertSupportTicketReply, "id" | "createdAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const result = await db.insert(supportTicketReplies).values(data);
+  return result[0].insertId;
+}
+
+export async function getTicketReplies(ticketId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(supportTicketReplies).where(eq(supportTicketReplies.ticketId, ticketId)).orderBy(supportTicketReplies.createdAt);
+}
+
+// ─── Knowledge Base ──────────────────────────────────────────────────────────
+export async function createKBArticle(data: Omit<InsertKnowledgeBaseArticle, "id" | "createdAt" | "updatedAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const result = await db.insert(knowledgeBase).values(data);
+  return result[0].insertId;
+}
+
+export async function getKBArticles(publishedOnly = true) {
+  const db = await getDb();
+  if (!db) return [];
+  if (publishedOnly) {
+    return db.select().from(knowledgeBase).where(eq(knowledgeBase.isPublished, true)).orderBy(desc(knowledgeBase.updatedAt));
+  }
+  return db.select().from(knowledgeBase).orderBy(desc(knowledgeBase.updatedAt));
+}
+
+export async function getKBArticleById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(knowledgeBase).where(eq(knowledgeBase.id, id)).limit(1);
+  return rows[0] || null;
+}
+
+export async function getKBArticleBySlug(slug: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(knowledgeBase).where(eq(knowledgeBase.slug, slug)).limit(1);
+  return rows[0] || null;
+}
+
+export async function updateKBArticle(id: number, data: Partial<InsertKnowledgeBaseArticle>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(knowledgeBase).set(data).where(eq(knowledgeBase.id, id));
+}
+
+export async function incrementKBViewCount(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  const article = await getKBArticleById(id);
+  if (article) {
+    await db.update(knowledgeBase).set({ viewCount: (article.viewCount || 0) + 1 }).where(eq(knowledgeBase.id, id));
+  }
+}
+
+export async function searchKBArticles(query: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const all = await db.select().from(knowledgeBase).where(eq(knowledgeBase.isPublished, true));
+  const q = query.toLowerCase();
+  return all.filter((a: any) =>
+    a.title.toLowerCase().includes(q) ||
+    a.content.toLowerCase().includes(q) ||
+    (a.tags && a.tags.toLowerCase().includes(q))
+  );
+}
+
+// ─── Pivot Support Learning ──────────────────────────────────────────────────
+export async function createSupportLearning(data: Omit<InsertPivotSupportLearningEntry, "id" | "createdAt" | "updatedAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const result = await db.insert(pivotSupportLearning).values(data);
+  return result[0].insertId;
+}
+
+export async function getSupportLearnings() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(pivotSupportLearning).orderBy(desc(pivotSupportLearning.timesHelpful));
+}
+
+export async function getSupportLearningByCategory(category: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(pivotSupportLearning).where(eq(pivotSupportLearning.category, category));
+}
+
+export async function updateSupportLearning(id: number, data: Partial<InsertPivotSupportLearningEntry>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(pivotSupportLearning).set(data).where(eq(pivotSupportLearning.id, id));
+}
+
+export async function searchSupportLearnings(query: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const all = await db.select().from(pivotSupportLearning);
+  const q = query.toLowerCase();
+  return all.filter((l: any) =>
+    l.problem.toLowerCase().includes(q) ||
+    l.solution.toLowerCase().includes(q) ||
+    (l.category && l.category.toLowerCase().includes(q))
+  );
+}
+
+// ─── Support Stats (Admin Dashboard) ─────────────────────────────────────────
+export async function getSupportStats() {
+  const db = await getDb();
+  if (!db) return { totalTickets: 0, openTickets: 0, resolvedTickets: 0, avgResolutionHours: 0, kbArticles: 0, learnings: 0 };
+  
+  const allTickets = await db.select().from(supportTickets);
+  const openTickets = allTickets.filter((t: any) => t.status === "open" || t.status === "in_progress");
+  const resolvedTickets = allTickets.filter((t: any) => t.status === "resolved" || t.status === "closed");
+  
+  // Calculate average resolution time
+  let totalHours = 0;
+  let resolvedCount = 0;
+  for (const t of resolvedTickets) {
+    if (t.resolvedAt && t.createdAt) {
+      const hours = (new Date(t.resolvedAt).getTime() - new Date(t.createdAt).getTime()) / (1000 * 60 * 60);
+      totalHours += hours;
+      resolvedCount++;
+    }
+  }
+  
+  const allKB = await db.select().from(knowledgeBase);
+  const allLearnings = await db.select().from(pivotSupportLearning);
+  
+  return {
+    totalTickets: allTickets.length,
+    openTickets: openTickets.length,
+    resolvedTickets: resolvedTickets.length,
+    avgResolutionHours: resolvedCount > 0 ? Math.round(totalHours / resolvedCount * 10) / 10 : 0,
+    kbArticles: allKB.length,
+    learnings: allLearnings.length,
+  };
 }

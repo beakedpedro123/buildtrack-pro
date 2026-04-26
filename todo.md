@@ -2296,6 +2296,27 @@
 - [x] Composite real QR codes onto all 14 white-theme assets
 #### Marketing Website Redesign
 - [ ] Redesign marketing site to white theme (no dark background)
-- [ ] Remove ALL emojis from marketing site
-- [ ] Borderless, flawless layout matching reference design
+- [x] Remove ALL emojis from marketing site
+- [x] Borderless, flawless layout matching reference design
 - [ ] Keep all existing functionality (pricing, competitor comparison, signup)
+
+### Phase 117d: Marketing Website Redesign + Support System + Admin Dashboard
+#### Marketing Website Redesign
+- [x] Auto dark/light theme based on device preference (prefers-color-scheme)
+- [x] Remove ALL emojis from marketing site
+- [x] Borderless, flawless layout matching reference design
+- [x] Consistent BuildTrack Pro and Pivot logos throughout
+- [x] Clean QR code and URL for free trial
+#### Pivot-Powered Support System
+- [x] Research how top SaaS/construction apps handle customer support
+- [x] Build support ticket system for customers
+- [x] Integrate Pivot AI for automated troubleshooting
+- [x] Knowledge base that learns from team fixes
+- [x] Support chat interface for customers
+#### Admin Dashboard
+- [x] Customer overview dashboard (all customers, plans, status)
+- [x] Support ticket management view
+- [x] Pivot learning/training view (see what Pivot learns from fixes)
+- [x] Provide admin URL and access
+#### TestFlight vs App Store
+- [x] Answer Pedro's question about TestFlight vs full App Store publish

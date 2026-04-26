@@ -502,6 +502,68 @@ export const employeeTaxInfo = mysqlTable("employee_tax_info", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+// ─── Support Tickets ──────────────────────────────────────────────────────────
+export const supportTickets = mysqlTable("support_tickets", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").notNull(),
+  employeeId: int("employeeId"), // who submitted (null for anonymous/web)
+  customerName: varchar("customerName", { length: 128 }),
+  customerEmail: varchar("customerEmail", { length: 320 }),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  category: mysqlEnum("category", ["bug", "feature_request", "billing", "how_to", "account", "other"]).default("other").notNull(),
+  priority: mysqlEnum("priority", ["low", "medium", "high", "urgent"]).default("medium").notNull(),
+  status: mysqlEnum("status", ["open", "in_progress", "waiting_customer", "resolved", "closed"]).default("open").notNull(),
+  assignedTo: int("assignedTo"), // team member ID
+  pivotSuggestion: text("pivotSuggestion"), // Pivot AI's suggested resolution
+  resolution: text("resolution"), // actual resolution notes
+  resolvedAt: timestamp("resolvedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Support Ticket Replies ──────────────────────────────────────────────────
+export const supportTicketReplies = mysqlTable("support_ticket_replies", {
+  id: int("id").autoincrement().primaryKey(),
+  ticketId: int("ticketId").notNull(),
+  authorType: mysqlEnum("authorType", ["customer", "agent", "pivot_ai"]).notNull(),
+  authorName: varchar("authorName", { length: 128 }),
+  content: text("content").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Knowledge Base Articles ─────────────────────────────────────────────────
+export const knowledgeBase = mysqlTable("knowledge_base", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 255 }).notNull(),
+  category: mysqlEnum("category", ["getting_started", "features", "troubleshooting", "billing", "faq"]).default("faq").notNull(),
+  content: text("content").notNull(), // markdown
+  tags: text("tags"), // comma-separated
+  viewCount: int("viewCount").default(0).notNull(),
+  helpfulCount: int("helpfulCount").default(0).notNull(),
+  isPublished: boolean("isPublished").default(true).notNull(),
+  createdBy: int("createdBy"), // team member who wrote it
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Pivot Support Learning ──────────────────────────────────────────────────
+// Stores resolved ticket patterns so Pivot learns from team fixes
+export const pivotSupportLearning = mysqlTable("pivot_support_learning", {
+  id: int("id").autoincrement().primaryKey(),
+  ticketId: int("ticketId"), // source ticket
+  problem: text("problem").notNull(), // summarized problem
+  solution: text("solution").notNull(), // how it was resolved
+  category: varchar("category", { length: 64 }),
+  confidence: float("confidence").default(0.5), // how confident Pivot is in this solution
+  timesUsed: int("timesUsed").default(0).notNull(), // how many times this solution was suggested
+  timesHelpful: int("timesHelpful").default(0).notNull(), // how many times it was marked helpful
+  learnedFrom: mysqlEnum("learnedFrom", ["ticket_resolution", "manual_entry", "kb_article"]).default("ticket_resolution").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 // ─── Types ───────────────────────────────────────────────────────────────────────
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = typeof companies.$inferInsert;
@@ -592,3 +654,15 @@ export type InsertJobSchedule = typeof jobSchedule.$inferInsert;
 
 export type EmployeeTaxInfo = typeof employeeTaxInfo.$inferSelect;
 export type InsertEmployeeTaxInfo = typeof employeeTaxInfo.$inferInsert;
+
+export type SupportTicket = typeof supportTickets.$inferSelect;
+export type InsertSupportTicket = typeof supportTickets.$inferInsert;
+
+export type SupportTicketReply = typeof supportTicketReplies.$inferSelect;
+export type InsertSupportTicketReply = typeof supportTicketReplies.$inferInsert;
+
+export type KnowledgeBaseArticle = typeof knowledgeBase.$inferSelect;
+export type InsertKnowledgeBaseArticle = typeof knowledgeBase.$inferInsert;
+
+export type PivotSupportLearningEntry = typeof pivotSupportLearning.$inferSelect;
+export type InsertPivotSupportLearningEntry = typeof pivotSupportLearning.$inferInsert;

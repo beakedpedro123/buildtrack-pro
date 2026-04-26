@@ -3772,6 +3772,191 @@ const companyRouter = router({
   }),
 });
 
+// ─── Support System Router ────────────────────────────────────────────────────
+const supportRouter = router({
+  // ── Tickets ──
+  tickets: router({
+    list: publicProcedure.input(z.object({ companyId: z.number().optional() }).optional()).query(({ input }) => db.getSupportTickets(input?.companyId)),
+    listAll: publicProcedure.query(() => db.getSupportTickets()),
+    getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getSupportTicketById(input.id)),
+    byStatus: publicProcedure.input(z.object({ status: z.string() })).query(({ input }) => db.getSupportTicketsByStatus(input.status)),
+    create: publicProcedure.input(z.object({
+      companyId: z.number(),
+      employeeId: z.number().optional(),
+      customerName: z.string().optional(),
+      customerEmail: z.string().email().optional(),
+      subject: z.string().min(1).max(255),
+      description: z.string().min(1),
+      category: z.enum(["bug", "feature_request", "billing", "how_to", "account", "other"]).default("other"),
+      priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+    })).mutation(async ({ input }) => {
+      const ticketId = await db.createSupportTicket(input);
+      // Ask Pivot to suggest a resolution
+      try {
+        const learnings = await db.searchSupportLearnings(input.subject + " " + input.description);
+        const kbArticles = await db.searchKBArticles(input.subject);
+        const context = [
+          learnings.length > 0 ? `Past solutions:\n${learnings.slice(0, 3).map((l: any) => `- Problem: ${l.problem}\n  Solution: ${l.solution}`).join("\n")}` : "",
+          kbArticles.length > 0 ? `Related KB articles:\n${kbArticles.slice(0, 3).map((a: any) => `- ${a.title}: ${a.content.substring(0, 200)}`).join("\n")}` : "",
+        ].filter(Boolean).join("\n\n");
+        const pivotResponse = await invokeLLM({
+          messages: [
+            { role: "system", content: `You are Pivot, the AI support assistant for BuildTrack Pro. A customer has submitted a support ticket. Based on past solutions and knowledge base articles, suggest a helpful resolution. Be concise, practical, and friendly. If you don't have enough context, suggest common troubleshooting steps for the category.\n\n${context}` },
+            { role: "user", content: `Category: ${input.category}\nSubject: ${input.subject}\nDescription: ${input.description}` },
+          ],
+        });
+        const suggestion = (pivotResponse.choices?.[0]?.message?.content || "") as string;
+        if (suggestion) {
+          await db.updateSupportTicket(ticketId, { pivotSuggestion: suggestion });
+          // Also add as a Pivot AI reply
+          await db.createTicketReply({ ticketId, authorType: "pivot_ai", authorName: "Pivot AI", content: suggestion });
+        }
+      } catch (e) { console.warn("Pivot suggestion failed:", e); }
+      return ticketId;
+    }),
+    update: publicProcedure.input(z.object({
+      id: z.number(),
+      status: z.enum(["open", "in_progress", "waiting_customer", "resolved", "closed"]).optional(),
+      assignedTo: z.number().optional(),
+      priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+      resolution: z.string().optional(),
+    })).mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      const updateData: any = { ...data };
+      if (data.status === "resolved" || data.status === "closed") {
+        updateData.resolvedAt = new Date();
+      }
+      await db.updateSupportTicket(id, updateData);
+      // If resolved, create a learning entry for Pivot
+      if (data.resolution && (data.status === "resolved" || data.status === "closed")) {
+        const ticket = await db.getSupportTicketById(id);
+        if (ticket) {
+          await db.createSupportLearning({
+            ticketId: id,
+            problem: `${ticket.subject}: ${ticket.description}`,
+            solution: data.resolution,
+            category: ticket.category,
+            learnedFrom: "ticket_resolution",
+          });
+        }
+      }
+      return { success: true };
+    }),
+    reply: publicProcedure.input(z.object({
+      ticketId: z.number(),
+      authorType: z.enum(["customer", "agent", "pivot_ai"]),
+      authorName: z.string().optional(),
+      content: z.string().min(1),
+    })).mutation(async ({ input }) => {
+      const replyId = await db.createTicketReply(input);
+      // If agent reply, update ticket status to in_progress
+      if (input.authorType === "agent") {
+        await db.updateSupportTicket(input.ticketId, { status: "in_progress" });
+      }
+      return replyId;
+    }),
+    getReplies: publicProcedure.input(z.object({ ticketId: z.number() })).query(({ input }) => db.getTicketReplies(input.ticketId)),
+  }),
+
+  // ── Knowledge Base ──
+  kb: router({
+    list: publicProcedure.input(z.object({ publishedOnly: z.boolean().default(true) }).optional()).query(({ input }) => db.getKBArticles(input?.publishedOnly ?? true)),
+    getById: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+      await db.incrementKBViewCount(input.id);
+      return db.getKBArticleById(input.id);
+    }),
+    getBySlug: publicProcedure.input(z.object({ slug: z.string() })).query(async ({ input }) => {
+      const article = await db.getKBArticleBySlug(input.slug);
+      if (article) await db.incrementKBViewCount(article.id);
+      return article;
+    }),
+    search: publicProcedure.input(z.object({ query: z.string() })).query(({ input }) => db.searchKBArticles(input.query)),
+    create: publicProcedure.input(z.object({
+      title: z.string().min(1).max(255),
+      slug: z.string().min(1).max(255),
+      category: z.enum(["getting_started", "features", "troubleshooting", "billing", "faq"]).default("faq"),
+      content: z.string().min(1),
+      tags: z.string().optional(),
+      createdBy: z.number().optional(),
+    })).mutation(async ({ input }) => {
+      const id = await db.createKBArticle(input);
+      // Also create a learning entry from this KB article
+      await db.createSupportLearning({
+        problem: input.title,
+        solution: input.content.substring(0, 2000),
+        category: input.category,
+        learnedFrom: "kb_article",
+      });
+      return id;
+    }),
+    update: publicProcedure.input(z.object({
+      id: z.number(),
+      title: z.string().optional(),
+      content: z.string().optional(),
+      category: z.enum(["getting_started", "features", "troubleshooting", "billing", "faq"]).optional(),
+      tags: z.string().optional(),
+      isPublished: z.boolean().optional(),
+    })).mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      await db.updateKBArticle(id, data);
+      return { success: true };
+    }),
+  }),
+
+  // ── Pivot AI Support Chat ──
+  pivotChat: publicProcedure.input(z.object({
+    message: z.string().min(1),
+    ticketId: z.number().optional(),
+    companyId: z.number().optional(),
+  })).mutation(async ({ input }) => {
+    // Search for relevant learnings and KB articles
+    const learnings = await db.searchSupportLearnings(input.message);
+    const kbArticles = await db.searchKBArticles(input.message);
+    const context = [
+      learnings.length > 0 ? `Past resolved issues:\n${learnings.slice(0, 5).map((l: any) => `- Problem: ${l.problem}\n  Solution: ${l.solution} (used ${l.timesUsed} times, helpful ${l.timesHelpful} times)`).join("\n")}` : "",
+      kbArticles.length > 0 ? `Knowledge base articles:\n${kbArticles.slice(0, 5).map((a: any) => `- ${a.title}: ${a.content.substring(0, 300)}`).join("\n")}` : "",
+    ].filter(Boolean).join("\n\n");
+
+    const response = await invokeLLM({
+      messages: [
+        { role: "system", content: `You are Pivot, the AI support assistant for BuildTrack Pro — a construction management app for contractors. You help customers troubleshoot issues, answer questions about features, and guide them through the app.\n\nYou have access to past resolved issues and knowledge base articles to provide accurate answers. Be friendly, concise, and practical. If you're not sure about something, say so and suggest they contact the support team.\n\nBuildTrack Pro features: Owner Dashboard, Foreman Clock-In, Team Management, Job Tracking, Budget & Expenses, Goals & Tasks, Timecard/My Hours, Construction Calculator, Safety Meetings, Punch Lists, Daily Reports, Payroll, KPIs, Pivot AI Assistant, Messages, Change Orders, Schedule, and more.\n\nPricing: Starter $29/mo (5 employees, 10 jobs), Professional $59/mo (25 employees, 50 jobs), Enterprise $99/mo (unlimited). All plans include 14-day free trial.\n\n${context}` },
+        { role: "user", content: input.message },
+      ],
+    });
+    const reply = (response.choices?.[0]?.message?.content || "I'm sorry, I couldn't process that request. Please try again or contact our support team.") as string;
+
+    // If this is part of a ticket, add the reply
+    if (input.ticketId) {
+      await db.createTicketReply({ ticketId: input.ticketId, authorType: "pivot_ai", authorName: "Pivot AI", content: reply });
+    }
+
+    return { reply };
+  }),
+
+  // ── Pivot Learning ──
+  learning: router({
+    list: publicProcedure.query(() => db.getSupportLearnings()),
+    search: publicProcedure.input(z.object({ query: z.string() })).query(({ input }) => db.searchSupportLearnings(input.query)),
+    create: publicProcedure.input(z.object({
+      problem: z.string().min(1),
+      solution: z.string().min(1),
+      category: z.string().optional(),
+      learnedFrom: z.enum(["ticket_resolution", "manual_entry", "kb_article"]).default("manual_entry"),
+    })).mutation(({ input }) => db.createSupportLearning(input)),
+    markHelpful: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+      const learnings = await db.getSupportLearnings();
+      const learning = learnings.find((l: any) => l.id === input.id);
+      if (learning) {
+        await db.updateSupportLearning(input.id, { timesHelpful: (learning.timesHelpful || 0) + 1 });
+      }
+      return { success: true };
+    }),
+  }),
+
+  // ── Admin Stats ──
+  stats: publicProcedure.query(() => db.getSupportStats()),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -3805,6 +3990,7 @@ export const appRouter = router({
   schedule: scheduleRouter,
   taxInfo: taxInfoRouter,
   company: companyRouter,
+  support: supportRouter,
 });
 
 export type AppRouter = typeof appRouter;

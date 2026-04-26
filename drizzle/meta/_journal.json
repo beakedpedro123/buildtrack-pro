@@ -162,6 +162,13 @@
       "when": 1777223484523,
       "tag": "0022_overconfident_sleeper",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1777245087139,
+      "tag": "0023_ambiguous_deathstrike",
+      "breakpoints": true
     }
   ]
 }
