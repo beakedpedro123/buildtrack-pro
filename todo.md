@@ -2206,3 +2206,34 @@
 - [ ] Research connecting marketing site to multi-tenant server
 - [ ] Research domain-free permanent web app hosting options
 - [ ] Research beta testing approach with company owner buddies
+
+### Phase 115: Multi-Tenant Server + Competitive Research + Permanent Web App
+#### Competitive Research
+- [ ] Deep research on Procore — features, pricing, strengths, weaknesses
+- [ ] Deep research on Buildertrend — features, pricing, strengths, weaknesses
+- [ ] Deep research on Fieldwire — features, pricing, strengths, weaknesses
+- [ ] Deep research on Raken — features, pricing, strengths, weaknesses
+- [ ] Deep research on Connecteam — features, pricing, strengths, weaknesses
+- [ ] Deep research on Jobber — features, pricing, strengths, weaknesses
+- [ ] Deep research on CoConstruct — features, pricing, strengths, weaknesses
+- [ ] Audit BuildTrack Pro vs all competitors — feature comparison matrix
+- [ ] Identify features to steal from competitors for future roadmap
+#### Multi-Tenant Server
+- [x] Research multi-tenant architecture patterns (shared DB with companyId isolation chosen)
+- [x] Design multi-tenant database schema with company isolation
+- [ ] Checkpoint current working app as safety net
+- [ ] Add companies table to schema.ts
+- [ ] Add companyId column to all 22 existing tables
+- [ ] Update all db.ts query functions with companyId filtering
+- [ ] Update all tRPC routers to pass companyId from auth context
+- [ ] Add company signup and onboarding endpoints
+- [ ] Add Stripe subscription integration (3 tiers + 14-day trial)
+- [ ] Run migrations and backfill Pedro's data as company #1
+- [ ] Test existing app still works with multi-tenant layer
+#### Marketing Site as Permanent Web App
+- [ ] Set up marketing site with permanent hosting (no domain purchase needed)
+- [ ] Connect marketing site to multi-tenant server for signups
+- [ ] Ensure marketing site has pricing, features, and signup flow
+#### Verification
+- [ ] Verify existing BuildTrack Pro app works for Monday crew use
+- [ ] Test all critical flows (clock-in/out, reports, Pivot AI)
