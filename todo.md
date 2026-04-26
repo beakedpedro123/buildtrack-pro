@@ -2242,3 +2242,15 @@
 - [x] Add interactive competitor comparison tool to marketing landing page
 - [x] Allow users to select competitors and see side-by-side feature/pricing breakdown (8 competitors: Procore, Buildertrend, Fieldwire, Raken, Connecteam, Contractor Foreman, Jobber, CoConstruct)
 - [x] Highlight BuildTrack Pro advantages in each comparison (win/tie/loss scoring, savings calculator, verdict)
+
+### Phase 117: Marketing Materials — QR Codes, Flyer, Social Media Posts
+- [x] Generate QR code for app URL
+- [x] Generate QR code for free trial signup (marketing site)
+- [x] Capture actual app screenshots (Home, Jobs, Goals, Manage tabs)
+- [x] Create professional BuildTrack Pro flyer with features, pricing, and real QR code
+- [x] Create social media post #1 — Home Dashboard ("Still Using Spreadsheets?")
+- [x] Create social media post #2 — Jobs Tab ("Track Every Job. Every Dollar.")
+- [x] Create social media post #3 — Team Tab ("Your Entire Crew. One App.")
+- [x] Create social media post #4 — Goals Tab ("Set Goals. Track Progress.")
+- [x] All posts use actual app screenshots with real data
+- [ ] Deliver all assets to Pedro
