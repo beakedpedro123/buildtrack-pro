@@ -2273,3 +2273,29 @@
 - [x] Composite real QR codes (qr_trial.png) onto all 14 assets
 - [x] All 14 final assets saved to /home/ubuntu/marketing_v3/final/
 - [x] Deliver all assets to Pedro
+
+### Phase 117c: White-Theme Marketing Materials + Website Redesign
+#### White-Theme Social Posts (English)
+- [x] EN White Post 1: Owner Dashboard — white/light background + light mode UI
+- [x] EN White Post 2: Foreman Clock-In — white/light background + light mode UI
+- [x] EN White Post 3: Pivot AI — white/light background + light mode UI
+- [x] EN White Post 4: Goals & Tasks — white/light background + light mode UI
+- [x] EN White Post 5: My Hours — white/light background + light mode UI
+- [x] EN White Post 6: Calculator — white/light background + light mode UI
+#### White-Theme Social Posts (Spanish)
+- [x] ES White Post 1: Dashboard Dueño — white/light background + light mode UI
+- [x] ES White Post 2: Capataz — white/light background + light mode UI
+- [x] ES White Post 3: Pivot IA — white/light background + light mode UI
+- [x] ES White Post 4: Metas — white/light background + light mode UI
+- [x] ES White Post 5: Mis Horas — white/light background + light mode UI
+- [x] ES White Post 6: Calculadora — white/light background + light mode UI
+#### White-Theme Flyers
+- [x] EN White Flyer: Professional 8.5x11 with white theme + light mode UI
+- [x] ES White Flyer: Spanish version with white theme + light mode UI
+#### QR Compositing
+- [x] Composite real QR codes onto all 14 white-theme assets
+#### Marketing Website Redesign
+- [ ] Redesign marketing site to white theme (no dark background)
+- [ ] Remove ALL emojis from marketing site
+- [ ] Borderless, flawless layout matching reference design
+- [ ] Keep all existing functionality (pricing, competitor comparison, signup)
