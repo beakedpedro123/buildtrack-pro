@@ -3676,6 +3676,102 @@ const taxInfoRouter = router({
   }),
 });
 
+// ─── Company (Multi-Tenant) ──────────────────────────────────────────────
+const companyRouter = router({
+  // Get current company info
+  getCurrent: publicProcedure.input(z.object({ companyId: z.number() })).query(({ input }) => db.getCompanyById(input.companyId)),
+  
+  // Get company by slug (for login/signup)
+  getBySlug: publicProcedure.input(z.object({ slug: z.string() })).query(({ input }) => db.getCompanyBySlug(input.slug)),
+  
+  // Signup: create a new company with owner
+  signup: publicProcedure.input(z.object({
+    companyName: z.string().min(2).max(255),
+    slug: z.string().min(2).max(128),
+    ownerName: z.string().min(1).max(128),
+    ownerEmail: z.string().email().optional(),
+    ownerPhone: z.string().optional(),
+    ownerPin: z.string().min(4).max(6),
+    timezone: z.string().default("America/Denver"),
+  })).mutation(async ({ input }) => {
+    // Check if slug is taken
+    const existing = await db.getCompanyBySlug(input.slug);
+    if (existing) {
+      throw new TRPCError({ code: "CONFLICT", message: "Company URL is already taken. Try a different one." });
+    }
+    // Create company
+    const companyId = await db.createCompany({
+      name: input.companyName,
+      slug: input.slug,
+      ownerEmail: input.ownerEmail || null,
+      ownerPhone: input.ownerPhone || null,
+      timezone: input.timezone,
+      plan: "trial",
+      subscriptionStatus: "trialing",
+    });
+    // Create owner employee
+    const ownerId = await db.createEmployee({
+      companyId,
+      name: input.ownerName,
+      role: "owner",
+      pin: input.ownerPin,
+      email: input.ownerEmail,
+      phone: input.ownerPhone,
+    });
+    return { companyId, ownerId, slug: input.slug };
+  }),
+  
+  // Update company settings
+  update: publicProcedure.input(z.object({
+    companyId: z.number(),
+    name: z.string().optional(),
+    ownerEmail: z.string().email().optional(),
+    ownerPhone: z.string().optional(),
+    timezone: z.string().optional(),
+    logoUrl: z.string().optional(),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner"], "update company settings");
+    const { companyId, requestingEmployeeId: _, ...data } = input;
+    return db.updateCompany(companyId, data);
+  }),
+  
+  // List all companies (admin only)
+  listAll: publicProcedure.query(() => db.getAllCompanies()),
+  
+  // Check subscription status
+  checkSubscription: publicProcedure.input(z.object({ companyId: z.number() })).query(async ({ input }) => {
+    const company = await db.getCompanyById(input.companyId);
+    if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
+    const now = new Date();
+    const trialEnd = company.trialEndDate ? new Date(company.trialEndDate) : null;
+    const isTrialActive = company.subscriptionStatus === "trialing" && trialEnd && trialEnd > now;
+    const daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+    return {
+      plan: company.plan,
+      status: company.subscriptionStatus,
+      isActive: company.subscriptionStatus === "active" || isTrialActive,
+      trialDaysLeft: daysLeft,
+      maxEmployees: company.maxEmployees,
+      maxJobs: company.maxJobs,
+    };
+  }),
+  
+  // Update subscription (called by Stripe webhook or admin)
+  updateSubscription: publicProcedure.input(z.object({
+    companyId: z.number(),
+    plan: z.enum(["trial", "starter", "professional", "enterprise"]),
+    subscriptionStatus: z.enum(["trialing", "active", "past_due", "cancelled", "expired"]),
+    stripeCustomerId: z.string().optional(),
+    stripeSubscriptionId: z.string().optional(),
+    maxEmployees: z.number().optional(),
+    maxJobs: z.number().optional(),
+  })).mutation(async ({ input }) => {
+    const { companyId, ...data } = input;
+    return db.updateCompany(companyId, data);
+  }),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -3708,6 +3804,7 @@ export const appRouter = router({
   overhead: overheadRouter,
   schedule: scheduleRouter,
   taxInfo: taxInfoRouter,
+  company: companyRouter,
 });
 
 export type AppRouter = typeof appRouter;

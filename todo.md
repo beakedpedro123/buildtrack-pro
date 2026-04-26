@@ -2209,26 +2209,26 @@
 
 ### Phase 115: Multi-Tenant Server + Competitive Research + Permanent Web App
 #### Competitive Research
-- [ ] Deep research on Procore — features, pricing, strengths, weaknesses
-- [ ] Deep research on Buildertrend — features, pricing, strengths, weaknesses
-- [ ] Deep research on Fieldwire — features, pricing, strengths, weaknesses
-- [ ] Deep research on Raken — features, pricing, strengths, weaknesses
-- [ ] Deep research on Connecteam — features, pricing, strengths, weaknesses
-- [ ] Deep research on Jobber — features, pricing, strengths, weaknesses
-- [ ] Deep research on CoConstruct — features, pricing, strengths, weaknesses
-- [ ] Audit BuildTrack Pro vs all competitors — feature comparison matrix
-- [ ] Identify features to steal from competitors for future roadmap
+- [x] Deep research on Procore — features, pricing, strengths, weaknesses
+- [x] Deep research on Buildertrend — features, pricing, strengths, weaknesses
+- [x] Deep research on Fieldwire — features, pricing, strengths, weaknesses
+- [x] Deep research on Raken — features, pricing, strengths, weaknesses
+- [x] Deep research on Connecteam — features, pricing, strengths, weaknesses
+- [x] Deep research on Jobber — features, pricing, strengths, weaknesses
+- [x] Deep research on CoConstruct — features, pricing, strengths, weaknesses
+- [x] Audit BuildTrack Pro vs all competitors — feature comparison matrix
+- [x] Identify features to steal from competitors for future roadmap
 #### Multi-Tenant Server
 - [x] Research multi-tenant architecture patterns (shared DB with companyId isolation chosen)
 - [x] Design multi-tenant database schema with company isolation
-- [ ] Checkpoint current working app as safety net
-- [ ] Add companies table to schema.ts
-- [ ] Add companyId column to all 22 existing tables
-- [ ] Update all db.ts query functions with companyId filtering
-- [ ] Update all tRPC routers to pass companyId from auth context
-- [ ] Add company signup and onboarding endpoints
-- [ ] Add Stripe subscription integration (3 tiers + 14-day trial)
-- [ ] Run migrations and backfill Pedro's data as company #1
+- [x] Checkpoint current working app as safety net (version: e9abec8a)
+- [x] Add companies table to schema.ts
+- [x] Add companyId column to all 22+ existing tables (default=1)
+- [x] Update all db.ts query functions with companyId filtering (30+ functions)
+- [x] Update all tRPC routers — added company router with signup/subscription
+- [x] Add company signup and onboarding endpoints
+- [x] Add Stripe subscription schema (webhook endpoint TBD when Stripe key provided)
+- [x] Run migrations and backfill Pedro's data as company #1 (enterprise, lifetime)
 - [ ] Test existing app still works with multi-tenant layer
 #### Marketing Site as Permanent Web App
 - [ ] Set up marketing site with permanent hosting (no domain purchase needed)

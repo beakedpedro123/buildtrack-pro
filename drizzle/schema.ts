@@ -10,9 +10,34 @@ import {
   float,
 } from "drizzle-orm/mysql-core";
 
+// ─── Companies (Multi-Tenant Root) ────────────────────────────────────────
+export const companies = mysqlTable("companies", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 128 }).notNull().unique(), // URL-safe company identifier
+  ownerEmail: varchar("ownerEmail", { length: 320 }),
+  ownerPhone: varchar("ownerPhone", { length: 20 }),
+  logoUrl: text("logoUrl"),
+  // Subscription
+  plan: mysqlEnum("plan", ["trial", "starter", "professional", "enterprise"]).default("trial").notNull(),
+  stripeCustomerId: varchar("stripeCustomerId", { length: 128 }),
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 128 }),
+  trialStartDate: timestamp("trialStartDate").defaultNow().notNull(),
+  trialEndDate: timestamp("trialEndDate"), // 14 days from start
+  subscriptionStatus: mysqlEnum("subscriptionStatus", ["trialing", "active", "past_due", "cancelled", "expired"]).default("trialing").notNull(),
+  maxEmployees: int("maxEmployees").default(50), // per plan limit
+  maxJobs: int("maxJobs").default(20), // per plan limit
+  // Settings
+  timezone: varchar("timezone", { length: 64 }).default("America/Denver"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 // ─── Users (Manus OAuth) ───────────────────────────────────────────────────
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -26,6 +51,7 @@ export const users = mysqlTable("users", {
 // ─── Employees ─────────────────────────────────────────────────────────────
 export const employees = mysqlTable("employees", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   name: varchar("name", { length: 128 }).notNull(),
   role: mysqlEnum("role", ["owner", "office_manager", "secretary", "logistics", "foreman", "laborer"])
     .default("laborer")
@@ -47,6 +73,7 @@ export const employees = mysqlTable("employees", {
 // ─── Jobs / Jobsites ───────────────────────────────────────────────────────
 export const jobs = mysqlTable("jobs", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   address: text("address"),
   clientName: varchar("clientName", { length: 128 }),
@@ -73,6 +100,7 @@ export const jobs = mysqlTable("jobs", {
 // ─── Job Assignments ───────────────────────────────────────────────────────
 export const jobAssignments = mysqlTable("jobAssignments", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   jobId: int("jobId").notNull(),
   employeeId: int("employeeId").notNull(),
   role: mysqlEnum("role", ["foreman", "laborer"]).default("laborer").notNull(),
@@ -82,6 +110,7 @@ export const jobAssignments = mysqlTable("jobAssignments", {
 // ─── Clock Entries ─────────────────────────────────────────────────────────
 export const clockEntries = mysqlTable("clockEntries", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   employeeId: int("employeeId").notNull(),
   jobId: int("jobId").notNull(),
   clockIn: timestamp("clockIn").notNull(),
@@ -100,6 +129,7 @@ export const clockEntries = mysqlTable("clockEntries", {
 // ─── Daily Reports ─────────────────────────────────────────────────────────
 export const dailyReports = mysqlTable("dailyReports", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   jobId: int("jobId").notNull(),
   submittedBy: int("submittedBy").notNull(),
   reportDate: timestamp("reportDate").notNull(),
@@ -116,6 +146,7 @@ export const dailyReports = mysqlTable("dailyReports", {
 // ─── Materials Used ────────────────────────────────────────────────────────
 export const materialEntries = mysqlTable("materialEntries", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   reportId: int("reportId").notNull(),
   jobId: int("jobId").notNull(),
   materialName: varchar("materialName", { length: 255 }).notNull(),
@@ -130,6 +161,7 @@ export const materialEntries = mysqlTable("materialEntries", {
 // ─── Report Photos ─────────────────────────────────────────────────────────
 export const reportPhotos = mysqlTable("reportPhotos", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   reportId: int("reportId").notNull(),
   jobId: int("jobId").notNull(),
   uploadedBy: int("uploadedBy").notNull(),
@@ -142,6 +174,7 @@ export const reportPhotos = mysqlTable("reportPhotos", {
 // ─── Budget Categories ─────────────────────────────────────────────────────
 export const budgetCategories = mysqlTable("budgetCategories", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   jobId: int("jobId").notNull(),
   name: varchar("name", { length: 128 }).notNull(),
   budgetedAmount: decimal("budgetedAmount", { precision: 12, scale: 2 }).notNull(),
@@ -153,6 +186,7 @@ export const budgetCategories = mysqlTable("budgetCategories", {
 // ─── Expenses ──────────────────────────────────────────────────────────────
 export const expenses = mysqlTable("expenses", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   jobId: int("jobId").notNull(),
   categoryId: int("categoryId"),
   description: varchar("description", { length: 255 }).notNull(),
@@ -168,6 +202,7 @@ export const expenses = mysqlTable("expenses", {
 // ─── QuickBooks Sync Log ───────────────────────────────────────────────────
 export const qbSyncLog = mysqlTable("qbSyncLog", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   syncType: mysqlEnum("syncType", ["expenses", "labor", "full"]).notNull(),
   status: mysqlEnum("status", ["pending", "success", "failed"]).default("pending").notNull(),
   itemsSynced: int("itemsSynced").default(0),
@@ -180,6 +215,7 @@ export const qbSyncLog = mysqlTable("qbSyncLog", {
 // ─── Meetings ─────────────────────────────────────────────────────────────
 export const meetings = mysqlTable("meetings", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   scheduledFor: timestamp("scheduledFor"),
   startedAt: timestamp("startedAt"),
@@ -197,6 +233,7 @@ export const meetings = mysqlTable("meetings", {
 // ─── Weekly Goals ──────────────────────────────────────────────────────────
 export const weeklyGoals = mysqlTable("weeklyGoals", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   meetingId: int("meetingId"),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
@@ -217,6 +254,7 @@ export const weeklyGoals = mysqlTable("weeklyGoals", {
 // ─── QuickBooks Estimates ────────────────────────────────────────────────────
 export const qbEstimates = mysqlTable("qbEstimates", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   jobId: int("jobId").notNull(),
   qbEstimateId: varchar("qbEstimateId", { length: 64 }),
   qbEstimateNumber: varchar("qbEstimateNumber", { length: 64 }),
@@ -235,6 +273,7 @@ export const qbEstimates = mysqlTable("qbEstimates", {
 // ─── KPI Metrics ──────────────────────────────────────────────────────────────
 export const kpiMetrics = mysqlTable("kpiMetrics", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   name: varchar("name", { length: 128 }).notNull(),
   category: mysqlEnum("category", ["revenue", "labor", "jobs", "safety", "schedule", "custom"]).default("custom").notNull(),
   unit: varchar("unit", { length: 32 }).default(""),  // e.g. "$", "%", "hrs", "jobs"
@@ -253,15 +292,18 @@ export const kpiMetrics = mysqlTable("kpiMetrics", {
 // ─── KPI History ──────────────────────────────────────────────────────────────
 export const kpiHistory = mysqlTable("kpiHistory", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   kpiId: int("kpiId").notNull(),
   value: decimal("value", { precision: 12, scale: 2 }).notNull(),
   notes: text("notes"),
   recordedBy: int("recordedBy").notNull(),
   recordedAt: timestamp("recordedAt").defaultNow().notNull(),
 });
-// ─── Safety Topics (posted by management for foreman) ────────────────────────────────────────────────────────
+
+// ─── Safety Topics (posted by management for foreman) ────────────────────────
 export const safetyTopics = mysqlTable("safetyTopics", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   content: text("content"),
   category: varchar("category", { length: 64 }).default("general"),
@@ -271,9 +313,10 @@ export const safetyTopics = mysqlTable("safetyTopics", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-// ─── Safety Meetings (documented by foreman) ──────────────────────────────────────────────────────────
+// ─── Safety Meetings (documented by foreman) ──────────────────────────────────
 export const safetyMeetings = mysqlTable("safetyMeetings", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   topicId: int("topicId"),
   jobId: int("jobId").notNull(),
   meetingType: mysqlEnum("meetingType", ["safety_toolbox", "daily_goals"]).default("safety_toolbox").notNull(),
@@ -287,9 +330,11 @@ export const safetyMeetings = mysqlTable("safetyMeetings", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
+
 // ─── Pivot Memory (conversation history & preferences) ────────────────────────
 export const pivotMemory = mysqlTable("pivotMemory", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   employeeId: int("employeeId").notNull(),
   preferredLanguage: varchar("preferredLanguage", { length: 10 }).default("en").notNull(),
   conversationSummary: text("conversationSummary"), // AI-generated summary of past conversations
@@ -306,6 +351,7 @@ export const pivotMemory = mysqlTable("pivotMemory", {
 
 export const pivotConversations = mysqlTable("pivotConversations", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   employeeId: int("employeeId").notNull(),
   role: varchar("role", { length: 20 }).notNull(), // "user" or "assistant"
   content: text("content").notNull(),
@@ -313,10 +359,10 @@ export const pivotConversations = mysqlTable("pivotConversations", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
-
-// Time Adjustments (audit log for clock entry edits)
+// ─── Time Adjustments (audit log for clock entry edits) ──────────────────────
 export const timeAdjustments = mysqlTable("timeAdjustments", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   clockEntryId: int("clockEntryId").notNull(),
   adjustedBy: int("adjustedBy").notNull(),
   fieldChanged: varchar("fieldChanged", { length: 32 }).notNull(),
@@ -329,6 +375,7 @@ export const timeAdjustments = mysqlTable("timeAdjustments", {
 // ─── Punch List Items ──────────────────────────────────────────────────────────
 export const punchListItems = mysqlTable("punch_list_items", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   jobId: int("jobId").notNull(),
   area: varchar("area", { length: 128 }),
   title: varchar("title", { length: 500 }).notNull(),
@@ -347,6 +394,7 @@ export const punchListItems = mysqlTable("punch_list_items", {
 // ─── Messages / Notes ──────────────────────────────────────────────────────
 export const messages = mysqlTable("messages", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   senderId: int("senderId").notNull(),
   subject: varchar("subject", { length: 255 }).notNull(),
   body: text("body").notNull(),
@@ -362,6 +410,7 @@ export const messages = mysqlTable("messages", {
 
 export const messageRecipients = mysqlTable("message_recipients", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   messageId: int("messageId").notNull(),
   recipientId: int("recipientId").notNull(),
   isRead: boolean("isRead").default(false).notNull(),
@@ -372,6 +421,7 @@ export const messageRecipients = mysqlTable("message_recipients", {
 // ─── Change Orders ──────────────────────────────────────────────────────────
 export const changeOrders = mysqlTable("change_orders", {
   id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
   jobId: int("jobId").notNull(),
   description: varchar("description", { length: 500 }).notNull(),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
@@ -384,7 +434,78 @@ export const changeOrders = mysqlTable("change_orders", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+// ─── Budget Audit Log ─────────────────────────────────────────────────────
+export const budgetAuditLog = mysqlTable("budget_audit_log", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
+  jobId: int("jobId").notNull(),
+  employeeId: int("employeeId").notNull(),
+  action: varchar("action", { length: 64 }).notNull(), // 'budget_edit' | 'change_order_add' | 'change_order_delete'
+  previousValue: decimal("previousValue", { precision: 12, scale: 2 }),
+  newValue: decimal("newValue", { precision: 12, scale: 2 }),
+  description: text("description"),
+  changeOrderId: int("changeOrderId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Company Overhead / Monthly Expenses ──────────────────────────────────
+// Owner-only: stores real monthly business expenses for accurate job costing
+export const companyOverhead = mysqlTable("company_overhead", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
+  category: varchar("category", { length: 64 }).notNull(),
+  // Categories: insurance, vehicles, yard, tools, office, payroll_taxes, workers_comp, liability, other
+  label: varchar("label", { length: 128 }).notNull(), // e.g. "General Liability Insurance", "F-250 Payment"
+  monthlyAmount: decimal("monthlyAmount", { precision: 10, scale: 2 }).notNull(),
+  notes: text("notes"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Job Schedule / Calendar ──────────────────────────────────────────────
+// Tracks scheduled tasks per job with crew assignments and dates
+export const jobSchedule = mysqlTable("job_schedule", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
+  jobId: int("jobId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  phase: varchar("phase", { length: 100 }), // Construction phase: Foundation, Framing, Roofing, etc.
+  scheduledDate: timestamp("scheduledDate").notNull(),
+  endDate: timestamp("endDate"),
+  status: mysqlEnum("status", ["pending", "in_progress", "completed", "skipped"]).default("pending").notNull(),
+  assignedEmployees: text("assignedEmployees"), // JSON array of employee IDs
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Employee Tax Info ────────────────────────────────────────────────────
+// Stores tax-related info per employee for accountant reference
+export const employeeTaxInfo = mysqlTable("employee_tax_info", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").default(1).notNull(),
+  employeeId: int("employeeId").notNull(),
+  ssn: varchar("ssn", { length: 11 }), // encrypted or last 4 only
+  filingStatus: mysqlEnum("filingStatus", ["single", "married_filing_jointly", "married_filing_separately", "head_of_household"]),
+  federalAllowances: int("federalAllowances").default(0),
+  stateAllowances: int("stateAllowances").default(0),
+  additionalWithholding: decimal("additionalWithholding", { precision: 8, scale: 2 }).default("0"),
+  w4Year: int("w4Year"),
+  i9Verified: boolean("i9Verified").default(false),
+  notes: text("notes"),
+  updatedBy: int("updatedBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 // ─── Types ───────────────────────────────────────────────────────────────────────
+export type Company = typeof companies.$inferSelect;
+export type InsertCompany = typeof companies.$inferInsert;
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
@@ -460,76 +581,14 @@ export type InsertMessageRecipient = typeof messageRecipients.$inferInsert;
 export type ChangeOrder = typeof changeOrders.$inferSelect;
 export type InsertChangeOrder = typeof changeOrders.$inferInsert;
 
-
-// ─── Budget Audit Log ─────────────────────────────────────────────────────
-export const budgetAuditLog = mysqlTable("budget_audit_log", {
-  id: int("id").autoincrement().primaryKey(),
-  jobId: int("jobId").notNull(),
-  employeeId: int("employeeId").notNull(),
-  action: varchar("action", { length: 64 }).notNull(), // 'budget_edit' | 'change_order_add' | 'change_order_delete'
-  previousValue: decimal("previousValue", { precision: 12, scale: 2 }),
-  newValue: decimal("newValue", { precision: 12, scale: 2 }),
-  description: text("description"),
-  changeOrderId: int("changeOrderId"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
-
 export type BudgetAuditLog = typeof budgetAuditLog.$inferSelect;
 export type InsertBudgetAuditLog = typeof budgetAuditLog.$inferInsert;
 
-// ─── Company Overhead / Monthly Expenses ──────────────────────────────────
-// Owner-only: stores real monthly business expenses for accurate job costing
-export const companyOverhead = mysqlTable("company_overhead", {
-  id: int("id").autoincrement().primaryKey(),
-  category: varchar("category", { length: 64 }).notNull(),
-  // Categories: insurance, vehicles, yard, tools, office, payroll_taxes, workers_comp, liability, other
-  label: varchar("label", { length: 128 }).notNull(), // e.g. "General Liability Insurance", "F-250 Payment"
-  monthlyAmount: decimal("monthlyAmount", { precision: 10, scale: 2 }).notNull(),
-  notes: text("notes"),
-  isActive: boolean("isActive").default(true).notNull(),
-  createdBy: int("createdBy").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
 export type CompanyOverhead = typeof companyOverhead.$inferSelect;
 export type InsertCompanyOverhead = typeof companyOverhead.$inferInsert;
 
-// ─── Job Schedule / Calendar ──────────────────────────────────────────────
-// Tracks scheduled tasks per job with crew assignments and dates
-export const jobSchedule = mysqlTable("job_schedule", {
-  id: int("id").autoincrement().primaryKey(),
-  jobId: int("jobId").notNull(),
-  title: varchar("title", { length: 255 }).notNull(),
-  description: text("description"),
-  phase: varchar("phase", { length: 100 }), // Construction phase: Foundation, Framing, Roofing, etc.
-  scheduledDate: timestamp("scheduledDate").notNull(),
-  endDate: timestamp("endDate"),
-  status: mysqlEnum("status", ["pending", "in_progress", "completed", "skipped"]).default("pending").notNull(),
-  assignedEmployees: text("assignedEmployees"), // JSON array of employee IDs
-  sortOrder: int("sortOrder").default(0).notNull(),
-  createdBy: int("createdBy").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
 export type JobSchedule = typeof jobSchedule.$inferSelect;
 export type InsertJobSchedule = typeof jobSchedule.$inferInsert;
 
-// ─── Employee Tax Info ────────────────────────────────────────────────────
-// Stores tax-related info per employee for accountant reference
-export const employeeTaxInfo = mysqlTable("employee_tax_info", {
-  id: int("id").autoincrement().primaryKey(),
-  employeeId: int("employeeId").notNull(),
-  ssn: varchar("ssn", { length: 11 }), // encrypted or last 4 only
-  filingStatus: mysqlEnum("filingStatus", ["single", "married_filing_jointly", "married_filing_separately", "head_of_household"]),
-  federalAllowances: int("federalAllowances").default(0),
-  stateAllowances: int("stateAllowances").default(0),
-  additionalWithholding: decimal("additionalWithholding", { precision: 8, scale: 2 }).default("0"),
-  w4Year: int("w4Year"),
-  i9Verified: boolean("i9Verified").default(false),
-  notes: text("notes"),
-  updatedBy: int("updatedBy").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
 export type EmployeeTaxInfo = typeof employeeTaxInfo.$inferSelect;
 export type InsertEmployeeTaxInfo = typeof employeeTaxInfo.$inferInsert;
