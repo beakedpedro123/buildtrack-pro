@@ -2254,3 +2254,22 @@
 - [x] Create social media post #4 — Goals Tab ("Set Goals. Track Progress.")
 - [x] All posts use actual app screenshots with real data
 - [ ] Deliver all assets to Pedro
+
+### Phase 117b (v3): Marketing Materials — No Personal Data + English/Spanish + 6 Screens
+- [x] EN Post 1: Owner Dashboard ("YOUR ENTIRE OPERATION. ONE SCREEN.") — generic data
+- [x] EN Post 2: Foreman Clock-In ("CLOCK IN. LEAD YOUR CREW.") — generic data
+- [x] EN Post 3: Pivot AI ("MEET PIVOT. YOUR AI ASSISTANT.") — generic data
+- [x] EN Post 4: Goals & Tasks ("SET GOALS. CRUSH DEADLINES.") — generic data
+- [x] EN Post 5: My Hours ("EVERY HOUR. EVERY SHIFT. TRACKED.") — generic data
+- [x] EN Post 6: Calculator ("BUILT-IN CONSTRUCTION CALCULATOR.") — generic data
+- [x] ES Post 1: Dashboard Dueño ("TODA TU OPERACIÓN. UNA PANTALLA.") — Spanish
+- [x] ES Post 2: Capataz ("REGISTRA ENTRADA. LIDERA TU EQUIPO.") — Spanish
+- [x] ES Post 3: Pivot IA ("CONOCE A PIVOT. TU ASISTENTE DE IA.") — Spanish
+- [x] ES Post 4: Metas ("ESTABLECE METAS. CUMPLE PLAZOS.") — Spanish
+- [x] ES Post 5: Mis Horas ("CADA HORA. CADA TURNO. REGISTRADO.") — Spanish
+- [x] ES Post 6: Calculadora ("CALCULADORA DE CONSTRUCCIÓN INTEGRADA.") — Spanish
+- [x] EN Flyer: Professional 8.5x11 with 6 features, 3 pricing tiers ($29/$59/$99)
+- [x] ES Flyer: Spanish version with all features and pricing translated
+- [x] Composite real QR codes (qr_trial.png) onto all 14 assets
+- [x] All 14 final assets saved to /home/ubuntu/marketing_v3/final/
+- [x] Deliver all assets to Pedro
