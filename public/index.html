@@ -70,7 +70,7 @@ a:hover{opacity:.85}
 .feature-card h3{font-size:18px;font-weight:700;margin-bottom:8px}
 .feature-card p{font-size:14px;color:var(--gray);line-height:1.7}
 
-/* COMPARISON TABLE */
+/* COMPARISON TABLE (static fallback) */
 .comparison{overflow-x:auto}
 .comparison table{width:100%;border-collapse:collapse;min-width:700px}
 .comparison th,.comparison td{padding:16px 20px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06);font-size:14px}
@@ -82,6 +82,48 @@ a:hover{opacity:.85}
 .check{color:var(--green);font-weight:700}
 .cross{color:var(--red);opacity:.5}
 .partial{color:var(--gray)}
+
+/* INTERACTIVE COMPARATOR */
+.comparator-picker{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:48px}
+.comp-chip{padding:10px 20px;border-radius:100px;border:1px solid rgba(255,255,255,.12);background:var(--dark-3);color:var(--gray-light);font-size:14px;font-weight:600;cursor:pointer;transition:all .25s}
+.comp-chip:hover{border-color:rgba(200,168,78,.4);color:var(--white)}
+.comp-chip.active{background:var(--gold);color:var(--dark);border-color:var(--gold);box-shadow:0 4px 20px rgba(200,168,78,.3)}
+.comparator-result{display:none;max-width:900px;margin:0 auto}
+.comparator-result.visible{display:block}
+.comp-header{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:32px}
+.comp-header-card{background:var(--dark-3);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:28px;text-align:center}
+.comp-header-card.ours{border-color:var(--gold);background:rgba(200,168,78,.06)}
+.comp-header-card h3{font-size:20px;font-weight:800;margin-bottom:4px}
+.comp-header-card .comp-price{font-size:36px;font-weight:900;margin:12px 0 4px}
+.comp-header-card .comp-price.gold{color:var(--gold)}
+.comp-header-card .comp-price-note{font-size:13px;color:var(--gray)}
+.comp-savings{background:linear-gradient(135deg,rgba(34,197,94,.1),rgba(34,197,94,.05));border:1px solid rgba(34,197,94,.25);border-radius:12px;padding:20px;text-align:center;margin-bottom:32px}
+.comp-savings .savings-value{font-size:28px;font-weight:900;color:var(--green)}
+.comp-savings .savings-label{font-size:14px;color:var(--gray-light);margin-top:4px}
+.comp-table{width:100%;border-collapse:collapse}
+.comp-table th{padding:12px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--gray);border-bottom:1px solid rgba(255,255,255,.08);text-align:left}
+.comp-table th:nth-child(2),.comp-table th:nth-child(3){text-align:center}
+.comp-table td{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.04);font-size:14px;color:var(--gray-light)}
+.comp-table td:nth-child(2),.comp-table td:nth-child(3){text-align:center;font-weight:600}
+.comp-table tr:hover{background:rgba(255,255,255,.02)}
+.comp-table .win{color:var(--green)}
+.comp-table .lose{color:var(--red);opacity:.6}
+.comp-table .tie{color:var(--gray)}
+.comp-verdict{background:var(--dark-3);border:1px solid rgba(200,168,78,.15);border-radius:16px;padding:28px;margin-top:32px}
+.comp-verdict h4{font-size:16px;font-weight:700;color:var(--gold);margin-bottom:12px}
+.comp-verdict p{font-size:14px;color:var(--gray-light);line-height:1.7}
+.comp-score{display:flex;gap:24px;justify-content:center;margin-bottom:32px}
+.comp-score-item{text-align:center}
+.comp-score-item .score-num{font-size:36px;font-weight:900}
+.comp-score-item .score-num.green{color:var(--green)}
+.comp-score-item .score-num.red{color:var(--red);opacity:.6}
+.comp-score-item .score-num.gray{color:var(--gray)}
+.comp-score-item .score-label{font-size:12px;color:var(--gray);margin-top:4px;text-transform:uppercase;letter-spacing:1px}
+@media(max-width:640px){
+  .comp-header{grid-template-columns:1fr}
+  .comparator-picker{gap:8px}
+  .comp-chip{padding:8px 14px;font-size:13px}
+}
 
 /* PRICING */
 .pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;align-items:start}
@@ -353,105 +395,64 @@ a:hover{opacity:.85}
   </div>
 </section>
 
-<!-- COMPARISON -->
+<!-- INTERACTIVE COMPETITOR COMPARISON -->
 <section class="section" id="compare" style="background:var(--dark-2)">
   <div class="section-inner">
     <div class="section-header">
-      <div class="section-tag">Comparison</div>
-      <h2>How We Stack Up</h2>
-      <p>See why BuildTrack Pro gives you more for less.</p>
+      <div class="section-tag">Head-to-Head</div>
+      <h2>Compare Us to Anyone</h2>
+      <p>Pick a competitor and see exactly how BuildTrack Pro stacks up — feature by feature, dollar for dollar.</p>
     </div>
-    <div class="comparison">
-      <table>
-        <thead>
-          <tr>
-            <th>Feature</th>
-            <th class="highlight">BuildTrack Pro</th>
-            <th>Procore</th>
-            <th>Buildertrend</th>
-            <th>Fieldwire</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Starting Price</td>
-            <td class="highlight">$29/mo</td>
-            <td>$15,000+/yr</td>
-            <td>$8,388/yr</td>
-            <td>$54/user/mo</td>
-          </tr>
-          <tr>
-            <td>AI Assistant</td>
-            <td class="highlight"><span class="check">✓ Built-in</span></td>
-            <td><span class="cross">✗</span></td>
-            <td><span class="cross">✗</span></td>
-            <td><span class="cross">✗</span></td>
-          </tr>
-          <tr>
-            <td>Voice Commands</td>
-            <td class="highlight"><span class="check">✓</span></td>
-            <td><span class="cross">✗</span></td>
-            <td><span class="cross">✗</span></td>
-            <td><span class="cross">✗</span></td>
-          </tr>
-          <tr>
-            <td>Bilingual (EN/ES)</td>
-            <td class="highlight"><span class="check">✓</span></td>
-            <td><span class="cross">✗</span></td>
-            <td><span class="cross">✗</span></td>
-            <td><span class="cross">✗</span></td>
-          </tr>
-          <tr>
-            <td>Construction Calculator</td>
-            <td class="highlight"><span class="check">✓ 959 shapes</span></td>
-            <td><span class="cross">✗</span></td>
-            <td><span class="cross">✗</span></td>
-            <td><span class="cross">✗</span></td>
-          </tr>
-          <tr>
-            <td>Meeting → Goals AI</td>
-            <td class="highlight"><span class="check">✓</span></td>
-            <td><span class="cross">✗</span></td>
-            <td><span class="cross">✗</span></td>
-            <td><span class="cross">✗</span></td>
-          </tr>
-          <tr>
-            <td>GPS Time Tracking</td>
-            <td class="highlight"><span class="check">✓</span></td>
-            <td><span class="check">✓</span></td>
-            <td><span class="check">✓</span></td>
-            <td><span class="partial">Limited</span></td>
-          </tr>
-          <tr>
-            <td>Crew Clock-In</td>
-            <td class="highlight"><span class="check">✓</span></td>
-            <td><span class="cross">✗</span></td>
-            <td><span class="partial">Add-on</span></td>
-            <td><span class="cross">✗</span></td>
-          </tr>
-          <tr>
-            <td>Offline Mode</td>
-            <td class="highlight"><span class="check">✓ Full</span></td>
-            <td><span class="partial">Limited</span></td>
-            <td><span class="partial">Limited</span></td>
-            <td><span class="check">✓</span></td>
-          </tr>
-          <tr>
-            <td>Role-Based Dashboards</td>
-            <td class="highlight"><span class="check">✓ 5 roles</span></td>
-            <td><span class="check">✓</span></td>
-            <td><span class="check">✓</span></td>
-            <td><span class="partial">Limited</span></td>
-          </tr>
-          <tr>
-            <td>Free Trial</td>
-            <td class="highlight"><span class="check">✓ 14 days</span></td>
-            <td><span class="cross">✗ Demo only</span></td>
-            <td><span class="cross">✗ Demo only</span></td>
-            <td><span class="check">✓</span></td>
-          </tr>
-        </tbody>
-      </table>
+
+    <!-- Competitor Chips -->
+    <div class="comparator-picker" id="compPicker"></div>
+
+    <!-- Comparison Result -->
+    <div class="comparator-result" id="compResult">
+      <!-- Header cards -->
+      <div class="comp-header">
+        <div class="comp-header-card ours">
+          <h3>BuildTrack Pro</h3>
+          <div class="comp-price gold" id="ourPrice">$29/mo</div>
+          <div class="comp-price-note">14-day free trial · No per-user fees</div>
+        </div>
+        <div class="comp-header-card">
+          <h3 id="theirName">—</h3>
+          <div class="comp-price" id="theirPrice">—</div>
+          <div class="comp-price-note" id="theirPriceNote">—</div>
+        </div>
+      </div>
+
+      <!-- Savings banner -->
+      <div class="comp-savings" id="savingsBanner">
+        <div class="savings-value" id="savingsValue">—</div>
+        <div class="savings-label" id="savingsLabel">—</div>
+      </div>
+
+      <!-- Score -->
+      <div class="comp-score">
+        <div class="comp-score-item"><div class="score-num green" id="scoreWins">0</div><div class="score-label">BuildTrack Wins</div></div>
+        <div class="comp-score-item"><div class="score-num gray" id="scoreTies">0</div><div class="score-label">Tied</div></div>
+        <div class="comp-score-item"><div class="score-num red" id="scoreLosses">0</div><div class="score-label">They Win</div></div>
+      </div>
+
+      <!-- Feature table -->
+      <div style="overflow-x:auto">
+        <table class="comp-table">
+          <thead><tr><th>Feature</th><th>BuildTrack Pro</th><th id="theirColName">—</th></tr></thead>
+          <tbody id="compTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Verdict -->
+      <div class="comp-verdict">
+        <h4>The Verdict</h4>
+        <p id="verdictText">—</p>
+      </div>
+
+      <div style="text-align:center;margin-top:32px">
+        <a href="#" class="btn btn-primary btn-large" onclick="openSignup()">Start Your 14-Day Free Trial</a>
+      </div>
     </div>
   </div>
 </section>
@@ -593,6 +594,283 @@ a:hover{opacity:.85}
 </div>
 
 <script>
+/* ===== INTERACTIVE COMPARATOR DATA & LOGIC ===== */
+const COMPETITORS = {
+  procore: {
+    name: 'Procore',
+    price: '$15,000+/yr',
+    priceNote: 'Annual contract · Volume-based pricing',
+    annualCost: 15000,
+    savings: 'Save $14,652+/year',
+    savingsLabel: 'vs Procore annual contract (BuildTrack Pro Professional at $708/yr)',
+    verdict: 'Procore is the industry giant built for large GCs running $10M+ projects. It excels at document management, RFIs, and submittals — but it costs more than most crews earn in a month. BuildTrack Pro delivers AI-powered tools, bilingual support, and construction calculators that Procore simply does not have, at a fraction of the cost. If you need enterprise document workflows, Procore wins. For everything else — especially if you value AI, affordability, and simplicity — BuildTrack Pro is the clear choice.',
+    features: [
+      ['AI Assistant (Pivot)', '✓ Built-in', '✗', 'win'],
+      ['Voice Commands', '✓', '✗', 'win'],
+      ['Bilingual (EN/ES)', '✓', '✗', 'win'],
+      ['Construction Calculator', '✓ 959 shapes', '✗', 'win'],
+      ['Meeting → Goals AI', '✓', '✗', 'win'],
+      ['GPS Time Tracking', '✓', '✓', 'tie'],
+      ['Crew Clock-In', '✓', '✗', 'win'],
+      ['Daily Field Reports', '✓', '✓', 'tie'],
+      ['Job Costing', '✓', '✓', 'tie'],
+      ['Offline Mode', '✓ Full', 'Limited', 'win'],
+      ['Role-Based Dashboards', '✓ 5 roles', '✓', 'tie'],
+      ['Safety Toolbox Talks', '✓', '✓', 'tie'],
+      ['Document Management', 'Basic', '✓ Advanced', 'lose'],
+      ['RFIs & Submittals', '✗', '✓', 'lose'],
+      ['Bid Management', '✗', '✓', 'lose'],
+      ['Free Trial', '✓ 14 days', '✗ Demo only', 'win'],
+    ]
+  },
+  buildertrend: {
+    name: 'Buildertrend',
+    price: '$699/mo',
+    priceNote: 'Annual contract required · Unlimited users',
+    annualCost: 8388,
+    savings: 'Save $7,680/year',
+    savingsLabel: 'vs Buildertrend annual plan (BuildTrack Pro Professional at $708/yr)',
+    verdict: 'Buildertrend is the go-to for residential builders who need client portals and selection management. It shines at homeowner communication and proposal building. But at $699/mo with no AI, no bilingual support, and no construction calculator, it is dramatically overpriced for what most crews actually need day-to-day. BuildTrack Pro wins on AI, field tools, and price — Buildertrend wins on client-facing features.',
+    features: [
+      ['AI Assistant (Pivot)', '✓ Built-in', '✗', 'win'],
+      ['Voice Commands', '✓', '✗', 'win'],
+      ['Bilingual (EN/ES)', '✓', '✗', 'win'],
+      ['Construction Calculator', '✓ 959 shapes', '✗', 'win'],
+      ['Meeting → Goals AI', '✓', '✗', 'win'],
+      ['GPS Time Tracking', '✓', '✓', 'tie'],
+      ['Crew Clock-In', '✓', 'Add-on', 'win'],
+      ['Daily Field Reports', '✓', 'Limited', 'win'],
+      ['Job Costing', '✓', '✓', 'tie'],
+      ['Offline Mode', '✓ Full', 'Limited', 'win'],
+      ['Role-Based Dashboards', '✓ 5 roles', '✓', 'tie'],
+      ['Client Portal', '✗', '✓', 'lose'],
+      ['Selections Management', '✗', '✓', 'lose'],
+      ['Proposal Builder', '✗', '✓', 'lose'],
+      ['Scheduling', 'Basic', '✓ Gantt', 'lose'],
+      ['Free Trial', '✓ 14 days', '✗ Demo only', 'win'],
+    ]
+  },
+  fieldwire: {
+    name: 'Fieldwire',
+    price: '$54/user/mo',
+    priceNote: 'Per-user pricing · 10 users = $540/mo',
+    annualCost: 6480,
+    savings: 'Save $5,772/year',
+    savingsLabel: 'vs Fieldwire for 10 users (BuildTrack Pro Professional at $708/yr)',
+    verdict: 'Fieldwire is excellent for blueprint markup and field task management — if your crew lives on plan sheets, it is hard to beat. But per-user pricing adds up fast, and it completely lacks time tracking, job costing, payroll, and AI. BuildTrack Pro covers the full operation from clock-in to budget report, while Fieldwire only handles the field coordination piece.',
+    features: [
+      ['AI Assistant (Pivot)', '✓ Built-in', '✗', 'win'],
+      ['Voice Commands', '✓', '✗', 'win'],
+      ['Bilingual (EN/ES)', '✓', '✗', 'win'],
+      ['Construction Calculator', '✓ 959 shapes', '✗', 'win'],
+      ['Meeting → Goals AI', '✓', '✗', 'win'],
+      ['GPS Time Tracking', '✓', '✗', 'win'],
+      ['Crew Clock-In', '✓', '✗', 'win'],
+      ['Daily Field Reports', '✓', '✓', 'tie'],
+      ['Job Costing', '✓', '✗', 'win'],
+      ['Offline Mode', '✓ Full', '✓', 'tie'],
+      ['Blueprint Markup', '✗', '✓ Advanced', 'lose'],
+      ['Punch Lists', '✓', '✓ Advanced', 'lose'],
+      ['Task Management', '✓ Goals', '✓ Advanced', 'lose'],
+      ['Flat Pricing', '✓', '✗ Per-user', 'win'],
+      ['Free Trial', '✓ 14 days', '✓', 'tie'],
+    ]
+  },
+  raken: {
+    name: 'Raken',
+    price: '$15–49/user/mo',
+    priceNote: 'Per-user pricing · 10 users = $150–490/mo',
+    annualCost: 3600,
+    savings: 'Save $2,892/year',
+    savingsLabel: 'vs Raken for 10 users at $25/user (BuildTrack Pro Professional at $708/yr)',
+    verdict: 'Raken has the best daily field reports in the industry — if that is your #1 priority, it delivers. But it lacks job costing, budget tracking, AI, and construction calculators. BuildTrack Pro matches Raken on field reports while adding the entire financial and AI layer that Raken is missing. Plus, flat pricing means you never pay more as your crew grows.',
+    features: [
+      ['AI Assistant (Pivot)', '✓ Built-in', '✗', 'win'],
+      ['Voice Commands', '✓', '✗', 'win'],
+      ['Bilingual (EN/ES)', '✓', '✗', 'win'],
+      ['Construction Calculator', '✓ 959 shapes', '✗', 'win'],
+      ['Meeting → Goals AI', '✓', '✗', 'win'],
+      ['GPS Time Tracking', '✓', '✓', 'tie'],
+      ['Crew Clock-In', '✓', '✗', 'win'],
+      ['Daily Field Reports', '✓', '✓ Best-in-class', 'tie'],
+      ['Job Costing', '✓', '✗', 'win'],
+      ['Budget Tracking', '✓', '✗', 'win'],
+      ['Safety Toolbox Talks', '✓', '✓', 'tie'],
+      ['Production Tracking', 'Basic', '✓ Advanced', 'lose'],
+      ['Flat Pricing', '✓', '✗ Per-user', 'win'],
+      ['Free Trial', '✓ 14 days', '✓', 'tie'],
+    ]
+  },
+  connecteam: {
+    name: 'Connecteam',
+    price: '$29–99/mo',
+    priceNote: 'Free for ≤10 users · Not construction-specific',
+    annualCost: 1188,
+    savings: 'Similar price, 10× more construction value',
+    savingsLabel: 'Connecteam is a generic workforce tool — BuildTrack Pro is built for construction',
+    verdict: 'Connecteam is a solid general workforce management platform with a generous free tier. But it knows nothing about construction — no job costing, no construction calculator, no field reports, no AI that understands beam loads or roof pitch. If you just need a time clock for any industry, Connecteam works. If you need a tool that actually speaks construction, BuildTrack Pro is purpose-built for your world.',
+    features: [
+      ['AI Assistant (Pivot)', '✓ Built-in', '✗', 'win'],
+      ['Voice Commands', '✓', '✗', 'win'],
+      ['Bilingual (EN/ES)', '✓', '✗', 'win'],
+      ['Construction Calculator', '✓ 959 shapes', '✗', 'win'],
+      ['Meeting → Goals AI', '✓', '✗', 'win'],
+      ['GPS Time Tracking', '✓', '✓', 'tie'],
+      ['Crew Clock-In', '✓', '✓', 'tie'],
+      ['Daily Field Reports', '✓', '✗', 'win'],
+      ['Job Costing', '✓', '✗', 'win'],
+      ['Offline Mode', '✓ Full', 'Limited', 'win'],
+      ['Role-Based Dashboards', '✓ 5 construction roles', '✓ Generic', 'win'],
+      ['Training Modules', '✗', '✓', 'lose'],
+      ['Communication Hub', 'Basic', '✓ Advanced', 'lose'],
+      ['Free Tier', '14-day trial', '✓ 10 users free', 'lose'],
+    ]
+  },
+  'contractor-foreman': {
+    name: 'Contractor Foreman',
+    price: '$49–249/mo',
+    priceNote: 'Tiered plans · 30+ features',
+    annualCost: 2988,
+    savings: 'Save $2,280/year',
+    savingsLabel: 'vs Contractor Foreman Pro at $249/mo (BuildTrack Pro Professional at $59/mo)',
+    verdict: 'Contractor Foreman packs 30+ features into an affordable package — on paper, it looks like a great deal. In practice, the interface feels dated, there is no AI, no bilingual support, and the sheer number of features creates a cluttered experience. BuildTrack Pro is more focused: fewer features done better, with AI and modern design that your crew will actually want to use.',
+    features: [
+      ['AI Assistant (Pivot)', '✓ Built-in', '✗', 'win'],
+      ['Voice Commands', '✓', '✗', 'win'],
+      ['Bilingual (EN/ES)', '✓', '✗', 'win'],
+      ['Construction Calculator', '✓ 959 shapes', '✗', 'win'],
+      ['Meeting → Goals AI', '✓', '✗', 'win'],
+      ['GPS Time Tracking', '✓', '✓', 'tie'],
+      ['Daily Field Reports', '✓', '✓', 'tie'],
+      ['Job Costing', '✓', '✓', 'tie'],
+      ['Offline Mode', '✓ Full', '✗', 'win'],
+      ['Modern UI/UX', '✓', '✗ Dated', 'win'],
+      ['Invoicing', '✗', '✓', 'lose'],
+      ['Estimating', 'Coming soon', '✓', 'lose'],
+      ['RFIs', '✗', '✓', 'lose'],
+      ['Scheduling', 'Basic', '✓', 'lose'],
+      ['Free Trial', '✓ 14 days', '✓', 'tie'],
+    ]
+  },
+  jobber: {
+    name: 'Jobber',
+    price: '$39–529/mo',
+    priceNote: 'Built for home services, not construction',
+    annualCost: 6348,
+    savings: 'Save $5,640/year',
+    savingsLabel: 'vs Jobber Grow at $529/mo (BuildTrack Pro Professional at $59/mo)',
+    verdict: 'Jobber is excellent for home service businesses — HVAC, plumbing, landscaping. It has great quoting, invoicing, and client booking. But it was not built for construction crews. No field reports, no crew management, no job costing, no AI. If you are a service business, Jobber is great. If you run a construction crew, BuildTrack Pro is what you need.',
+    features: [
+      ['AI Assistant (Pivot)', '✓ Built-in', '✗', 'win'],
+      ['Voice Commands', '✓', '✗', 'win'],
+      ['Bilingual (EN/ES)', '✓', '✗', 'win'],
+      ['Construction Calculator', '✓ 959 shapes', '✗', 'win'],
+      ['Meeting → Goals AI', '✓', '✗', 'win'],
+      ['GPS Time Tracking', '✓', '✓', 'tie'],
+      ['Daily Field Reports', '✓', '✗', 'win'],
+      ['Job Costing', '✓', '✗', 'win'],
+      ['Crew Management', '✓', '✗', 'win'],
+      ['Role-Based Dashboards', '✓ 5 roles', 'Limited', 'win'],
+      ['Client Booking', '✗', '✓', 'lose'],
+      ['Quoting/Invoicing', '✗', '✓ Advanced', 'lose'],
+      ['Payment Processing', '✗', '✓', 'lose'],
+      ['CRM', '✗', '✓', 'lose'],
+      ['Free Trial', '✓ 14 days', '✓', 'tie'],
+    ]
+  },
+  coconstruct: {
+    name: 'CoConstruct',
+    price: '$99–599/mo',
+    priceNote: 'Built for custom home builders',
+    annualCost: 7188,
+    savings: 'Save $6,480/year',
+    savingsLabel: 'vs CoConstruct at $599/mo (BuildTrack Pro Professional at $59/mo)',
+    verdict: 'CoConstruct is the premium choice for custom home builders who need detailed selections management and client communication. If you build custom homes and need to manage tile choices and cabinet selections with homeowners, CoConstruct delivers. But for general construction crews, it is expensive, complex, and missing field tools like time tracking, crew management, and AI. BuildTrack Pro covers the operational side that CoConstruct ignores.',
+    features: [
+      ['AI Assistant (Pivot)', '✓ Built-in', '✗', 'win'],
+      ['Voice Commands', '✓', '✗', 'win'],
+      ['Bilingual (EN/ES)', '✓', '✗', 'win'],
+      ['Construction Calculator', '✓ 959 shapes', '✗', 'win'],
+      ['Meeting → Goals AI', '✓', '✗', 'win'],
+      ['GPS Time Tracking', '✓', '✗', 'win'],
+      ['Crew Clock-In', '✓', '✗', 'win'],
+      ['Daily Field Reports', '✓', '✗', 'win'],
+      ['Job Costing', '✓', '✓', 'tie'],
+      ['Offline Mode', '✓ Full', '✗', 'win'],
+      ['Client Selections', '✗', '✓ Advanced', 'lose'],
+      ['Change Orders', '✓', '✓ Advanced', 'lose'],
+      ['Client Communication', '✗', '✓', 'lose'],
+      ['Detailed Estimating', '✗', '✓', 'lose'],
+      ['Free Trial', '✓ 14 days', '✗ Demo only', 'win'],
+    ]
+  }
+};
+
+function initComparator() {
+  const picker = document.getElementById('compPicker');
+  Object.keys(COMPETITORS).forEach((key, i) => {
+    const chip = document.createElement('button');
+    chip.className = 'comp-chip' + (i === 0 ? ' active' : '');
+    chip.textContent = COMPETITORS[key].name;
+    chip.onclick = () => selectCompetitor(key, chip);
+    picker.appendChild(chip);
+  });
+  // Auto-select first
+  selectCompetitor(Object.keys(COMPETITORS)[0]);
+}
+
+function selectCompetitor(key, clickedChip) {
+  const c = COMPETITORS[key];
+  if (!c) return;
+
+  // Update chips
+  document.querySelectorAll('.comp-chip').forEach(ch => ch.classList.remove('active'));
+  if (clickedChip) clickedChip.classList.add('active');
+  else document.querySelectorAll('.comp-chip').forEach(ch => { if(ch.textContent===c.name) ch.classList.add('active'); });
+
+  // Show result
+  document.getElementById('compResult').classList.add('visible');
+
+  // Header
+  document.getElementById('theirName').textContent = c.name;
+  document.getElementById('theirPrice').textContent = c.price;
+  document.getElementById('theirPriceNote').textContent = c.priceNote;
+
+  // Savings
+  document.getElementById('savingsValue').textContent = c.savings;
+  document.getElementById('savingsLabel').textContent = c.savingsLabel;
+
+  // Column name
+  document.getElementById('theirColName').textContent = c.name;
+
+  // Build table
+  const tbody = document.getElementById('compTableBody');
+  tbody.innerHTML = '';
+  let wins = 0, ties = 0, losses = 0;
+  c.features.forEach(([feature, ours, theirs, result]) => {
+    if (result === 'win') wins++;
+    else if (result === 'tie') ties++;
+    else losses++;
+    const tr = document.createElement('tr');
+    const oursClass = result === 'win' ? 'win' : (result === 'tie' ? 'tie' : '');
+    const theirsClass = result === 'lose' ? 'win' : (result === 'tie' ? 'tie' : 'lose');
+    tr.innerHTML = `<td>${feature}</td><td class="${oursClass}">${ours}</td><td class="${theirsClass}">${theirs}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Score
+  document.getElementById('scoreWins').textContent = wins;
+  document.getElementById('scoreTies').textContent = ties;
+  document.getElementById('scoreLosses').textContent = losses;
+
+  // Verdict
+  document.getElementById('verdictText').textContent = c.verdict;
+}
+
+// Init on load
+document.addEventListener('DOMContentLoaded', initComparator);
+
+/* ===== SIGNUP MODAL ===== */
 function openSignup(plan) {
   document.getElementById('signupModal').classList.add('active');
   if (plan) document.getElementById('selectedPlan').value = plan;

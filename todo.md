@@ -2237,3 +2237,8 @@
 #### Verification
 - [x] Verify existing BuildTrack Pro app works for Monday crew use (all endpoints tested)
 - [x] Test all critical flows — 351 tests passed, 0 failures
+
+### Phase 116: Interactive Competitor Comparison on Marketing Site
+- [x] Add interactive competitor comparison tool to marketing landing page
+- [x] Allow users to select competitors and see side-by-side feature/pricing breakdown (8 competitors: Procore, Buildertrend, Fieldwire, Raken, Connecteam, Contractor Foreman, Jobber, CoConstruct)
+- [x] Highlight BuildTrack Pro advantages in each comparison (win/tie/loss scoring, savings calculator, verdict)
