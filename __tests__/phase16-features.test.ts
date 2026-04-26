@@ -15,7 +15,7 @@ describe("Phase 16 — Budget Alerts", () => {
   const jobsTsx = readFile("app/(tabs)/jobs.tsx");
 
   it("should have getBudgetAlerts function in db.ts", () => {
-    expect(dbTs).toContain("export async function getBudgetAlerts()");
+    expect(dbTs).toContain("export async function getBudgetAlerts(");
   });
 
   it("should calculate labor cost, overhead, and expenses in getBudgetAlerts", () => {

@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BuildTrack Pro — Construction Management, Simplified</title>
+<meta name="description" content="The all-in-one construction management app with AI-powered tools. Time tracking, job costing, daily reports, and an AI assistant that speaks construction. 14-day free trial.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#C8A84E;
+  --gold-light:#E8D48A;
+  --dark:#0A0A0A;
+  --dark-2:#141414;
+  --dark-3:#1E1E1E;
+  --white:#FFFFFF;
+  --gray:#A0A0A0;
+  --gray-light:#D0D0D0;
+  --green:#22C55E;
+  --red:#EF4444;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--dark);color:var(--white);line-height:1.6;overflow-x:hidden}
+a{color:var(--gold);text-decoration:none;transition:opacity .2s}
+a:hover{opacity:.85}
+
+/* NAV */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(10,10,10,.92);backdrop-filter:blur(20px);border-bottom:1px solid rgba(200,168,78,.15)}
+.nav-inner{max-width:1200px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+.nav-logo{font-size:22px;font-weight:800;color:var(--white);letter-spacing:-.5px}
+.nav-logo span{color:var(--gold)}
+.nav-links{display:flex;gap:32px;align-items:center}
+.nav-links a{color:var(--gray-light);font-size:14px;font-weight:500}
+.nav-links a:hover{color:var(--white)}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 24px;border-radius:8px;font-weight:600;font-size:14px;transition:all .2s;cursor:pointer;border:none}
+.btn-primary{background:var(--gold);color:var(--dark);box-shadow:0 4px 24px rgba(200,168,78,.3)}
+.btn-primary:hover{background:var(--gold-light);color:var(--dark);transform:translateY(-1px);box-shadow:0 8px 32px rgba(200,168,78,.4)}
+.btn-outline{background:transparent;color:var(--white);border:1px solid rgba(255,255,255,.2)}
+.btn-outline:hover{border-color:var(--gold);color:var(--gold)}
+.btn-large{padding:14px 36px;font-size:16px;border-radius:10px}
+
+/* HERO */
+.hero{padding:140px 24px 80px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(circle,rgba(200,168,78,.08) 0%,transparent 70%);pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;background:rgba(200,168,78,.1);border:1px solid rgba(200,168,78,.2);border-radius:100px;font-size:13px;color:var(--gold);font-weight:500;margin-bottom:24px}
+.hero h1{font-size:clamp(36px,6vw,72px);font-weight:900;line-height:1.05;letter-spacing:-2px;max-width:900px;margin:0 auto 20px}
+.hero h1 span{background:linear-gradient(135deg,var(--gold),var(--gold-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:clamp(16px,2vw,20px);color:var(--gray);max-width:640px;margin:0 auto 40px;line-height:1.7}
+.hero-cta{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.hero-stats{display:flex;gap:48px;justify-content:center;margin-top:64px;flex-wrap:wrap}
+.hero-stat{text-align:center}
+.hero-stat-value{font-size:32px;font-weight:800;color:var(--gold)}
+.hero-stat-label{font-size:13px;color:var(--gray);margin-top:4px}
+
+/* SECTIONS */
+.section{padding:80px 24px}
+.section-inner{max-width:1200px;margin:0 auto}
+.section-header{text-align:center;margin-bottom:64px}
+.section-header h2{font-size:clamp(28px,4vw,44px);font-weight:800;letter-spacing:-1px;margin-bottom:16px}
+.section-header p{font-size:18px;color:var(--gray);max-width:600px;margin:0 auto}
+.section-tag{display:inline-block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--gold);margin-bottom:12px}
+
+/* FEATURES GRID */
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+.feature-card{background:var(--dark-2);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:32px;transition:border-color .3s}
+.feature-card:hover{border-color:rgba(200,168,78,.3)}
+.feature-icon{width:48px;height:48px;border-radius:12px;background:rgba(200,168,78,.1);display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:20px}
+.feature-card h3{font-size:18px;font-weight:700;margin-bottom:8px}
+.feature-card p{font-size:14px;color:var(--gray);line-height:1.7}
+
+/* COMPARISON TABLE */
+.comparison{overflow-x:auto}
+.comparison table{width:100%;border-collapse:collapse;min-width:700px}
+.comparison th,.comparison td{padding:16px 20px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06);font-size:14px}
+.comparison th{color:var(--gray);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:1px}
+.comparison th:first-child{color:var(--white)}
+.comparison td:first-child{font-weight:600;color:var(--white)}
+.comparison .highlight{background:rgba(200,168,78,.05);border-left:2px solid var(--gold)}
+.comparison .highlight th,.comparison .highlight td{color:var(--gold);font-weight:700}
+.check{color:var(--green);font-weight:700}
+.cross{color:var(--red);opacity:.5}
+.partial{color:var(--gray)}
+
+/* PRICING */
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;align-items:start}
+.price-card{background:var(--dark-2);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:36px;position:relative}
+.price-card.featured{border-color:var(--gold);box-shadow:0 0 60px rgba(200,168,78,.1)}
+.price-card.featured::before{content:'MOST POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--gold);color:var(--dark);font-size:11px;font-weight:800;padding:4px 16px;border-radius:100px;letter-spacing:1px}
+.price-card h3{font-size:20px;font-weight:700;margin-bottom:4px}
+.price-card .price-desc{font-size:14px;color:var(--gray);margin-bottom:20px}
+.price-card .price{font-size:48px;font-weight:900;margin-bottom:4px}
+.price-card .price span{font-size:16px;font-weight:400;color:var(--gray)}
+.price-card .price-note{font-size:13px;color:var(--gray);margin-bottom:24px}
+.price-card ul{list-style:none;margin-bottom:28px}
+.price-card li{font-size:14px;padding:8px 0;color:var(--gray-light);display:flex;align-items:start;gap:10px}
+.price-card li::before{content:'✓';color:var(--gold);font-weight:700;flex-shrink:0}
+.price-card .btn{width:100%}
+
+/* AI SECTION */
+.ai-section{background:linear-gradient(135deg,rgba(200,168,78,.04),rgba(200,168,78,.01));border-top:1px solid rgba(200,168,78,.1);border-bottom:1px solid rgba(200,168,78,.1)}
+.ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+.ai-features{display:flex;flex-direction:column;gap:24px}
+.ai-feature{display:flex;gap:16px;align-items:start}
+.ai-feature-icon{width:40px;height:40px;border-radius:10px;background:rgba(200,168,78,.1);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.ai-feature h4{font-size:16px;font-weight:600;margin-bottom:4px}
+.ai-feature p{font-size:14px;color:var(--gray)}
+.ai-chat{background:var(--dark-3);border-radius:16px;padding:24px;border:1px solid rgba(255,255,255,.06)}
+.ai-chat-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.06)}
+.ai-chat-header .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.ai-chat-header span{font-size:14px;font-weight:600}
+.ai-msg{padding:12px 16px;border-radius:12px;font-size:14px;margin-bottom:12px;max-width:85%;line-height:1.6}
+.ai-msg.user{background:rgba(200,168,78,.15);margin-left:auto;color:var(--gold-light)}
+.ai-msg.bot{background:rgba(255,255,255,.05);color:var(--gray-light)}
+
+/* ROLES */
+.roles-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px}
+.role-card{background:var(--dark-2);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:24px;text-align:center}
+.role-card .role-emoji{font-size:36px;margin-bottom:12px}
+.role-card h4{font-size:16px;font-weight:700;margin-bottom:6px}
+.role-card p{font-size:13px;color:var(--gray);line-height:1.6}
+
+/* CTA */
+.cta-section{text-align:center;padding:100px 24px;position:relative}
+.cta-section::before{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(200,168,78,.06) 0%,transparent 70%);pointer-events:none}
+.cta-section h2{font-size:clamp(32px,5vw,52px);font-weight:900;letter-spacing:-1.5px;margin-bottom:16px}
+.cta-section p{font-size:18px;color:var(--gray);max-width:500px;margin:0 auto 36px}
+
+/* FOOTER */
+.footer{border-top:1px solid rgba(255,255,255,.06);padding:40px 24px;text-align:center}
+.footer p{font-size:13px;color:var(--gray)}
+
+/* SIGNUP MODAL */
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);z-index:200;align-items:center;justify-content:center;padding:24px}
+.modal-overlay.active{display:flex}
+.modal{background:var(--dark-2);border:1px solid rgba(200,168,78,.2);border-radius:20px;padding:40px;max-width:480px;width:100%;position:relative}
+.modal h2{font-size:24px;font-weight:800;margin-bottom:8px}
+.modal .modal-desc{font-size:14px;color:var(--gray);margin-bottom:28px}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--gray);font-size:24px;cursor:pointer}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:var(--gray-light);margin-bottom:6px}
+.form-group input,.form-group select{width:100%;padding:12px 16px;background:var(--dark-3);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--white);font-size:14px;font-family:inherit;outline:none;transition:border-color .2s}
+.form-group input:focus,.form-group select:focus{border-color:var(--gold)}
+.form-group input::placeholder{color:var(--gray)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-error{color:var(--red);font-size:13px;margin-top:6px;display:none}
+.form-success{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:12px;padding:20px;text-align:center;display:none}
+.form-success h3{color:var(--green);font-size:18px;font-weight:700;margin-bottom:8px}
+.form-success p{font-size:14px;color:var(--gray-light)}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .nav-links{display:none}
+  .ai-grid{grid-template-columns:1fr;gap:40px}
+  .hero-stats{gap:24px}
+  .form-row{grid-template-columns:1fr}
+  .comparison{font-size:13px}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="nav-logo">Build<span>Track</span> Pro</div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#ai">AI Assistant</a>
+      <a href="#compare">Compare</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#" class="btn btn-primary" onclick="openSignup()">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">🏗️ Built by contractors, for contractors</div>
+  <h1>Run Your Crew.<br><span>Not Spreadsheets.</span></h1>
+  <p>The only construction management app with a built-in AI assistant that speaks your language. Time tracking, job costing, daily reports, and crew management — all in one place.</p>
+  <div class="hero-cta">
+    <a href="#" class="btn btn-primary btn-large" onclick="openSignup()">Start 14-Day Free Trial</a>
+    <a href="#features" class="btn btn-outline btn-large">See Features</a>
+  </div>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <div class="hero-stat-value">5</div>
+      <div class="hero-stat-label">Custom Dashboards</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-value">959</div>
+      <div class="hero-stat-label">Steel Shapes in Database</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-value">2</div>
+      <div class="hero-stat-label">Languages (EN + ES)</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-value">$0</div>
+      <div class="hero-stat-label">To Start Today</div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="section-inner">
+    <div class="section-header">
+      <div class="section-tag">Features</div>
+      <h2>Everything Your Crew Needs</h2>
+      <p>From the field to the office, BuildTrack Pro covers every part of your operation.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">⏱️</div>
+        <h3>GPS Time Tracking</h3>
+        <p>Clock in/out with GPS verification. Foremen can clock in entire crews at once. Offline mode works even without signal — syncs when you're back online.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💰</div>
+        <h3>Real-Time Job Costing</h3>
+        <p>See exactly where your money goes. Labor costs calculate automatically from clock entries. Track expenses, change orders, and budget burn-down in real time.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <h3>Daily Field Reports</h3>
+        <p>Foremen submit reports with photos, weather conditions, crew counts, and work completed. Management sees everything instantly — no more end-of-day phone calls.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Financial Analytics</h3>
+        <p>Job profitability charts, labor cost trends, tax breakdowns (payroll, workers comp, liability), and budget burn-down graphs. Know your numbers before they become problems.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎯</div>
+        <h3>Meeting → Goals Pipeline</h3>
+        <p>Record your meetings, get AI-generated summaries, and auto-create weekly goals with deadlines and assignees. Turn talk into action automatically.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Role-Based Access</h3>
+        <p>5 roles with custom dashboards: Owner, Office Manager, Logistics, Foreman, and Laborer. Everyone sees exactly what they need — nothing more, nothing less.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🛡️</div>
+        <h3>Safety Toolbox Talks</h3>
+        <p>Built-in safety topics library. Schedule and track toolbox talks, record attendance, and maintain compliance records — all from the app.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📱</div>
+        <h3>Works Everywhere</h3>
+        <p>Native app for iOS and Android, plus a full web version. Your crew uses phones in the field, you use a computer in the office. Everyone stays connected.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📄</div>
+        <h3>PDF Reports & Sharing</h3>
+        <p>Generate professional PDF reports for payroll, job budgets, and daily field reports. Share via email, text, or AirDrop. No QuickBooks required.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- AI SECTION -->
+<section class="section ai-section" id="ai">
+  <div class="section-inner">
+    <div class="section-header">
+      <div class="section-tag">AI Assistant</div>
+      <h2>Meet Pivot — Your AI Superintendent</h2>
+      <p>The first construction AI that actually knows construction. Voice-enabled, bilingual, and built into every screen.</p>
+    </div>
+    <div class="ai-grid">
+      <div class="ai-features">
+        <div class="ai-feature">
+          <div class="ai-feature-icon">🗣️</div>
+          <div>
+            <h4>Voice-Powered</h4>
+            <p>Talk to Pivot like you'd talk to your superintendent. Ask questions, get calculations, and create reports — all by voice.</p>
+          </div>
+        </div>
+        <div class="ai-feature">
+          <div class="ai-feature-icon">🇺🇸🇲🇽</div>
+          <div>
+            <h4>English + Spanish</h4>
+            <p>Pivot speaks both languages fluently. Your bilingual crew can use the app in whichever language they're comfortable with.</p>
+          </div>
+        </div>
+        <div class="ai-feature">
+          <div class="ai-feature-icon">📐</div>
+          <div>
+            <h4>Construction Calculator</h4>
+            <p>Beam loads, roof pitch, compound angles, rafter lengths, concrete volume — Pivot calculates it all. Plus a database of 959 steel shapes.</p>
+          </div>
+        </div>
+        <div class="ai-feature">
+          <div class="ai-feature-icon">🧠</div>
+          <div>
+            <h4>Learns Your Business</h4>
+            <p>Pivot remembers your projects, your crew, and your preferences. The more you use it, the smarter it gets about your specific operation.</p>
+          </div>
+        </div>
+      </div>
+      <div class="ai-chat">
+        <div class="ai-chat-header">
+          <div class="dot"></div>
+          <span>Pivot AI — Online</span>
+        </div>
+        <div class="ai-msg user">What's the rafter length for a 24-foot span at 6/12 pitch?</div>
+        <div class="ai-msg bot">For a 24' span at 6/12 pitch:<br><br>• Run: 12' (half of 24' span)<br>• Rise: 6' (6/12 × 12')<br>• <strong>Rafter length: 13' 5"</strong><br>• Roof angle: 26.57°<br><br>Add 12-18" for overhang. Want me to calculate with a specific overhang?</div>
+        <div class="ai-msg user">¿Cuánto concreto necesito para una losa de 20x30 pies, 4 pulgadas de espesor?</div>
+        <div class="ai-msg bot">Para una losa de 20' × 30' × 4":<br><br>• Volumen: <strong>7.41 yardas cúbicas</strong><br>• Recomendado pedir: <strong>8.15 yd³</strong> (+10% desperdicio)<br><br>¿Necesitas que calcule el costo con un precio por yarda?</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ROLES -->
+<section class="section">
+  <div class="section-inner">
+    <div class="section-header">
+      <div class="section-tag">Role-Based Dashboards</div>
+      <h2>One App. Five Custom Views.</h2>
+      <p>Every role gets a dashboard designed for exactly what they do.</p>
+    </div>
+    <div class="roles-grid">
+      <div class="role-card">
+        <div class="role-emoji">👔</div>
+        <h4>Owner</h4>
+        <p>Full financial visibility. Job profitability, labor trends, budget alerts, and company-wide KPIs.</p>
+      </div>
+      <div class="role-card">
+        <div class="role-emoji">💼</div>
+        <h4>Office Manager</h4>
+        <p>Payroll reports, employee management, time adjustments, and PDF exports.</p>
+      </div>
+      <div class="role-card">
+        <div class="role-emoji">🚛</div>
+        <h4>Logistics</h4>
+        <p>Material tracking, job assignments, crew scheduling, and expense management.</p>
+      </div>
+      <div class="role-card">
+        <div class="role-emoji">🏗️</div>
+        <h4>Foreman</h4>
+        <p>Crew clock-in, daily field reports, punch lists, and safety toolbox talks.</p>
+      </div>
+      <div class="role-card">
+        <div class="role-emoji">🔨</div>
+        <h4>Laborer</h4>
+        <p>Simple clock in/out, view today's job, check hours, and see assigned goals.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARISON -->
+<section class="section" id="compare" style="background:var(--dark-2)">
+  <div class="section-inner">
+    <div class="section-header">
+      <div class="section-tag">Comparison</div>
+      <h2>How We Stack Up</h2>
+      <p>See why BuildTrack Pro gives you more for less.</p>
+    </div>
+    <div class="comparison">
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th class="highlight">BuildTrack Pro</th>
+            <th>Procore</th>
+            <th>Buildertrend</th>
+            <th>Fieldwire</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Starting Price</td>
+            <td class="highlight">$29/mo</td>
+            <td>$15,000+/yr</td>
+            <td>$8,388/yr</td>
+            <td>$54/user/mo</td>
+          </tr>
+          <tr>
+            <td>AI Assistant</td>
+            <td class="highlight"><span class="check">✓ Built-in</span></td>
+            <td><span class="cross">✗</span></td>
+            <td><span class="cross">✗</span></td>
+            <td><span class="cross">✗</span></td>
+          </tr>
+          <tr>
+            <td>Voice Commands</td>
+            <td class="highlight"><span class="check">✓</span></td>
+            <td><span class="cross">✗</span></td>
+            <td><span class="cross">✗</span></td>
+            <td><span class="cross">✗</span></td>
+          </tr>
+          <tr>
+            <td>Bilingual (EN/ES)</td>
+            <td class="highlight"><span class="check">✓</span></td>
+            <td><span class="cross">✗</span></td>
+            <td><span class="cross">✗</span></td>
+            <td><span class="cross">✗</span></td>
+          </tr>
+          <tr>
+            <td>Construction Calculator</td>
+            <td class="highlight"><span class="check">✓ 959 shapes</span></td>
+            <td><span class="cross">✗</span></td>
+            <td><span class="cross">✗</span></td>
+            <td><span class="cross">✗</span></td>
+          </tr>
+          <tr>
+            <td>Meeting → Goals AI</td>
+            <td class="highlight"><span class="check">✓</span></td>
+            <td><span class="cross">✗</span></td>
+            <td><span class="cross">✗</span></td>
+            <td><span class="cross">✗</span></td>
+          </tr>
+          <tr>
+            <td>GPS Time Tracking</td>
+            <td class="highlight"><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="partial">Limited</span></td>
+          </tr>
+          <tr>
+            <td>Crew Clock-In</td>
+            <td class="highlight"><span class="check">✓</span></td>
+            <td><span class="cross">✗</span></td>
+            <td><span class="partial">Add-on</span></td>
+            <td><span class="cross">✗</span></td>
+          </tr>
+          <tr>
+            <td>Offline Mode</td>
+            <td class="highlight"><span class="check">✓ Full</span></td>
+            <td><span class="partial">Limited</span></td>
+            <td><span class="partial">Limited</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Role-Based Dashboards</td>
+            <td class="highlight"><span class="check">✓ 5 roles</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="partial">Limited</span></td>
+          </tr>
+          <tr>
+            <td>Free Trial</td>
+            <td class="highlight"><span class="check">✓ 14 days</span></td>
+            <td><span class="cross">✗ Demo only</span></td>
+            <td><span class="cross">✗ Demo only</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="section" id="pricing">
+  <div class="section-inner">
+    <div class="section-header">
+      <div class="section-tag">Pricing</div>
+      <h2>Simple, Honest Pricing</h2>
+      <p>No per-user fees. No hidden costs. No annual contracts required.</p>
+    </div>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <h3>Starter</h3>
+        <p class="price-desc">For growing crews</p>
+        <div class="price">$29<span>/mo</span></div>
+        <p class="price-note">14-day free trial included</p>
+        <ul>
+          <li>Up to 15 employees</li>
+          <li>Up to 10 active jobs</li>
+          <li>GPS time tracking</li>
+          <li>Daily field reports</li>
+          <li>Job costing & budgets</li>
+          <li>Pivot AI assistant</li>
+          <li>PDF report exports</li>
+          <li>Offline mode</li>
+        </ul>
+        <a href="#" class="btn btn-outline" onclick="openSignup('starter')">Start Free Trial</a>
+      </div>
+      <div class="price-card featured">
+        <h3>Professional</h3>
+        <p class="price-desc">For established companies</p>
+        <div class="price">$59<span>/mo</span></div>
+        <p class="price-note">14-day free trial included</p>
+        <ul>
+          <li>Up to 50 employees</li>
+          <li>Unlimited active jobs</li>
+          <li>Everything in Starter, plus:</li>
+          <li>Financial analytics & charts</li>
+          <li>Meeting recording & AI summaries</li>
+          <li>Weekly goals with auto-assignment</li>
+          <li>Safety toolbox talks</li>
+          <li>Change order tracking</li>
+          <li>KPI dashboard</li>
+          <li>Priority support</li>
+        </ul>
+        <a href="#" class="btn btn-primary" onclick="openSignup('professional')">Start Free Trial</a>
+      </div>
+      <div class="price-card">
+        <h3>Enterprise</h3>
+        <p class="price-desc">For large operations</p>
+        <div class="price">$99<span>/mo</span></div>
+        <p class="price-note">14-day free trial included</p>
+        <ul>
+          <li>Unlimited employees</li>
+          <li>Unlimited active jobs</li>
+          <li>Everything in Professional, plus:</li>
+          <li>Multi-project dashboard</li>
+          <li>Advanced reporting & exports</li>
+          <li>Custom overhead tracking</li>
+          <li>Employee tax info management</li>
+          <li>API access</li>
+          <li>Dedicated support</li>
+        </ul>
+        <a href="#" class="btn btn-outline" onclick="openSignup('enterprise')">Start Free Trial</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2>Ready to Build Smarter?</h2>
+  <p>Join construction companies who are done with spreadsheets and paper timesheets.</p>
+  <a href="#" class="btn btn-primary btn-large" onclick="openSignup()">Start Your 14-Day Free Trial</a>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <p>&copy; 2026 BuildTrack Pro. All rights reserved.</p>
+</footer>
+
+<!-- SIGNUP MODAL -->
+<div class="modal-overlay" id="signupModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeSignup()">&times;</button>
+    <div id="signupForm">
+      <h2>Start Your Free Trial</h2>
+      <p class="modal-desc">14 days free. No credit card required. Set up in 2 minutes.</p>
+      <div class="form-group">
+        <label>Company Name</label>
+        <input type="text" id="companyName" placeholder="e.g. Smith Construction LLC">
+      </div>
+      <div class="form-group">
+        <label>Company URL (for your team's login)</label>
+        <input type="text" id="companySlug" placeholder="e.g. smith-construction" oninput="formatSlug(this)">
+        <small style="color:var(--gray);font-size:12px">Your team will log in at this URL</small>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Your Name</label>
+          <input type="text" id="ownerName" placeholder="Full name">
+        </div>
+        <div class="form-group">
+          <label>Your PIN (4-6 digits)</label>
+          <input type="password" id="ownerPin" placeholder="••••" maxlength="6" inputmode="numeric">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Email (optional)</label>
+          <input type="email" id="ownerEmail" placeholder="you@company.com">
+        </div>
+        <div class="form-group">
+          <label>Phone (optional)</label>
+          <input type="tel" id="ownerPhone" placeholder="(555) 123-4567">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Plan</label>
+        <select id="selectedPlan">
+          <option value="starter">Starter — $29/mo</option>
+          <option value="professional" selected>Professional — $59/mo (Most Popular)</option>
+          <option value="enterprise">Enterprise — $99/mo</option>
+        </select>
+      </div>
+      <div class="form-error" id="formError"></div>
+      <button class="btn btn-primary btn-large" style="width:100%;margin-top:8px" onclick="submitSignup()">Create My Account</button>
+    </div>
+    <div class="form-success" id="signupSuccess">
+      <h3>🎉 Welcome to BuildTrack Pro!</h3>
+      <p>Your 14-day free trial has started. Download the app and log in with your PIN to get started.</p>
+      <div style="margin-top:20px">
+        <a href="#" class="btn btn-primary">Download the App</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function openSignup(plan) {
+  document.getElementById('signupModal').classList.add('active');
+  if (plan) document.getElementById('selectedPlan').value = plan;
+}
+function closeSignup() {
+  document.getElementById('signupModal').classList.remove('active');
+}
+function formatSlug(el) {
+  el.value = el.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+}
+async function submitSignup() {
+  const err = document.getElementById('formError');
+  err.style.display = 'none';
+  
+  const companyName = document.getElementById('companyName').value.trim();
+  const slug = document.getElementById('companySlug').value.trim();
+  const ownerName = document.getElementById('ownerName').value.trim();
+  const ownerPin = document.getElementById('ownerPin').value.trim();
+  const ownerEmail = document.getElementById('ownerEmail').value.trim() || undefined;
+  const ownerPhone = document.getElementById('ownerPhone').value.trim() || undefined;
+  
+  if (!companyName || !slug || !ownerName || !ownerPin) {
+    err.textContent = 'Please fill in all required fields.';
+    err.style.display = 'block';
+    return;
+  }
+  if (ownerPin.length < 4 || !/^\d+$/.test(ownerPin)) {
+    err.textContent = 'PIN must be 4-6 digits.';
+    err.style.display = 'block';
+    return;
+  }
+  if (slug.length < 2) {
+    err.textContent = 'Company URL must be at least 2 characters.';
+    err.style.display = 'block';
+    return;
+  }
+  
+  try {
+    const res = await fetch('/api/trpc/company.signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        json: { companyName, slug, ownerName, ownerPin, ownerEmail, ownerPhone }
+      })
+    });
+    const data = await res.json();
+    if (data.error) {
+      err.textContent = data.error.message || 'Something went wrong. Please try again.';
+      err.style.display = 'block';
+      return;
+    }
+    // Success
+    document.getElementById('signupForm').style.display = 'none';
+    document.getElementById('signupSuccess').style.display = 'block';
+  } catch (e) {
+    err.textContent = 'Network error. Please check your connection and try again.';
+    err.style.display = 'block';
+  }
+}
+// Close modal on overlay click
+document.getElementById('signupModal').addEventListener('click', function(e) {
+  if (e.target === this) closeSignup();
+});
+</script>
+</body>
+</html>
