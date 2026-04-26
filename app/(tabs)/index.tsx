@@ -13,6 +13,7 @@ import {
   Image,
   ImageBackground,
   Linking,
+  Modal,
   Platform,
   RefreshControl,
   ScrollView,
@@ -418,6 +419,75 @@ export default function DashboardScreen() {
     } finally { setLunchSaving(false); }
   }, [lunchMinutes, employee?.id, clockedIn, adjustEntryMutation, refetchClockedIn]);
 
+  // Crew clock-in modal state (for management/foreman home dashboard)
+  const [showCrewClockIn, setShowCrewClockIn] = useState(false);
+  const [crewClockEmpId, setCrewClockEmpId] = useState<number | null>(null);
+  const [crewClockJobId, setCrewClockJobId] = useState<number | null>(null);
+  const [crewClockLoading, setCrewClockLoading] = useState(false);
+  const [useCustomCrewClockTime, setUseCustomCrewClockTime] = useState(false);
+  const [customCrewClockTime, setCustomCrewClockTime] = useState("");
+  const [customCrewClockAmpm, setCustomCrewClockAmpm] = useState("AM");
+  const crewClockInMutation = trpc.clock.in.useMutation();
+
+  const notClockedInEmployees = useMemo(() => {
+    const clockedInIds = new Set((clockedIn || []).map((e: any) => e.employeeId));
+    const allActive = (allEmployees || cachedEmployees || []).filter((e: any) => e.isActive && !clockedInIds.has(e.id));
+    if (isForeman && employee) {
+      return allActive.filter((e: any) => e.role === "laborer");
+    }
+    return allActive;
+  }, [allEmployees, cachedEmployees, clockedIn, isForeman, employee]);
+
+  const handleCrewClockIn = useCallback(async () => {
+    if (!crewClockEmpId || !crewClockJobId) {
+      Alert.alert("Select Both", "Please select an employee and a job.");
+      return;
+    }
+    if (crewClockLoading) return;
+    setCrewClockLoading(true);
+    try {
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      let clockInTime = new Date().toISOString();
+      if (useCustomCrewClockTime && customCrewClockTime) {
+        const parts = customCrewClockTime.split(":");
+        if (parts.length === 2) {
+          let hours = parseInt(parts[0], 10);
+          const mins = parseInt(parts[1], 10);
+          if (!isNaN(hours) && !isNaN(mins)) {
+            if (customCrewClockAmpm === "PM" && hours < 12) hours += 12;
+            if (customCrewClockAmpm === "AM" && hours === 12) hours = 0;
+            const customDate = new Date();
+            customDate.setHours(hours, mins, 0, 0);
+            clockInTime = customDate.toISOString();
+          }
+        }
+      }
+      await crewClockInMutation.mutateAsync({
+        employeeId: crewClockEmpId,
+        jobId: crewClockJobId,
+        clockIn: clockInTime,
+        isOfflineEntry: false,
+      });
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await Promise.all([
+        utils.clock.allClockedIn.invalidate(),
+        utils.clock.activeEntry.invalidate(),
+        utils.clock.history.invalidate(),
+      ]);
+      refetchClockedIn();
+      setShowCrewClockIn(false);
+      setCrewClockEmpId(null);
+      setCrewClockJobId(null);
+      setUseCustomCrewClockTime(false);
+      setCustomCrewClockTime("");
+      Alert.alert("Clocked In", "Employee has been clocked in successfully.");
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Could not clock in. Please try again.");
+    } finally {
+      setCrewClockLoading(false);
+    }
+  }, [crewClockEmpId, crewClockJobId, crewClockLoading, crewClockInMutation, utils, refetchClockedIn, useCustomCrewClockTime, customCrewClockTime, customCrewClockAmpm]);
+
   // Self clock state
   const { activeEntry, optimisticClockIn, optimisticClockOut } = useClockState();
   const clockInMutation = trpc.clock.in.useMutation();
@@ -661,7 +731,7 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
           <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
-            <TouchableOpacity style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.success + "18", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40" }} onPress={() => router.push("/manage" as any)}>
+            <TouchableOpacity style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.success + "18", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40" }} onPress={() => setShowCrewClockIn(true)}>
               <MaterialIcons name="person-add" size={22} color={colors.success} style={{ marginRight: 12 }} />
               <View>
                 <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Crew Clock-In</Text>
@@ -706,6 +776,60 @@ export default function DashboardScreen() {
       <VoiceGoalCreator visible={showVoiceGoals} onClose={() => setShowVoiceGoals(false)} />
       <ConstructionCalculator visible={showCalculator} onClose={() => setShowCalculator(false)} />
       <CompassModal visible={showCompass} onClose={() => setShowCompass(false)} />
+      {/* Crew Clock-In Modal */}
+      <Modal visible={showCrewClockIn} animationType="slide" transparent>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: "80%" }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>Crew Clock-In</Text>
+              <TouchableOpacity onPress={() => { setShowCrewClockIn(false); setCrewClockEmpId(null); setCrewClockJobId(null); setUseCustomCrewClockTime(false); }}>
+                <MaterialIcons name="close" size={24} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 14, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>SELECT EMPLOYEE</Text>
+            <ScrollView style={{ maxHeight: 180, marginBottom: 16 }} nestedScrollEnabled>
+              {notClockedInEmployees.map((emp: any) => (
+                <TouchableOpacity key={emp.id} onPress={() => setCrewClockEmpId(emp.id)} style={{ flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 10, marginBottom: 4, backgroundColor: crewClockEmpId === emp.id ? colors.success + "20" : colors.surface, borderWidth: crewClockEmpId === emp.id ? 1 : 0, borderColor: colors.success }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: crewClockEmpId === emp.id ? colors.success : colors.muted + "30", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                    <Text style={{ color: crewClockEmpId === emp.id ? "#fff" : colors.foreground, fontWeight: "700", fontSize: 14 }}>{(emp.name || "").substring(0, 2).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{emp.name}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>{emp.role}</Text>
+                  </View>
+                  {crewClockEmpId === emp.id && <MaterialIcons name="check-circle" size={20} color={colors.success} />}
+                </TouchableOpacity>
+              ))}
+              {notClockedInEmployees.length === 0 && <Text style={{ color: colors.muted, textAlign: "center", padding: 20 }}>All employees are clocked in</Text>}
+            </ScrollView>
+            <Text style={{ fontSize: 14, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>SELECT JOBSITE</Text>
+            <ScrollView style={{ maxHeight: 140, marginBottom: 16 }} nestedScrollEnabled>
+              {effectiveActiveJobs.map((job: any) => (
+                <TouchableOpacity key={job.id} onPress={() => setCrewClockJobId(job.id)} style={{ flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 10, marginBottom: 4, backgroundColor: crewClockJobId === job.id ? colors.primary + "20" : colors.surface, borderWidth: crewClockJobId === job.id ? 1 : 0, borderColor: colors.primary }}>
+                  <MaterialIcons name="location-on" size={18} color={crewClockJobId === job.id ? colors.primary : colors.muted} style={{ marginRight: 10 }} />
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, flex: 1 }}>{job.name}</Text>
+                  {crewClockJobId === job.id && <MaterialIcons name="check-circle" size={20} color={colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity onPress={() => setUseCustomCrewClockTime(!useCustomCrewClockTime)} style={{ flexDirection: "row", alignItems: "center", marginBottom: useCustomCrewClockTime ? 8 : 16 }}>
+              <MaterialIcons name={useCustomCrewClockTime ? "check-box" : "check-box-outline-blank"} size={20} color={colors.primary} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 14, color: colors.foreground }}>Custom clock-in time</Text>
+            </TouchableOpacity>
+            {useCustomCrewClockTime && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                <TextInput value={customCrewClockTime} onChangeText={setCustomCrewClockTime} placeholder="7:00" placeholderTextColor={colors.muted} style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 10, padding: 12, color: colors.foreground, fontSize: 16, borderWidth: 1, borderColor: colors.border }} keyboardType="numbers-and-punctuation" />
+                <TouchableOpacity onPress={() => setCustomCrewClockAmpm(customCrewClockAmpm === "AM" ? "PM" : "AM")} style={{ backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12 }}>
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{customCrewClockAmpm}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <TouchableOpacity onPress={handleCrewClockIn} disabled={!crewClockEmpId || !crewClockJobId || crewClockLoading} style={{ backgroundColor: colors.success, borderRadius: 14, padding: 16, alignItems: "center", opacity: (!crewClockEmpId || !crewClockJobId || crewClockLoading) ? 0.5 : 1 }}>
+              {crewClockLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Clock In Employee</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       </ScreenContainer>
     );
   }
@@ -781,7 +905,7 @@ export default function DashboardScreen() {
 
           {/* Quick Actions */}
           <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
-            <TouchableOpacity style={{ flex: 1, backgroundColor: colors.success + "15", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40", alignItems: "center" }} onPress={() => router.push("/manage" as any)}>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: colors.success + "15", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40", alignItems: "center" }} onPress={() => setShowCrewClockIn(true)}>
               <Text style={{ fontSize: 18, marginBottom: 6, fontWeight: "700", color: colors.success }}>CLK</Text>
               <Text style={{ fontSize: 11, fontWeight: "600", color: colors.success, textAlign: "center" }}>Crew Clock</Text>
             </TouchableOpacity>
@@ -835,6 +959,60 @@ export default function DashboardScreen() {
       <VoiceGoalCreator visible={showVoiceGoals} onClose={() => setShowVoiceGoals(false)} />
       <ConstructionCalculator visible={showCalculator} onClose={() => setShowCalculator(false)} />
       <CompassModal visible={showCompass} onClose={() => setShowCompass(false)} />
+      {/* Crew Clock-In Modal */}
+      <Modal visible={showCrewClockIn} animationType="slide" transparent>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: "80%" }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>Crew Clock-In</Text>
+              <TouchableOpacity onPress={() => { setShowCrewClockIn(false); setCrewClockEmpId(null); setCrewClockJobId(null); setUseCustomCrewClockTime(false); }}>
+                <MaterialIcons name="close" size={24} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 14, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>SELECT EMPLOYEE</Text>
+            <ScrollView style={{ maxHeight: 180, marginBottom: 16 }} nestedScrollEnabled>
+              {notClockedInEmployees.map((emp: any) => (
+                <TouchableOpacity key={emp.id} onPress={() => setCrewClockEmpId(emp.id)} style={{ flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 10, marginBottom: 4, backgroundColor: crewClockEmpId === emp.id ? colors.success + "20" : colors.surface, borderWidth: crewClockEmpId === emp.id ? 1 : 0, borderColor: colors.success }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: crewClockEmpId === emp.id ? colors.success : colors.muted + "30", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                    <Text style={{ color: crewClockEmpId === emp.id ? "#fff" : colors.foreground, fontWeight: "700", fontSize: 14 }}>{(emp.name || "").substring(0, 2).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{emp.name}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>{emp.role}</Text>
+                  </View>
+                  {crewClockEmpId === emp.id && <MaterialIcons name="check-circle" size={20} color={colors.success} />}
+                </TouchableOpacity>
+              ))}
+              {notClockedInEmployees.length === 0 && <Text style={{ color: colors.muted, textAlign: "center", padding: 20 }}>All employees are clocked in</Text>}
+            </ScrollView>
+            <Text style={{ fontSize: 14, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>SELECT JOBSITE</Text>
+            <ScrollView style={{ maxHeight: 140, marginBottom: 16 }} nestedScrollEnabled>
+              {effectiveActiveJobs.map((job: any) => (
+                <TouchableOpacity key={job.id} onPress={() => setCrewClockJobId(job.id)} style={{ flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 10, marginBottom: 4, backgroundColor: crewClockJobId === job.id ? colors.primary + "20" : colors.surface, borderWidth: crewClockJobId === job.id ? 1 : 0, borderColor: colors.primary }}>
+                  <MaterialIcons name="location-on" size={18} color={crewClockJobId === job.id ? colors.primary : colors.muted} style={{ marginRight: 10 }} />
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, flex: 1 }}>{job.name}</Text>
+                  {crewClockJobId === job.id && <MaterialIcons name="check-circle" size={20} color={colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity onPress={() => setUseCustomCrewClockTime(!useCustomCrewClockTime)} style={{ flexDirection: "row", alignItems: "center", marginBottom: useCustomCrewClockTime ? 8 : 16 }}>
+              <MaterialIcons name={useCustomCrewClockTime ? "check-box" : "check-box-outline-blank"} size={20} color={colors.primary} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 14, color: colors.foreground }}>Custom clock-in time</Text>
+            </TouchableOpacity>
+            {useCustomCrewClockTime && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                <TextInput value={customCrewClockTime} onChangeText={setCustomCrewClockTime} placeholder="7:00" placeholderTextColor={colors.muted} style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 10, padding: 12, color: colors.foreground, fontSize: 16, borderWidth: 1, borderColor: colors.border }} keyboardType="numbers-and-punctuation" />
+                <TouchableOpacity onPress={() => setCustomCrewClockAmpm(customCrewClockAmpm === "AM" ? "PM" : "AM")} style={{ backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12 }}>
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{customCrewClockAmpm}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <TouchableOpacity onPress={handleCrewClockIn} disabled={!crewClockEmpId || !crewClockJobId || crewClockLoading} style={{ backgroundColor: colors.success, borderRadius: 14, padding: 16, alignItems: "center", opacity: (!crewClockEmpId || !crewClockJobId || crewClockLoading) ? 0.5 : 1 }}>
+              {crewClockLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Clock In Employee</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       </ScreenContainer>
     );
   }
@@ -1424,7 +1602,7 @@ export default function DashboardScreen() {
 
         {/* ═══ CREW CLOCK-IN QUICK ACTION ═══ */}
         <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginTop: 16, marginBottom: 12 }}>
-          <TouchableOpacity style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.success + "18", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40" }} onPress={() => router.push("/manage" as any)}>
+          <TouchableOpacity style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.success + "18", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40" }} onPress={() => setShowCrewClockIn(true)}>
             <MaterialIcons name="person-add" size={22} color={colors.success} style={{ marginRight: 12 }} />
             <View>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Crew Clock-In</Text>
@@ -1456,6 +1634,60 @@ export default function DashboardScreen() {
     </ImageBackground>
     <ConstructionCalculator visible={showCalculator} onClose={() => setShowCalculator(false)} />
     <CompassModal visible={showCompass} onClose={() => setShowCompass(false)} />
+    {/* Crew Clock-In Modal */}
+    <Modal visible={showCrewClockIn} animationType="slide" transparent>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}>
+        <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: "80%" }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.foreground }}>Crew Clock-In</Text>
+            <TouchableOpacity onPress={() => { setShowCrewClockIn(false); setCrewClockEmpId(null); setCrewClockJobId(null); setUseCustomCrewClockTime(false); }}>
+              <MaterialIcons name="close" size={24} color={colors.muted} />
+            </TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>SELECT EMPLOYEE</Text>
+          <ScrollView style={{ maxHeight: 180, marginBottom: 16 }} nestedScrollEnabled>
+            {notClockedInEmployees.map((emp: any) => (
+              <TouchableOpacity key={emp.id} onPress={() => setCrewClockEmpId(emp.id)} style={{ flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 10, marginBottom: 4, backgroundColor: crewClockEmpId === emp.id ? colors.success + "20" : colors.surface, borderWidth: crewClockEmpId === emp.id ? 1 : 0, borderColor: colors.success }}>
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: crewClockEmpId === emp.id ? colors.success : colors.muted + "30", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                  <Text style={{ color: crewClockEmpId === emp.id ? "#fff" : colors.foreground, fontWeight: "700", fontSize: 14 }}>{(emp.name || "").substring(0, 2).toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{emp.name}</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>{emp.role}</Text>
+                </View>
+                {crewClockEmpId === emp.id && <MaterialIcons name="check-circle" size={20} color={colors.success} />}
+              </TouchableOpacity>
+            ))}
+            {notClockedInEmployees.length === 0 && <Text style={{ color: colors.muted, textAlign: "center", padding: 20 }}>All employees are clocked in</Text>}
+          </ScrollView>
+          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>SELECT JOBSITE</Text>
+          <ScrollView style={{ maxHeight: 140, marginBottom: 16 }} nestedScrollEnabled>
+            {effectiveActiveJobs.map((job: any) => (
+              <TouchableOpacity key={job.id} onPress={() => setCrewClockJobId(job.id)} style={{ flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 10, marginBottom: 4, backgroundColor: crewClockJobId === job.id ? colors.primary + "20" : colors.surface, borderWidth: crewClockJobId === job.id ? 1 : 0, borderColor: colors.primary }}>
+                <MaterialIcons name="location-on" size={18} color={crewClockJobId === job.id ? colors.primary : colors.muted} style={{ marginRight: 10 }} />
+                <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, flex: 1 }}>{job.name}</Text>
+                {crewClockJobId === job.id && <MaterialIcons name="check-circle" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <TouchableOpacity onPress={() => setUseCustomCrewClockTime(!useCustomCrewClockTime)} style={{ flexDirection: "row", alignItems: "center", marginBottom: useCustomCrewClockTime ? 8 : 16 }}>
+            <MaterialIcons name={useCustomCrewClockTime ? "check-box" : "check-box-outline-blank"} size={20} color={colors.primary} style={{ marginRight: 8 }} />
+            <Text style={{ fontSize: 14, color: colors.foreground }}>Custom clock-in time</Text>
+          </TouchableOpacity>
+          {useCustomCrewClockTime && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <TextInput value={customCrewClockTime} onChangeText={setCustomCrewClockTime} placeholder="7:00" placeholderTextColor={colors.muted} style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 10, padding: 12, color: colors.foreground, fontSize: 16, borderWidth: 1, borderColor: colors.border }} keyboardType="numbers-and-punctuation" />
+              <TouchableOpacity onPress={() => setCustomCrewClockAmpm(customCrewClockAmpm === "AM" ? "PM" : "AM")} style={{ backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12 }}>
+                <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{customCrewClockAmpm}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <TouchableOpacity onPress={handleCrewClockIn} disabled={!crewClockEmpId || !crewClockJobId || crewClockLoading} style={{ backgroundColor: colors.success, borderRadius: 14, padding: 16, alignItems: "center", opacity: (!crewClockEmpId || !crewClockJobId || crewClockLoading) ? 0.5 : 1 }}>
+            {crewClockLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Clock In Employee</Text>}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
     </ScreenContainer>
   );
 }

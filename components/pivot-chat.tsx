@@ -152,17 +152,28 @@ const ROLE_ACCESS: Record<Role, {
     placeholder: "Ask about payroll, hours, reports...",
     placeholderEs: "Pregunta sobre nómina, horas, reportes...",
     suggestions: [
-      "Sup Pivot, any payroll issues?",
+      "Any payroll issues this week?",
       "Who has the most hours?",
       "Flag any overtime this week",
+      "Generate a labor cost report",
     ],
     suggestionsEs: [
-      "¿Qué onda Pivot, hay problemas con la nómina?",
+      "¿Hay problemas con la nómina esta semana?",
       "¿Quién tiene más horas?",
       "Marca cualquier tiempo extra esta semana",
+      "Genera un reporte de costos laborales",
     ],
     quickActions: [
-      { icon: "calculate", label: "Calculate", prompt: "Help me with a calculation" },
+      { icon: "payments", label: "Payroll", prompt: "Help me review this week's payroll" },
+      { icon: "schedule", label: "Hours", prompt: "Show me the hours summary for this week" },
+      { icon: "assessment", label: "Reports", prompt: "Help me generate a report" },
+      { icon: "people", label: "Team", prompt: "Show me team status and attendance" },
+    ],
+    quickActionsEs: [
+      { icon: "payments", label: "Nómina", prompt: "Ayúdame a revisar la nómina de esta semana" },
+      { icon: "schedule", label: "Horas", prompt: "Muéstrame el resumen de horas de esta semana" },
+      { icon: "assessment", label: "Reportes", prompt: "Ayúdame a generar un reporte" },
+      { icon: "people", label: "Equipo", prompt: "Muéstrame el estado del equipo y asistencia" },
     ],
   },
   foreman: {
@@ -350,6 +361,9 @@ export function PivotChat() {
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const messagesRef = useRef<Message[]>([]);
+  // Keep ref in sync with state for use in async callbacks
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
@@ -577,7 +591,7 @@ export function PivotChat() {
 
   // ─── Send message ─────────────────────────────────────────────────────────────
 
-  const sendMessage = async (text: string, atts?: Attachment[]) => {
+  const sendMessage = useCallback(async (text: string, atts?: Attachment[]) => {
     const attachments = atts || pendingAttachments;
     if ((!text.trim() && !attachments.length) || loading || !employee) return;
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -588,15 +602,22 @@ export function PivotChat() {
       content: text || "(See attached file)",
       attachments: attachments.length ? attachments : undefined,
     };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
+
+    // Use functional updater to avoid stale closure over messages
+    setMessages((prev) => {
+      const updated = [...prev, userMsg];
+      messagesRef.current = updated;
+      return updated;
+    });
     setInput("");
     setPendingAttachments([]);
     setLoading(true);
 
     try {
+      // Use messagesRef to get the latest messages including the user message we just added
+      const currentMessages = messagesRef.current;
       const result = await chatMutation.mutateAsync({
-        messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+        messages: currentMessages.map((m) => ({ role: m.role, content: m.content })),
         employeeId: (employee as any).id,
         attachments: attachments.length ? attachments : undefined,
         context: { currentPage: "mobile-app" },
@@ -608,7 +629,7 @@ export function PivotChat() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pendingAttachments, loading, employee, chatMutation]);
 
   // Auto-send voice transcription
   useEffect(() => {
@@ -617,7 +638,7 @@ export function PivotChat() {
       pendingVoiceRef.current = null;
       setTimeout(() => sendMessage(text), 400);
     }
-  }, [isTranscribing, loading]);
+  }, [isTranscribing, loading, sendMessage]);
 
   // ─── Don't render for roles without chat access ──────────────────────────────
 
@@ -780,26 +801,6 @@ export function PivotChat() {
 
   const renderWelcome = () => (
     <View style={styles.welcomeContainer}>
-      <View style={styles.welcomeAvatarRing}>
-        <Image
-          source={{ uri: PIVOT_ICON_URL }}
-          style={{ width: 80, height: 80, borderRadius: 40 }}
-          contentFit="cover"
-        />
-      </View>
-      <Text style={styles.welcomeTitle}>
-        {language === "es" ? "Hola, soy Pivot" : "Hey, I'm Pivot"}
-      </Text>
-      <Text style={styles.welcomeSubtitle}>
-        {role === "owner"
-          ? (language === "es" ? "Tu socio de negocios con IA. Pregúntame sobre proyectos, costos, equipo o construcción." : "Your AI business partner. Ask me anything about your projects, costs, team, or construction math.")
-          : role === "office_manager"
-          ? (language === "es" ? "Tu asistente de oficina. Puedo ayudar con nómina, horas y reportes." : "Your office assistant. I can help with payroll, hours, reports, and team management.")
-          : role === "foreman"
-          ? (language === "es" ? "Tu asistente de campo. Pregunta sobre seguridad, metas, cálculos o técnicas." : "Your field assistant. Ask about safety, goals, roof math, or construction techniques.")
-          : (language === "es" ? "Tu asistente de equipo. Puedo mostrarte tus metas, seguridad y ayudarte." : "Your team assistant. I can show you your goals, safety tips, and help with questions.")}
-      </Text>
-
       {/* Quick Action Chips */}
       {activeQuickActions.length > 0 && (
         <View style={styles.quickActionsRow}>
@@ -1276,36 +1277,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
   },
-  welcomeAvatarRing: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    borderWidth: 2.5,
-    borderColor: GOLD,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    shadowColor: GOLD,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 8,
-    marginBottom: 16,
-  },
-  welcomeTitle: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: TEXT_PRIMARY,
-    letterSpacing: 0.5,
-  },
-  welcomeSubtitle: {
-    fontSize: 14,
-    color: TEXT_SECONDARY,
-    marginTop: 8,
-    textAlign: "center",
-    lineHeight: 20,
-    maxWidth: 300,
-  },
+
 
   // Quick Actions
   quickActionsRow: {

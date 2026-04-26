@@ -2191,3 +2191,18 @@
 - [x] Give office managers access to view/edit hourly rates on employee profiles
 - [x] Give office managers access to payroll adjustments and settings
 - [x] Give office managers same payroll-related access as owner
+
+### Phase 114: Bug Fixes + Multi-Tenant Research
+#### Bugs
+- [x] Fix Crew Clock-In quick action navigating to Team tab instead of opening clock-in modal
+- [x] Fix Pivot UI — remove "Hey, I'm Pivot" header that pushes content up when typing
+- [x] Fix Pivot UI — robot icon getting pushed too far up on screen
+- [x] Make Pivot suggestions role-based — office managers see payroll/operations, not roof pitch/rafter
+- [x] Make roof pitch/compound angle suggestions more subtle for owner (still available but not prominent)
+- [x] Fix Pivot chat history reset glitch — chat disappears after AI responds (stale closure in sendMessage, fixed with useCallback + messagesRef + functional state updater)
+#### Research
+- [ ] Research multi-tenant server architecture (database-per-tenant isolation)
+- [ ] Research Stripe integration for 14-day free trial + subscription
+- [ ] Research connecting marketing site to multi-tenant server
+- [ ] Research domain-free permanent web app hosting options
+- [ ] Research beta testing approach with company owner buddies
