@@ -611,10 +611,30 @@ async function openTicket(id) {
   document.getElementById('ticketDetail').style.display = 'block';
   document.getElementById('pivotSuggestion').style.display = 'none';
   
+  const statuses = ['open', 'in_progress', 'resolved', 'closed'];
+  const statusLabels = { open: 'Open', in_progress: 'In Progress', resolved: 'Resolved', closed: 'Closed' };
+  const statusIcons = { open: '📋', in_progress: '🔧', resolved: '✅', closed: '🔒' };
+  const currentIdx = statuses.indexOf(ticket.status);
+  const timelineHTML = statuses.map((s, i) => {
+    const isActive = i <= currentIdx;
+    const isCurrent = s === ticket.status;
+    const color = isActive ? (s === 'resolved' ? '#22C55E' : s === 'closed' ? '#687076' : '#C8A84E') : 'var(--fg3)';
+    const bg = isActive ? color + '22' : 'transparent';
+    const border = isCurrent ? `2px solid ${color}` : isActive ? `1px solid ${color}44` : '1px solid var(--border)';
+    return `<div style="flex:1;text-align:center;padding:8px 4px;border-radius:8px;background:${bg};border:${border};position:relative">
+      <div style="font-size:16px">${statusIcons[s]}</div>
+      <div style="font-size:11px;font-weight:${isCurrent ? '700' : '500'};color:${color};margin-top:4px">${statusLabels[s]}</div>
+    </div>`;
+  }).join('<div style="width:20px;height:2px;background:var(--border);align-self:center"></div>');
+
   document.getElementById('detailHeader').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <h3>#${ticket.id} — ${escHtml(ticket.subject)}</h3>
       <span class="status-badge ${ticket.status}">${ticket.status.replace('_',' ')}</span>
+    </div>
+    <!-- Status Timeline -->
+    <div style="display:flex;align-items:center;gap:0;margin-bottom:16px;padding:12px;background:var(--bg2);border-radius:10px">
+      ${timelineHTML}
     </div>
     <p style="font-size:14px;color:var(--fg2);margin-bottom:12px">${escHtml(ticket.description || '')}</p>
     <div class="detail-meta">
@@ -622,6 +642,7 @@ async function openTicket(id) {
       <span>Contact: ${escHtml(ticket.contactEmail || 'N/A')}</span>
       <span>Priority: <span class="priority-badge ${ticket.priority}">${ticket.priority}</span></span>
       <span>Created: ${new Date(ticket.createdAt).toLocaleDateString()}</span>
+      ${ticket.resolvedAt ? `<span>Resolved: ${new Date(ticket.resolvedAt).toLocaleDateString()}</span>` : ''}
     </div>
   `;
   

@@ -16,7 +16,7 @@ import { ActivityIndicator,
   Text,
   TextInput,
   TouchableOpacity,
-  View, ImageBackground, Modal } from "react-native";
+  View, ImageBackground, Modal, Linking } from "react-native";
 
 import { BG_MORE as bg_more } from "@/constants/bg-urls";
 import { useLanguage, type AppLanguage } from "@/lib/language-context";
@@ -904,6 +904,19 @@ export default function ProfileScreen() {
                   <Text style={{ fontSize: 12, color: colors.muted }}>Clock in crew members who missed their punch</Text>
                 </View>
                 <MaterialIcons name="chevron-right" size={20} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Contact Support — Owner Only */}
+          {employee?.role === "owner" && (
+            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+              <TouchableOpacity
+                style={[styles.outlineBtn, { borderColor: colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }]}
+                onPress={() => Linking.openURL("https://buildtrack-dnjxcthz.manus.space/api/web/support")}
+              >
+                <MaterialIcons name="support-agent" size={18} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 15 }}>Contact Support</Text>
               </TouchableOpacity>
             </View>
           )}

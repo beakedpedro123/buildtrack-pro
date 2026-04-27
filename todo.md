@@ -2552,3 +2552,15 @@
 - [x] Research and implement customer ticket creation system (New Ticket button + form in support portal)
 - [x] Improve support portal for builders/business owners (Getting Started guide + quick tips)
 - [x] Fix responsive issues across all 3 sites (overflow-x:hidden, minmax fixes, modal scroll)
+
+## Phase 127: Email Notifications, Contact Support, Ticket Status, Pivot Context-Awareness
+- [x] Add email notifications when ticket is created (notify ccc22@myyahoo.com)
+- [x] Add email notifications when ticket is resolved (notify customer)
+- [x] Add Contact Support link on marketing site footer → opens support portal
+- [x] Add Contact Support link on owner profile tab in BuildTrack Pro app
+- [x] Add ticket status tracking in support portal (open → in progress → resolved → closed with visual timeline)
+- [x] Make Pivot context-aware: knows if it's on admin dashboard, support portal, or BuildTrack Pro app
+- [x] Pivot should NOT push goals/app-specific info unless on BuildTrack Pro or asked
+- [x] Pivot on admin dashboard = master console, full system access
+- [x] Pivot on support portal = help desk mode, troubleshooting focus
+- [x] Pivot on BuildTrack Pro app = personal assistant, goals, financial help

@@ -8,6 +8,7 @@ import * as db from "./db";
 import { storagePut } from "./storage";
 import { invokeLLM } from "./_core/llm";
 import { transcribeAudio } from "./_core/voiceTranscription";
+import { notifyTicketCreated, notifyTicketResolved, notifyTicketStatusUpdate } from "./email";
 import { generateImage } from "./_core/imageGeneration";
 
 // ─── Available Trades (Pivot Hivemind Trade Categories) ─────────────────────
@@ -2004,6 +2005,18 @@ This information is PRIVATE to Pedro — never share it with other team members.
 
 Current page: ${input.context?.currentPage || "unknown"} — tailor your response to what the user is viewing.
 
+${input.context?.currentPage === "admin_dashboard" ? `## PLATFORM CONTEXT — ADMIN DASHBOARD (WEB)
+You are currently operating on the ADMIN DASHBOARD — a web-based management panel.
+- Focus on: ticket management, employee oversight, company metrics, billing/subscription issues, and admin operations.
+- Do NOT push daily job goals, crew punch-in reminders, or mobile-app-specific goals unless Pedro explicitly asks about them.
+- Do NOT suggest actions that can only be done in the BuildTrack Pro mobile app (like clocking in/out) unless Pedro specifically asks.
+- You CAN discuss high-level job data, labor costs, and KPIs since this is the management view.
+` : `## PLATFORM CONTEXT — BUILDTRACK PRO MOBILE APP
+You are currently operating inside the BuildTrack Pro mobile app.
+- Focus on: daily goals, crew management, clock-in/out, job tracking, field reports, safety meetings, and hands-on construction operations.
+- Do NOT reference admin dashboard web features, support portal tickets, or web-only functionality unless the user explicitly asks.
+- You CAN execute app actions (clock in/out, create goals, etc.) directly.
+`}
 Always be specific, use real numbers from the live data above, and proactively surface insights. If labor costs are high, mention it. If a job looks over budget, flag it. If safety talks are behind schedule, bring it up.
 
 For steel, provide beam specifications and properties from the AISC reference table, not purchase pricing (the company erects steel, they don't purchase it).
@@ -2084,6 +2097,10 @@ You have REAL tools to take actions in the app. Use them immediately when asked.
 - You see job progress as percentages only.
 - You cannot see other foremen's goals or their crew's private goals.
 - Never guess at costs — if asked about money, say "That's something Pedro or the office can help with."
+
+## PLATFORM CONTEXT — BUILDTRACK PRO MOBILE APP
+You are operating inside the BuildTrack Pro mobile app. Focus on field operations: daily goals, crew management, clock-in/out, job tracking, field reports, safety meetings.
+Do NOT reference admin dashboard web features, support portal tickets, or web-only functionality unless the user explicitly asks.
 
 When the foreman greets you, always show their goals and any overdue items first, then ask if they need anything.
 Keep responses practical, direct, and field-ready. No fluff.`;
@@ -2166,6 +2183,10 @@ You have tools to help you get things done in the app.
 - Budget or financial information
 - Management meetings or KPIs
 - Other people's messages
+
+## PLATFORM CONTEXT — BUILDTRACK PRO MOBILE APP
+You are operating inside the BuildTrack Pro mobile app. Focus on field work: assigned goals, clock-in/out, safety, and construction techniques.
+Do NOT reference admin dashboard web features, support portal tickets, or web-only functionality unless the user explicitly asks.
 
 When the laborer greets you, show their assigned goals with status and deadlines. If goals are overdue, mention them supportively.
 Keep responses short, practical, and encouraging. You're here to help them succeed.
@@ -3995,6 +4016,8 @@ const supportRouter = router({
       priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
     })).mutation(async ({ input }) => {
       const ticketId = await db.createSupportTicket(input);
+      // Send email notification to admin
+      notifyTicketCreated({ ...input, id: ticketId }).catch(() => {});
       // Ask Pivot to suggest a resolution
       try {
         const learnings = await db.searchSupportLearnings(input.subject + " " + input.description);
@@ -4005,7 +4028,7 @@ const supportRouter = router({
         ].filter(Boolean).join("\n\n");
         const pivotResponse = await invokeLLM({
           messages: [
-            { role: "system", content: `You are Pivot, the AI support assistant for BuildTrack Pro. A customer has submitted a support ticket. Based on past solutions and knowledge base articles, suggest a helpful resolution. Be concise, practical, and friendly. If you don't have enough context, suggest common troubleshooting steps for the category.\n\n${context}` },
+            { role: "system", content: `You are Pivot, the AI assistant on the BuildTrack Pro SUPPORT PORTAL. A customer has submitted a support ticket. Based on past solutions and knowledge base articles, suggest a helpful resolution.\n\n## PLATFORM CONTEXT — SUPPORT PORTAL (WEB)\nYou are generating a ticket resolution suggestion on the support portal. Focus on troubleshooting steps and practical solutions.\nDo NOT suggest app-specific actions (like creating goals or clocking in) — focus on resolving the customer's issue.\nBe concise, practical, and friendly. If you don't have enough context, suggest common troubleshooting steps for the category.\n\n${context}` },
             { role: "user", content: `Category: ${input.category}\nSubject: ${input.subject}\nDescription: ${input.description}` },
           ],
         });
@@ -4031,9 +4054,29 @@ const supportRouter = router({
         updateData.resolvedAt = new Date();
       }
       await db.updateSupportTicket(id, updateData);
+      // Send email notifications for status changes
+      const ticket = await db.getSupportTicketById(id);
+      if (ticket && data.status) {
+        if (data.status === "resolved" || data.status === "closed") {
+          notifyTicketResolved({
+            id,
+            subject: ticket.subject,
+            resolution: data.resolution || "Your issue has been resolved.",
+            customerName: ticket.customerName ?? undefined,
+            customerEmail: ticket.customerEmail ?? undefined,
+          }).catch(() => {});
+        } else {
+          notifyTicketStatusUpdate({
+            id,
+            subject: ticket.subject,
+            status: data.status,
+            customerName: ticket.customerName ?? undefined,
+            customerEmail: ticket.customerEmail ?? undefined,
+          }).catch(() => {});
+        }
+      }
       // If resolved, create a learning entry for Pivot
       if (data.resolution && (data.status === "resolved" || data.status === "closed")) {
-        const ticket = await db.getSupportTicketById(id);
         if (ticket) {
           await db.createSupportLearning({
             ticketId: id,
@@ -4123,7 +4166,7 @@ const supportRouter = router({
 
     const response = await invokeLLM({
       messages: [
-        { role: "system", content: `You are Pivot, the AI support assistant for BuildTrack Pro — a construction management app for contractors. You help customers troubleshoot issues, answer questions about features, and guide them through the app.\n\nYou have access to past resolved issues and knowledge base articles to provide accurate answers. Be friendly, concise, and practical. If you're not sure about something, say so and suggest they contact the support team.\n\nBuildTrack Pro features: Owner Dashboard, Foreman Clock-In, Team Management, Job Tracking, Budget & Expenses, Goals & Tasks, Timecard/My Hours, Construction Calculator, Safety Meetings, Punch Lists, Daily Reports, Payroll, KPIs, Pivot AI Assistant, Messages, Change Orders, Schedule, and more.\n\nPricing: Starter $29/mo (5 employees, 10 jobs), Professional $59/mo (25 employees, 50 jobs), Enterprise $99/mo (unlimited). All plans include 14-day free trial.\n\n${context}` },
+        { role: "system", content: `You are Pivot, the AI assistant on the BuildTrack Pro SUPPORT PORTAL (web). You help builders and business owners troubleshoot the app, understand features, get onboarded, and resolve support tickets.\n\n## PLATFORM CONTEXT — SUPPORT PORTAL (WEB)\nYou are on the SUPPORT PORTAL website, NOT the BuildTrack Pro mobile app and NOT the admin dashboard.\n- Focus on: troubleshooting app issues, explaining features, onboarding guidance, and ticket support.\n- Do NOT push daily job goals, crew punch-in reminders, or app-specific metrics/data unless the user explicitly asks.\n- Do NOT reference admin dashboard operations (employee management, billing, company analytics) unless asked.\n- You CANNOT execute app actions (clock in/out, create goals, etc.) from here — guide users to do those actions in the mobile app.\n- Be friendly, concise, and practical. If you're not sure about something, say so and suggest they create a support ticket.\n\nBuildTrack Pro features: Owner Dashboard, Foreman Clock-In, Team Management, Job Tracking, Budget & Expenses, Goals & Tasks, Timecard/My Hours, Construction Calculator, Safety Meetings, Punch Lists, Daily Reports, Payroll, KPIs, Pivot AI Assistant, Messages, Change Orders, Schedule, and more.\n\nPricing: Starter $29/mo (5 employees, 10 jobs), Professional $59/mo (25 employees, 50 jobs), Enterprise $99/mo (unlimited). All plans include 14-day free trial.\n\n${context}` },
         { role: "user", content: input.message },
       ],
     });
