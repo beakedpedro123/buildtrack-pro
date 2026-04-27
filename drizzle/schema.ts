@@ -30,6 +30,7 @@ export const companies = mysqlTable("companies", {
   // Trade(s)
   trades: text("trades"), // JSON array of trade slugs e.g. ["framing","steel_erection"]
   primaryTrade: varchar("primaryTrade", { length: 64 }), // main trade slug for Pivot context
+  allTradesUnlocked: boolean("allTradesUnlocked").default(false).notNull(), // $4.99/mo add-on to unlock all trades
   // Settings
   timezone: varchar("timezone", { length: 64 }).default("America/Denver"),
   isActive: boolean("isActive").default(true).notNull(),

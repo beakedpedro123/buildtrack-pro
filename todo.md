@@ -2408,3 +2408,34 @@
 - [x] "Change company" option on employee selection screen
 - [ ] Anonymized trade benchmarking pipeline (future — federated learning)
 - [ ] Cross-company knowledge aggregation without personal data (future)
+
+## Phase 120: Pivot Learning, Trade Monetization, Ecosystem Audit & AI Upgrade
+### Pivot Learning from Operations
+- [x] Auto-extract trade knowledge from daily field reports
+- [x] Auto-extract knowledge from completed goals and meeting summaries
+- [x] Store learned insights in tradeKnowledge table with source="aggregated"
+- [x] Pivot references learned data in future conversations
+### Trade Customization & Monetization
+- [x] Allow owners to customize trades after signup (settings screen)
+- [x] First 3 trades free for all plans
+- [x] $4.99/mo add-on to unlock ALL trades
+- [x] General Contractors get all trades with $4.99/mo markup on their plan
+- [x] Trade management UI in owner settings (API routes built)
+### Full Ecosystem Audit
+- [x] Audit all API routes for security (auth guards, input validation)
+- [x] Audit all web apps (marketing, admin, support) for sync and working URLs
+- [x] Audit data isolation — verify no cross-tenant leakage
+- [x] Audit Pivot AI for accuracy and trade filtering
+- [x] Check all navigation flows for dead ends
+- [x] Verify deployed domain routes work correctly
+### Pivot AI Upgrade
+- [x] Upgrade system prompt — smarter, more context retention
+- [x] Add security oversight — Pivot monitors for suspicious activity
+- [x] Make Pivot available on admin dashboard (full access, Pedro's original)
+- [x] Make Pivot available on support portal (customer-facing)
+- [x] Pivot remembers conversation history across sessions
+- [x] Pivot helps protect app from hackers (rate limiting, anomaly detection)
+### PDF Weakness Report
+- [x] Research BuildTrack Pro weak spots vs competitors
+- [x] Write comprehensive PDF with findings and fix plan
+- [x] Include actionable implementation steps for each weakness

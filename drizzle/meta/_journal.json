@@ -176,6 +176,13 @@
       "when": 1777258173926,
       "tag": "0024_wise_expediter",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1777260570463,
+      "tag": "0025_minor_genesis",
+      "breakpoints": true
     }
   ]
 }

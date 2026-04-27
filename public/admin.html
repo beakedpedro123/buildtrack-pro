@@ -192,6 +192,7 @@ if ('serviceWorker' in navigator) {
   <div class="nav-tab" data-tab="tickets">Support Tickets <span class="count" id="ticketCount">0</span></div>
   <div class="nav-tab" data-tab="kb">Knowledge Base <span class="count" id="kbCount">0</span></div>
   <div class="nav-tab" data-tab="learning">Pivot Learning <span class="count" id="learningCount">0</span></div>
+  <div class="nav-tab" data-tab="pivot">🤖 Pivot AI</div>
 </div>
 
 <div class="main">
@@ -265,6 +266,19 @@ if ('serviceWorker' in navigator) {
     </div>
     <p style="color:var(--fg2);font-size:14px;margin-bottom:16px">Pivot learns from every resolved ticket and KB article. These patterns help Pivot provide better automated support.</p>
     <div id="learningList"></div>
+  </div>
+
+  <!-- Pivot AI Section -->
+  <div class="section" id="sec-pivot">
+    <h2 style="margin-bottom:16px">🤖 Pivot AI — Master Console</h2>
+    <p style="color:var(--fg2);font-size:14px;margin-bottom:16px">This is the original Pivot — Pedro's master AI. Full access to all systems, security monitoring, and cross-company hivemind intelligence.</p>
+    <div id="pivotChat" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;height:500px;display:flex;flex-direction:column;overflow:hidden">
+      <div id="pivotMessages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px"></div>
+      <div style="padding:12px;border-top:1px solid var(--border);display:flex;gap:8px">
+        <input id="pivotInput" type="text" placeholder="Talk to Pivot..." style="flex:1;padding:10px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--fg);font-size:14px" onkeydown="if(event.key==='Enter')sendPivotMsg()">
+        <button class="btn btn-primary" onclick="sendPivotMsg()" style="padding:10px 20px">Send</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -609,6 +623,44 @@ async function resolveTicket() {
 }
 
 function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// === PIVOT AI CHAT (Admin Master Console) ===
+const pivotHistory = [];
+async function sendPivotMsg() {
+  const input = document.getElementById('pivotInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  const container = document.getElementById('pivotMessages');
+  // Add user message
+  container.innerHTML += `<div style="align-self:flex-end;background:var(--primary);color:#fff;padding:10px 16px;border-radius:12px 12px 4px 12px;max-width:80%;font-size:14px">${esc(msg)}</div>`;
+  input.value = '';
+  container.scrollTop = container.scrollHeight;
+  pivotHistory.push({ role: 'user', content: msg });
+  // Show typing
+  const typingId = 'pt_' + Date.now();
+  container.innerHTML += `<div id="${typingId}" style="align-self:flex-start;background:var(--surface);border:1px solid var(--border);padding:10px 16px;border-radius:12px 12px 12px 4px;max-width:80%;font-size:14px;color:var(--fg2)">Pivot is thinking...</div>`;
+  container.scrollTop = container.scrollHeight;
+  try {
+    // Use the main pivot chat endpoint with owner context (employeeId 1 = Pedro)
+    const result = await trpcMutation('pivot.chat', {
+      employeeId: 1,
+      messages: pivotHistory.map(h => ({ role: h.role, content: h.content })),
+      context: { currentPage: 'admin_dashboard' }
+    });
+    if (result?.response) pivotHistory.push({ role: 'assistant', content: result.response });
+    const el = document.getElementById(typingId);
+    if (el && result?.response) {
+      el.style.color = 'var(--fg)';
+      el.innerHTML = `<div style="font-weight:600;color:var(--primary);margin-bottom:4px">🤖 Pivot</div>${esc(result.response).replace(/\n/g, '<br>')}`;
+    } else if (el) {
+      el.innerHTML = '<div style="color:var(--error)">Pivot could not respond. Try again.</div>';
+    }
+  } catch (e) {
+    const el = document.getElementById(typingId);
+    if (el) el.innerHTML = `<div style="color:var(--error)">Error: ${esc(e.message || 'Connection failed')}</div>`;
+  }
+  container.scrollTop = container.scrollHeight;
+}
 
 // Init
 loadAll();

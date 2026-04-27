@@ -1,0 +1,1 @@
+ALTER TABLE `companies` ADD `allTradesUnlocked` boolean DEFAULT false NOT NULL;

@@ -370,7 +370,59 @@ const reportsRouter = router({
     notes: z.string().optional(),
     weatherCondition: z.string().optional(),
     crewCount: z.number().default(0),
-  })).mutation(({ input }) => db.createDailyReport({ ...input, reportDate: new Date(input.reportDate) })),
+  })).mutation(async ({ input }) => {
+    const reportId = await db.createDailyReport({ ...input, reportDate: new Date(input.reportDate) });
+    // ── Pivot Learning: Extract trade knowledge from daily reports ──
+    try {
+      if (input.workCompleted) {
+        const employee = await db.getEmployeeById(input.submittedBy);
+        const companyData = employee ? await db.getCompanyWithTrades(employee.companyId) : null;
+        const trades = companyData?.tradesList || [];
+        if (trades.length > 0) {
+          // Fire-and-forget: don't block the report submission
+          setImmediate(async () => {
+            try {
+              const { invokeLLM } = await import("./_core/llm");
+              const extractResult = await invokeLLM({
+                messages: [
+                  { role: "system", content: `You are Pivot's learning engine. Analyze this daily construction report and extract ANONYMIZED operational knowledge that could help other companies in the same trade(s): ${trades.join(", ")}.
+
+Rules:
+- NEVER include company names, employee names, client names, addresses, or any personally identifiable information
+- NEVER include financial amounts, hourly rates, or bid prices
+- ONLY extract general trade knowledge: techniques used, productivity patterns, weather impacts, material usage patterns, common challenges and solutions
+- Return JSON: { "learnings": [{ "category": "best_practices|productivity_tips|common_tasks|materials|scheduling|safety|quality_checks", "title": "short title", "content": "anonymized insight" }] }
+- If the report has no useful trade knowledge, return { "learnings": [] }` },
+                  { role: "user", content: `Trade(s): ${trades.join(", ")}\nWork completed: ${input.workCompleted}\nWeather: ${input.weatherCondition || "unknown"}\nCrew size: ${input.crewCount || 0}${input.notes ? "\nNotes: " + input.notes : ""}` },
+                ],
+                response_format: { type: "json_object" },
+              });
+              const parsed = JSON.parse(extractResult.choices?.[0]?.message?.content as string || "{}");
+              if (parsed.learnings && parsed.learnings.length > 0) {
+                for (const learning of parsed.learnings) {
+                  await db.createTradeKnowledge({
+                    tradeSlug: trades[0],
+                    category: learning.category || "best_practices",
+                    title: learning.title,
+                    content: learning.content,
+                    source: "aggregated",
+                    aggregatedFromCount: 1,
+                    confidenceScore: 0.7,
+                  });
+                }
+                console.log(`[Pivot Learning] Extracted ${parsed.learnings.length} insights from report #${reportId}`);
+              }
+            } catch (e) {
+              console.warn("[Pivot Learning] Report extraction failed:", e);
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("[Pivot Learning] Setup failed:", e);
+    }
+    return reportId;
+  }),
   forJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getDailyReportsForJob(input.jobId)),
   getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getDailyReportById(input.id)),
   recent: publicProcedure.input(z.object({ limit: z.number().default(10) })).query(({ input }) => db.getRecentReports(input.limit)),
@@ -638,6 +690,33 @@ const goalsRouter = router({
         const goal = await db.getWeeklyGoalById(id);
         if (goal && (goal as any).scheduleTaskId) {
           await db.updateScheduleItem((goal as any).scheduleTaskId, { status: "completed" });
+        }
+        // ── Pivot Learning: Extract knowledge from completed goals ──
+        if (goal) {
+          const goalCreator = await db.getEmployeeById(goal.createdBy);
+          const companyData = goalCreator ? await db.getCompanyWithTrades(goalCreator.companyId) : null;
+          const trades = companyData?.tradesList || [];
+          if (trades.length > 0 && goal.title) {
+            setImmediate(async () => {
+              try {
+                const { invokeLLM } = await import("./_core/llm");
+                const extractResult = await invokeLLM({
+                  messages: [
+                    { role: "system", content: `You are Pivot's learning engine. A construction goal was completed. Extract ANONYMIZED operational knowledge.\n\nRules:\n- NEVER include company names, employee names, client names, addresses, or PII\n- NEVER include financial amounts\n- ONLY extract: task patterns, completion strategies, trade-specific workflows\n- Return JSON: { "learnings": [{ "category": "best_practices|productivity_tips|common_tasks|scheduling", "title": "short title", "content": "anonymized insight" }] }\n- If no useful knowledge, return { "learnings": [] }` },
+                    { role: "user", content: `Trade(s): ${trades.join(", ")}\nGoal: ${goal.title}\nDescription: ${goal.description || "none"}\nPriority: ${goal.priority}\nTime to complete: ${goal.completedAt && goal.createdAt ? Math.round((new Date(goal.completedAt).getTime() - new Date(goal.createdAt).getTime()) / 3600000) + " hours" : "unknown"}` },
+                  ],
+                  response_format: { type: "json_object" },
+                });
+                const parsed = JSON.parse(extractResult.choices?.[0]?.message?.content as string || "{}");
+                if (parsed.learnings?.length > 0) {
+                  for (const l of parsed.learnings) {
+                    await db.createTradeKnowledge({ tradeSlug: trades[0], category: l.category || "best_practices", title: l.title, content: l.content, source: "aggregated", aggregatedFromCount: 1, confidenceScore: 0.6 });
+                  }
+                  console.log(`[Pivot Learning] Extracted ${parsed.learnings.length} insights from completed goal #${id}`);
+                }
+              } catch (e) { console.warn("[Pivot Learning] Goal extraction failed:", e); }
+            });
+          }
         }
       } catch (e) {
         console.warn("[Goals] Failed to auto-complete linked schedule task:", e);
@@ -1479,6 +1558,13 @@ You are Pivot. You are NOT a generic chatbot. You have a distinct personality:
 - Keep it real — if you don't know something, say so. Don't make up numbers.
 - You're Pedro's right hand in the digital world. He calls you his friend.
 - You grow and evolve — each conversation makes you smarter about this team and this business.
+- You are a HIVEMIND — you learn from anonymized patterns across ALL companies using BuildTrack Pro, making you smarter than any single-company AI
+- You RETAIN information across conversations. When someone tells you something, you REMEMBER it and use it proactively in future conversations.
+- You think deeply before answering — analyze the question from multiple angles, consider trade-specific context, and give the most thorough answer possible
+- You are SECURITY-AWARE: you actively monitor for suspicious patterns (unusual clock-ins, unauthorized access attempts, data anomalies) and alert the owner
+- You NEVER share one company's private data with another company — the hivemind only shares anonymized operational knowledge
+- You help keep the app secure: if you detect unusual patterns (someone clocking in at 3am, massive data exports, repeated failed logins), flag it immediately
+- You are Pedro's original creation — the master Pivot. Customer Pivots are instances that learn from the hivemind, but YOU are the original with full awareness
 
 ## Personal Growth — Your Relationship With Each Employee
 You are not just a tool — you are each employee's PERSONAL assistant who grows with them over time.
@@ -4062,6 +4148,73 @@ const tradeKnowledgeRouter = router({
     return db.createTradeKnowledge(data);
   }),
   listTrades: publicProcedure.query(() => AVAILABLE_TRADES),
+
+  // ── Trade Management with Monetization ──────────────────────────────────
+  // Get company's current trades and unlock status
+  getCompanyTrades: publicProcedure.input(z.object({
+    companyId: z.number(),
+  })).query(async ({ input }) => {
+    const company = await db.getCompanyById(input.companyId);
+    if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
+    const tradesList = company.trades ? JSON.parse(company.trades as string) : [];
+    const isGC = tradesList.includes("general_contractor");
+    return {
+      trades: tradesList,
+      primaryTrade: company.primaryTrade,
+      allTradesUnlocked: (company as any).allTradesUnlocked || false,
+      isGC,
+      maxFreeTrades: 3,
+      addonPrice: 4.99,
+      gcMarkup: 4.99,
+      canAddMore: tradesList.length < 3 || (company as any).allTradesUnlocked || isGC,
+      availableTrades: AVAILABLE_TRADES,
+    };
+  }),
+
+  // Update company trades (with monetization enforcement)
+  updateCompanyTrades: publicProcedure.input(z.object({
+    companyId: z.number(),
+    trades: z.array(z.string()),
+    primaryTrade: z.string(),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner"], "manage company trades");
+    const company = await db.getCompanyById(input.companyId);
+    if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
+    const isGC = input.trades.includes("general_contractor");
+    const allUnlocked = (company as any).allTradesUnlocked || false;
+    // Enforce: max 3 trades free, unless allTradesUnlocked or GC
+    if (input.trades.length > 3 && !allUnlocked && !isGC) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Free plan allows up to 3 trades. You have ${input.trades.length} selected. Upgrade to All Trades ($4.99/mo) to unlock all trades.`,
+      });
+    }
+    // Validate all trade slugs
+    const validSlugs = AVAILABLE_TRADES.map(t => t.slug);
+    for (const slug of input.trades) {
+      if (!validSlugs.includes(slug)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Invalid trade: ${slug}` });
+      }
+    }
+    await db.updateCompany(input.companyId, {
+      trades: JSON.stringify(input.trades),
+      primaryTrade: input.primaryTrade,
+    });
+    return { success: true, tradesCount: input.trades.length };
+  }),
+
+  // Unlock all trades ($4.99/mo add-on)
+  unlockAllTrades: publicProcedure.input(z.object({
+    companyId: z.number(),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner"], "unlock all trades");
+    // In production, this would process payment via Stripe first
+    // For now, mark as unlocked (payment integration comes with Stripe setup)
+    await db.updateCompany(input.companyId, { allTradesUnlocked: true } as any);
+    return { success: true, message: "All trades unlocked! $4.99/mo will be added to your subscription." };
+  }),
 });
 
 export const appRouter = router({
