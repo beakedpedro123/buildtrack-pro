@@ -5,7 +5,7 @@ import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
@@ -25,8 +25,25 @@ import { OverheadSettings } from "@/components/overhead-settings";
 import { useGpsTracking } from "@/hooks/use-gps-tracking";
 import { useLunchSettings } from "@/hooks/use-lunch-settings";
 import { useCompanyTrade, TRADE_OPTIONS } from "@/hooks/use-company-trade";
-import { Switch } from "react-native";
+import { Switch, Image as RNImage } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { getApiBaseUrl } from "@/constants/oauth";
 // Crew clock-in uses trpc queries directly, no extra cache imports needed
+
+// Trade icon mapping (MaterialIcons names)
+const TRADE_ICON_MAP: Record<string, string> = {
+  general_contractor: "construction", framing: "carpenter", steel_erection: "precision-manufacturing",
+  concrete: "foundation", electrical: "electrical-services", plumbing: "plumbing",
+  hvac: "hvac", roofing: "roofing", painting: "format-paint",
+  construction_cleaning: "cleaning-services", drywall: "view-quilt", masonry: "layers",
+  landscaping: "yard", demolition: "foundation", insulation: "thermostat",
+  flooring: "grid-on", welding: "hardware", excavation: "terrain",
+  windows_doors: "door-front", other: "build",
+};
+// Quick lookup map for trade data by slug
+const AVAILABLE_TRADES_MAP: Record<string, { name: string; icon: string; description: string }> = Object.fromEntries(
+  Object.entries(TRADE_ICON_MAP).map(([slug, icon]) => [slug, { name: slug.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()), icon, description: "" }])
+);
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
@@ -79,6 +96,133 @@ export default function ProfileScreen() {
   const [showTradePicker, setShowTradePicker] = useState(false);
 
   const empId = (employee as any)?.id ?? 0;
+  const companyId = (employee as any)?.companyId ?? 1;
+
+  // ═══ Server-Backed Trade Management ═══
+  const { data: tradeData, refetch: refetchTrades } = trpc.tradeKnowledge.getCompanyTrades.useQuery(
+    { companyId },
+    { enabled: employee?.role === "owner", staleTime: 30000 }
+  );
+  const updateTradesMutation = trpc.tradeKnowledge.updateCompanyTrades.useMutation();
+  const [serverTrades, setServerTrades] = useState<string[]>([]);
+  const [serverPrimaryTrade, setServerPrimaryTrade] = useState<string>("general_contractor");
+  const [savingTrades, setSavingTrades] = useState(false);
+
+  // Sync server trade data to local state when it loads
+  React.useEffect(() => {
+    if (tradeData?.trades) {
+      setServerTrades(tradeData.trades);
+      setServerPrimaryTrade(tradeData.primaryTrade || tradeData.trades[0] || "general_contractor");
+    }
+  }, [tradeData]);
+
+  const handleSaveTrades = useCallback(async () => {
+    if (serverTrades.length === 0) return;
+    setSavingTrades(true);
+    try {
+      await updateTradesMutation.mutateAsync({
+        companyId,
+        trades: serverTrades,
+        primaryTrade: serverPrimaryTrade,
+        requestingEmployeeId: empId,
+      });
+      // Also sync to local AsyncStorage for offline use
+      updateTrade(serverPrimaryTrade as any);
+      await refetchTrades();
+      setShowTradePicker(false);
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Trades Updated", `${serverTrades.length} trade${serverTrades.length > 1 ? "s" : ""} saved successfully.`);
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to update trades");
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setSavingTrades(false);
+    }
+  }, [serverTrades, serverPrimaryTrade, companyId, empId]);
+
+  // ═══ Company Branding State ═══
+  const { data: brandingData, refetch: refetchBranding } = trpc.branding.get.useQuery(
+    { companyId },
+    { enabled: !!companyId, staleTime: 30000 }
+  );
+  const updateLogoMutation = trpc.branding.updateLogo.useMutation();
+  const updateBrandColorMutation = trpc.branding.updateBrandColor.useMutation();
+  const removeLogoMutation = trpc.branding.removeLogo.useMutation();
+  const [showBrandingModal, setShowBrandingModal] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [brandColorInput, setBrandColorInput] = useState("");
+  const [showColorPicker, setShowColorPicker] = useState(false);
+
+  // Preset brand colors
+  const PRESET_COLORS = [
+    "#C9A84C", "#1E3A5F", "#2D5016", "#8B1A1A", "#4A2C6E",
+    "#D4620B", "#0A7EA4", "#333333", "#B8860B", "#1B4332",
+    "#7C3AED", "#DC2626", "#0369A1", "#854D0E", "#166534",
+  ];
+
+  React.useEffect(() => {
+    if (brandingData?.brandColor) setBrandColorInput(brandingData.brandColor);
+  }, [brandingData]);
+
+  const handlePickLogo = useCallback(async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") { Alert.alert("Permission Needed", "Please allow photo access to upload your logo."); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      setUploadingLogo(true);
+      const uri = result.assets[0].uri;
+      const apiBase = getApiBaseUrl();
+      const formData = new FormData();
+      if (Platform.OS === "web") {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        formData.append("file", blob, `logo_${companyId}_${Date.now()}.jpg`);
+      } else {
+        formData.append("file", { uri, type: "image/jpeg", name: `logo_${companyId}_${Date.now()}.jpg` } as any);
+      }
+      const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      const { url } = await uploadRes.json();
+      await updateLogoMutation.mutateAsync({ companyId, logoUrl: url, requestingEmployeeId: empId });
+      await refetchBranding();
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Logo Updated", "Your company logo has been updated successfully.");
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to upload logo");
+    } finally {
+      setUploadingLogo(false);
+    }
+  }, [companyId, empId]);
+
+  const handleRemoveLogo = useCallback(async () => {
+    Alert.alert("Remove Logo", "Are you sure you want to remove your company logo?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: async () => {
+        try {
+          await removeLogoMutation.mutateAsync({ companyId, requestingEmployeeId: empId });
+          await refetchBranding();
+          if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (err: any) { Alert.alert("Error", err?.message || "Failed to remove logo"); }
+      }},
+    ]);
+  }, [companyId, empId]);
+
+  const handleSaveBrandColor = useCallback(async (color: string) => {
+    try {
+      await updateBrandColorMutation.mutateAsync({ companyId, brandColor: color, requestingEmployeeId: empId });
+      setBrandColorInput(color);
+      await refetchBranding();
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to update brand color");
+    }
+  }, [companyId, empId]);
 
   // ═══ Crew Clock-In State ═══
   const canManageCrew = employee?.role === "owner" || employee?.role === "office_manager" || employee?.role === "logistics" || employee?.role === "foreman";
@@ -476,7 +620,7 @@ export default function ProfileScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Company Trade</Text>
                     <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
-                      {TRADE_OPTIONS.find((t) => t.key === companyTrade)?.label || "Framing"}
+                      {tradeData?.trades?.length ? `${tradeData.trades.length} trade${tradeData.trades.length > 1 ? "s" : ""} • ${(tradeData.availableTrades?.find((t: any) => t.slug === tradeData.primaryTrade)?.name || TRADE_OPTIONS.find((t) => t.key === companyTrade)?.label || "Framing")}` : (TRADE_OPTIONS.find((t) => t.key === companyTrade)?.label || "Framing")}
                     </Text>
                   </View>
                 </View>
@@ -500,6 +644,107 @@ export default function ProfileScreen() {
                   thumbColor={gpsEnabled ? colors.primary : colors.muted}
                 />
               </View>
+            </View>
+          )}
+
+          {/* Company Branding — Owner/Office Manager */}
+          {(employee.role === "owner" || employee.role === "office_manager") && (
+            <View style={styles.section}>
+              <View style={styles.row}>
+                <Text style={{ fontSize: 13, color: colors.muted, fontWeight: "600" }}>COMPANY BRANDING</Text>
+              </View>
+              {/* Logo Upload */}
+              <TouchableOpacity
+                style={[styles.row, { justifyContent: "space-between" }]}
+                onPress={handlePickLogo}
+                activeOpacity={0.6}
+                disabled={uploadingLogo}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                  {brandingData?.logoUrl ? (
+                    <RNImage source={{ uri: brandingData.logoUrl }} style={{ width: 36, height: 36, borderRadius: 8 }} />
+                  ) : (
+                    <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border, borderStyle: "dashed" }}>
+                      <MaterialIcons name="add-a-photo" size={18} color={colors.muted} />
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>
+                      {brandingData?.logoUrl ? "Company Logo" : "Upload Logo"}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>
+                      {brandingData?.logoUrl ? "Tap to change • Appears on reports & dashboard" : "JPG, PNG, PDF • Appears on all reports"}
+                    </Text>
+                  </View>
+                </View>
+                {uploadingLogo ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : brandingData?.logoUrl ? (
+                  <TouchableOpacity onPress={handleRemoveLogo} style={{ padding: 4 }}>
+                    <MaterialIcons name="delete-outline" size={20} color={colors.error} />
+                  </TouchableOpacity>
+                ) : (
+                  <MaterialIcons name="chevron-right" size={20} color={colors.muted} />
+                )}
+              </TouchableOpacity>
+              {/* Brand Color */}
+              <TouchableOpacity
+                style={[styles.rowLast, { justifyContent: "space-between" }]}
+                onPress={() => setShowColorPicker(!showColorPicker)}
+                activeOpacity={0.6}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                  <View style={{ width: 18, height: 18, borderRadius: 4, backgroundColor: brandingData?.brandColor || colors.primary, borderWidth: 1, borderColor: colors.border }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Brand Color</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>
+                      {brandingData?.brandColor || "Default"} • Used on reports & app accent
+                    </Text>
+                  </View>
+                </View>
+                <MaterialIcons name={showColorPicker ? "expand-less" : "expand-more"} size={20} color={colors.muted} />
+              </TouchableOpacity>
+              {/* Color Picker Dropdown */}
+              {showColorPicker && (
+                <View style={{ backgroundColor: colors.surface, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, marginTop: -1 }}>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+                    {PRESET_COLORS.map((c) => (
+                      <TouchableOpacity
+                        key={c}
+                        onPress={() => handleSaveBrandColor(c)}
+                        style={{
+                          width: 36, height: 36, borderRadius: 8, backgroundColor: c,
+                          borderWidth: brandingData?.brandColor === c ? 3 : 1,
+                          borderColor: brandingData?.brandColor === c ? colors.foreground : colors.border,
+                        }}
+                      />
+                    ))}
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <TextInput
+                      value={brandColorInput}
+                      onChangeText={setBrandColorInput}
+                      placeholder="#C9A84C"
+                      placeholderTextColor={colors.muted}
+                      maxLength={7}
+                      style={{
+                        flex: 1, height: 40, borderRadius: 8, backgroundColor: colors.background,
+                        borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12,
+                        fontSize: 14, color: colors.foreground, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+                      }}
+                    />
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (/^#[0-9A-Fa-f]{6}$/.test(brandColorInput)) handleSaveBrandColor(brandColorInput);
+                        else Alert.alert("Invalid Color", "Please enter a valid hex color like #C9A84C");
+                      }}
+                      style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(brandColorInput) ? brandColorInput : colors.primary, paddingHorizontal: 16, height: 40, borderRadius: 8, alignItems: "center", justifyContent: "center" }}
+                    >
+                      <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Apply</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
           )}
 
@@ -653,7 +898,7 @@ export default function ProfileScreen() {
                 activeOpacity={0.6}
               >
                 <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.success + "20", alignItems: "center", justifyContent: "center" }}>
-                  <MaterialIcons name="person-add" size={20} color={colors.success} />
+                  <MaterialIcons name="access-time" size={20} color={colors.success} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Manual Clock-In</Text>
@@ -794,41 +1039,118 @@ export default function ProfileScreen() {
       </Modal>
     )}
 
-    {/* Trade Picker Modal */}
+    {/* Trade Management Modal — Server-Backed Multi-Trade Picker */}
     <Modal visible={showTradePicker} transparent animationType="slide">
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}>
-        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "70%" }}>
+        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%" }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Select Your Trade</Text>
+            <View>
+              <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Manage Trades</Text>
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                {serverTrades.length > 0 ? `${serverTrades.length} trade${serverTrades.length > 1 ? "s" : ""} selected` : "Select your trades"}
+                {!tradeData?.canAddMore && serverTrades.length >= 3 ? " • Upgrade for more" : ""}
+              </Text>
+            </View>
             <TouchableOpacity onPress={() => setShowTradePicker(false)}>
               <MaterialIcons name="close" size={24} color={colors.muted} />
             </TouchableOpacity>
           </View>
+          {/* Primary Trade Selector */}
+          {serverTrades.length > 1 && (
+            <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary, marginBottom: 8 }}>PRIMARY TRADE</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {serverTrades.map((slug: string) => {
+                  const serverTrade = tradeData?.availableTrades?.find((t: any) => t.slug === slug);
+                  const iconName = TRADE_ICON_MAP[slug] || "build";
+                  const tradeName = serverTrade?.name || slug.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+                  const isPrimary = serverPrimaryTrade === slug;
+                  return (
+                    <TouchableOpacity
+                      key={slug}
+                      onPress={() => {
+                        setServerPrimaryTrade(slug);
+                        if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }}
+                      style={{
+                        flexDirection: "row", alignItems: "center", gap: 6,
+                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+                        backgroundColor: isPrimary ? colors.primary : "transparent",
+                        borderWidth: 1, borderColor: isPrimary ? colors.primary : colors.border,
+                      }}
+                    >
+                      <MaterialIcons name={iconName as any} size={16} color={isPrimary ? "#fff" : colors.foreground} />
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: isPrimary ? "#fff" : colors.foreground }}>{tradeName}</Text>
+                      {isPrimary && <MaterialIcons name="star" size={14} color="#FFD700" />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
           <ScrollView style={{ padding: 16 }}>
-            {TRADE_OPTIONS.map((opt) => (
-              <TouchableOpacity
-                key={opt.key}
-                onPress={() => {
-                  updateTrade(opt.key);
-                  setShowTradePicker(false);
-                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }}
-                style={{
-                  flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 16,
-                  borderRadius: 12, marginBottom: 8,
-                  backgroundColor: companyTrade === opt.key ? colors.primary + "15" : "transparent",
-                  borderWidth: companyTrade === opt.key ? 1.5 : 1,
-                  borderColor: companyTrade === opt.key ? colors.primary : colors.border,
-                }}
-                activeOpacity={0.6}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: "600", color: companyTrade === opt.key ? colors.primary : colors.foreground }}>{opt.label}</Text>
-                  <Text style={{ fontSize: 12, color: colors.muted }}>{opt.description}</Text>
-                </View>
-                {companyTrade === opt.key && <MaterialIcons name="check-circle" size={22} color={colors.primary} />}
-              </TouchableOpacity>
-            ))}
+            {tradeData?.availableTrades?.map((opt: any) => {
+              const isSelected = serverTrades.includes(opt.slug);
+              const isPrimary = serverPrimaryTrade === opt.slug;
+              const iconName = TRADE_ICON_MAP[opt.slug] || "build";
+              return (
+                <TouchableOpacity
+                  key={opt.slug}
+                  onPress={() => {
+                    if (isSelected) {
+                      // Remove trade
+                      const newTrades = serverTrades.filter((s: string) => s !== opt.slug);
+                      if (newTrades.length === 0) return; // Must have at least 1
+                      setServerTrades(newTrades);
+                      if (serverPrimaryTrade === opt.slug) setServerPrimaryTrade(newTrades[0]);
+                    } else {
+                      // Add trade
+                      if (!tradeData?.canAddMore && serverTrades.length >= 3) {
+                        Alert.alert("Trade Limit", "Free plan allows up to 3 trades. Upgrade to All Trades ($4.99/mo) to unlock all trades.");
+                        return;
+                      }
+                      setServerTrades([...serverTrades, opt.slug]);
+                      if (serverTrades.length === 0) setServerPrimaryTrade(opt.slug);
+                    }
+                    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  style={{
+                    flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 16,
+                    borderRadius: 12, marginBottom: 8,
+                    backgroundColor: isSelected ? colors.primary + "12" : "transparent",
+                    borderWidth: isSelected ? 1.5 : 1,
+                    borderColor: isSelected ? colors.primary : colors.border,
+                  }}
+                  activeOpacity={0.6}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isSelected ? colors.primary + "20" : colors.background, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                    <MaterialIcons name={iconName as any} size={20} color={isSelected ? colors.primary : colors.muted} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={{ fontSize: 15, fontWeight: "600", color: isSelected ? colors.primary : colors.foreground }}>{opt.name}</Text>
+                      {isPrimary && <View style={{ backgroundColor: colors.primary, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 }}><Text style={{ fontSize: 9, fontWeight: "800", color: "#fff" }}>PRIMARY</Text></View>}
+                    </View>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>{opt.description}</Text>
+                  </View>
+                  <MaterialIcons name={isSelected ? "check-circle" : "radio-button-unchecked"} size={22} color={isSelected ? colors.primary : colors.border} />
+                </TouchableOpacity>
+              );
+            })}
+            <View style={{ height: 20 }} />
+            {/* Save Button */}
+            <TouchableOpacity
+              style={{
+                backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 16, alignItems: "center",
+                opacity: savingTrades ? 0.6 : 1,
+              }}
+              onPress={handleSaveTrades}
+              disabled={savingTrades}
+            >
+              {savingTrades ? <ActivityIndicator color="#fff" /> : (
+                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Save Trades ({serverTrades.length})</Text>
+              )}
+            </TouchableOpacity>
             <View style={{ height: 40 }} />
           </ScrollView>
         </View>

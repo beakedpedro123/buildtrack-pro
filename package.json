@@ -70,6 +70,7 @@
     "expo-video": "~3.0.16",
     "expo-web-browser": "~15.0.10",
     "express": "^4.22.1",
+    "express-rate-limit": "^8.4.1",
     "jose": "6.1.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",

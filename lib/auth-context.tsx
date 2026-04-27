@@ -9,6 +9,7 @@ export type EmployeeRole = "owner" | "office_manager" | "logistics" | "foreman" 
 
 export interface AuthEmployee {
   id: number;
+  companyId: number;
   name: string;
   role: EmployeeRole;
   pin: string;

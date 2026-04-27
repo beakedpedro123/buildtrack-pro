@@ -573,8 +573,8 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
                                     )}
                                     {item.seenByOwner && (
                                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
-                                        <Text style={{ fontSize: 10 }}>✅</Text>
-                                        <Text style={{ fontSize: 10, color: colors.success, fontWeight: "600" }}>Reviewed</Text>
+                                        <MaterialIcons name="check-circle" size={12} color={colors.success} />
+                                        <Text style={{ fontSize: 10, color: colors.success, fontWeight: "600" }}>Reviewed{item.seenAt ? " · " + new Date(item.seenAt).toLocaleDateString([], { month: "short", day: "numeric" }) : ""}</Text>
                                       </View>
                                     )}
                                   </View>
@@ -688,7 +688,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
                       }}
                     >
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                        <Text style={{ fontSize: 20 }}>{item.seenByOwner ? "\u2705" : "\u2B1C"}</Text>
+                        <MaterialIcons name={item.seenByOwner ? "check-circle" : "radio-button-unchecked"} size={22} color={item.seenByOwner ? colors.success : colors.muted} />
                         <View>
                           <Text style={{ fontSize: 14, fontWeight: "700", color: item.seenByOwner ? colors.success : colors.foreground }}>
                             {item.seenByOwner ? "Reviewed" : "Mark as Reviewed"}
@@ -707,14 +707,24 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
                     <View style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      gap: 6,
+                      gap: 8,
                       marginTop: 12,
                       paddingTop: 10,
+                      paddingBottom: 4,
                       borderTopWidth: 1,
                       borderTopColor: colors.border,
                     }}>
-                      <Text style={{ fontSize: 14 }}>\u2705</Text>
-                      <Text style={{ fontSize: 12, color: colors.success, fontWeight: "600" }}>Reviewed by Owner</Text>
+                      <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.success + "20", alignItems: "center", justifyContent: "center" }}>
+                        <MaterialIcons name="check-circle" size={18} color={colors.success} />
+                      </View>
+                      <View>
+                        <Text style={{ fontSize: 13, color: colors.success, fontWeight: "700" }}>Reviewed by Owner</Text>
+                        {item.seenAt && (
+                          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }}>
+                            {new Date(item.seenAt).toLocaleDateString([], { month: "short", day: "numeric" })} at {new Date(item.seenAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                          </Text>
+                        )}
+                      </View>
                     </View>
                   )}
                 </View>

@@ -203,8 +203,14 @@ const jobsRouter = router({
     const data = { ...rest, endDate: rest.endDate ? new Date(rest.endDate) : undefined };
     return db.updateJob(id, data);
   }),
-  assign: publicProcedure.input(z.object({ jobId: z.number(), employeeId: z.number(), role: z.enum(["foreman", "laborer"]).default("laborer") })).mutation(({ input }) => db.assignEmployeeToJob(input)),
-  unassign: publicProcedure.input(z.object({ jobId: z.number(), employeeId: z.number() })).mutation(({ input }) => db.removeJobAssignment(input.jobId, input.employeeId)),
+  assign: publicProcedure.input(z.object({ jobId: z.number(), employeeId: z.number(), role: z.enum(["foreman", "laborer"]).default("laborer"), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "assign employees to jobs");
+    return db.assignEmployeeToJob(input);
+  }),
+  unassign: publicProcedure.input(z.object({ jobId: z.number(), employeeId: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "unassign employees from jobs");
+    return db.removeJobAssignment(input.jobId, input.employeeId);
+  }),
   getAssignments: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getJobAssignments(input.jobId)),
 });
 
@@ -474,9 +480,15 @@ Rules:
 });
 
 const budgetRouter = router({
-  createCategory: publicProcedure.input(z.object({ jobId: z.number(), name: z.string().min(1).max(128), budgetedAmount: z.string() })).mutation(({ input }) => db.createBudgetCategory(input)),
+  createCategory: publicProcedure.input(z.object({ jobId: z.number(), name: z.string().min(1).max(128), budgetedAmount: z.string(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "create budget categories");
+    return db.createBudgetCategory(input);
+  }),
   getCategories: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getBudgetCategoriesForJob(input.jobId)),
-  updateCategory: publicProcedure.input(z.object({ id: z.number(), name: z.string().optional(), budgetedAmount: z.string().optional(), spentAmount: z.string().optional() })).mutation(({ input }) => { const { id, ...data } = input; return db.updateBudgetCategory(id, data); }),
+  updateCategory: publicProcedure.input(z.object({ id: z.number(), name: z.string().optional(), budgetedAmount: z.string().optional(), spentAmount: z.string().optional(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update budget categories");
+    const { id, requestingEmployeeId, ...data } = input; return db.updateBudgetCategory(id, data);
+  }),
   addExpense: publicProcedure.input(z.object({
     jobId: z.number(),
     categoryId: z.number().optional(),
@@ -487,6 +499,7 @@ const budgetRouter = router({
   })).mutation(({ input }) => db.createExpense({ ...input, expenseDate: new Date(input.expenseDate) })),
   getExpenses: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getExpensesForJob(input.jobId)),
   syncToQB: publicProcedure.input(z.object({ triggeredBy: z.number(), syncType: z.enum(["expenses", "labor", "full"]).default("full") })).mutation(async ({ input }) => {
+    await assertRole(input.triggeredBy, ["owner", "office_manager"], "sync to QuickBooks");
     const logId = await db.createSyncLog({ syncType: input.syncType, status: "pending", triggeredBy: input.triggeredBy, itemsSynced: 0 });
     try {
       const unsyncedExpenses = await db.getUnsyncedExpenses();
@@ -545,7 +558,8 @@ const meetingsRouter = router({
     });
     return { id };
   }),
-  startRecording: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+  startRecording: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "start meeting recording");
     await db.updateMeeting(input.id, { status: "recording", startedAt: new Date() });
     return { success: true };
   }),
@@ -556,7 +570,8 @@ const meetingsRouter = router({
     await db.updateMeeting(input.id, { status: "processing", endedAt: new Date(), audioUrl: input.audioUrl });
     return { success: true };
   }),
-  transcribeAndSummarize: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+  transcribeAndSummarize: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "transcribe meetings");
     const meeting = await db.getMeetingById(input.id);
     if (!meeting || !meeting.audioUrl) throw new Error("Meeting or audio not found");
     // Get employee list for name matching in goals
@@ -609,7 +624,8 @@ const meetingsRouter = router({
     await db.updateMeeting(input.id, { transcript, summary, status: "completed" });
     return { transcript, summary, suggestedGoals: goalsWithIds };
   }),
-  cancel: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+  cancel: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "cancel meetings");
     await db.updateMeeting(input.id, { status: "cancelled" });
     return { success: true };
   }),
@@ -724,7 +740,8 @@ const goalsRouter = router({
     }
     return { success: true };
   }),
-  delete: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "delete goals");
     await db.deleteWeeklyGoal(input.id);
     return { success: true };
   }),
@@ -833,7 +850,8 @@ const punchListRouter = router({
     await db.togglePunchListItem(input.id, input.completedBy);
     return { success: true };
   }),
-  delete: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "delete punch list items");
     await db.deletePunchListItem(input.id);
     return { success: true };
   }),
@@ -3731,7 +3749,10 @@ const overheadRouter = router({
     const { id, ...data } = input;
     return db.updateOverheadItem(id, data);
   }),
-  delete: publicProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteOverheadItem(input.id)),
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "delete overhead items");
+    return db.deleteOverheadItem(input.id);
+  }),
 });
 
 // ─── Job Schedule Router ──────────────────────────────────────────────────
@@ -3776,7 +3797,10 @@ const scheduleRouter = router({
     if (data.endDate) updateData.endDate = new Date(data.endDate);
     return db.updateScheduleItem(id, updateData);
   }),
-  delete: publicProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteScheduleItem(input.id)),
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "delete schedule items");
+    return db.deleteScheduleItem(input.id);
+  }),
   bulkCreate: publicProcedure.input(z.object({
     items: z.array(z.object({
       jobId: z.number(),
@@ -3801,7 +3825,8 @@ const scheduleRouter = router({
     }
     return { count: created };
   }),
-  deleteByJob: publicProcedure.input(z.object({ jobId: z.number() })).mutation(async ({ input }) => {
+  deleteByJob: publicProcedure.input(z.object({ jobId: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "delete job schedules");
     const items = await db.getJobSchedule(input.jobId);
     for (const item of items) {
       await db.deleteScheduleItem(item.id);
@@ -4217,6 +4242,49 @@ const tradeKnowledgeRouter = router({
   }),
 });
 
+// ─── Company Branding Router ─────────────────────────────────────────────────
+const brandingRouter = router({
+  // Get company branding (logo + color)
+  get: publicProcedure.input(z.object({ companyId: z.number() })).query(async ({ input }) => {
+    const company = await db.getCompanyById(input.companyId);
+    if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
+    return {
+      logoUrl: company.logoUrl || null,
+      brandColor: (company as any).brandColor || null,
+      companyName: company.name,
+    };
+  }),
+  // Update company logo URL (after uploading via /api/upload)
+  updateLogo: publicProcedure.input(z.object({
+    companyId: z.number(),
+    logoUrl: z.string().url(),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "update company logo");
+    await db.updateCompany(input.companyId, { logoUrl: input.logoUrl });
+    return { success: true, logoUrl: input.logoUrl };
+  }),
+  // Update brand color
+  updateBrandColor: publicProcedure.input(z.object({
+    companyId: z.number(),
+    brandColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color like #C9A84C"),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "update brand color");
+    await db.updateCompany(input.companyId, { brandColor: input.brandColor } as any);
+    return { success: true, brandColor: input.brandColor };
+  }),
+  // Remove logo
+  removeLogo: publicProcedure.input(z.object({
+    companyId: z.number(),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "remove company logo");
+    await db.updateCompany(input.companyId, { logoUrl: null });
+    return { success: true };
+  }),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -4252,6 +4320,7 @@ export const appRouter = router({
   company: companyRouter,
   support: supportRouter,
   tradeKnowledge: tradeKnowledgeRouter,
+  branding: brandingRouter,
 });
 
 export type AppRouter = typeof appRouter;

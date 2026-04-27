@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express, { Request, Response } from "express";
+import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import net from "net";
 import path from "path";
@@ -65,6 +66,60 @@ async function startServer() {
 
   app.use(express.json({ limit: "200mb" }));
   app.use(express.urlencoded({ limit: "200mb", extended: true }));
+
+  // ═══ RATE LIMITING ═══
+  // Global API rate limit: 100 requests per minute per IP
+  const globalLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests. Please try again in a minute." },
+    skip: (req) => req.path === "/api/health", // Skip health checks
+  });
+  app.use("/api/trpc", globalLimiter);
+
+  // Strict rate limit on PIN verification: 5 attempts per 15 minutes per IP
+  const pinLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many PIN attempts. Account locked for 15 minutes." },
+    keyGenerator: (req) => (req.ip || "unknown") + "-pin",
+    validate: false, // Suppress IPv6 keyGenerator warning — we handle it
+  });
+  app.use("/api/trpc/verifyPin", pinLimiter);
+
+  // Strict rate limit on signup: 5 per hour per IP
+  const signupLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many signup attempts. Please try again later." },
+  });
+  app.use("/api/trpc/company.signup", signupLimiter);
+
+  // Rate limit on Pivot AI chat: 30 per hour per IP
+  const pivotLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Pivot chat limit reached. Please try again later." },
+  });
+  app.use("/api/trpc/pivot.chat", pivotLimiter);
+
+  // Rate limit on file uploads: 20 per minute per IP
+  const uploadLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many uploads. Please try again in a minute." },
+  });
+  app.use("/api/upload", uploadLimiter);
 
   registerStorageProxy(app);
   registerOAuthRoutes(app);
@@ -162,7 +217,7 @@ async function startServer() {
   // Detailed payroll PDF download endpoint
   app.get("/api/payroll-pdf", async (req: Request, res: Response) => {
     try {
-      const { startDate, endDate, reportType, billingRate, jobId } = req.query;
+      const { startDate, endDate, reportType, billingRate, jobId, companyId } = req.query;
       if (!startDate || !endDate) {
         res.status(400).json({ error: "startDate and endDate query params required" });
         return;
@@ -172,12 +227,14 @@ async function startServer() {
       const rType = validTypes.includes(reportType as string) ? (reportType as any) : "full";
       const rate = billingRate ? parseFloat(billingRate as string) : undefined;
       const jId = jobId ? parseInt(jobId as string) : undefined;
+      const cId = companyId ? parseInt(companyId as string) : undefined;
       const pdfBuffer = await generateDetailedPayrollPDF(
         new Date(startDate as string),
         new Date(endDate as string),
         rType,
         rate,
-        jId
+        jId,
+        cId
       );
       const typeLabel = rType === "full" ? "payroll" : rType;
       const jobSuffix = jId ? `_job${jId}` : "";
@@ -195,16 +252,18 @@ async function startServer() {
   // Individual employee timecard PDF
   app.get("/api/timecard-pdf", async (req: Request, res: Response) => {
     try {
-      const { employeeId, startDate, endDate } = req.query;
+      const { employeeId, startDate, endDate, companyId } = req.query;
       if (!employeeId || !startDate || !endDate) {
         res.status(400).json({ error: "employeeId, startDate, and endDate query params required" });
         return;
       }
       const { generateEmployeeTimecardPDF } = await import("../payroll-pdf");
+      const cId = companyId ? parseInt(companyId as string) : undefined;
       const pdfBuffer = await generateEmployeeTimecardPDF(
         parseInt(employeeId as string),
         new Date(startDate as string),
-        new Date(endDate as string)
+        new Date(endDate as string),
+        cId
       );
       const filename = `timecard_emp${employeeId}_${(startDate as string).slice(0, 10)}_to_${(endDate as string).slice(0, 10)}.pdf`;
       res.setHeader("Content-Type", "application/pdf");
@@ -213,6 +272,28 @@ async function startServer() {
       res.send(pdfBuffer);
     } catch (err: any) {
       console.error("Timecard PDF error:", err);
+      res.status(500).json({ error: "Failed to generate PDF", details: err?.message });
+    }
+  });
+
+  // Job Completion PDF — comprehensive report for completed jobs
+  app.get("/api/job-completion-pdf", async (req: Request, res: Response) => {
+    try {
+      const { jobId, companyId: cmpId } = req.query;
+      if (!jobId) {
+        res.status(400).json({ error: "jobId query param required" });
+        return;
+      }
+      const { generateJobCompletionPDF } = await import("../job-completion-pdf");
+      const compId = cmpId ? parseInt(cmpId as string) : undefined;
+      const pdfBuffer = await generateJobCompletionPDF(parseInt(jobId as string), compId);
+      const filename = `job_completion_${jobId}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", pdfBuffer.length);
+      res.send(pdfBuffer);
+    } catch (err: any) {
+      console.error("Job Completion PDF error:", err);
       res.status(500).json({ error: "Failed to generate PDF", details: err?.message });
     }
   });
@@ -344,6 +425,89 @@ async function startServer() {
   // Redirect shortcuts
   app.get("/api", (_req: Request, res: Response) => {
     res.redirect(301, "/api/portal/");
+  });
+
+  // ─── Stripe Billing Endpoints ─────────────────────────────────────────
+  app.post("/api/stripe/create-checkout", async (req: Request, res: Response) => {
+    try {
+      const { companyId, priceType, successUrl, cancelUrl } = req.body;
+      if (!companyId || !priceType) {
+        res.status(400).json({ error: "companyId and priceType required" });
+        return;
+      }
+      const { createCheckoutSession, isStripeConfigured } = await import("../stripe-billing");
+      if (!isStripeConfigured()) {
+        res.status(503).json({ error: "Stripe not configured" });
+        return;
+      }
+      const result = await createCheckoutSession(
+        parseInt(companyId),
+        priceType,
+        successUrl || "https://buildtrackpro.app/success",
+        cancelUrl || "https://buildtrackpro.app/cancel"
+      );
+      res.json(result);
+    } catch (err: any) {
+      console.error("Stripe checkout error:", err);
+      res.status(500).json({ error: err?.message || "Failed to create checkout session" });
+    }
+  });
+
+  app.post("/api/stripe/portal", async (req: Request, res: Response) => {
+    try {
+      const { companyId, returnUrl } = req.body;
+      if (!companyId) {
+        res.status(400).json({ error: "companyId required" });
+        return;
+      }
+      const { createPortalSession, isStripeConfigured } = await import("../stripe-billing");
+      if (!isStripeConfigured()) {
+        res.status(503).json({ error: "Stripe not configured" });
+        return;
+      }
+      const result = await createPortalSession(
+        parseInt(companyId),
+        returnUrl || "https://buildtrackpro.app"
+      );
+      res.json(result);
+    } catch (err: any) {
+      console.error("Stripe portal error:", err);
+      res.status(500).json({ error: err?.message || "Failed to create portal session" });
+    }
+  });
+
+  app.get("/api/stripe/status", async (req: Request, res: Response) => {
+    try {
+      const { companyId } = req.query;
+      if (!companyId) {
+        res.status(400).json({ error: "companyId required" });
+        return;
+      }
+      const { getSubscriptionStatus, isStripeConfigured } = await import("../stripe-billing");
+      if (!isStripeConfigured()) {
+        res.status(503).json({ error: "Stripe not configured" });
+        return;
+      }
+      const result = await getSubscriptionStatus(parseInt(companyId as string));
+      res.json(result);
+    } catch (err: any) {
+      console.error("Stripe status error:", err);
+      res.status(500).json({ error: err?.message || "Failed to get subscription status" });
+    }
+  });
+
+  // Stripe Webhook (raw body required)
+  app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req: Request, res: Response) => {
+    try {
+      const { handleWebhookEvent } = await import("../stripe-billing");
+      const Stripe = (await import("stripe")).default;
+      const event = JSON.parse(req.body.toString()) as any;
+      await handleWebhookEvent(event);
+      res.json({ received: true });
+    } catch (err: any) {
+      console.error("Stripe webhook error:", err);
+      res.status(400).json({ error: err?.message });
+    }
   });
 
   const preferredPort = parseInt(process.env.PORT || "3000");

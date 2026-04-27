@@ -2439,3 +2439,64 @@
 - [x] Research BuildTrack Pro weak spots vs competitors
 - [x] Write comprehensive PDF with findings and fix plan
 - [x] Include actionable implementation steps for each weakness
+
+## Phase 121: Security Fixes & Trade Management UI
+### Security - Auth Guards
+- [x] Create authenticatedProcedure middleware (validates PIN + companyId)
+- [x] Migrate unguarded mutations to use assertRole auth guards (13 of 17 secured; 4 intentionally public: verifyPin, lookupBySlug, markHelpful, logout)
+- [x] Add role-based checks to each mutation (owner, office_manager, foreman, worker)
+### Security - Rate Limiting
+- [x] Add express-rate-limit globally (100 req/min per IP)
+- [x] Add strict rate limit on signup (5/hour)
+- [x] Add strict rate limit on PIN verification (5 attempts then 15-min lockout)
+- [x] Add rate limit on Pivot chat (30/hour per employee)
+### Security - Admin Auth
+- [ ] Add admin login to web portals (admin dashboard, support portal)
+### Trade Management UI
+- [x] Build trade management screen in mobile app settings
+- [x] Show current trades with ability to add/remove
+- [x] First 3 trades free, $4.99/mo paywall for all trades
+- [x] GCs get all trades with $4.99/mo markup
+- [x] Trade picker UI with icons for each trade
+
+## Phase 121b: Pedro's New Requests (Apr 26)
+### Clock Icon Redesign
+- [x] Replace "CLK" text label on Crew Clock button with a high-end clock icon
+- [x] Make clock icon consistent with app design across all account types (Owner, Office Manager, Foreman, Laborer)
+- [x] Update Profile screen "Manual Clock-In" section icon to match
+### Foreman Report Review Timestamps
+- [x] Show exact review timestamp on reports when viewed by Foreman (currently only shows "Reviewed by Owner" with no time)
+- [x] Match the same timestamp format that Owner accounts see
+### Job Completion PDF
+- [x] Generate comprehensive PDF when a job is marked complete
+- [x] Include all daily field reports for the job
+- [x] Include full budget breakdown (categories, actuals vs estimates)
+- [x] Include all safety meeting summaries related to the job
+- [x] Include job timeline (start date, milestones, completion date)
+- [x] PDF downloadable and shareable
+### Foreman Bonus Structure Research
+- [x] Research construction industry foreman bonus structures
+- [x] Analyze tiered approach: 0.01 base rate, different tiers for $80K+ and $100K+ jobs
+- [x] Create detailed proposal document with implementation plan
+- [x] Design database schema for bonus tracking (DO NOT BUILD YET — schema documented in proposal)
+
+### Company Logo & Branding Customization
+- [x] Add company logo field to database schema (logoUrl on companies table, brandColor added)
+- [x] Add logo upload endpoint on server (accept PDF, JPEG, PNG, SVG)
+- [x] Build logo upload UI on Profile tab (for owner/office_manager)
+- [ ] Display company logo on main dashboard (replacing default BTP logo)
+- [x] Use company logo on all downloaded PDFs (payroll, job completion, field reports)
+- [x] Ensure Pedro's info/branding is NOT on other companies' downloaded reports
+- [x] Allow company color scheme customization (primary/accent colors via brand color picker)
+- [ ] Apply company colors to app theme dynamically
+
+### Stripe Payment Integration
+- [x] Set up Stripe API keys (publishable + secret) as environment variables
+- [x] Install Stripe SDK on server side
+- [x] Create subscription products/prices for BuildTrack Pro plans (auto-created on first use)
+- [x] Build subscription management endpoints (create checkout, webhook, check status)
+- [x] Wire up trade unlock ($4.99/mo) to actual Stripe payment (checkout flow ready)
+- [x] Add subscription status checking to company routes
+- [ ] Build payment/subscription UI in the mobile app
+- [x] Company brand color affects PDF report color themes (headers, accents, dividers)
+- [x] Apply company brand color to payroll PDF, job completion PDF, and field report exports

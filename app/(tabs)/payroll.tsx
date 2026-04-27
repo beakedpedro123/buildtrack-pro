@@ -352,6 +352,8 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
       let url = `${apiBase}/api/payroll-pdf?startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}&reportType=${reportType}`;
       if (billingRate) url += `&billingRate=${billingRate}`;
       if (filterJobId) url += `&jobId=${filterJobId}`;
+      const cId = (employee as any)?.companyId;
+      if (cId) url += `&companyId=${cId}`;
       if (Platform.OS === "web") {
         window.open(url, "_blank");
       } else {

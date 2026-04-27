@@ -494,7 +494,8 @@ export default function TimecardScreen() {
                   try {
                     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     const apiBase = getApiBaseUrl();
-                    const url = `${apiBase}/api/timecard-pdf?employeeId=${employeeId}&startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}`;
+                    const cId = (currentUser as any)?.companyId;
+                    const url = `${apiBase}/api/timecard-pdf?employeeId=${employeeId}&startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}${cId ? `&companyId=${cId}` : ""}`;
                     if (Platform.OS === "web") {
                       (window as any).open(url, "_blank");
                     } else {

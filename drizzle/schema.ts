@@ -18,6 +18,7 @@ export const companies = mysqlTable("companies", {
   ownerEmail: varchar("ownerEmail", { length: 320 }),
   ownerPhone: varchar("ownerPhone", { length: 20 }),
   logoUrl: text("logoUrl"),
+  brandColor: varchar("brandColor", { length: 7 }), // hex color e.g. #C9A84C
   // Subscription
   plan: mysqlEnum("plan", ["trial", "starter", "professional", "enterprise"]).default("trial").notNull(),
   stripeCustomerId: varchar("stripeCustomerId", { length: 128 }),

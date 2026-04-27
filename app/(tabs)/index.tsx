@@ -732,7 +732,7 @@ export default function DashboardScreen() {
           </View>
           <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
             <TouchableOpacity style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.success + "18", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40" }} onPress={() => setShowCrewClockIn(true)}>
-              <MaterialIcons name="person-add" size={22} color={colors.success} style={{ marginRight: 12 }} />
+              <MaterialIcons name="access-time" size={22} color={colors.success} style={{ marginRight: 12 }} />
               <View>
                 <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Crew Clock-In</Text>
                 <Text style={{ fontSize: 11, color: colors.muted }}>Manual clock in/out</Text>
@@ -906,7 +906,7 @@ export default function DashboardScreen() {
           {/* Quick Actions */}
           <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 20 }}>
             <TouchableOpacity style={{ flex: 1, backgroundColor: colors.success + "15", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40", alignItems: "center" }} onPress={() => setShowCrewClockIn(true)}>
-              <Text style={{ fontSize: 18, marginBottom: 6, fontWeight: "700", color: colors.success }}>CLK</Text>
+              <MaterialIcons name="access-time" size={24} color={colors.success} style={{ marginBottom: 6 }} />
               <Text style={{ fontSize: 11, fontWeight: "600", color: colors.success, textAlign: "center" }}>Crew Clock</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" }} onPress={() => router.push("/reports" as any)}>
@@ -1603,7 +1603,7 @@ export default function DashboardScreen() {
         {/* ═══ CREW CLOCK-IN QUICK ACTION ═══ */}
         <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginTop: 16, marginBottom: 12 }}>
           <TouchableOpacity style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.success + "18", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.success + "40" }} onPress={() => setShowCrewClockIn(true)}>
-            <MaterialIcons name="person-add" size={22} color={colors.success} style={{ marginRight: 12 }} />
+            <MaterialIcons name="access-time" size={22} color={colors.success} style={{ marginRight: 12 }} />
             <View>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Crew Clock-In</Text>
               <Text style={{ fontSize: 11, color: colors.muted }}>Manual clock in/out</Text>

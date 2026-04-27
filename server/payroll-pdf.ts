@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { getCompanyBranding, type CompanyBranding } from "./pdf-branding";
 import * as db from "./db";
 import path from "path";
 import fs from "fs";
@@ -274,9 +275,11 @@ function renderPageHeader(
   reportType: ReportType,
   pageWidth: number,
   gold: string,
-  jobName?: string
+  jobName?: string,
+  branding?: CompanyBranding
 ) {
-  const logo = getLogoBuffer();
+  const logo = branding?.logoBuffer || getLogoBuffer();
+  const companyDisplayName = branding?.companyName || "BuildTrack Pro";
   doc.rect(0, 0, 612, 90).fill("#1a1a1a");
   
   let textX = 40;
@@ -287,7 +290,7 @@ function renderPageHeader(
     } catch {}
   }
   
-  doc.fontSize(20).fillColor("#ffffff").text("CARRANZA CUSTOM CONSTRUCTION", textX, 18, { width: pageWidth - (textX - 40) });
+  doc.fontSize(20).fillColor("#ffffff").text(companyDisplayName, textX, 18, { width: pageWidth - (textX - 40) });
   const subtitle = jobName ? `${REPORT_TITLES[reportType]} — ${jobName}` : REPORT_TITLES[reportType];
   doc.fontSize(10).fillColor(gold).text(subtitle, textX, 44);
   doc.fontSize(9).fillColor("#cccccc").text(
@@ -691,7 +694,8 @@ export async function generateDetailedPayrollPDF(
   endDate: Date,
   reportType: ReportType = "full",
   billingRate?: number,
-  filterJobId?: number
+  filterJobId?: number,
+  companyId?: number
 ): Promise<Buffer> {
   const { timecards, jobCosts, totalPayroll, totalHours, activeJobs, activeJobCount, isFiltered } = await buildReportData(startDate, endDate, filterJobId);
 
@@ -714,10 +718,12 @@ export async function generateDetailedPayrollPDF(
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
   const pageWidth = 612 - 80;
-  const gold = "#D4AF37";
+  // Fetch company branding (logo + color)
+  const branding = await getCompanyBranding(companyId);
+  const gold = branding.brandColor;
 
   // Cover header (always shown)
-  renderPageHeader(doc, startDate, endDate, reportType, pageWidth, gold, filterJobName);
+  renderPageHeader(doc, startDate, endDate, reportType, pageWidth, gold, filterJobName, branding);
 
   let y = 110;
 
@@ -776,7 +782,8 @@ export async function generateDetailedPayrollPDF(
 export async function generateEmployeeTimecardPDF(
   employeeId: number,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
+  companyId?: number
 ): Promise<Buffer> {
   const { timecards, activeJobs } = await buildReportData(startDate, endDate);
   const tc = timecards.find(t => t.employeeId === employeeId);
@@ -788,8 +795,9 @@ export async function generateEmployeeTimecardPDF(
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
     const pageWidth = 612 - 80;
-    const gold = "#D4AF37";
-    renderPageHeader(doc, startDate, endDate, "employee", pageWidth, gold);
+    const branding = await getCompanyBranding(companyId);
+    const gold = branding.brandColor;
+    renderPageHeader(doc, startDate, endDate, "employee", pageWidth, gold, undefined, branding);
     doc.fontSize(16).fillColor("#333").text(`${emp?.name || "Employee"} — No hours recorded`, 40, 130);
     doc.fontSize(12).fillColor("#666").text("No clock entries found for this period.", 40, 160);
     return new Promise((resolve, reject) => {

@@ -8,6 +8,8 @@ import * as Haptics from "expo-haptics";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Print from "expo-print";
 import { shareAsync } from "expo-sharing";
+import * as Linking from "expo-linking";
+import { getApiBaseUrl } from "@/constants/oauth";
 import { useState, useCallback, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
@@ -62,6 +64,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showAddBudget, setShowAddBudget] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [generatingCompletionPdf, setGeneratingCompletionPdf] = useState(false);
 
   // New job form
   const [jobName, setJobName] = useState("");
@@ -218,6 +221,26 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Could not create job. Please try again.");
+    }
+  };
+
+  // Generate Job Completion PDF (server-side, comprehensive)
+  const handleGenerateCompletionPdf = async () => {
+    if (!selectedJob) return;
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setGeneratingCompletionPdf(true);
+    try {
+      const apiBase = getApiBaseUrl();
+      const url = `${apiBase}/api/job-completion-pdf?jobId=${selectedJob.id}&companyId=${(employee as any)?.companyId || ""}`;
+      if (Platform.OS === "web") {
+        window.open(url, "_blank");
+      } else {
+        await Linking.openURL(url);
+      }
+    } catch (err: any) {
+      Alert.alert("Error", `Failed to download PDF: ${err?.message || "Unknown error"}`);
+    } finally {
+      setGeneratingCompletionPdf(false);
     }
   };
 
@@ -1202,6 +1225,17 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                     <TouchableOpacity style={[styles.pdfBtn, { backgroundColor: colors.primary, marginTop: 8 }]} onPress={handleGenerateReportsPdf} disabled={generatingPdf}>
                       {generatingPdf ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Generate Field Reports PDF</Text>}
                     </TouchableOpacity>
+                    <TouchableOpacity style={[styles.pdfBtn, { backgroundColor: "#22C55E", marginTop: 8 }]} onPress={handleGenerateCompletionPdf} disabled={generatingCompletionPdf}>
+                      {generatingCompletionPdf ? <ActivityIndicator color="#fff" /> : (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <MaterialIcons name="description" size={18} color="#fff" />
+                          <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Job Completion Report PDF</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6, textAlign: "center" }}>
+                      Includes all reports, budgets, expenses, materials, safety meetings & change orders
+                    </Text>
                   </View>
                 </View>
               )}
