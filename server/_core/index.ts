@@ -299,63 +299,46 @@ async function startServer() {
   console.log(`[server] publicDir exists: ${fs.existsSync(publicDir)}`);
   console.log(`[server] index.html exists: ${fs.existsSync(path.join(publicDir, "index.html"))}`);
 
-  // Serve static files from public directory
-  app.use("/api/web", express.static(publicDir));
-
   // === 3 Separate Web Apps ===
+  // IMPORTANT: Explicit HTML routes MUST come BEFORE express.static
+  // to prevent static middleware from serving index.html as fallback
+
   // 1. Marketing Site (default landing page)
+  app.get("/api/web", (_req: Request, res: Response) => {
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
   app.get("/api/web/", (_req: Request, res: Response) => {
-    const filePath = path.join(publicDir, "index.html");
-    if (fs.existsSync(filePath)) {
-      res.sendFile(filePath);
-    } else {
-      res.status(404).send('Marketing site not found');
-    }
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
+  app.get("/api/web/index.html", (_req: Request, res: Response) => {
+    res.sendFile(path.join(publicDir, "index.html"));
   });
 
   // 2. Admin Dashboard
   app.get("/api/web/admin", (_req: Request, res: Response) => {
-    const filePath = path.join(publicDir, "admin.html");
-    if (fs.existsSync(filePath)) {
-      res.sendFile(filePath);
-    } else {
-      res.status(404).send('Admin dashboard not found');
-    }
+    res.sendFile(path.join(publicDir, "admin.html"));
+  });
+  app.get("/api/web/admin.html", (_req: Request, res: Response) => {
+    res.sendFile(path.join(publicDir, "admin.html"));
   });
 
   // 3. Support Portal
   app.get("/api/web/support", (_req: Request, res: Response) => {
-    const filePath = path.join(publicDir, "support.html");
-    if (fs.existsSync(filePath)) {
-      res.sendFile(filePath);
-    } else {
-      res.status(404).send('Support portal not found');
-    }
+    res.sendFile(path.join(publicDir, "support.html"));
   });
+  app.get("/api/web/support.html", (_req: Request, res: Response) => {
+    res.sendFile(path.join(publicDir, "support.html"));
+  });
+
+  // Serve other static assets (CSS, JS, images) from public directory
+  // This comes AFTER explicit routes so it won't override admin/support
+  app.use("/api/web", express.static(publicDir, {
+    index: false,  // Disable automatic index.html serving
+  }));
 
   // Redirect shortcuts
   app.get("/api", (_req: Request, res: Response) => {
     res.redirect(301, "/api/web/");
-  });
-
-  // SPA fallback for /api/web/* routes
-  app.get("/api/web/*", (_req: Request, res: Response) => {
-    const indexPath = path.join(publicDir, "index.html");
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      res.status(404).send('Page not found');
-    }
-  });
-
-  // Catch-all
-  app.get("*", (_req: Request, res: Response) => {
-    const indexPath = path.join(publicDir, "index.html");
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      res.status(404).send('Page not found');
-    }
   });
 
   const preferredPort = parseInt(process.env.PORT || "3000");
