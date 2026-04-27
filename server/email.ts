@@ -31,9 +31,9 @@ async function sendEmail(opts: { to: string; subject: string; html: string }) {
       html: opts.html,
     });
     if (error) {
-      console.warn("[email] Resend error:", error);
+      console.warn(`[email] Resend error sending to ${opts.to}:`, JSON.stringify(error));
     } else {
-      console.log("[email] Sent:", data?.id);
+      console.log(`[email] Sent to ${opts.to}:`, data?.id);
     }
   } catch (e) {
     console.warn("[email] Failed to send:", e);
@@ -317,5 +317,90 @@ export async function notifyTicketStatusUpdate(ticket: {
     to: ADMIN_EMAIL,
     subject: `Ticket #${ticket.id} → ${ticket.status.replace(/_/g, " ").toUpperCase()}: ${ticket.subject}`,
     html: ticketStatusUpdateHTML(ticket),
+  });
+}
+
+// ── Welcome Signup Email ──
+
+export async function notifyWelcomeSignup(info: {
+  ownerName: string;
+  ownerEmail: string;
+  companyName: string;
+  slug: string;
+  pin: string;
+}) {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="margin:0;padding:0;background:#0f1114;font-family:'Inter',Arial,sans-serif">
+  <div style="max-width:600px;margin:0 auto;padding:24px">
+    <div style="background:#1a1d21;border-radius:12px;overflow:hidden;border:1px solid #2a2d32">
+      <div style="background:#C8A84E;padding:24px;text-align:center">
+        <h1 style="margin:0;color:#0f1114;font-size:22px;font-weight:800">Welcome to ${APP_NAME}!</h1>
+        <p style="margin:6px 0 0;color:#0f1114;opacity:0.7;font-size:13px">Your 14-day free trial is active</p>
+      </div>
+      <div style="padding:28px">
+        <p style="color:#ECEDEE;font-size:15px;margin:0 0 20px">Hi ${info.ownerName},</p>
+        <p style="color:#ECEDEE;font-size:14px;line-height:1.6;margin:0 0 20px">Your account for <strong style="color:#C8A84E">${info.companyName}</strong> is ready. Here's everything you need to log in:</p>
+        
+        <div style="background:#0f1114;border:1px solid #C8A84E;border-radius:12px;padding:20px;margin:0 0 20px">
+          <table style="width:100%;border-collapse:collapse">
+            <tr><td style="padding:6px 0;color:#9BA1A6;font-size:13px;width:120px">Company Code:</td><td style="padding:6px 0;color:#ECEDEE;font-size:15px;font-weight:700;letter-spacing:1px">${info.slug}</td></tr>
+            <tr><td style="padding:6px 0;color:#9BA1A6;font-size:13px">Your Name:</td><td style="padding:6px 0;color:#ECEDEE;font-size:14px">${info.ownerName}</td></tr>
+            <tr><td style="padding:6px 0;color:#9BA1A6;font-size:13px">Your PIN:</td><td style="padding:6px 0;color:#ECEDEE;font-size:15px;font-weight:700;letter-spacing:2px">${info.pin}</td></tr>
+            <tr><td style="padding:6px 0;color:#9BA1A6;font-size:13px">Role:</td><td style="padding:6px 0;color:#C8A84E;font-size:14px;font-weight:600">Owner</td></tr>
+          </table>
+        </div>
+        
+        <p style="color:#9BA1A6;font-size:13px;margin:0 0 20px">Share the company code with your team members so they can join. You can add employees from the Team tab once logged in.</p>
+        
+        <div style="text-align:center;margin:24px 0">
+          <a href="${BASE_URL}/api/portal/" style="display:inline-block;padding:14px 36px;background:#C8A84E;color:#0f1114;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px">Log In Now →</a>
+        </div>
+        
+        <p style="color:#687076;font-size:12px;text-align:center;margin:0">Keep this email safe — it contains your login credentials</p>
+      </div>
+    </div>
+    <p style="text-align:center;color:#687076;font-size:11px;margin-top:16px">This is an automated notification from ${APP_NAME}</p>
+  </div>
+</body>
+</html>`;
+
+  await sendEmail({
+    to: info.ownerEmail,
+    subject: `Welcome to ${APP_NAME} — Your Login Details`,
+    html,
+  });
+
+  // Also notify admin of new signup
+  await sendEmail({
+    to: ADMIN_EMAIL,
+    subject: `🆕 New Signup: ${info.companyName} (${info.slug})`,
+    html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="margin:0;padding:0;background:#0f1114;font-family:'Inter',Arial,sans-serif">
+  <div style="max-width:600px;margin:0 auto;padding:24px">
+    <div style="background:#1a1d21;border-radius:12px;overflow:hidden;border:1px solid #2a2d32">
+      <div style="background:#22C55E;padding:20px 24px;text-align:center">
+        <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700">New Company Signup!</h1>
+      </div>
+      <div style="padding:24px">
+        <table style="width:100%;border-collapse:collapse">
+          <tr><td style="padding:8px 0;color:#9BA1A6;font-size:13px;width:120px">Company:</td><td style="padding:8px 0;color:#ECEDEE;font-size:14px;font-weight:600">${info.companyName}</td></tr>
+          <tr><td style="padding:8px 0;color:#9BA1A6;font-size:13px">Slug:</td><td style="padding:8px 0;color:#C8A84E;font-size:14px;font-weight:700">${info.slug}</td></tr>
+          <tr><td style="padding:8px 0;color:#9BA1A6;font-size:13px">Owner:</td><td style="padding:8px 0;color:#ECEDEE;font-size:14px">${info.ownerName}</td></tr>
+          <tr><td style="padding:8px 0;color:#9BA1A6;font-size:13px">Email:</td><td style="padding:8px 0;color:#ECEDEE;font-size:14px">${info.ownerEmail}</td></tr>
+        </table>
+        <div style="margin-top:20px;text-align:center">
+          <a href="${BASE_URL}/api/web/admin" style="display:inline-block;padding:12px 32px;background:#C8A84E;color:#0f1114;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">View in Admin Dashboard</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`,
   });
 }

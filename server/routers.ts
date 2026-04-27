@@ -3948,6 +3948,21 @@ const companyRouter = router({
       email: input.ownerEmail,
       phone: input.ownerPhone,
     });
+    // Send welcome email if email provided
+    if (input.ownerEmail) {
+      try {
+        const { notifyWelcomeSignup } = await import("./email");
+        await notifyWelcomeSignup({
+          ownerName: input.ownerName,
+          ownerEmail: input.ownerEmail,
+          companyName: input.companyName,
+          slug: input.slug,
+          pin: input.ownerPin,
+        });
+      } catch (e) {
+        console.warn("[signup] Welcome email failed:", e);
+      }
+    }
     return { companyId, ownerId, slug: input.slug };
   }),
   

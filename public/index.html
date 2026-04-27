@@ -650,11 +650,7 @@ a:hover{opacity:.85}
       <button class="btn btn-primary btn-large" style="width:100%;margin-top:8px" onclick="submitSignup()">Create My Account</button>
     </div>
     <div class="form-success" id="signupSuccess">
-      <h3>Welcome to BuildTrack Pro!</h3>
-      <p>Your 14-day free trial has started. Download the app and log in with your PIN to get started.</p>
-      <div style="margin-top:20px">
-        <a href="#" class="btn btn-primary">Download the App</a>
-      </div>
+      <!-- Dynamically populated by submitSignup() -->
     </div>
   </div>
 </div>
@@ -920,7 +916,19 @@ document.addEventListener('DOMContentLoaded', initComparator);
 
 /* ===== SIGNUP MODAL ===== */
 function openSignup(plan) {
-  document.getElementById('signupModal').classList.add('active');
+  const modal = document.getElementById('signupModal');
+  const form = document.getElementById('signupForm');
+  const success = document.getElementById('signupSuccess');
+  // If success is showing (already signed up), just reopen with success
+  if (success.style.display === 'block') {
+    modal.classList.add('active');
+    return;
+  }
+  // Reset form state
+  form.style.display = 'block';
+  success.style.display = 'none';
+  document.getElementById('formError').style.display = 'none';
+  modal.classList.add('active');
   if (plan) document.getElementById('selectedPlan').value = plan;
 }
 function closeSignup() {
@@ -1026,15 +1034,29 @@ async function submitSignup() {
     }
     // Show success with company URL info
     const successEl = document.getElementById('signupSuccess');
-    successEl.innerHTML = `<h3>Welcome to BuildTrack Pro!</h3>
-      <p>Your 14-day free trial has started.</p>
-      <div style="background:var(--bg-2);border:1px solid var(--gold);border-radius:12px;padding:16px;margin:16px 0">
-        <p style="color:var(--gold);font-weight:700;margin-bottom:4px">Your Company Code</p>
-        <p style="font-size:24px;font-weight:800;color:var(--text-1);letter-spacing:1px">${slug}</p>
-        <p style="font-size:12px;color:var(--text-3);margin-top:4px">Share this code with your team so they can join your company in the app.</p>
+    const pinDisplay = ownerPin ? ownerPin.replace(/./g, '\u2022').slice(0,-1) + ownerPin.slice(-1) : '';
+    successEl.innerHTML = `<h3 style="color:var(--green);font-size:22px;font-weight:800;margin-bottom:12px">✅ Welcome to BuildTrack Pro!</h3>
+      <p style="font-size:15px;color:var(--text);margin-bottom:20px">Your 14-day free trial is active. Here's everything you need to get started:</p>
+      <div style="background:var(--bg-2);border:1px solid var(--gold);border-radius:12px;padding:20px;margin:16px 0">
+        <p style="color:var(--gold);font-weight:700;margin-bottom:4px;font-size:13px;text-transform:uppercase;letter-spacing:1px">Your Company Code</p>
+        <p style="font-size:28px;font-weight:800;color:var(--text);letter-spacing:2px;margin:8px 0">${slug}</p>
+        <p style="font-size:12px;color:var(--text-3)">Share this code with your team so they can join</p>
       </div>
-      <p style="font-size:14px;color:var(--text-2)">Download the app, enter your company code <strong>${slug}</strong>, and log in with your PIN.</p>
-      <div style="margin-top:20px"><a href="#" class="btn btn-primary">Download the App</a></div>`;
+      <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:16px;margin:12px 0;text-align:left">
+        <p style="font-size:13px;color:var(--text-3);margin-bottom:8px">🔑 Your Login Info:</p>
+        <p style="font-size:14px;color:var(--text);margin:4px 0"><strong>Name:</strong> ${ownerName}</p>
+        <p style="font-size:14px;color:var(--text);margin:4px 0"><strong>PIN:</strong> ${ownerPin}</p>
+        <p style="font-size:14px;color:var(--text);margin:4px 0"><strong>Role:</strong> Owner</p>
+        ${ownerEmail ? `<p style="font-size:11px;color:var(--text-3);margin-top:8px">✉️ Login details also sent to ${ownerEmail}</p>` : ''}
+      </div>
+      <p style="font-size:14px;font-weight:600;color:var(--text);margin:20px 0 12px">📱 Get the App:</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <a href="/api/portal/" target="_blank" style="display:block;padding:14px 20px;background:var(--gold);color:#0a0a0a;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;text-align:center">Open Web App Now →</a>
+        <p style="font-size:12px;color:var(--text-3);text-align:center;margin:4px 0 0">Works on any device — phone, tablet, or desktop</p>
+      </div>
+      <div style="margin-top:16px;padding:12px;background:var(--bg-3);border-radius:8px">
+        <p style="font-size:12px;color:var(--text-3);margin:0">💡 <strong>Quick Start:</strong> Open the web app above, enter company code <strong>${slug}</strong>, then log in with your PIN. You can download the mobile app anytime later.</p>
+      </div>`;
     document.getElementById('signupForm').style.display = 'none';
     successEl.style.display = 'block';
   } catch (e) {

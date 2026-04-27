@@ -2572,3 +2572,15 @@
 - [x] Added customer-facing ticket tracking page at /api/web/ticket/:token (no login)
 - [x] Email unique ticket tracking link to customer when ticket is created
 - [x] Ticket tracking page shows status timeline, replies, and ticket details
+
+## Phase 129: Full Trial Flow Audit & Fix (from video recording)
+- [x] Fix "Download the App" button — replaced with "Open Web App Now" + portal link
+- [x] Fix signup form validation (company name required, PIN 4-6 digits, slug min 2 chars)
+- [x] Fix "Start Free Trial" button — openSignup now re-shows success if already signed up
+- [x] Replaced dead app store links with single "Open Web App Now" button → /api/portal/
+- [x] PIN shown in success modal + welcome email sent via Resend with full login details
+- [x] Team creation flow audited — invite tokens, accept invite, PIN setup all working
+- [x] Ticket creation audited — tracking token generated, Pivot suggestion, email notifications
+- [x] Email delivery audited — welcome email, ticket created, status update, resolved emails all wired
+- [x] Pivot context-awareness verified — admin knows it's admin, support knows it's support, app knows it's app
+- [x] End-to-end tested: signup → success modal → portal link → ticket creation → tracking token → Pivot chat
