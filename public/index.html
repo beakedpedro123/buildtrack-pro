@@ -2,6 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+// Unregister any cached service workers that intercept this page
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+    registrations.forEach(function(registration) { registration.unregister(); });
+  });
+}
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BuildTrack Pro — Construction Management, Simplified</title>
 <meta name="description" content="The all-in-one construction management app with AI-powered tools. Time tracking, job costing, daily reports, and an AI assistant that speaks construction. 14-day free trial.">

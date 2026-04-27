@@ -2375,3 +2375,12 @@
 - [x] Fix 3 web apps routing — explicit routes before express.static with index:false
 - [x] Ensure Pedro can manually publish full builds — build tested, all 3 HTML files in dist/public/
 - [ ] Verify all 3 URLs work on deployed domain after Pedro clicks Publish
+
+## Phase 118: Web Portal Routing Fix
+- [x] Identified root cause: cached Expo service worker intercepting /api/web/* routes
+- [x] Added self-unregistering sw.js served at /api/web/sw.js
+- [x] Added SW unregistration script to all 3 HTML files (index, admin, support)
+- [x] Created /api/portal/ path as primary clean URL (no SW history)
+- [x] Added no-cache headers to all HTML responses
+- [x] Both /api/web/ and /api/portal/ paths serve correct content
+- [ ] Deploy and verify on live domain

@@ -299,46 +299,51 @@ async function startServer() {
   console.log(`[server] publicDir exists: ${fs.existsSync(publicDir)}`);
   console.log(`[server] index.html exists: ${fs.existsSync(path.join(publicDir, "index.html"))}`);
 
+  // === Service Worker Cleanup ===
+  // Serve a self-unregistering SW to clear any cached Expo service workers
+  app.get("/api/web/sw.js", (_req: Request, res: Response) => {
+    res.setHeader("Content-Type", "application/javascript");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.send(`self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',()=>{self.registration.unregister().then(()=>{self.clients.matchAll().then(c=>{c.forEach(cl=>cl.navigate(cl.url))})})});`);
+  });
+
   // === 3 Separate Web Apps ===
-  // IMPORTANT: Explicit HTML routes MUST come BEFORE express.static
-  // to prevent static middleware from serving index.html as fallback
+  // Served at BOTH /api/web/ and /api/portal/ paths
+  // /api/portal/ is the primary path (clean, no cached service workers)
+  // /api/web/ also works but may need SW cleanup on first visit
+
+  // Helper to send HTML files with no-cache headers
+  function sendHtmlFile(res: Response, filename: string) {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.sendFile(path.join(publicDir, filename));
+  }
 
   // 1. Marketing Site (default landing page)
-  app.get("/api/web", (_req: Request, res: Response) => {
-    res.sendFile(path.join(publicDir, "index.html"));
-  });
-  app.get("/api/web/", (_req: Request, res: Response) => {
-    res.sendFile(path.join(publicDir, "index.html"));
-  });
-  app.get("/api/web/index.html", (_req: Request, res: Response) => {
-    res.sendFile(path.join(publicDir, "index.html"));
-  });
+  app.get("/api/web", (_req: Request, res: Response) => sendHtmlFile(res, "index.html"));
+  app.get("/api/web/", (_req: Request, res: Response) => sendHtmlFile(res, "index.html"));
+  app.get("/api/web/index.html", (_req: Request, res: Response) => sendHtmlFile(res, "index.html"));
+  app.get("/api/portal", (_req: Request, res: Response) => sendHtmlFile(res, "index.html"));
+  app.get("/api/portal/", (_req: Request, res: Response) => sendHtmlFile(res, "index.html"));
 
   // 2. Admin Dashboard
-  app.get("/api/web/admin", (_req: Request, res: Response) => {
-    res.sendFile(path.join(publicDir, "admin.html"));
-  });
-  app.get("/api/web/admin.html", (_req: Request, res: Response) => {
-    res.sendFile(path.join(publicDir, "admin.html"));
-  });
+  app.get("/api/web/admin", (_req: Request, res: Response) => sendHtmlFile(res, "admin.html"));
+  app.get("/api/web/admin.html", (_req: Request, res: Response) => sendHtmlFile(res, "admin.html"));
+  app.get("/api/portal/admin", (_req: Request, res: Response) => sendHtmlFile(res, "admin.html"));
 
   // 3. Support Portal
-  app.get("/api/web/support", (_req: Request, res: Response) => {
-    res.sendFile(path.join(publicDir, "support.html"));
-  });
-  app.get("/api/web/support.html", (_req: Request, res: Response) => {
-    res.sendFile(path.join(publicDir, "support.html"));
-  });
+  app.get("/api/web/support", (_req: Request, res: Response) => sendHtmlFile(res, "support.html"));
+  app.get("/api/web/support.html", (_req: Request, res: Response) => sendHtmlFile(res, "support.html"));
+  app.get("/api/portal/support", (_req: Request, res: Response) => sendHtmlFile(res, "support.html"));
 
-  // Serve other static assets (CSS, JS, images) from public directory
-  // This comes AFTER explicit routes so it won't override admin/support
-  app.use("/api/web", express.static(publicDir, {
-    index: false,  // Disable automatic index.html serving
-  }));
+  // Serve static assets from public directory (for both paths)
+  app.use("/api/web", express.static(publicDir, { index: false }));
+  app.use("/api/portal", express.static(publicDir, { index: false }));
 
   // Redirect shortcuts
   app.get("/api", (_req: Request, res: Response) => {
-    res.redirect(301, "/api/web/");
+    res.redirect(301, "/api/portal/");
   });
 
   const preferredPort = parseInt(process.env.PORT || "3000");
