@@ -2543,3 +2543,12 @@
 - [x] Fix support portal login flow (company code + PIN via API, scoped to company)
 - [x] Integrate Pivot AI assistant into support portal (fixed response field: uses 'reply')
 - [x] Ensure consistent theme/layout across all 3 sites (unified #C8A84E gold, Inter font, matching dark bg)
+
+## Phase 126: Marketing Site Fixes + Ticket System + Support Portal + Responsive
+- [x] Replace "5 Custom Dashboards" stat with Budget & Hours Tracking
+- [x] Replace "959 Steel Shapes in Database" stat with GPS Time Tracking
+- [x] Fix signup form scroll — make modal fully scrollable on mobile (100dvh, full scroll)
+- [x] Add submit/sign up button at bottom of signup form (already existed, now visible)
+- [x] Research and implement customer ticket creation system (New Ticket button + form in support portal)
+- [x] Improve support portal for builders/business owners (Getting Started guide + quick tips)
+- [x] Fix responsive issues across all 3 sites (overflow-x:hidden, minmax fixes, modal scroll)

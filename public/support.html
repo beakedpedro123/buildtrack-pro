@@ -30,7 +30,7 @@ if ('serviceWorker' in navigator) {
   }
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--fg);line-height:1.5}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--fg);line-height:1.5;overflow-x:hidden}
 
 /* Login Screen */
 .login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
@@ -182,7 +182,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--f
         <img src="/api/web/logo_hardhat.png" alt="BuildTrack Pro">
       </div>
       <h1>Build<span>Track</span> Pro</h1>
-      <p>Support Portal — Team Login</p>
+      <p>Get Help &amp; Submit Tickets</p>
     </div>
     <form id="loginForm" onsubmit="handleLogin(event)">
       <div class="form-group">
@@ -218,6 +218,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--f
   <div class="nav">
     <div class="nav-item active" data-tab="tickets" onclick="switchTab('tickets')">Tickets <span class="badge" id="ticketCount">0</span></div>
     <div class="nav-item" data-tab="pivot" onclick="switchTab('pivot')">Pivot AI</div>
+    <div class="nav-item" data-tab="quickstart" onclick="switchTab('quickstart')">Getting Started</div>
     <div class="nav-item" data-tab="kb" onclick="switchTab('kb')">Knowledge Base <span class="badge" id="kbCount">0</span></div>
   </div>
 
@@ -235,15 +236,68 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--f
       <div id="ticketsList">
         <div class="section-header">
           <h3>Support Tickets</h3>
-          <div class="filter-bar">
-            <button class="filter-btn active" onclick="filterTickets('all')">All</button>
-            <button class="filter-btn" onclick="filterTickets('open')">Open</button>
-            <button class="filter-btn" onclick="filterTickets('in_progress')">In Progress</button>
-            <button class="filter-btn" onclick="filterTickets('resolved')">Resolved</button>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+            <div class="filter-bar">
+              <button class="filter-btn active" onclick="filterTickets('all')">All</button>
+              <button class="filter-btn" onclick="filterTickets('open')">Open</button>
+              <button class="filter-btn" onclick="filterTickets('in_progress')">In Progress</button>
+              <button class="filter-btn" onclick="filterTickets('resolved')">Resolved</button>
+            </div>
+            <button class="btn btn-primary" onclick="showNewTicketForm()" style="padding:8px 20px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">+ New Ticket</button>
           </div>
         </div>
         <div class="ticket-list" id="ticketListContainer">
           <p style="color:var(--fg3);text-align:center;padding:40px">Loading tickets...</p>
+        </div>
+      </div>
+
+      <!-- New Ticket Form -->
+      <div id="newTicketForm" style="display:none">
+        <button class="back-btn" onclick="hideNewTicketForm()">&#8592; Back to Tickets</button>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;max-width:640px">
+          <h3 style="font-size:20px;font-weight:700;margin-bottom:20px">Submit a Support Ticket</h3>
+          <p style="font-size:14px;color:var(--fg2);margin-bottom:24px">Describe your issue and our team will get back to you. Pivot AI will also analyze your ticket and suggest an immediate solution.</p>
+          <div class="form-group" style="margin-bottom:16px">
+            <label style="display:block;font-size:13px;font-weight:600;color:var(--fg2);margin-bottom:6px">Subject</label>
+            <input type="text" id="newTicketSubject" placeholder="Brief description of the issue" style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:var(--bg);color:var(--fg);outline:none">
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <label style="display:block;font-size:13px;font-weight:600;color:var(--fg2);margin-bottom:6px">Category</label>
+            <select id="newTicketCategory" style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:var(--bg);color:var(--fg);outline:none;appearance:auto">
+              <option value="bug">Bug / Something Broken</option>
+              <option value="how_to">How To / Question</option>
+              <option value="feature_request">Feature Request</option>
+              <option value="billing">Billing Issue</option>
+              <option value="account">Account / Login Issue</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <label style="display:block;font-size:13px;font-weight:600;color:var(--fg2);margin-bottom:6px">Priority</label>
+            <select id="newTicketPriority" style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:var(--bg);color:var(--fg);outline:none;appearance:auto">
+              <option value="low">Low — Minor inconvenience</option>
+              <option value="medium" selected>Medium — Affects my workflow</option>
+              <option value="high">High — Blocking my work</option>
+              <option value="urgent">Urgent — System down / data loss</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <label style="display:block;font-size:13px;font-weight:600;color:var(--fg2);margin-bottom:6px">Contact Email (optional)</label>
+            <input type="email" id="newTicketEmail" placeholder="your@email.com" style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:var(--bg);color:var(--fg);outline:none">
+          </div>
+          <div class="form-group" style="margin-bottom:20px">
+            <label style="display:block;font-size:13px;font-weight:600;color:var(--fg2);margin-bottom:6px">Description</label>
+            <textarea id="newTicketDescription" rows="5" placeholder="Describe the issue in detail. What were you trying to do? What happened instead? Include any error messages." style="width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:var(--bg);color:var(--fg);outline:none;resize:vertical;font-family:inherit;line-height:1.5"></textarea>
+          </div>
+          <div style="display:flex;gap:12px">
+            <button onclick="submitNewTicket()" id="submitTicketBtn" style="padding:12px 28px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">Submit Ticket</button>
+            <button onclick="hideNewTicketForm()" style="padding:12px 28px;background:none;border:1px solid var(--border);border-radius:10px;font-size:14px;color:var(--fg2);cursor:pointer">Cancel</button>
+          </div>
+          <div id="newTicketError" style="display:none;color:var(--error);font-size:13px;margin-top:12px"></div>
+          <div id="newTicketSuccess" style="display:none;background:var(--primary-bg);border:1px solid var(--primary);border-radius:var(--radius);padding:20px;margin-top:16px">
+            <h4 style="color:var(--primary);font-size:15px;margin-bottom:8px">Ticket Submitted!</h4>
+            <p style="font-size:14px;color:var(--fg2)">Your ticket has been created. Pivot AI is analyzing your issue and may have an immediate suggestion. Check your ticket for updates.</p>
+          </div>
         </div>
       </div>
 
@@ -290,6 +344,55 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--f
           <input type="text" id="chatInput" placeholder="Ask Pivot anything..." onkeydown="if(event.key==='Enter')sendChat()">
           <button onclick="sendChat()">Send</button>
         </div>
+      </div>
+    </div>
+
+    <!-- GETTING STARTED TAB -->
+    <div id="quickstartPanel" style="display:none">
+      <h3 style="font-size:20px;font-weight:700;margin-bottom:20px">Getting Started with BuildTrack Pro</h3>
+      <p style="font-size:14px;color:var(--fg2);margin-bottom:24px">Everything you need to run your crew, track hours, manage budgets, and stay OSHA-compliant — all from one app.</p>
+      
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:32px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px">
+          <h4 style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--primary)">1. Set Up Your Company</h4>
+          <p style="font-size:14px;color:var(--fg2);line-height:1.6">Download BuildTrack Pro, create your company account, and invite your crew. Each employee gets a unique PIN for clock-in and app access.</p>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px">
+          <h4 style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--primary)">2. Add Your Jobs</h4>
+          <p style="font-size:14px;color:var(--fg2);line-height:1.6">Create jobs with addresses, budgets, and deadlines. Assign crew members to each job. Track progress in real-time from the dashboard.</p>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px">
+          <h4 style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--primary)">3. GPS Time Tracking</h4>
+          <p style="font-size:14px;color:var(--fg2);line-height:1.6">Employees clock in/out with GPS verification. You see exactly who's on-site, when they arrived, and total hours — no more paper timesheets.</p>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px">
+          <h4 style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--primary)">4. Budget & Labor Costs</h4>
+          <p style="font-size:14px;color:var(--fg2);line-height:1.6">Set budgets per job, track labor costs automatically as hours are logged. Get alerts before you go over budget. Export payroll reports as PDF.</p>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px">
+          <h4 style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--primary)">5. Safety & Compliance</h4>
+          <p style="font-size:14px;color:var(--fg2);line-height:1.6">Run toolbox talks, log safety meetings with attendance, file daily field reports. Stay OSHA-ready with digital records your crew can sign.</p>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px">
+          <h4 style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--primary)">6. Ask Pivot AI</h4>
+          <p style="font-size:14px;color:var(--fg2);line-height:1.6">Pivot is your built-in AI assistant. Ask it construction calculations, get meeting summaries turned into goals, or troubleshoot any app issue — in English or Spanish.</p>
+        </div>
+      </div>
+
+      <div style="background:var(--primary-bg);border:1px solid var(--primary);border-radius:var(--radius);padding:24px;margin-bottom:24px">
+        <h4 style="color:var(--primary);font-size:16px;font-weight:700;margin-bottom:8px">Need Help?</h4>
+        <p style="font-size:14px;color:var(--fg2);line-height:1.6">Switch to the <strong>Tickets</strong> tab to submit a support ticket — our team and Pivot AI will help resolve your issue. Or use the <strong>Pivot AI</strong> tab to chat directly with our AI assistant for instant answers.</p>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px">
+        <h4 style="font-size:16px;font-weight:700;margin-bottom:12px">Quick Tips</h4>
+        <ul style="font-size:14px;color:var(--fg2);line-height:2;padding-left:20px">
+          <li>Use the <strong>Schedule</strong> tab to plan your crew's week and set daily goals</li>
+          <li>Run <strong>Meetings</strong> through the app — Pivot transcribes them and creates goals with deadlines</li>
+          <li>Export <strong>Payroll PDFs</strong> with overtime calculations for your accountant</li>
+          <li>The app works in <strong>English and Spanish</strong> — your crew can switch languages anytime</li>
+          <li>All data syncs in real-time — changes show up for your whole team within seconds</li>
+        </ul>
       </div>
     </div>
 
@@ -362,13 +465,7 @@ async function handleLogin(e) {
       errorEl.style.display = 'block';
       return;
     }
-    // Step 3: Only allow owner, office_manager, or foreman roles
-    const allowedRoles = ['owner', 'office_manager', 'foreman'];
-    if (!allowedRoles.includes(employee.role)) {
-      errorEl.textContent = 'Access denied. Only owners, office managers, and foremen can access the support portal.';
-      errorEl.style.display = 'block';
-      return;
-    }
+    // All employees can access the support portal to submit tickets and get help
     // Success - store user session
     currentUser = {
       id: employee.id,
@@ -440,6 +537,7 @@ function switchTab(tab) {
   
   document.getElementById('ticketsPanel').style.display = tab === 'tickets' ? 'block' : 'none';
   document.getElementById('pivotPanel').style.display = tab === 'pivot' ? 'block' : 'none';
+  document.getElementById('quickstartPanel').style.display = tab === 'quickstart' ? 'block' : 'none';
   document.getElementById('kbPanel').style.display = tab === 'kb' ? 'block' : 'none';
   document.getElementById('statsBar').style.display = tab === 'tickets' ? 'grid' : 'none';
   
@@ -603,6 +701,83 @@ function usePivotSuggestion() {
   const text = document.getElementById('pivotSuggestionText').textContent;
   document.getElementById('replyText').value = text;
   document.getElementById('pivotSuggestion').style.display = 'none';
+}
+
+// === NEW TICKET ===
+function showNewTicketForm() {
+  document.getElementById('ticketsList').style.display = 'none';
+  document.getElementById('newTicketForm').style.display = 'block';
+  document.getElementById('newTicketError').style.display = 'none';
+  document.getElementById('newTicketSuccess').style.display = 'none';
+  document.getElementById('submitTicketBtn').disabled = false;
+  document.getElementById('submitTicketBtn').textContent = 'Submit Ticket';
+}
+
+function hideNewTicketForm() {
+  document.getElementById('newTicketForm').style.display = 'none';
+  document.getElementById('ticketsList').style.display = 'block';
+  // Clear form
+  document.getElementById('newTicketSubject').value = '';
+  document.getElementById('newTicketDescription').value = '';
+  document.getElementById('newTicketEmail').value = '';
+  document.getElementById('newTicketCategory').value = 'bug';
+  document.getElementById('newTicketPriority').value = 'medium';
+}
+
+async function submitNewTicket() {
+  const subject = document.getElementById('newTicketSubject').value.trim();
+  const description = document.getElementById('newTicketDescription').value.trim();
+  const category = document.getElementById('newTicketCategory').value;
+  const priority = document.getElementById('newTicketPriority').value;
+  const email = document.getElementById('newTicketEmail').value.trim();
+  const errorEl = document.getElementById('newTicketError');
+  const successEl = document.getElementById('newTicketSuccess');
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+
+  if (!subject || !description) {
+    errorEl.textContent = 'Please fill in the subject and description.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('submitTicketBtn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  try {
+    const ticketData = {
+      companyId: currentUser.companyId,
+      employeeId: currentUser.id,
+      customerName: currentUser.name,
+      subject,
+      description,
+      category,
+      priority
+    };
+    if (email) ticketData.customerEmail = email;
+
+    const ticketId = await trpcMutation('support.tickets.create', ticketData);
+    if (ticketId) {
+      successEl.style.display = 'block';
+      btn.textContent = 'Submitted!';
+      // Reload tickets after a short delay
+      setTimeout(() => {
+        hideNewTicketForm();
+        loadDashboard();
+      }, 2000);
+    } else {
+      errorEl.textContent = 'Failed to create ticket. Please try again.';
+      errorEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Submit Ticket';
+    }
+  } catch (e) {
+    errorEl.textContent = 'Connection error. Please check your internet and try again.';
+    errorEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Submit Ticket';
+  }
 }
 
 // === PIVOT CHAT ===

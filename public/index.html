@@ -101,7 +101,7 @@ a:hover{opacity:.85}
 .section-tag{display:inline-block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--gold);margin-bottom:12px}
 
 /* FEATURES GRID */
-.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:24px}
 .feature-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:32px;transition:border-color .3s;box-shadow:var(--shadow)}
 .feature-card:hover{border-color:rgba(200,168,78,.3)}
 .feature-icon{width:48px;height:48px;border-radius:12px;background:var(--gold-dim);display:flex;align-items:center;justify-content:center;margin-bottom:20px}
@@ -147,7 +147,7 @@ a:hover{opacity:.85}
 .comp-score-item .score-label{font-size:12px;color:var(--text-3);margin-top:4px;text-transform:uppercase;letter-spacing:1px}
 
 /* PRICING */
-.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;align-items:start}
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:24px;align-items:start}
 .price-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:36px;position:relative;box-shadow:var(--shadow)}
 .price-card.featured{border-color:var(--gold);box-shadow:var(--shadow-lg)}
 .price-card.featured::before{content:'MOST POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--gold);color:#111;font-size:11px;font-weight:800;padding:4px 16px;border-radius:100px;letter-spacing:1px}
@@ -196,9 +196,9 @@ a:hover{opacity:.85}
 .footer p{font-size:13px;color:var(--text-3)}
 
 /* SIGNUP MODAL */
-.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--modal-overlay);backdrop-filter:blur(8px);z-index:200;align-items:center;justify-content:center;padding:24px}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--modal-overlay);backdrop-filter:blur(8px);z-index:200;align-items:center;justify-content:center;padding:24px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .modal-overlay.active{display:flex}
-.modal{background:var(--card-bg);border:1px solid rgba(200,168,78,.2);border-radius:20px;padding:40px;max-width:480px;width:100%;position:relative;box-shadow:var(--shadow-lg)}
+.modal{background:var(--card-bg);border:1px solid rgba(200,168,78,.2);border-radius:20px;padding:40px;max-width:480px;width:100%;position:relative;box-shadow:var(--shadow-lg);max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch;margin:auto}
 .modal h2{font-size:24px;font-weight:800;margin-bottom:8px}
 .modal .modal-desc{font-size:14px;color:var(--text-2);margin-bottom:28px}
 .modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--text-3);font-size:24px;cursor:pointer}
@@ -222,6 +222,14 @@ a:hover{opacity:.85}
   .comp-header{grid-template-columns:1fr}
   .comparator-picker{gap:8px}
   .comp-chip{padding:8px 14px;font-size:13px}
+  .modal-overlay{padding:0;align-items:flex-start}
+  .modal{max-height:100vh;max-height:100dvh;padding:20px 16px 32px;border-radius:0;margin:0 auto;width:100%;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .modal h2{font-size:20px}
+  .modal .modal-desc{margin-bottom:16px;font-size:13px}
+  .form-group{margin-bottom:12px}
+  .form-group input,.form-group select{padding:10px 14px;font-size:14px}
+  #tradeGrid{max-height:200px!important}
+  .modal .btn-primary{position:relative;margin-top:16px;width:100%;padding:16px;font-size:16px}
 }
 @media(max-width:640px){
   .features-grid{grid-template-columns:1fr}
@@ -288,20 +296,20 @@ a:hover{opacity:.85}
   </div>
   <div class="hero-stats">
     <div class="hero-stat">
-      <div class="hero-stat-value">5</div>
-      <div class="hero-stat-label">Custom Dashboards</div>
+      <div class="hero-stat-value">24/7</div>
+      <div class="hero-stat-label">Budget & Hours Tracking</div>
     </div>
     <div class="hero-stat">
-      <div class="hero-stat-value">959</div>
-      <div class="hero-stat-label">Steel Shapes in Database</div>
+      <div class="hero-stat-value">GPS</div>
+      <div class="hero-stat-label">Verified Time Tracking</div>
     </div>
     <div class="hero-stat">
       <div class="hero-stat-value">2</div>
       <div class="hero-stat-label">Languages (EN + ES)</div>
     </div>
     <div class="hero-stat">
-      <div class="hero-stat-value">$0</div>
-      <div class="hero-stat-label">To Start Today</div>
+      <div class="hero-stat-value">14</div>
+      <div class="hero-stat-label">Day Free Trial</div>
     </div>
   </div>
 </section>
@@ -392,7 +400,7 @@ a:hover{opacity:.85}
           <div class="ai-feature-icon"><svg><use href="#ico-tool"/></svg></div>
           <div>
             <h4>Construction Calculator</h4>
-            <p>Beam loads, roof pitch, compound angles, rafter lengths, concrete volume — Pivot calculates it all. Plus a database of 959 steel shapes.</p>
+            <p>Beam loads, roof pitch, compound angles, rafter lengths, concrete volume — Pivot calculates it all. Built-in construction calculator for every trade.</p>
           </div>
         </div>
         <div class="ai-feature">
@@ -660,7 +668,7 @@ const COMPETITORS = {
       ['AI Assistant (Pivot)', '\u2713 Built-in', '\u2717', 'win'],
       ['Voice Commands', '\u2713', '\u2717', 'win'],
       ['Bilingual (EN/ES)', '\u2713', '\u2717', 'win'],
-      ['Construction Calculator', '\u2713 959 shapes', '\u2717', 'win'],
+      ['Construction Calculator', '\u2713 Built-in', '\u2717', 'win'],
       ['Meeting to Goals AI', '\u2713', '\u2717', 'win'],
       ['GPS Time Tracking', '\u2713', '\u2713', 'tie'],
       ['Crew Clock-In', '\u2713', '\u2717', 'win'],
@@ -687,7 +695,7 @@ const COMPETITORS = {
       ['AI Assistant (Pivot)', '\u2713 Built-in', '\u2717', 'win'],
       ['Voice Commands', '\u2713', '\u2717', 'win'],
       ['Bilingual (EN/ES)', '\u2713', '\u2717', 'win'],
-      ['Construction Calculator', '\u2713 959 shapes', '\u2717', 'win'],
+      ['Construction Calculator', '\u2713 Built-in', '\u2717', 'win'],
       ['Meeting to Goals AI', '\u2713', '\u2717', 'win'],
       ['GPS Time Tracking', '\u2713', '\u2713', 'tie'],
       ['Crew Clock-In', '\u2713', 'Add-on', 'win'],
@@ -714,7 +722,7 @@ const COMPETITORS = {
       ['AI Assistant (Pivot)', '\u2713 Built-in', '\u2717', 'win'],
       ['Voice Commands', '\u2713', '\u2717', 'win'],
       ['Bilingual (EN/ES)', '\u2713', '\u2717', 'win'],
-      ['Construction Calculator', '\u2713 959 shapes', '\u2717', 'win'],
+      ['Construction Calculator', '\u2713 Built-in', '\u2717', 'win'],
       ['Meeting to Goals AI', '\u2713', '\u2717', 'win'],
       ['GPS Time Tracking', '\u2713', '\u2717', 'win'],
       ['Crew Clock-In', '\u2713', '\u2717', 'win'],
@@ -740,7 +748,7 @@ const COMPETITORS = {
       ['AI Assistant (Pivot)', '\u2713 Built-in', '\u2717', 'win'],
       ['Voice Commands', '\u2713', '\u2717', 'win'],
       ['Bilingual (EN/ES)', '\u2713', '\u2717', 'win'],
-      ['Construction Calculator', '\u2713 959 shapes', '\u2717', 'win'],
+      ['Construction Calculator', '\u2713 Built-in', '\u2717', 'win'],
       ['Meeting to Goals AI', '\u2713', '\u2717', 'win'],
       ['GPS Time Tracking', '\u2713', '\u2713', 'tie'],
       ['Crew Clock-In', '\u2713', '\u2717', 'win'],
@@ -765,7 +773,7 @@ const COMPETITORS = {
       ['AI Assistant (Pivot)', '\u2713 Built-in', '\u2717', 'win'],
       ['Voice Commands', '\u2713', '\u2717', 'win'],
       ['Bilingual (EN/ES)', '\u2713', '\u2717', 'win'],
-      ['Construction Calculator', '\u2713 959 shapes', '\u2717', 'win'],
+      ['Construction Calculator', '\u2713 Built-in', '\u2717', 'win'],
       ['Meeting to Goals AI', '\u2713', '\u2717', 'win'],
       ['GPS Time Tracking', '\u2713', '\u2713', 'tie'],
       ['Crew Clock-In', '\u2713', '\u2713', 'tie'],
@@ -790,7 +798,7 @@ const COMPETITORS = {
       ['AI Assistant (Pivot)', '\u2713 Built-in', '\u2717', 'win'],
       ['Voice Commands', '\u2713', '\u2717', 'win'],
       ['Bilingual (EN/ES)', '\u2713', '\u2717', 'win'],
-      ['Construction Calculator', '\u2713 959 shapes', '\u2717', 'win'],
+      ['Construction Calculator', '\u2713 Built-in', '\u2717', 'win'],
       ['Meeting to Goals AI', '\u2713', '\u2717', 'win'],
       ['GPS Time Tracking', '\u2713', '\u2713', 'tie'],
       ['Daily Field Reports', '\u2713', '\u2713', 'tie'],
@@ -816,7 +824,7 @@ const COMPETITORS = {
       ['AI Assistant (Pivot)', '\u2713 Built-in', '\u2717', 'win'],
       ['Voice Commands', '\u2713', '\u2717', 'win'],
       ['Bilingual (EN/ES)', '\u2713', '\u2717', 'win'],
-      ['Construction Calculator', '\u2713 959 shapes', '\u2717', 'win'],
+      ['Construction Calculator', '\u2713 Built-in', '\u2717', 'win'],
       ['Meeting to Goals AI', '\u2713', '\u2717', 'win'],
       ['GPS Time Tracking', '\u2713', '\u2713', 'tie'],
       ['Daily Field Reports', '\u2713', '\u2717', 'win'],
@@ -842,7 +850,7 @@ const COMPETITORS = {
       ['AI Assistant (Pivot)', '\u2713 Built-in', '\u2717', 'win'],
       ['Voice Commands', '\u2713', '\u2717', 'win'],
       ['Bilingual (EN/ES)', '\u2713', '\u2717', 'win'],
-      ['Construction Calculator', '\u2713 959 shapes', '\u2717', 'win'],
+      ['Construction Calculator', '\u2713 Built-in', '\u2717', 'win'],
       ['Meeting to Goals AI', '\u2713', '\u2717', 'win'],
       ['GPS Time Tracking', '\u2713', '\u2717', 'win'],
       ['Crew Clock-In', '\u2713', '\u2717', 'win'],
