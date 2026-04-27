@@ -278,8 +278,8 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
   }, [utils]);
   const reportQ = trpc.payroll.getReport.useQuery({
     startDate: range.startDate,
-    endDate: range.endDate });
-  const jobsQ = trpc.jobs.listActive.useQuery();
+    endDate: range.endDate }, { staleTime: 15_000, refetchOnMount: "always" });
+  const jobsQ = trpc.jobs.listActive.useQuery(undefined, { staleTime: 15_000 });
   const { data, isLoading } = useOfflineCache(`${CACHE_KEYS.PAYROLL_DATA}_${range.startDate}_${range.endDate}`, reportQ.data, reportQ.isLoading);
   const { data: jobsData } = useOfflineCache(CACHE_KEYS.ACTIVE_JOBS, jobsQ.data, jobsQ.isLoading);
   const refetch = reportQ.refetch;

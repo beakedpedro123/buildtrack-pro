@@ -28,6 +28,7 @@ import { useCompanyTrade, TRADE_OPTIONS } from "@/hooks/use-company-trade";
 import { Switch, Image as RNImage } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { useBranding } from "@/lib/branding-context";
 // Crew clock-in uses trpc queries directly, no extra cache imports needed
 
 // Trade icon mapping (MaterialIcons names)
@@ -140,11 +141,8 @@ export default function ProfileScreen() {
     }
   }, [serverTrades, serverPrimaryTrade, companyId, empId]);
 
-  // ═══ Company Branding State ═══
-  const { data: brandingData, refetch: refetchBranding } = trpc.branding.get.useQuery(
-    { companyId },
-    { enabled: !!companyId, staleTime: 30000 }
-  );
+  // ═══ Company Branding State (from centralized BrandingContext) ═══
+  const { branding: brandingData, invalidateBranding } = useBranding();
   const updateLogoMutation = trpc.branding.updateLogo.useMutation();
   const updateBrandColorMutation = trpc.branding.updateBrandColor.useMutation();
   const removeLogoMutation = trpc.branding.removeLogo.useMutation();
@@ -190,7 +188,8 @@ export default function ProfileScreen() {
       if (!uploadRes.ok) throw new Error("Upload failed");
       const { url } = await uploadRes.json();
       await updateLogoMutation.mutateAsync({ companyId, logoUrl: url, requestingEmployeeId: empId });
-      await refetchBranding();
+      // Invalidate branding globally — all screens (home, profile, etc.) update instantly
+      invalidateBranding();
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Logo Updated", "Your company logo has been updated successfully.");
     } catch (err: any) {
@@ -206,7 +205,7 @@ export default function ProfileScreen() {
       { text: "Remove", style: "destructive", onPress: async () => {
         try {
           await removeLogoMutation.mutateAsync({ companyId, requestingEmployeeId: empId });
-          await refetchBranding();
+          invalidateBranding();
           if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (err: any) { Alert.alert("Error", err?.message || "Failed to remove logo"); }
       }},
@@ -217,7 +216,7 @@ export default function ProfileScreen() {
     try {
       await updateBrandColorMutation.mutateAsync({ companyId, brandColor: color, requestingEmployeeId: empId });
       setBrandColorInput(color);
-      await refetchBranding();
+      invalidateBranding();
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Failed to update brand color");
@@ -1048,7 +1047,7 @@ export default function ProfileScreen() {
               <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Manage Trades</Text>
               <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
                 {serverTrades.length > 0 ? `${serverTrades.length} trade${serverTrades.length > 1 ? "s" : ""} selected` : "Select your trades"}
-                {!tradeData?.canAddMore && serverTrades.length >= 3 ? " • Upgrade for more" : ""}
+                {!tradeData?.allTradesUnlocked && serverTrades.length >= 3 ? " • Upgrade for more" : ""}
               </Text>
             </View>
             <TouchableOpacity onPress={() => setShowTradePicker(false)}>
@@ -1104,8 +1103,9 @@ export default function ProfileScreen() {
                       setServerTrades(newTrades);
                       if (serverPrimaryTrade === opt.slug) setServerPrimaryTrade(newTrades[0]);
                     } else {
-                      // Add trade
-                      if (!tradeData?.canAddMore && serverTrades.length >= 3) {
+                      // Add trade — GC counts as 1 trade, only allTradesUnlocked bypasses the 3-trade cap
+                      const isUnlocked = tradeData?.allTradesUnlocked || false;
+                      if (!isUnlocked && serverTrades.length >= 3) {
                         Alert.alert("Trade Limit", "Free plan allows up to 3 trades. Upgrade to All Trades ($4.99/mo) to unlock all trades.");
                         return;
                       }

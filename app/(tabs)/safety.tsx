@@ -90,8 +90,8 @@ export default function SafetyScreen() {
   const canDocument = isForeman || canManageTopics;
 
   const jobsQ = trpc.jobs.listActive.useQuery(undefined, { staleTime: 15000, refetchOnMount: "always" });
-  const topicsQ = trpc.safetyTopics.list.useQuery({ activeOnly: true });
-  const allMeetingsQ = trpc.safetyMeetings.list.useQuery({ limit: 50 });
+  const topicsQ = trpc.safetyTopics.list.useQuery({ activeOnly: true }, { staleTime: 15_000, refetchOnMount: "always" });
+  const allMeetingsQ = trpc.safetyMeetings.list.useQuery({ limit: 50 }, { staleTime: 15_000, refetchOnMount: "always" });
   const { data: jobs } = useOfflineCache(CACHE_KEYS.ACTIVE_JOBS, jobsQ.data, jobsQ.isLoading);
   const { data: topics } = useOfflineCache(CACHE_KEYS.SAFETY_TALKS, topicsQ.data, topicsQ.isLoading);
   const { data: allMeetings } = useOfflineCache(CACHE_KEYS.MEETINGS, allMeetingsQ.data, allMeetingsQ.isLoading);

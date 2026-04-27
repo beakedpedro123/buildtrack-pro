@@ -158,8 +158,8 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     { enabled: !!selectedJob && canSeeBudget && showAuditLog }
   );
 
-  const createJob = trpc.jobs.create.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); setShowNewJob(false); resetJobForm(); } });
-  const updateJob = trpc.jobs.update.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); } });
+  const createJob = trpc.jobs.create.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); utils.jobs.listActive.invalidate(); setShowNewJob(false); resetJobForm(); } });
+  const updateJob = trpc.jobs.update.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); utils.jobs.listActive.invalidate(); } });
   const addExpense = trpc.budget.addExpense.useMutation({ onSuccess: () => { utils.budget.getExpenses.invalidate(); utils.budget.getCategories.invalidate(); setShowAddExpense(false); resetExpForm(); } });
   const addBudgetCat = trpc.budget.createCategory.useMutation({ onSuccess: () => { utils.budget.getCategories.invalidate(); setShowAddBudget(false); setBudgetName(""); setBudgetAmount(""); } });
   const createAuditEntry = trpc.financialCharts.createAuditEntry.useMutation({ onSuccess: () => { utils.financialCharts.auditLog.invalidate(); } });

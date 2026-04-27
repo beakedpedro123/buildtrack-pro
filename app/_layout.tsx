@@ -26,6 +26,7 @@ import { trpc, createTRPCClient } from "@/lib/trpc";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
 import { PivotChat } from "@/components/pivot-chat";
 import { LanguageProvider } from "@/lib/language-context";
+import { BrandingProvider } from "@/lib/branding-context";
 import { setGlobalQueryClient } from "@/lib/query-client-ref";
 
 // Set up notification handler at module level (before any component mounts)
@@ -171,6 +172,7 @@ export default function RootLayout() {
         <trpc.Provider client={trpcClient} queryClient={queryClient}>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
+              <BrandingProvider>
               <LanguageProvider>
               <OfflineQueueProvider>
               <ClockStateProvider>
@@ -185,6 +187,7 @@ export default function RootLayout() {
               </ClockStateProvider>
               </OfflineQueueProvider>
               </LanguageProvider>
+              </BrandingProvider>
             </AuthProvider>
           </QueryClientProvider>
         </trpc.Provider>

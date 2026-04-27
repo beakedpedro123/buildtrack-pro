@@ -147,10 +147,10 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
   const photosRef = useRef(photos);
   photosRef.current = photos;
 
-  const { data: jobs } = trpc.jobs.listActive.useQuery();
-  const reportsQuery = trpc.reports.recent.useQuery({ limit: 20 }, { staleTime: 15000, refetchOnMount: "always" });
+  const { data: jobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 15_000 });
+  const reportsQuery = trpc.reports.recent.useQuery({ limit: 20 }, { staleTime: 15_000, refetchOnMount: "always" });
   const recentReports = reportsQuery.data;
-  const { data: allJobs } = trpc.jobs.list.useQuery();
+  const { data: allJobs } = trpc.jobs.list.useQuery(undefined, { staleTime: 15_000 });
 
   // Offline cache: write on success, read on error
   useEffect(() => {

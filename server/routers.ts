@@ -4196,15 +4196,17 @@ const tradeKnowledgeRouter = router({
     if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
     const tradesList = company.trades ? JSON.parse(company.trades as string) : [];
     const isGC = tradesList.includes("general_contractor");
+    const allUnlocked = (company as any).allTradesUnlocked || false;
     return {
       trades: tradesList,
       primaryTrade: company.primaryTrade,
-      allTradesUnlocked: (company as any).allTradesUnlocked || false,
+      allTradesUnlocked: allUnlocked,
       isGC,
       maxFreeTrades: 3,
       addonPrice: 4.99,
       gcMarkup: 4.99,
-      canAddMore: tradesList.length < 3 || (company as any).allTradesUnlocked || isGC,
+      // GC counts as 1 trade toward the 3-trade limit — only allTradesUnlocked bypasses the cap
+      canAddMore: tradesList.length < 3 || allUnlocked,
       availableTrades: AVAILABLE_TRADES,
     };
   }),
@@ -4219,10 +4221,9 @@ const tradeKnowledgeRouter = router({
     await assertRole(input.requestingEmployeeId, ["owner"], "manage company trades");
     const company = await db.getCompanyById(input.companyId);
     if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
-    const isGC = input.trades.includes("general_contractor");
     const allUnlocked = (company as any).allTradesUnlocked || false;
-    // Enforce: max 3 trades free, unless allTradesUnlocked or GC
-    if (input.trades.length > 3 && !allUnlocked && !isGC) {
+    // Enforce: max 3 trades free — GC counts as 1 trade, only allTradesUnlocked bypasses the cap
+    if (input.trades.length > 3 && !allUnlocked) {
       throw new TRPCError({
         code: "FORBIDDEN",
         message: `Free plan allows up to 3 trades. You have ${input.trades.length} selected. Upgrade to All Trades ($4.99/mo) to unlock all trades.`,

@@ -168,7 +168,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
   };
 
   // ─── Management meeting queries ──────────────────────────────────────────
-  const { data: meetings, isLoading: mgmtLoading, refetch: refetchMgmt } = trpc.meetings.list.useQuery();
+  const { data: meetings, isLoading: mgmtLoading, refetch: refetchMgmt } = trpc.meetings.list.useQuery(undefined, { staleTime: 15_000, refetchOnMount: "always" });
 
   // Offline caching for meetings
   const [cachedMeetings, setCachedMeetings] = useState<any[] | null>(null);
@@ -206,7 +206,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
     onSuccess: () => utils.goals.list.invalidate() });
 
   // ─── Safety meeting queries ──────────────────────────────────────────────
-  const { data: jobs } = trpc.jobs.listActive.useQuery();
+  const { data: jobs } = trpc.jobs.listActive.useQuery(undefined, { staleTime: 15_000 });
   const { data: topics } = trpc.safetyTopics.list.useQuery({ activeOnly: true }, { staleTime: 15000, refetchOnMount: "always" });
   const { data: allSafetyMeetings } = trpc.safetyMeetings.list.useQuery({ limit: 50 }, { staleTime: 15000, refetchOnMount: "always" });
 
@@ -215,7 +215,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
   const weekEnd = getWeekEnd(now);
   const { data: weekMeetings } = trpc.safetyMeetings.forWeek.useQuery({
     startDate: weekStart.toISOString(),
-    endDate: weekEnd.toISOString() });
+    endDate: weekEnd.toISOString() }, { staleTime: 15_000, refetchOnMount: "always" });
 
   const weeklyStats = useMemo(() => {
     if (!weekMeetings) return { safetyCount: 0, goalsCount: 0, safetyTarget: 3, goalsTarget: 5 };

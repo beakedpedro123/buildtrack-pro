@@ -101,7 +101,7 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
       employeeId: employee?.id || 0,
       startDate: range.startDate,
       endDate: range.endDate },
-    { enabled: !!employee }
+    { enabled: !!employee, staleTime: 15_000, refetchOnMount: "always" }
   );
   const cacheKey = `${CACHE_KEYS.HOURS_ENTRIES}_${employee?.id}_${range.startDate}_${range.endDate}`;
   const { data, isLoading } = useOfflineCache(cacheKey, hoursQ.data, hoursQ.isLoading);

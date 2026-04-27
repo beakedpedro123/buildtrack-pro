@@ -112,11 +112,11 @@ export default function ScheduleScreen() {
   const isManagement = ["owner", "office_manager", "logistics"].includes(employee?.role || "");
 
   // Queries
-  const allScheduleQ = trpc.schedule.getAll.useQuery();
+  const allScheduleQ = trpc.schedule.getAll.useQuery(undefined, { staleTime: 15_000, refetchOnMount: "always" });
   const { data: allSchedule, isLoading } = useOfflineCache(CACHE_KEYS.SCHEDULE_ALL, allScheduleQ.data, allScheduleQ.isLoading);
   const refetch = allScheduleQ.refetch;
-  const { data: allJobs } = trpc.jobs.list.useQuery();
-  const { data: allEmployees } = trpc.employees.list.useQuery();
+  const { data: allJobs } = trpc.jobs.list.useQuery(undefined, { staleTime: 15_000 });
+  const { data: allEmployees } = trpc.employees.list.useQuery(undefined, { staleTime: 15_000 });
   const createMutation = trpc.schedule.create.useMutation({ onSuccess: () => { refetch(); utils.schedule.getAll.invalidate(); } });
   const updateMutation = trpc.schedule.update.useMutation({ onSuccess: () => { refetch(); utils.schedule.getAll.invalidate(); } });
   const deleteMutation = trpc.schedule.delete.useMutation({ onSuccess: () => { refetch(); utils.schedule.getAll.invalidate(); } });

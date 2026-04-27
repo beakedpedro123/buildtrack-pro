@@ -71,15 +71,15 @@ export default function LaborCostsScreen() {
 
   const byJobQ = trpc.laborDashboard.byJob.useQuery(
     { startDate, endDate },
-    { enabled: canAccess }
+    { enabled: canAccess, staleTime: 15_000, refetchOnMount: "always" }
   );
   const weeklyTrendQ = trpc.laborDashboard.weeklyTrend.useQuery(
     { weeks: 8 },
-    { enabled: canAccess }
+    { enabled: canAccess, staleTime: 15_000, refetchOnMount: "always" }
   );
   const byEmployeeQ = trpc.laborDashboard.byEmployee.useQuery(
     { startDate, endDate },
-    { enabled: canAccess }
+    { enabled: canAccess, staleTime: 15_000, refetchOnMount: "always" }
   );
   const { data: byJob, isLoading: loadingJobs } = useOfflineCache(`${CACHE_KEYS.LABOR_BY_JOB}_${startDate}`, byJobQ.data, byJobQ.isLoading);
   const { data: weeklyTrend, isLoading: loadingTrend } = useOfflineCache(CACHE_KEYS.CHART_LABOR_TRENDS, weeklyTrendQ.data, weeklyTrendQ.isLoading);

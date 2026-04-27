@@ -32,6 +32,7 @@ import { VoiceGoalCreator } from "@/components/voice-goal-creator";
 import { JobPicker } from "@/components/ui/job-picker";
 import { ConstructionCalculator } from "@/components/construction-calculator";
 import { CompassModal } from "@/components/compass-modal";
+import { useBranding } from "@/lib/branding-context";
 
 const defaultCompanyLogo = require("@/assets/images/company-logo.png");
 import { BG_HOME as bgHome } from "@/constants/bg-urls";
@@ -245,13 +246,10 @@ export default function DashboardScreen() {
   const colors = useColors();
   const { employee, logout } = useAppAuth();
 
-  // Fetch company branding (logo + color)
-  const brandingQ = trpc.branding.get.useQuery(
-    { companyId: employee?.companyId ?? 0 },
-    { enabled: !!employee?.companyId, staleTime: 60000 }
-  );
-  const companyLogoSource = brandingQ.data?.logoUrl
-    ? { uri: brandingQ.data.logoUrl }
+  // Company branding from centralized BrandingContext (staleTime: 5s, refetchInterval: 30s)
+  const { branding } = useBranding();
+  const companyLogoSource = branding?.logoUrl
+    ? { uri: branding.logoUrl }
     : defaultCompanyLogo;
   const [now, setNow] = useState(new Date());
   const [laborPeriod, setLaborPeriod] = useState<LaborPeriod>("week");

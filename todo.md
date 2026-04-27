@@ -2521,3 +2521,15 @@
 - [x] Fix any offline queue or sync issues found — expanded MutationType from 5→17, created useOfflineMutation hook, wired up goals/jobs/schedule/safety/reports
 - [x] Improve offline error handling and user feedback — offline mutations show toast messages
 - [x] Update any stale or broken offline-related code — removed dead duplicate offline-banner, fixed trust proxy, fixed TS errors
+
+## Phase 124: Data Sync & Fetching Optimization
+- [x] Audit React Query cache settings across all screens
+- [x] Optimize logo sync to propagate instantly to all employees
+- [x] Improve cache invalidation patterns for real-time data
+- [x] Optimize individual screen data fetching for efficiency
+- [x] Ensure smooth pull-to-refresh and background refetch
+- [x] Add company branding context with fast refresh for logo changes
+## Phase 124b: Trade Selection GC Loophole Fix
+- [x] Fix GC trade selection bypass: selecting General Contractor should NOT auto-select all trades for free — GC counts as 1 trade toward the 3-trade limit, OR requires the $4.99 All Trades subscription
+- [x] If user already has 3 trades selected, prevent selecting General Contractor unless they have All Trades subscription
+- [x] Server-side validation: enforce trade limits on backend too, not just UI
