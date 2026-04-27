@@ -2369,3 +2369,9 @@
 #### QR + PDF
 - [ ] Working QR codes pointing to marketing site
 - [x] Updated PDF progress report
+
+### Phase 117h: Fix Deployment & Publish Workflow
+- [x] Research best deployment approach for Manus platform
+- [x] Fix 3 web apps routing — explicit routes before express.static with index:false
+- [x] Ensure Pedro can manually publish full builds — build tested, all 3 HTML files in dist/public/
+- [ ] Verify all 3 URLs work on deployed domain after Pedro clicks Publish
