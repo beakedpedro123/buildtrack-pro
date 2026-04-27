@@ -1352,6 +1352,21 @@ export async function getRecentPivotConversations(employeeId: number, limit = 20
     .limit(limit);
 }
 
+export async function getAllPivotConversations(limit = 200) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  return dbConn.select({
+    id: pivotConversations.id,
+    employeeId: pivotConversations.employeeId,
+    role: pivotConversations.role,
+    content: pivotConversations.content,
+    language: pivotConversations.language,
+    createdAt: pivotConversations.createdAt,
+  }).from(pivotConversations)
+    .orderBy(desc(pivotConversations.createdAt))
+    .limit(limit);
+}
+
 export async function savePivotConversation(employeeId: number, role: string, content: string, language = "en") {
   const dbConn = await getDb();
   if (!dbConn) return;
@@ -2517,6 +2532,13 @@ export async function getSupportTicketById(id: number) {
   const db = await getDb();
   if (!db) return null;
   const rows = await db.select().from(supportTickets).where(eq(supportTickets.id, id)).limit(1);
+  return rows[0] || null;
+}
+
+export async function getTicketByTrackingToken(token: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(supportTickets).where(eq(supportTickets.trackingToken, token)).limit(1);
   return rows[0] || null;
 }
 

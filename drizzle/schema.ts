@@ -523,6 +523,7 @@ export const supportTickets = mysqlTable("support_tickets", {
   pivotSuggestion: text("pivotSuggestion"), // Pivot AI's suggested resolution
   resolution: text("resolution"), // actual resolution notes
   resolvedAt: timestamp("resolvedAt"),
+  trackingToken: varchar("trackingToken", { length: 64 }), // unique token for customer-facing status page
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -1,0 +1,1 @@
+ALTER TABLE `support_tickets` ADD `trackingToken` varchar(64);

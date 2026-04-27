@@ -2564,3 +2564,11 @@
 - [x] Pivot on admin dashboard = master console, full system access
 - [x] Pivot on support portal = help desk mode, troubleshooting focus
 - [x] Pivot on BuildTrack Pro app = personal assistant, goals, financial help
+
+## Phase 128: SMTP Config, Pivot Chat History, Customer Ticket Tracking
+- [x] Replaced SMTP with Resend.com API (simpler, one API key)
+- [x] Resend API key validated and working
+- [x] Added Pivot chat history panel to admin dashboard with search & employee filter
+- [x] Added customer-facing ticket tracking page at /api/web/ticket/:token (no login)
+- [x] Email unique ticket tracking link to customer when ticket is created
+- [x] Ticket tracking page shows status timeline, replies, and ticket details

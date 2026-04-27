@@ -195,6 +195,7 @@ if ('serviceWorker' in navigator) {
   <div class="nav-tab" data-tab="kb">Knowledge Base <span class="count" id="kbCount">0</span></div>
   <div class="nav-tab" data-tab="learning">Pivot Learning <span class="count" id="learningCount">0</span></div>
   <div class="nav-tab" data-tab="pivot">🤖 Pivot AI</div>
+  <div class="nav-tab" data-tab="pivothistory">💬 Chat History</div>
 </div>
 
 <div class="main">
@@ -280,6 +281,24 @@ if ('serviceWorker' in navigator) {
         <input id="pivotInput" type="text" placeholder="Talk to Pivot..." style="flex:1;padding:10px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--fg);font-size:14px" onkeydown="if(event.key==='Enter')sendPivotMsg()">
         <button class="btn btn-primary" onclick="sendPivotMsg()" style="padding:10px 20px">Send</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Pivot Chat History Section -->
+  <div class="section" id="sec-pivothistory">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+      <h2>💬 Pivot Chat History</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="historySearch" type="text" placeholder="Search conversations..." style="padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--fg);font-size:13px;width:240px" oninput="filterHistory()">
+        <select id="historyEmployeeFilter" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--fg);font-size:13px;appearance:auto" onchange="filterHistory()">
+          <option value="all">All Users</option>
+        </select>
+        <button class="btn btn-sm" onclick="loadChatHistory()" style="font-size:13px">Refresh</button>
+      </div>
+    </div>
+    <p style="color:var(--fg2);font-size:13px;margin-bottom:16px">View all Pivot conversations across the BuildTrack Pro app. Conversations are grouped by user and shown in reverse chronological order.</p>
+    <div id="chatHistoryContainer" style="display:flex;flex-direction:column;gap:8px;max-height:600px;overflow-y:auto">
+      <div style="text-align:center;padding:40px;color:var(--fg2)"><div class="spinner"></div>Loading chat history...</div>
     </div>
   </div>
 </div>
@@ -665,8 +684,120 @@ async function sendPivotMsg() {
   container.scrollTop = container.scrollHeight;
 }
 
+// === PIVOT CHAT HISTORY ===
+let allChatHistory = [];
+let employeeNames = {};
+
+async function loadChatHistory() {
+  try {
+    const [history, emps] = await Promise.all([
+      trpcQuery('pivot.chatHistory?input=' + encodeURIComponent(JSON.stringify({json:{limit:200}}))),
+      trpcQuery('employees.list'),
+    ]);
+    allChatHistory = history || [];
+    // Build employee name map
+    employeeNames = {};
+    const empFilter = document.getElementById('historyEmployeeFilter');
+    empFilter.innerHTML = '<option value="all">All Users</option>';
+    const seenIds = new Set();
+    if (emps) {
+      emps.forEach(e => {
+        employeeNames[e.id] = e.name || ('Employee #' + e.id);
+        if (!seenIds.has(e.id)) {
+          seenIds.add(e.id);
+          empFilter.innerHTML += `<option value="${e.id}">${esc(e.name || 'Employee #' + e.id)}</option>`;
+        }
+      });
+    }
+    // Also add any employee IDs from history not in the employee list
+    allChatHistory.forEach(c => {
+      if (!employeeNames[c.employeeId]) employeeNames[c.employeeId] = 'Employee #' + c.employeeId;
+      if (!seenIds.has(c.employeeId)) {
+        seenIds.add(c.employeeId);
+        empFilter.innerHTML += `<option value="${c.employeeId}">${esc(employeeNames[c.employeeId])}</option>`;
+      }
+    });
+    renderChatHistory(allChatHistory);
+  } catch (e) {
+    document.getElementById('chatHistoryContainer').innerHTML = `<div style="text-align:center;padding:40px;color:var(--error)">Failed to load chat history: ${esc(e.message)}</div>`;
+  }
+}
+
+function filterHistory() {
+  const search = document.getElementById('historySearch').value.toLowerCase().trim();
+  const empId = document.getElementById('historyEmployeeFilter').value;
+  let filtered = allChatHistory;
+  if (empId !== 'all') {
+    filtered = filtered.filter(c => String(c.employeeId) === empId);
+  }
+  if (search) {
+    filtered = filtered.filter(c => c.content && c.content.toLowerCase().includes(search));
+  }
+  renderChatHistory(filtered);
+}
+
+function renderChatHistory(items) {
+  const container = document.getElementById('chatHistoryContainer');
+  if (!items || items.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--fg2)">No conversations found.</div>';
+    return;
+  }
+  // Group by employeeId into conversation threads (user msg followed by assistant reply)
+  const threads = [];
+  let currentThread = null;
+  // Items are in reverse chronological order, reverse to build threads chronologically
+  const sorted = [...items].reverse();
+  sorted.forEach(msg => {
+    if (msg.role === 'user') {
+      currentThread = { employeeId: msg.employeeId, messages: [msg] };
+      threads.push(currentThread);
+    } else if (msg.role === 'assistant' && currentThread && currentThread.employeeId === msg.employeeId) {
+      currentThread.messages.push(msg);
+    } else {
+      currentThread = { employeeId: msg.employeeId, messages: [msg] };
+      threads.push(currentThread);
+    }
+  });
+  // Reverse threads so newest first
+  threads.reverse();
+  
+  let html = '';
+  threads.forEach(thread => {
+    const empName = employeeNames[thread.employeeId] || ('Employee #' + thread.employeeId);
+    const lastMsg = thread.messages[thread.messages.length - 1];
+    const time = fmtDate(lastMsg.createdAt);
+    const userMsg = thread.messages.find(m => m.role === 'user');
+    const assistantMsg = thread.messages.find(m => m.role === 'assistant');
+    const preview = userMsg ? (userMsg.content.length > 120 ? userMsg.content.substring(0, 120) + '...' : userMsg.content) : '';
+    const reply = assistantMsg ? (assistantMsg.content.length > 200 ? assistantMsg.content.substring(0, 200) + '...' : assistantMsg.content) : '';
+    
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer" onclick="this.querySelector('.thread-detail').style.display=this.querySelector('.thread-detail').style.display==='none'?'block':'none'">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--primary-bg);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">${esc(empName.charAt(0).toUpperCase())}</div>
+          <span style="font-weight:600;font-size:14px;color:var(--fg)">${esc(empName)}</span>
+          <span style="font-size:11px;color:var(--fg2);background:var(--bg2);padding:2px 8px;border-radius:10px">${thread.messages.length} msg${thread.messages.length > 1 ? 's' : ''}</span>
+        </div>
+        <span style="font-size:12px;color:var(--fg2)">${time}</span>
+      </div>
+      <div style="font-size:13px;color:var(--fg2);margin-left:36px">${esc(preview)}</div>
+      <div class="thread-detail" style="display:none;margin-top:12px;margin-left:36px;border-top:1px solid var(--border);padding-top:12px">
+        ${thread.messages.map(m => {
+          const isUser = m.role === 'user';
+          return `<div style="margin-bottom:8px;padding:8px 12px;border-radius:8px;font-size:13px;line-height:1.5;${isUser ? 'background:var(--primary);color:#fff;margin-left:20%' : 'background:var(--bg2);color:var(--fg);margin-right:20%'}">
+            <div style="font-size:11px;font-weight:600;margin-bottom:4px;opacity:0.8">${isUser ? esc(empName) : '\u{1F916} Pivot'}</div>
+            ${esc(m.content).replace(/\n/g, '<br>')}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
 // Init
 loadAll();
+setTimeout(loadChatHistory, 500);
 </script>
 </body>
 </html>

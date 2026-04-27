@@ -428,6 +428,10 @@ async function startServer() {
   app.get("/api/web/support.html", (_req: Request, res: Response) => sendHtmlFile(res, "support.html"));
   app.get("/api/portal/support", (_req: Request, res: Response) => sendHtmlFile(res, "support.html"));
 
+  // 4. Ticket Tracking Page (customer-facing, no login required)
+  app.get("/api/web/ticket/:token", (_req: Request, res: Response) => sendHtmlFile(res, "ticket-track.html"));
+  app.get("/api/portal/ticket/:token", (_req: Request, res: Response) => sendHtmlFile(res, "ticket-track.html"));
+
   // Serve static assets from public directory (for both paths)
   app.use("/api/web", express.static(publicDir, { index: false }));
   app.use("/api/portal", express.static(publicDir, { index: false }));

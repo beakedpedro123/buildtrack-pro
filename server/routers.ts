@@ -10,6 +10,7 @@ import { invokeLLM } from "./_core/llm";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { notifyTicketCreated, notifyTicketResolved, notifyTicketStatusUpdate } from "./email";
 import { generateImage } from "./_core/imageGeneration";
+import crypto from "crypto";
 
 // ─── Available Trades (Pivot Hivemind Trade Categories) ─────────────────────
 const AVAILABLE_TRADES = [
@@ -3712,6 +3713,18 @@ ${isOwner ? "\n## OWNER_PATTERNS\nDecision-making patterns, recurring concerns, 
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Transcription failed unexpectedly" });
     }
   }),
+
+  // ── Chat History for Admin Dashboard ──
+  chatHistory: publicProcedure.input(z.object({
+    employeeId: z.number().optional(),
+    limit: z.number().min(1).max(200).default(100),
+  })).query(async ({ input }) => {
+    if (input.employeeId) {
+      return await db.getRecentPivotConversations(input.employeeId, input.limit);
+    }
+    // Get all conversations (admin view)
+    return await db.getAllPivotConversations(input.limit);
+  }),
 });
 
 const messagesRouter = router({
@@ -4004,6 +4017,23 @@ const supportRouter = router({
     list: publicProcedure.input(z.object({ companyId: z.number().optional() }).optional()).query(({ input }) => db.getSupportTickets(input?.companyId)),
     listAll: publicProcedure.query(() => db.getSupportTickets()),
     getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getSupportTicketById(input.id)),
+    getByToken: publicProcedure.input(z.object({ token: z.string().min(1) })).query(async ({ input }) => {
+      const ticket = await db.getTicketByTrackingToken(input.token);
+      if (!ticket) return null;
+      // Return limited info for customer-facing page (no internal notes)
+      return {
+        id: ticket.id,
+        subject: ticket.subject,
+        description: ticket.description,
+        category: ticket.category,
+        priority: ticket.priority,
+        status: ticket.status,
+        customerName: ticket.customerName,
+        createdAt: ticket.createdAt,
+        resolvedAt: ticket.resolvedAt,
+        resolution: ticket.resolution,
+      };
+    }),
     byStatus: publicProcedure.input(z.object({ status: z.string() })).query(({ input }) => db.getSupportTicketsByStatus(input.status)),
     create: publicProcedure.input(z.object({
       companyId: z.number(),
@@ -4015,9 +4045,11 @@ const supportRouter = router({
       category: z.enum(["bug", "feature_request", "billing", "how_to", "account", "other"]).default("other"),
       priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
     })).mutation(async ({ input }) => {
-      const ticketId = await db.createSupportTicket(input);
-      // Send email notification to admin
-      notifyTicketCreated({ ...input, id: ticketId }).catch(() => {});
+      // Generate a unique tracking token for customer-facing status page
+      const trackingToken = crypto.randomUUID().replace(/-/g, '').substring(0, 32);
+      const ticketId = await db.createSupportTicket({ ...input, trackingToken });
+      // Send email notification to admin + customer with tracking link
+      notifyTicketCreated({ ...input, id: ticketId, trackingToken }).catch(() => {});
       // Ask Pivot to suggest a resolution
       try {
         const learnings = await db.searchSupportLearnings(input.subject + " " + input.description);
@@ -4064,6 +4096,7 @@ const supportRouter = router({
             resolution: data.resolution || "Your issue has been resolved.",
             customerName: ticket.customerName ?? undefined,
             customerEmail: ticket.customerEmail ?? undefined,
+            trackingToken: (ticket as any).trackingToken ?? undefined,
           }).catch(() => {});
         } else {
           notifyTicketStatusUpdate({
@@ -4072,6 +4105,7 @@ const supportRouter = router({
             status: data.status,
             customerName: ticket.customerName ?? undefined,
             customerEmail: ticket.customerEmail ?? undefined,
+            trackingToken: (ticket as any).trackingToken ?? undefined,
           }).catch(() => {});
         }
       }
@@ -4103,6 +4137,19 @@ const supportRouter = router({
       return replyId;
     }),
     getReplies: publicProcedure.input(z.object({ ticketId: z.number() })).query(({ input }) => db.getTicketReplies(input.ticketId)),
+    getRepliesByToken: publicProcedure.input(z.object({ token: z.string().min(1) })).query(async ({ input }) => {
+      const ticket = await db.getTicketByTrackingToken(input.token);
+      if (!ticket) return [];
+      const replies = await db.getTicketReplies(ticket.id);
+      // Filter out internal notes — only show agent and pivot_ai replies to customer
+      return replies.filter((r: any) => r.authorType !== 'internal').map((r: any) => ({
+        id: r.id,
+        authorType: r.authorType,
+        authorName: r.authorType === 'pivot_ai' ? 'Pivot AI' : (r.authorName || 'Support Team'),
+        content: r.content,
+        createdAt: r.createdAt,
+      }));
+    }),
   }),
 
   // ── Knowledge Base ──

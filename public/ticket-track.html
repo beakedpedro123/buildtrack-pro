@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Track Your Ticket — BuildTrack Pro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1114; --bg2: #1a1d21; --fg: #ECEDEE; --fg2: #9BA1A6;
+    --border: #2a2d32; --primary: #C8A84E; --primary-bg: #2a2518;
+    --success: #22c55e; --warning: #f59e0b; --error: #ef4444;
+    --info: #3b82f6; --surface: #1a1d21;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--fg); min-height: 100vh; }
+  
+  .header {
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    padding: 20px 32px; display: flex; align-items: center; gap: 16px;
+  }
+  .header-logo { width: 36px; height: 36px; border-radius: 8px; background: #1a1a1a; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .header-logo img { width: 36px; height: 36px; object-fit: contain; }
+  .header h1 { font-size: 18px; font-weight: 700; }
+  .header h1 span { color: var(--primary); }
+  
+  .container { max-width: 700px; margin: 0 auto; padding: 32px 24px; }
+  
+  .ticket-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 16px;
+    overflow: hidden;
+  }
+  .ticket-header {
+    background: var(--primary); padding: 24px 28px; text-align: center;
+  }
+  .ticket-header h2 { color: #0f1114; font-size: 18px; font-weight: 700; margin: 0; }
+  .ticket-header .ticket-id { color: #0f1114; opacity: 0.7; font-size: 13px; margin-top: 4px; }
+  
+  .ticket-body { padding: 28px; }
+  
+  .ticket-subject { font-size: 20px; font-weight: 700; margin-bottom: 8px; color: var(--fg); }
+  .ticket-meta { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+  .meta-badge {
+    padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  
+  /* Status Timeline */
+  .status-timeline {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 28px 0; padding: 20px 0; position: relative;
+  }
+  .status-timeline::before {
+    content: ''; position: absolute; top: 50%; left: 0; right: 0;
+    height: 3px; background: var(--border); transform: translateY(-50%); z-index: 0;
+  }
+  .timeline-step {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    position: relative; z-index: 1;
+  }
+  .timeline-dot {
+    width: 32px; height: 32px; border-radius: 50%; border: 3px solid var(--border);
+    background: var(--bg); display: flex; align-items: center; justify-content: center;
+    font-size: 14px; transition: all 0.3s;
+  }
+  .timeline-dot.active { border-color: var(--primary); background: var(--primary-bg); }
+  .timeline-dot.completed { border-color: var(--success); background: #22c55e22; }
+  .timeline-dot.current { border-color: var(--primary); background: var(--primary); box-shadow: 0 0 12px rgba(200,168,78,0.4); }
+  .timeline-label { font-size: 11px; font-weight: 600; color: var(--fg2); text-align: center; max-width: 70px; }
+  .timeline-label.active { color: var(--primary); }
+  .timeline-label.completed { color: var(--success); }
+  
+  .section-title { font-size: 14px; font-weight: 600; color: var(--fg2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; margin-top: 24px; }
+  
+  .description-box {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; font-size: 14px; line-height: 1.7; color: var(--fg);
+  }
+  
+  .resolution-box {
+    background: #22c55e11; border: 1px solid #22c55e33; border-radius: 10px;
+    padding: 16px; margin-top: 16px;
+  }
+  .resolution-box .res-label { font-size: 13px; font-weight: 600; color: var(--success); margin-bottom: 8px; }
+  .resolution-box .res-content { font-size: 14px; line-height: 1.7; color: var(--fg); }
+  
+  .dates-row { display: flex; gap: 24px; margin-top: 20px; flex-wrap: wrap; }
+  .date-item { font-size: 13px; color: var(--fg2); }
+  .date-item strong { color: var(--fg); }
+  
+  .footer-note {
+    text-align: center; padding: 24px; color: var(--fg2); font-size: 12px;
+    border-top: 1px solid var(--border); margin-top: 28px;
+  }
+  .footer-note a { color: var(--primary); text-decoration: none; }
+  .footer-note a:hover { text-decoration: underline; }
+  
+  .loading { text-align: center; padding: 60px 20px; color: var(--fg2); }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  
+  .error-state { text-align: center; padding: 60px 20px; }
+  .error-state h3 { color: var(--error); margin-bottom: 8px; }
+  .error-state p { color: var(--fg2); font-size: 14px; }
+  
+  @media (max-width: 600px) {
+    .container { padding: 16px; }
+    .ticket-body { padding: 20px; }
+    .status-timeline { gap: 4px; }
+    .timeline-label { font-size: 10px; max-width: 55px; }
+    .timeline-dot { width: 26px; height: 26px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo"><img src="/api/web/logo.png" alt="BTP" onerror="this.style.display='none'"></div>
+  <h1>Build<span>Track</span> Pro</h1>
+</div>
+
+<div class="container">
+  <div id="loadingState" class="loading">
+    <div class="spinner"></div>
+    <p>Loading ticket status...</p>
+  </div>
+  
+  <div id="errorState" class="error-state" style="display:none">
+    <h3>Ticket Not Found</h3>
+    <p>This tracking link may be invalid or expired. Please check your email for the correct link, or <a href="/api/web/support">contact support</a>.</p>
+  </div>
+  
+  <div id="ticketContent" style="display:none">
+    <div class="ticket-card">
+      <div class="ticket-header">
+        <h2>Ticket Status</h2>
+        <div class="ticket-id" id="ticketIdLabel"></div>
+      </div>
+      <div class="ticket-body">
+        <div class="ticket-subject" id="ticketSubject"></div>
+        <div class="ticket-meta" id="ticketMeta"></div>
+        
+        <!-- Status Timeline -->
+        <div class="status-timeline" id="statusTimeline"></div>
+        
+        <div class="section-title">Your Issue</div>
+        <div class="description-box" id="ticketDescription"></div>
+        
+        <div id="resolutionSection" style="display:none">
+          <div class="section-title">Resolution</div>
+          <div class="resolution-box">
+            <div class="res-label">✓ Resolved</div>
+            <div class="res-content" id="ticketResolution"></div>
+          </div>
+        </div>
+        
+        <div id="repliesSection" style="display:none;margin-top:24px">
+          <div class="section-title">Updates & Replies</div>
+          <div id="ticketReplies" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
+        
+        <div class="dates-row" id="ticketDates"></div>
+      </div>
+      
+      <div class="footer-note">
+        <p>Need more help? <a href="/api/web/support">Visit our Support Portal</a> or reply to your ticket email.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin + '/api/trpc';
+
+const STATUS_ORDER = ['open', 'in_progress', 'resolved', 'closed'];
+const STATUS_LABELS = { open: 'Open', in_progress: 'In Progress', resolved: 'Resolved', closed: 'Closed' };
+const STATUS_ICONS = { open: '📋', in_progress: '⚙️', resolved: '✅', closed: '🔒' };
+const PRIORITY_COLORS = { low: '#22c55e', medium: '#C8A84E', high: '#f59e0b', urgent: '#ef4444' };
+const CATEGORY_LABELS = { bug: 'Bug Report', feature_request: 'Feature Request', billing: 'Billing', how_to: 'How To', account: 'Account', other: 'Other' };
+
+// Extract token from URL path
+const pathParts = window.location.pathname.split('/');
+const token = pathParts[pathParts.length - 1];
+
+async function loadTicket() {
+  if (!token || token.length < 10) {
+    showError();
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/support.tickets.getByToken?input=${encodeURIComponent(JSON.stringify({json:{token}}))}`);
+    const data = await res.json();
+    const ticket = data.result?.data?.json;
+    if (!ticket) {
+      showError();
+      return;
+    }
+    renderTicket(ticket);
+  } catch (e) {
+    showError();
+  }
+}
+
+function showError() {
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('errorState').style.display = 'block';
+}
+
+function renderTicket(ticket) {
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('ticketContent').style.display = 'block';
+  
+  // Title
+  document.title = `Ticket #${ticket.id}: ${ticket.subject} — BuildTrack Pro`;
+  document.getElementById('ticketIdLabel').textContent = `Ticket #${ticket.id}`;
+  document.getElementById('ticketSubject').textContent = ticket.subject;
+  
+  // Meta badges
+  const priorityColor = PRIORITY_COLORS[ticket.priority] || '#C8A84E';
+  const categoryLabel = CATEGORY_LABELS[ticket.category] || ticket.category;
+  document.getElementById('ticketMeta').innerHTML = `
+    <span class="meta-badge" style="background:${priorityColor}22;color:${priorityColor}">${ticket.priority} priority</span>
+    <span class="meta-badge" style="background:var(--primary-bg);color:var(--primary)">${categoryLabel}</span>
+  `;
+  
+  // Status Timeline
+  const currentIdx = STATUS_ORDER.indexOf(ticket.status);
+  let timelineHTML = '';
+  STATUS_ORDER.forEach((status, idx) => {
+    let dotClass = '';
+    let labelClass = '';
+    if (idx < currentIdx) { dotClass = 'completed'; labelClass = 'completed'; }
+    else if (idx === currentIdx) { dotClass = 'current'; labelClass = 'active'; }
+    timelineHTML += `
+      <div class="timeline-step">
+        <div class="timeline-dot ${dotClass}">${STATUS_ICONS[status]}</div>
+        <div class="timeline-label ${labelClass}">${STATUS_LABELS[status]}</div>
+      </div>
+    `;
+  });
+  document.getElementById('statusTimeline').innerHTML = timelineHTML;
+  
+  // Description
+  document.getElementById('ticketDescription').textContent = ticket.description;
+  
+  // Resolution
+  if (ticket.resolution && (ticket.status === 'resolved' || ticket.status === 'closed')) {
+    document.getElementById('resolutionSection').style.display = 'block';
+    document.getElementById('ticketResolution').textContent = ticket.resolution;
+  }
+  
+  // Dates
+  let datesHTML = `<div class="date-item">Created: <strong>${fmtDate(ticket.createdAt)}</strong></div>`;
+  if (ticket.resolvedAt) {
+    datesHTML += `<div class="date-item">Resolved: <strong>${fmtDate(ticket.resolvedAt)}</strong></div>`;
+  }
+  document.getElementById('ticketDates').innerHTML = datesHTML;
+}
+
+function fmtDate(d) {
+  if (!d) return '--';
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// Load replies for the ticket
+async function loadReplies() {
+  try {
+    const res = await fetch(`${API}/support.tickets.getRepliesByToken?input=${encodeURIComponent(JSON.stringify({json:{token}}))}`);
+    const data = await res.json();
+    const replies = data.result?.data?.json;
+    if (replies && replies.length > 0) {
+      document.getElementById('repliesSection').style.display = 'block';
+      let html = '';
+      replies.forEach(r => {
+        const isPivot = r.authorType === 'pivot_ai';
+        const isAgent = r.authorType === 'agent';
+        const bgColor = isPivot ? '#C8A84E11' : (isAgent ? '#3b82f611' : 'var(--bg)');
+        const borderColor = isPivot ? '#C8A84E33' : (isAgent ? '#3b82f633' : 'var(--border)');
+        const nameColor = isPivot ? 'var(--primary)' : (isAgent ? 'var(--info)' : 'var(--fg)');
+        const icon = isPivot ? '🤖' : (isAgent ? '👤' : '💬');
+        html += `<div style="background:${bgColor};border:1px solid ${borderColor};border-radius:10px;padding:14px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-weight:600;font-size:13px;color:${nameColor}">${icon} ${esc(r.authorName)}</span>
+            <span style="font-size:11px;color:var(--fg2)">${fmtDate(r.createdAt)}</span>
+          </div>
+          <div style="font-size:14px;line-height:1.6;color:var(--fg)">${esc(r.content)}</div>
+        </div>`;
+      });
+      document.getElementById('ticketReplies').innerHTML = html;
+    }
+  } catch (e) { /* silently fail */ }
+}
+
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// Load on page ready
+loadTicket();
+setTimeout(loadReplies, 300);
+</script>
+</body>
+</html>
