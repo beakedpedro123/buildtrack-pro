@@ -2320,3 +2320,52 @@
 - [x] Provide admin URL and access
 #### TestFlight vs App Store
 - [x] Answer Pedro's question about TestFlight vs full App Store publish
+
+### Phase 117e: KB Seeding, Fix Links, New Marketing Materials, Progress Report
+#### Fix Broken Links
+- [x] Verify marketing site is accessible at /api/web/
+- [x] Verify admin dashboard is accessible at /api/web/admin.html
+- [x] Fix QR codes to point to correct working URLs (/api/web/)
+#### Seed Knowledge Base
+- [x] Seed 15 KB articles covering: clock-in, adding employees, job setup, dashboard, calculator, daily reports, budget, payroll, Pivot AI, goals, troubleshooting (2), billing, safety meetings, FAQ
+#### New Marketing Posts (Consistent Logos)
+- [ ] 3 dark-theme EN posts with consistent BTP + Pivot logos, real app screenshots
+- [ ] 3 dark-theme ES posts with consistent BTP + Pivot logos, real app screenshots
+- [ ] 3 white-theme EN posts with consistent BTP + Pivot logos, real app screenshots
+- [ ] 3 white-theme ES posts with consistent BTP + Pivot logos, real app screenshots
+#### New Flyers (Consistent Logos)
+- [ ] Dark-theme EN flyer
+- [ ] Dark-theme ES flyer
+- [ ] White-theme EN flyer
+- [ ] White-theme ES flyer
+#### QR Compositing
+- [ ] Composite working QR codes onto all new marketing assets
+#### Progress Report PDF
+- [x] Updated PDF: where the app is now, competitor comparison, feature completeness
+
+### Phase 117f: Logo Consistency Fix on Uploaded Posts + Website Fix + Variety
+- [x] Fix marketing site routing — confirmed working at /api/web/
+- [x] Fix admin dashboard routing — confirmed working at /api/web/admin.html
+- [x] Generate definitive BuildTrack Pro logo (gold hardhat) as standalone reference
+- [x] Generate definitive Pivot logo (gold robot, teal eyes, circle) as standalone reference
+- [ ] Fix logos on all 17 uploaded posts/flyers using Python/Pillow overlay
+- [ ] Create new variety posts (different screens, both themes, EN+ES)
+- [ ] Generate working QR codes pointing to correct marketing site URL
+- [x] Create updated PDF report — app progress, competitor comparison, feature completeness
+
+### Phase 117g: Separate Web Apps + Dual Logo Fixes
+#### Web Apps (3 separate apps, same server, synced data)
+- [x] Marketing Site — standalone at /api/web/ (public, free trial signup)
+- [x] Admin Dashboard — standalone at /api/web/admin (Pedro sees all customers, tickets, Pivot learning)
+- [x] Support Portal — standalone at /api/web/support (team login, ticket management, Pivot AI)
+- [x] All 3 share same Express server and PostgreSQL database
+- [x] Team login for Support Portal (email + PIN-based)
+- [x] Verify all 3 accessible and working — titles confirmed
+#### Logo Fixes (BOTH logos on every post)
+- [ ] Use EXACT Pivot robot from IMG_8654.PNG (gold full-body robot in gold circle)
+- [ ] Use EXACT BTP app icon from IMG_8656.PNG (orange hardhat on navy square)
+- [ ] Fix all 17 uploaded posts with BOTH logos consistently
+- [ ] Create new variety posts with dual logos
+#### QR + PDF
+- [ ] Working QR codes pointing to marketing site
+- [x] Updated PDF progress report

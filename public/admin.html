@@ -305,7 +305,7 @@
 </div>
 
 <script>
-const API = window.location.origin + '/api/trpc';
+const API = window.location.origin + (window.location.pathname.includes('/api/web') ? '' : '') + '/api/trpc';
 
 // Tab navigation
 document.querySelectorAll('.nav-tab').forEach(tab => {

@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BuildTrack Pro — Support Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#ffffff; --bg2:#f8f9fa; --fg:#111111; --fg2:#555555; --fg3:#888888;
+  --border:rgba(0,0,0,.08); --primary:#C8A84E; --primary-bg:#FDF8EC;
+  --surface:#ffffff; --shadow:0 1px 3px rgba(0,0,0,.08);
+  --success:#22c55e; --warning:#f59e0b; --error:#ef4444;
+  --radius:12px;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#0f1117; --bg2:#1a1d2e; --fg:#e8e8f0; --fg2:#9ca3af; --fg3:#6b7280;
+    --border:rgba(255,255,255,.08); --primary:#C8A84E; --primary-bg:#2a2518;
+    --surface:#1a1d2e; --shadow:0 1px 3px rgba(0,0,0,.3);
+  }
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--fg);line-height:1.5}
+
+/* Login Screen */
+.login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:48px 40px;max-width:420px;width:100%;box-shadow:var(--shadow)}
+.login-card .logo{text-align:center;margin-bottom:32px}
+.login-card .logo h1{font-size:24px;font-weight:800;margin-top:16px}
+.login-card .logo h1 span{color:var(--primary)}
+.login-card .logo p{color:var(--fg2);font-size:14px;margin-top:4px}
+.login-card .pivot-icon{width:64px;height:64px;margin:0 auto;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center}
+.login-card .pivot-icon svg{width:36px;height:36px;fill:var(--bg)}
+.form-group{margin-bottom:20px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:var(--fg2);margin-bottom:6px}
+.form-group input{width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:10px;font-size:15px;background:var(--bg);color:var(--fg);outline:none;transition:border-color .2s}
+.form-group input:focus{border-color:var(--primary)}
+.login-btn{width:100%;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .2s}
+.login-btn:hover{opacity:.9}
+.login-error{color:var(--error);font-size:13px;text-align:center;margin-top:12px;display:none}
+
+/* App Shell */
+.app{display:none}
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header-left{display:flex;align-items:center;gap:12px}
+.header-left .logo-icon{width:32px;height:32px;background:var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center}
+.header-left .logo-icon svg{width:18px;height:18px;fill:#fff}
+.header h2{font-size:18px;font-weight:700}
+.header h2 span{color:var(--primary)}
+.header-right{display:flex;align-items:center;gap:12px}
+.user-info{font-size:13px;color:var(--fg2)}
+.user-info strong{color:var(--fg)}
+.logout-btn{padding:8px 16px;background:none;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--fg2);cursor:pointer;transition:all .2s}
+.logout-btn:hover{border-color:var(--error);color:var(--error)}
+
+/* Navigation */
+.nav{display:flex;gap:0;background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;overflow-x:auto}
+.nav-item{padding:12px 20px;font-size:14px;font-weight:500;color:var(--fg2);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s}
+.nav-item:hover{color:var(--fg)}
+.nav-item.active{color:var(--primary);border-bottom-color:var(--primary)}
+.nav-item .badge{background:var(--primary-bg);color:var(--primary);padding:1px 8px;border-radius:10px;font-size:11px;margin-left:6px}
+
+/* Main Content */
+.main{max-width:1200px;margin:0 auto;padding:24px}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.stat .label{font-size:12px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.stat .value{font-size:28px;font-weight:700}
+.stat .value.gold{color:var(--primary)}
+.stat .value.green{color:var(--success)}
+.stat .value.red{color:var(--error)}
+
+/* Tickets */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.section-header h3{font-size:18px;font-weight:700}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap}
+.filter-btn{padding:6px 14px;border:1px solid var(--border);border-radius:20px;font-size:13px;background:none;color:var(--fg2);cursor:pointer;transition:all .2s}
+.filter-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+.ticket-list{display:flex;flex-direction:column;gap:12px}
+.ticket-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);cursor:pointer;transition:all .2s}
+.ticket-card:hover{border-color:var(--primary)}
+.ticket-card .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.ticket-card .title{font-weight:600;font-size:15px}
+.ticket-card .meta{font-size:13px;color:var(--fg3)}
+.ticket-card .desc{font-size:14px;color:var(--fg2);margin-top:4px}
+.status-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase}
+.status-badge.open{background:#fef3c7;color:#92400e}
+.status-badge.in_progress{background:#dbeafe;color:#1e40af}
+.status-badge.resolved{background:#d1fae5;color:#065f46}
+.status-badge.closed{background:var(--bg2);color:var(--fg3)}
+.priority-badge{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.priority-badge.high{background:#fee2e2;color:#991b1b}
+.priority-badge.medium{background:#fef3c7;color:#92400e}
+.priority-badge.low{background:#d1fae5;color:#065f46}
+
+/* Ticket Detail */
+.ticket-detail{display:none}
+.back-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:none;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--fg2);cursor:pointer;margin-bottom:16px}
+.back-btn:hover{border-color:var(--primary);color:var(--primary)}
+.detail-header{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px}
+.detail-header h3{font-size:20px;font-weight:700;margin-bottom:8px}
+.detail-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--fg3)}
+.replies{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+.reply{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.reply.agent{border-left:3px solid var(--primary)}
+.reply.customer{border-left:3px solid var(--fg3)}
+.reply .author{font-weight:600;font-size:13px;margin-bottom:4px}
+.reply .time{font-size:12px;color:var(--fg3)}
+.reply .content{font-size:14px;margin-top:8px;color:var(--fg2)}
+.reply-form{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.reply-form textarea{width:100%;min-height:100px;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--fg);resize:vertical;outline:none;font-family:inherit}
+.reply-form textarea:focus{border-color:var(--primary)}
+.reply-actions{display:flex;gap:8px;margin-top:12px}
+.btn{padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{opacity:.9}
+.btn-success{background:var(--success);color:#fff}
+.btn-outline{background:none;border:1px solid var(--border);color:var(--fg2)}
+.btn-outline:hover{border-color:var(--primary);color:var(--primary)}
+.btn-danger{background:var(--error);color:#fff}
+
+/* Pivot AI Chat */
+.pivot-panel{display:none}
+.chat-container{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;max-width:800px;margin:0 auto}
+.chat-header{background:var(--primary);color:#fff;padding:16px 20px;display:flex;align-items:center;gap:12px}
+.chat-header .avatar{width:40px;height:40px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center}
+.chat-header .avatar svg{width:24px;height:24px;fill:#fff}
+.chat-header h3{font-size:16px;font-weight:700}
+.chat-header p{font-size:12px;opacity:.8}
+.chat-messages{height:400px;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px}
+.chat-msg{max-width:80%;padding:12px 16px;border-radius:16px;font-size:14px;line-height:1.5}
+.chat-msg.pivot{background:var(--bg2);align-self:flex-start;border-bottom-left-radius:4px}
+.chat-msg.user{background:var(--primary);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.chat-msg .sender{font-size:11px;font-weight:600;margin-bottom:4px;opacity:.7}
+.chat-input{display:flex;gap:8px;padding:16px 20px;border-top:1px solid var(--border)}
+.chat-input input{flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:24px;font-size:14px;background:var(--bg);color:var(--fg);outline:none}
+.chat-input input:focus{border-color:var(--primary)}
+.chat-input button{padding:12px 24px;background:var(--primary);color:#fff;border:none;border-radius:24px;font-weight:600;cursor:pointer}
+
+/* KB Panel */
+.kb-panel{display:none}
+.kb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.kb-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);cursor:pointer;transition:all .2s}
+.kb-card:hover{border-color:var(--primary)}
+.kb-card h4{font-size:15px;font-weight:600;margin-bottom:4px}
+.kb-card .category{font-size:12px;color:var(--primary);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.kb-card p{font-size:13px;color:var(--fg2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.kb-detail{display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px;max-width:800px;margin:0 auto}
+.kb-detail h3{font-size:22px;font-weight:700;margin-bottom:16px}
+.kb-detail .content{font-size:15px;line-height:1.8;color:var(--fg2)}
+
+/* Responsive */
+@media(max-width:768px){
+  .header{padding:12px 16px}
+  .nav{padding:0 16px}
+  .main{padding:16px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .login-card{padding:32px 24px}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="logo">
+      <div class="pivot-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2a2 2 0 012 2v1h2a3 3 0 013 3v2a3 3 0 01-1 2.24V14a3 3 0 01-3 3h-1v2a2 2 0 01-4 0v-2H9a3 3 0 01-3-3v-1.76A3 3 0 015 10V8a3 3 0 013-3h2V4a2 2 0 012-2zm-2 7a1 1 0 100 2 1 1 0 000-2zm4 0a1 1 0 100 2 1 1 0 000-2z"/></svg>
+      </div>
+      <h1>Build<span>Track</span> Pro</h1>
+      <p>Support Portal — Team Login</p>
+    </div>
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label>Email Address</label>
+        <input type="email" id="loginEmail" placeholder="you@company.com" required>
+      </div>
+      <div class="form-group">
+        <label>Team PIN</label>
+        <input type="password" id="loginPin" placeholder="Enter your 4-digit PIN" required maxlength="6">
+      </div>
+      <button type="submit" class="login-btn">Sign In</button>
+      <div id="loginError" class="login-error">Invalid credentials. Please try again.</div>
+    </form>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div id="app" class="app">
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2a2 2 0 012 2v1h2a3 3 0 013 3v2a3 3 0 01-1 2.24V14a3 3 0 01-3 3h-1v2a2 2 0 01-4 0v-2H9a3 3 0 01-3-3v-1.76A3 3 0 015 10V8a3 3 0 013-3h2V4a2 2 0 012-2zm-2 7a1 1 0 100 2 1 1 0 000-2zm4 0a1 1 0 100 2 1 1 0 000-2z"/></svg>
+      </div>
+      <h2>Support <span>Portal</span></h2>
+    </div>
+    <div class="header-right">
+      <div class="user-info">Signed in as <strong id="userName">Agent</strong></div>
+      <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
+    </div>
+  </div>
+
+  <div class="nav">
+    <div class="nav-item active" data-tab="tickets" onclick="switchTab('tickets')">Tickets <span class="badge" id="ticketCount">0</span></div>
+    <div class="nav-item" data-tab="pivot" onclick="switchTab('pivot')">Pivot AI</div>
+    <div class="nav-item" data-tab="kb" onclick="switchTab('kb')">Knowledge Base <span class="badge" id="kbCount">0</span></div>
+  </div>
+
+  <div class="main">
+    <!-- Stats -->
+    <div class="stats" id="statsBar">
+      <div class="stat"><div class="label">Open Tickets</div><div class="value gold" id="statOpen">0</div></div>
+      <div class="stat"><div class="label">In Progress</div><div class="value" id="statProgress">0</div></div>
+      <div class="stat"><div class="label">Resolved Today</div><div class="value green" id="statResolved">0</div></div>
+      <div class="stat"><div class="label">Avg Response</div><div class="value" id="statAvgResponse">--</div></div>
+    </div>
+
+    <!-- TICKETS TAB -->
+    <div id="ticketsPanel">
+      <div id="ticketsList">
+        <div class="section-header">
+          <h3>Support Tickets</h3>
+          <div class="filter-bar">
+            <button class="filter-btn active" onclick="filterTickets('all')">All</button>
+            <button class="filter-btn" onclick="filterTickets('open')">Open</button>
+            <button class="filter-btn" onclick="filterTickets('in_progress')">In Progress</button>
+            <button class="filter-btn" onclick="filterTickets('resolved')">Resolved</button>
+          </div>
+        </div>
+        <div class="ticket-list" id="ticketListContainer">
+          <p style="color:var(--fg3);text-align:center;padding:40px">Loading tickets...</p>
+        </div>
+      </div>
+
+      <div class="ticket-detail" id="ticketDetail">
+        <button class="back-btn" onclick="backToList()">&#8592; Back to Tickets</button>
+        <div class="detail-header" id="detailHeader"></div>
+        <div class="replies" id="repliesContainer"></div>
+        <div class="reply-form">
+          <h4 style="margin-bottom:12px;font-size:15px;font-weight:600">Reply</h4>
+          <textarea id="replyText" placeholder="Type your response..."></textarea>
+          <div class="reply-actions">
+            <button class="btn btn-primary" onclick="sendReply()">Send Reply</button>
+            <button class="btn btn-success" onclick="resolveTicket()">Mark Resolved</button>
+            <button class="btn btn-outline" onclick="askPivot()">Ask Pivot for Help</button>
+          </div>
+        </div>
+        <div id="pivotSuggestion" style="display:none;margin-top:16px;background:var(--primary-bg);border:1px solid var(--primary);border-radius:var(--radius);padding:20px">
+          <h4 style="color:var(--primary);font-size:14px;margin-bottom:8px">Pivot's Suggestion</h4>
+          <p id="pivotSuggestionText" style="font-size:14px;color:var(--fg2)"></p>
+          <button class="btn btn-outline" style="margin-top:12px" onclick="usePivotSuggestion()">Use This Response</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PIVOT AI TAB -->
+    <div class="pivot-panel" id="pivotPanel">
+      <div class="chat-container">
+        <div class="chat-header">
+          <div class="avatar">
+            <svg viewBox="0 0 24 24"><path d="M12 2a2 2 0 012 2v1h2a3 3 0 013 3v2a3 3 0 01-1 2.24V14a3 3 0 01-3 3h-1v2a2 2 0 01-4 0v-2H9a3 3 0 01-3-3v-1.76A3 3 0 015 10V8a3 3 0 013-3h2V4a2 2 0 012-2zm-2 7a1 1 0 100 2 1 1 0 000-2zm4 0a1 1 0 100 2 1 1 0 000-2z"/></svg>
+          </div>
+          <div>
+            <h3>Pivot AI</h3>
+            <p>Your support assistant — learns from every resolution</p>
+          </div>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          <div class="chat-msg pivot">
+            <div class="sender">Pivot</div>
+            Hi! I'm Pivot, your AI support assistant. I can help you troubleshoot customer issues, search the knowledge base, and suggest solutions based on past resolutions. What can I help with?
+          </div>
+        </div>
+        <div class="chat-input">
+          <input type="text" id="chatInput" placeholder="Ask Pivot anything..." onkeydown="if(event.key==='Enter')sendChat()">
+          <button onclick="sendChat()">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KB TAB -->
+    <div class="kb-panel" id="kbPanel">
+      <div id="kbList">
+        <div class="section-header">
+          <h3>Knowledge Base</h3>
+        </div>
+        <div class="kb-grid" id="kbGrid">
+          <p style="color:var(--fg3);text-align:center;padding:40px">Loading articles...</p>
+        </div>
+      </div>
+      <div class="kb-detail" id="kbDetail">
+        <button class="back-btn" onclick="backToKB()">&#8592; Back to Articles</button>
+        <div id="kbDetailContent"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// API Configuration
+const API = window.location.origin + '/api/trpc';
+
+// State
+let currentUser = null;
+let currentTicketId = null;
+let allTickets = [];
+let currentFilter = 'all';
+
+// === AUTH ===
+// Support team members (synced with BuildTrack Pro employees)
+// In production this would validate against the database
+const TEAM_CREDENTIALS = [
+  { email: 'pedro@buildtrackpro.com', pin: '1234', name: 'Pedro Carranza', role: 'owner' },
+  { email: 'lupe@buildtrackpro.com', pin: '1234', name: 'Lupe Mejia', role: 'office_manager' },
+  { email: 'pablo@buildtrackpro.com', pin: '1234', name: 'Pablo Carranza', role: 'office_manager' },
+  { email: 'support@buildtrackpro.com', pin: '2024', name: 'Support Agent', role: 'agent' },
+];
+
+function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.toLowerCase();
+  const pin = document.getElementById('loginPin').value;
+  const user = TEAM_CREDENTIALS.find(u => u.email === email && u.pin === pin);
+  if (user) {
+    currentUser = user;
+    localStorage.setItem('supportUser', JSON.stringify(user));
+    showApp();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+    setTimeout(() => document.getElementById('loginError').style.display = 'none', 3000);
+  }
+}
+
+function handleLogout() {
+  currentUser = null;
+  localStorage.removeItem('supportUser');
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('userName').textContent = currentUser.name;
+  loadDashboard();
+}
+
+// Check saved session
+(function checkSession() {
+  const saved = localStorage.getItem('supportUser');
+  if (saved) {
+    try {
+      currentUser = JSON.parse(saved);
+      showApp();
+    } catch(e) {
+      localStorage.removeItem('supportUser');
+    }
+  }
+})();
+
+// === API HELPERS ===
+async function trpcQuery(path) {
+  try {
+    const res = await fetch(`${API}/${path}`);
+    const data = await res.json();
+    return data.result?.data?.json;
+  } catch(e) { console.error('Query error:', path, e); return null; }
+}
+
+async function trpcMutation(path, input) {
+  try {
+    const res = await fetch(`${API}/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ json: input })
+    });
+    const data = await res.json();
+    return data.result?.data?.json;
+  } catch(e) { console.error('Mutation error:', path, e); return null; }
+}
+
+// === TAB NAVIGATION ===
+function switchTab(tab) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+  
+  document.getElementById('ticketsPanel').style.display = tab === 'tickets' ? 'block' : 'none';
+  document.getElementById('pivotPanel').style.display = tab === 'pivot' ? 'block' : 'none';
+  document.getElementById('kbPanel').style.display = tab === 'kb' ? 'block' : 'none';
+  document.getElementById('statsBar').style.display = tab === 'tickets' ? 'grid' : 'none';
+  
+  if (tab === 'kb') loadKB();
+}
+
+// === DASHBOARD ===
+async function loadDashboard() {
+  const [stats, tickets] = await Promise.all([
+    trpcQuery('support.stats'),
+    trpcQuery('support.tickets.listAll'),
+  ]);
+  
+  if (stats) {
+    document.getElementById('statOpen').textContent = stats.openTickets || 0;
+    document.getElementById('statProgress').textContent = stats.inProgressTickets || 0;
+    document.getElementById('statResolved').textContent = stats.resolvedTickets || 0;
+    document.getElementById('statAvgResponse').textContent = stats.avgResponseTime || '--';
+    document.getElementById('ticketCount').textContent = (stats.openTickets || 0) + (stats.inProgressTickets || 0);
+  }
+  
+  if (tickets) {
+    allTickets = tickets;
+    renderTickets();
+  }
+}
+
+// === TICKETS ===
+function filterTickets(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(el => el.classList.remove('active'));
+  event.target.classList.add('active');
+  renderTickets();
+}
+
+function renderTickets() {
+  const container = document.getElementById('ticketListContainer');
+  let filtered = allTickets;
+  if (currentFilter !== 'all') {
+    filtered = allTickets.filter(t => t.status === currentFilter);
+  }
+  
+  if (filtered.length === 0) {
+    container.innerHTML = '<p style="color:var(--fg3);text-align:center;padding:40px">No tickets found</p>';
+    return;
+  }
+  
+  container.innerHTML = filtered.map(t => `
+    <div class="ticket-card" onclick="openTicket(${t.id})">
+      <div class="top">
+        <span class="title">#${t.id} — ${escHtml(t.subject)}</span>
+        <span class="status-badge ${t.status}">${t.status.replace('_',' ')}</span>
+      </div>
+      <div class="desc">${escHtml(t.description || '').substring(0, 120)}${(t.description||'').length > 120 ? '...' : ''}</div>
+      <div class="meta" style="margin-top:8px">
+        ${t.companyName ? '<strong>' + escHtml(t.companyName) + '</strong> · ' : ''}
+        ${t.contactEmail || 'No email'} · 
+        <span class="priority-badge ${t.priority}">${t.priority}</span> · 
+        ${timeAgo(t.createdAt)}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function openTicket(id) {
+  currentTicketId = id;
+  const ticket = allTickets.find(t => t.id === id);
+  if (!ticket) return;
+  
+  document.getElementById('ticketsList').style.display = 'none';
+  document.getElementById('ticketDetail').style.display = 'block';
+  document.getElementById('pivotSuggestion').style.display = 'none';
+  
+  document.getElementById('detailHeader').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3>#${ticket.id} — ${escHtml(ticket.subject)}</h3>
+      <span class="status-badge ${ticket.status}">${ticket.status.replace('_',' ')}</span>
+    </div>
+    <p style="font-size:14px;color:var(--fg2);margin-bottom:12px">${escHtml(ticket.description || '')}</p>
+    <div class="detail-meta">
+      <span>Company: <strong>${escHtml(ticket.companyName || 'Unknown')}</strong></span>
+      <span>Contact: ${escHtml(ticket.contactEmail || 'N/A')}</span>
+      <span>Priority: <span class="priority-badge ${ticket.priority}">${ticket.priority}</span></span>
+      <span>Created: ${new Date(ticket.createdAt).toLocaleDateString()}</span>
+    </div>
+  `;
+  
+  // Load replies
+  const replies = await trpcQuery('support.tickets.getReplies?input=' + encodeURIComponent(JSON.stringify({json:{ticketId:id}})));
+  const container = document.getElementById('repliesContainer');
+  if (replies && replies.length > 0) {
+    container.innerHTML = replies.map(r => `
+      <div class="reply ${r.authorType}">
+        <div style="display:flex;justify-content:space-between">
+          <span class="author">${escHtml(r.authorName || r.authorType)}</span>
+          <span class="time">${timeAgo(r.createdAt)}</span>
+        </div>
+        <div class="content">${escHtml(r.content)}</div>
+      </div>
+    `).join('');
+  } else {
+    container.innerHTML = '<p style="color:var(--fg3);text-align:center;padding:20px">No replies yet</p>';
+  }
+}
+
+function backToList() {
+  document.getElementById('ticketsList').style.display = 'block';
+  document.getElementById('ticketDetail').style.display = 'none';
+  currentTicketId = null;
+}
+
+async function sendReply() {
+  const content = document.getElementById('replyText').value.trim();
+  if (!content || !currentTicketId) return;
+  
+  await trpcMutation('support.tickets.reply', {
+    ticketId: currentTicketId,
+    authorType: 'agent',
+    authorName: currentUser.name,
+    content
+  });
+  
+  document.getElementById('replyText').value = '';
+  openTicket(currentTicketId);
+  loadDashboard();
+}
+
+async function resolveTicket() {
+  if (!currentTicketId) return;
+  const notes = prompt('Resolution notes (optional):') || '';
+  await trpcMutation('support.tickets.update', {
+    id: currentTicketId,
+    status: 'resolved',
+    resolution: notes
+  });
+  backToList();
+  loadDashboard();
+}
+
+async function askPivot() {
+  if (!currentTicketId) return;
+  const ticket = allTickets.find(t => t.id === currentTicketId);
+  if (!ticket) return;
+  
+  document.getElementById('pivotSuggestion').style.display = 'block';
+  document.getElementById('pivotSuggestionText').textContent = 'Pivot is analyzing the issue...';
+  
+  const result = await trpcMutation('support.pivotChat', {
+    message: `Customer ticket: "${ticket.subject}". Description: "${ticket.description}". Please suggest a helpful response.`,
+    ticketId: currentTicketId
+  });
+  
+  if (result?.response) {
+    document.getElementById('pivotSuggestionText').textContent = result.response;
+  } else {
+    document.getElementById('pivotSuggestionText').textContent = 'Unable to generate suggestion. Please try again.';
+  }
+}
+
+function usePivotSuggestion() {
+  const text = document.getElementById('pivotSuggestionText').textContent;
+  document.getElementById('replyText').value = text;
+  document.getElementById('pivotSuggestion').style.display = 'none';
+}
+
+// === PIVOT CHAT ===
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  
+  const container = document.getElementById('chatMessages');
+  container.innerHTML += `<div class="chat-msg user"><div class="sender">${escHtml(currentUser.name)}</div>${escHtml(msg)}</div>`;
+  input.value = '';
+  container.scrollTop = container.scrollHeight;
+  
+  // Show typing indicator
+  const typingId = 'typing_' + Date.now();
+  container.innerHTML += `<div class="chat-msg pivot" id="${typingId}"><div class="sender">Pivot</div>Thinking...</div>`;
+  container.scrollTop = container.scrollHeight;
+  
+  const result = await trpcMutation('support.pivotChat', { message: msg });
+  
+  const typingEl = document.getElementById(typingId);
+  if (typingEl) {
+    if (result?.response) {
+      typingEl.innerHTML = `<div class="sender">Pivot</div>${escHtml(result.response)}`;
+    } else {
+      typingEl.innerHTML = `<div class="sender">Pivot</div>Sorry, I couldn't process that. Please try again.`;
+    }
+  }
+  container.scrollTop = container.scrollHeight;
+}
+
+// === KNOWLEDGE BASE ===
+async function loadKB() {
+  const articles = await trpcQuery('support.kb.list');
+  const grid = document.getElementById('kbGrid');
+  
+  if (articles && articles.length > 0) {
+    document.getElementById('kbCount').textContent = articles.length;
+    grid.innerHTML = articles.map(a => `
+      <div class="kb-card" onclick="openKBArticle(${a.id})">
+        <div class="category">${escHtml(a.category || 'General')}</div>
+        <h4>${escHtml(a.title)}</h4>
+        <p>${escHtml(a.content || '').substring(0, 150)}...</p>
+      </div>
+    `).join('');
+  } else {
+    grid.innerHTML = '<p style="color:var(--fg3);text-align:center;padding:40px">No articles yet</p>';
+  }
+}
+
+async function openKBArticle(id) {
+  const articles = await trpcQuery('support.kb.list');
+  const article = articles?.find(a => a.id === id);
+  if (!article) return;
+  
+  document.getElementById('kbList').style.display = 'none';
+  document.getElementById('kbDetail').style.display = 'block';
+  document.getElementById('kbDetailContent').innerHTML = `
+    <div class="category" style="font-size:12px;color:var(--primary);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">${escHtml(article.category || 'General')}</div>
+    <h3>${escHtml(article.title)}</h3>
+    <div class="content" style="margin-top:16px;white-space:pre-wrap">${escHtml(article.content || '')}</div>
+    ${article.tags ? '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">' + article.tags.split(',').map(t => '<span style="padding:4px 12px;background:var(--bg2);border-radius:20px;font-size:12px;color:var(--fg2)">' + escHtml(t.trim()) + '</span>').join('') + '</div>' : ''}
+  `;
+}
+
+function backToKB() {
+  document.getElementById('kbList').style.display = 'block';
+  document.getElementById('kbDetail').style.display = 'none';
+}
+
+// === UTILITIES ===
+function escHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diff = Math.floor((now - date) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+</script>
+</body>
+</html>

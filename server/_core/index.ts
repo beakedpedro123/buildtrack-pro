@@ -299,32 +299,62 @@ async function startServer() {
   console.log(`[server] publicDir exists: ${fs.existsSync(publicDir)}`);
   console.log(`[server] index.html exists: ${fs.existsSync(path.join(publicDir, "index.html"))}`);
 
-  // Serve PWA through /api/web/* routes
-  // The deployment platform only proxies /api/* to Express, so we must serve
-  // all PWA static files under /api/web/ prefix
+  // Serve static files from public directory
   app.use("/api/web", express.static(publicDir));
 
-  // SPA fallback for /api/web/* routes (PWA is built with base=/api/web/)
+  // === 3 Separate Web Apps ===
+  // 1. Marketing Site (default landing page)
+  app.get("/api/web/", (_req: Request, res: Response) => {
+    const filePath = path.join(publicDir, "index.html");
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).send('Marketing site not found');
+    }
+  });
+
+  // 2. Admin Dashboard
+  app.get("/api/web/admin", (_req: Request, res: Response) => {
+    const filePath = path.join(publicDir, "admin.html");
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).send('Admin dashboard not found');
+    }
+  });
+
+  // 3. Support Portal
+  app.get("/api/web/support", (_req: Request, res: Response) => {
+    const filePath = path.join(publicDir, "support.html");
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).send('Support portal not found');
+    }
+  });
+
+  // Redirect shortcuts
+  app.get("/api", (_req: Request, res: Response) => {
+    res.redirect(301, "/api/web/");
+  });
+
+  // SPA fallback for /api/web/* routes
   app.get("/api/web/*", (_req: Request, res: Response) => {
     const indexPath = path.join(publicDir, "index.html");
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
-      res.status(404).send('PWA not found');
+      res.status(404).send('Page not found');
     }
   });
 
-  app.get("/api", (_req: Request, res: Response) => {
-    res.redirect(301, "/api/web/");
-  });
-
-  // Catch-all: serve PWA for all unmatched routes (SPA support)
+  // Catch-all
   app.get("*", (_req: Request, res: Response) => {
     const indexPath = path.join(publicDir, "index.html");
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
-      res.status(404).send('PWA not found');
+      res.status(404).send('Page not found');
     }
   });
 
