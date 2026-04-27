@@ -1194,7 +1194,9 @@ const safetyMeetingsRouter = router({
   }),
 });
 
-import { lookupSteelProfile, calculateSteelWeight, lookupSimpsonHardware, lookupUtahCode, lookupConstructionReference, getKnowledgeSummary } from "./construction-knowledge.js";
+import { lookupSteelProfile, calculateSteelWeight, lookupSimpsonHardware, lookupUtahCode, lookupConstructionReference } from "./construction-knowledge";
+import { getKnowledgeSummary } from "./construction-knowledge";
+import { getBuildEdgeKnowledgeBase, PEDRO_COMPANY_ID } from "./buildedge-knowledge";
 
 // ── Pivot AI Chat Router ──────────────────────────────────────────────────
 const pivotRouter = router({
@@ -1518,12 +1520,13 @@ ${reportsSummary || "  No recent reports."}
       }
     }
 
-    // ── Owner Private Knowledge Base (from SaaS server) ──────────────────────
+    // ── Owner Private Knowledge Base ──────────────────────────────────────────
+    // BuildEdge Pro knowledge base is ONLY available to Pedro's owner account (companyId === 1)
+    // Other companies' Pivot instances NEVER see this data
     let knowledgeBaseContext = "";
-    if (isOwner) {
+    if (isOwner && employee.companyId === PEDRO_COMPANY_ID) {
       try {
-        // Fetch Pedro's private knowledge base from the SaaS server
-        // This data includes financials, goals, overheads, equipment plans, labor benchmarks
+        // First try to fetch from SaaS server for live financial data
         const kbResponse = await fetch("http://localhost:4000/api/admin/pivot-context", {
           headers: {
             "Authorization": `Bearer ${require("jsonwebtoken").sign({ id: "super_admin", email: "pedro@buildtrackpro.com", role: "super_admin", companyId: null }, process.env.SAAS_JWT_SECRET || process.env.JWT_SECRET || "LDqsmH8cTYdG3goTfC4f6V", { expiresIn: "1h" })}`
@@ -1544,8 +1547,10 @@ ${reportsSummary || "  No recent reports."}
           }
         }
       } catch {
-        // Knowledge base unavailable — continue without it
+        // SaaS server unavailable — continue with static knowledge base
       }
+      // Always inject the BuildEdge Pro construction knowledge base for Pedro
+      knowledgeBaseContext += getBuildEdgeKnowledgeBase();
     }
 
     // ── Current date/time in Mountain Time (Utah) ────────────────────────────

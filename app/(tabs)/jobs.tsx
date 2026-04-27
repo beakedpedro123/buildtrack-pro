@@ -28,6 +28,7 @@ import { ActivityIndicator,
 
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
 import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { useOfflineMutation } from "@/hooks/use-offline-mutation";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -166,6 +167,12 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     utils.changeOrders.list.invalidate(); utils.changeOrders.total.invalidate(); setShowAddCO(false); setCoDesc(""); setCoAmount(""); setCoType("add"); setCoNotes("");
   } });
   const deleteCO = trpc.changeOrders.delete.useMutation({ onSuccess: () => { utils.changeOrders.list.invalidate(); utils.changeOrders.total.invalidate(); } });
+  // ─── Offline-aware mutation wrappers ───
+  const offlineUpdateJob = useOfflineMutation("jobs.update", updateJob, { silent: true });
+  const offlineAddExpense = useOfflineMutation("budget.addExpense", addExpense, { offlineMessage: "Expense will be added when back online." });
+  const offlineCreateAuditEntry = useOfflineMutation("budgetAuditLog.create", createAuditEntry, { silent: true });
+  const offlineCreateCO = useOfflineMutation("changeOrders.create", createCO, { offlineMessage: "Change order will be created when back online." });
+  const offlineDeleteCO = useOfflineMutation("changeOrders.delete", deleteCO, { silent: true });
 
   const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); setJobTaxRate(""); setJobWorkersComp(""); setJobLiabilityIns(""); setJobBillingType("fixed"); setJobHourlyRate("55"); };
   const resetExpForm = () => { setExpDesc(""); setExpAmount(""); setExpCategoryId(null); };
@@ -654,7 +661,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                               alignItems: "center",
                             }}
                             onPress={() => {
-                              updateJob.mutate({ id: selectedJob.id, billingType: bt });
+                              offlineUpdateJob.mutate({ id: selectedJob.id, billingType: bt });
                               setSelectedJob({ ...selectedJob, billingType: bt });
                             }}
                           >
@@ -678,7 +685,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                                   alignItems: "center",
                                 }}
                                 onPress={() => {
-                                  updateJob.mutate({ id: selectedJob.id, hourlyRate: rate });
+                                  offlineUpdateJob.mutate({ id: selectedJob.id, hourlyRate: rate });
                                   setSelectedJob({ ...selectedJob, hourlyRate: rate });
                                 }}
                               >
@@ -707,7 +714,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                             defaultValue={selectedJob.taxRate || "0"}
                             onEndEditing={(e) => {
                               const val = e.nativeEvent.text;
-                              updateJob.mutate({ id: selectedJob.id, taxRate: val });
+                              offlineUpdateJob.mutate({ id: selectedJob.id, taxRate: val });
                               setSelectedJob({ ...selectedJob, taxRate: val });
                             }}
                           />
@@ -722,7 +729,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                             defaultValue={selectedJob.workersCompRate || "0"}
                             onEndEditing={(e) => {
                               const val = e.nativeEvent.text;
-                              updateJob.mutate({ id: selectedJob.id, workersCompRate: val });
+                              offlineUpdateJob.mutate({ id: selectedJob.id, workersCompRate: val });
                               setSelectedJob({ ...selectedJob, workersCompRate: val });
                             }}
                           />
@@ -737,7 +744,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                             defaultValue={selectedJob.liabilityInsRate || "0"}
                             onEndEditing={(e) => {
                               const val = e.nativeEvent.text;
-                              updateJob.mutate({ id: selectedJob.id, liabilityInsRate: val });
+                              offlineUpdateJob.mutate({ id: selectedJob.id, liabilityInsRate: val });
                               setSelectedJob({ ...selectedJob, liabilityInsRate: val });
                             }}
                           />
@@ -755,7 +762,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                             key={s}
                             style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: selectedJob.status === s ? colors.primary : colors.border, backgroundColor: selectedJob.status === s ? colors.primary + "15" : colors.surface }}
                             onPress={() => {
-                              updateJob.mutate({ id: selectedJob.id, status: s });
+                              offlineUpdateJob.mutate({ id: selectedJob.id, status: s });
                               setSelectedJob({ ...selectedJob, status: s });
                             }}
                           >
@@ -854,8 +861,8 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                                 const val = editBudgetValue.replace(/[^0-9.]/g, "");
                                 if (val && parseFloat(val) > 0) {
                                   const oldBudget = parseFloat(selectedJob.totalBudget || "0");
-                                  updateJob.mutate({ id: selectedJob.id, totalBudget: val });
-                                  createAuditEntry.mutate({
+                                  offlineUpdateJob.mutate({ id: selectedJob.id, totalBudget: val });
+                                  offlineCreateAuditEntry.mutate({
                                     jobId: selectedJob.id,
                                     employeeId: employee?.id || 0,
                                     action: "budget_edit",
@@ -946,7 +953,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                                 onPress={() => {
                                   if (!coDesc.trim() || !coAmount.trim()) { Alert.alert("Required", "Description and amount are required."); return; }
                                   const coAmtClean = coAmount.replace(/[^0-9.]/g, "");
-                                  createCO.mutate({
+                                  offlineCreateCO.mutate({
                                     jobId: selectedJob.id,
                                     description: coDesc.trim(),
                                     amount: coAmtClean,
@@ -954,7 +961,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                                     createdBy: employee?.id || 0,
                                     notes: coNotes.trim() || undefined,
                                   });
-                                  createAuditEntry.mutate({
+                                  offlineCreateAuditEntry.mutate({
                                     jobId: selectedJob.id,
                                     employeeId: employee?.id || 0,
                                     action: coType === "add" ? "change_order_add" : "change_order_deduct",
@@ -999,8 +1006,8 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                                   Alert.alert("Delete Change Order", `Remove "${co.description}"?`, [
                                     { text: "Cancel", style: "cancel" },
                                     { text: "Delete", style: "destructive", onPress: () => {
-                                      deleteCO.mutate({ id: co.id, requestingId: employee?.id || 0 });
-                                      createAuditEntry.mutate({
+                                      offlineDeleteCO.mutate({ id: co.id, requestingId: employee?.id || 0 });
+                                      offlineCreateAuditEntry.mutate({
                                         jobId: selectedJob.id,
                                         employeeId: employee?.id || 0,
                                         action: "change_order_deleted",

@@ -29,6 +29,7 @@ import { ActivityIndicator,
 
 import { BG_REPORTS as bg_reports } from "@/constants/bg-urls";
 import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { useOfflineMutation } from "@/hooks/use-offline-mutation";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { useMemo } from "react";
 
@@ -179,6 +180,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
   }, [allSchedule, selectedJobId]);
 
   const createReport = trpc.reports.create.useMutation();
+  const offlineCreateReport = useOfflineMutation("reports.create", createReport, { offlineMessage: "Daily report will be submitted when back online. Photos will need to be re-attached." });
   const markSeenMutation = trpc.reports.markSeen.useMutation({
     onSuccess: () => {
       utils.reports.recent.invalidate();
@@ -366,7 +368,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
     setUploadProgress("Creating report...");
     try {
       // Step 1: Create the report
-      const reportId = await createReport.mutateAsync({
+      const reportId = await offlineCreateReport.mutateAsync({
         jobId: selectedJobId,
         submittedBy: employee.id,
         reportDate: new Date().toISOString(),

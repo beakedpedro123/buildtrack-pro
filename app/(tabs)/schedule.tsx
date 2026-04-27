@@ -2,6 +2,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { useOfflineMutation } from "@/hooks/use-offline-mutation";
 import { useCompanyTrade, getTradeSchedulePhases, getTradePromptContext, TRADE_OPTIONS } from "@/hooks/use-company-trade";
 import { CACHE_KEYS } from "@/lib/data-cache";
 import { trpc } from "@/lib/trpc";
@@ -120,6 +121,10 @@ export default function ScheduleScreen() {
   const updateMutation = trpc.schedule.update.useMutation({ onSuccess: () => { refetch(); utils.schedule.getAll.invalidate(); } });
   const deleteMutation = trpc.schedule.delete.useMutation({ onSuccess: () => { refetch(); utils.schedule.getAll.invalidate(); } });
   const bulkCreateMutation = trpc.schedule.bulkCreate.useMutation({ onSuccess: () => { refetch(); utils.schedule.getAll.invalidate(); } });
+  // ─── Offline-aware mutation wrappers ───
+  const offlineScheduleCreate = useOfflineMutation("schedule.create", createMutation, { offlineMessage: "Schedule task will be created when back online." });
+  const offlineScheduleUpdate = useOfflineMutation("schedule.update", updateMutation, { silent: true });
+  const offlineScheduleDelete = useOfflineMutation("schedule.delete", deleteMutation, { silent: true });
   const deleteByJobMutation = trpc.schedule.deleteByJob.useMutation({ onSuccess: () => { refetch(); utils.schedule.getAll.invalidate(); } });
 
   const onRefresh = useCallback(async () => {
@@ -264,7 +269,7 @@ export default function ScheduleScreen() {
     if (!selectedJobId) { Alert.alert("Missing Job", "Please select a job first."); return; }
     try {
       if (editingTask) {
-        await updateMutation.mutateAsync({
+        await offlineScheduleUpdate.mutateAsync({
           id: editingTask.id,
           title: taskTitle.trim(),
           description: taskDesc.trim() || undefined,
@@ -273,7 +278,7 @@ export default function ScheduleScreen() {
           assignedEmployees: selectedEmployees.length > 0 ? JSON.stringify(selectedEmployees) : undefined,
         });
       } else {
-        await createMutation.mutateAsync({
+        await offlineScheduleCreate.mutateAsync({
           jobId: selectedJobId,
           title: taskTitle.trim(),
           description: taskDesc.trim() || undefined,
@@ -292,7 +297,7 @@ export default function ScheduleScreen() {
 
   const handleStatusChange = useCallback(async (task: any, newStatus: string) => {
     try {
-      await updateMutation.mutateAsync({ id: task.id, status: newStatus as any });
+      await offlineScheduleUpdate.mutateAsync({ id: task.id, status: newStatus as any });
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch { Alert.alert("Error", "Failed to update status"); }
   }, []);
@@ -301,7 +306,7 @@ export default function ScheduleScreen() {
     Alert.alert("Delete Task", `Remove "${task.title}"?`, [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: async () => {
-        await deleteMutation.mutateAsync({ id: task.id });
+        await offlineScheduleDelete.mutateAsync({ id: task.id });
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }},
     ]);

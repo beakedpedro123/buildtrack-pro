@@ -15,12 +15,23 @@ export interface OfflineClockEntry {
   createdAt: string;
   existingEntryId?: number;
 }
-
 /* ───────── Generic offline mutation entry ───────── */
 export type MutationType =
   | "message.send"
   | "goals.update"
+  | "goals.create"
+  | "goals.delete"
+  | "punchList.create"
+  | "punchList.toggle"
+  | "punchList.delete"
+  | "schedule.create"
+  | "schedule.update"
+  | "schedule.delete"
+  | "reports.create"
+  | "safetyMeetings.create"
+  | "jobs.update"
   | "changeOrders.create"
+  | "changeOrders.delete"
   | "budgetAuditLog.create"
   | "budget.addExpense";
 
@@ -153,7 +164,6 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     await saveMutationQueue(updated);
     return localId;
   }, [saveMutationQueue]);
-
   /* ───────── Execute a single generic mutation ───────── */
   const executeMutation = useCallback(async (entry: OfflineMutation): Promise<boolean> => {
     try {
@@ -164,8 +174,44 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
         case "goals.update":
           await utils.client.goals.update.mutate(entry.payload);
           break;
+        case "goals.create":
+          await utils.client.goals.create.mutate(entry.payload);
+          break;
+        case "goals.delete":
+          await utils.client.goals.delete.mutate(entry.payload);
+          break;
+        case "punchList.create":
+          await utils.client.punchList.create.mutate(entry.payload);
+          break;
+        case "punchList.toggle":
+          await utils.client.punchList.toggle.mutate(entry.payload);
+          break;
+        case "punchList.delete":
+          await utils.client.punchList.delete.mutate(entry.payload);
+          break;
+        case "schedule.create":
+          await utils.client.schedule.create.mutate(entry.payload);
+          break;
+        case "schedule.update":
+          await utils.client.schedule.update.mutate(entry.payload);
+          break;
+        case "schedule.delete":
+          await utils.client.schedule.delete.mutate(entry.payload);
+          break;
+        case "reports.create":
+          await utils.client.reports.create.mutate(entry.payload);
+          break;
+        case "safetyMeetings.create":
+          await utils.client.safetyMeetings.create.mutate(entry.payload);
+          break;
+        case "jobs.update":
+          await utils.client.jobs.update.mutate(entry.payload);
+          break;
         case "changeOrders.create":
           await utils.client.changeOrders.create.mutate(entry.payload);
+          break;
+        case "changeOrders.delete":
+          await utils.client.changeOrders.delete.mutate(entry.payload);
           break;
         case "budgetAuditLog.create":
           await utils.client.financialCharts.createAuditEntry.mutate(entry.payload);

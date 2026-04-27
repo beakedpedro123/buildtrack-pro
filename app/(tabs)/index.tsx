@@ -33,7 +33,7 @@ import { JobPicker } from "@/components/ui/job-picker";
 import { ConstructionCalculator } from "@/components/construction-calculator";
 import { CompassModal } from "@/components/compass-modal";
 
-const companyLogo = require("@/assets/images/company-logo.png");
+const defaultCompanyLogo = require("@/assets/images/company-logo.png");
 import { BG_HOME as bgHome } from "@/constants/bg-urls";
 
 const ROLE_COLORS: Record<string, string> = {
@@ -244,6 +244,15 @@ export default function DashboardScreen() {
   }, [utils]);
   const colors = useColors();
   const { employee, logout } = useAppAuth();
+
+  // Fetch company branding (logo + color)
+  const brandingQ = trpc.branding.get.useQuery(
+    { companyId: employee?.companyId ?? 0 },
+    { enabled: !!employee?.companyId, staleTime: 60000 }
+  );
+  const companyLogoSource = brandingQ.data?.logoUrl
+    ? { uri: brandingQ.data.logoUrl }
+    : defaultCompanyLogo;
   const [now, setNow] = useState(new Date());
   const [laborPeriod, setLaborPeriod] = useState<LaborPeriod>("week");
   const [showActiveJobs, setShowActiveJobs] = useState(false);
@@ -657,7 +666,7 @@ export default function DashboardScreen() {
         <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
           {/* Company Logo */}
           <View style={{ alignItems: "center", paddingTop: 12 }}>
-            <Image source={companyLogo} style={{ width: 80, height: 80, resizeMode: "contain" }} />
+            <Image source={companyLogoSource} style={{ width: 80, height: 80, resizeMode: "contain" }} />
           </View>
 
           {/* Personal Hero */}
@@ -845,7 +854,7 @@ export default function DashboardScreen() {
         <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
           {/* Company Logo */}
           <View style={{ alignItems: "center", paddingTop: 12 }}>
-            <Image source={companyLogo} style={{ width: 80, height: 80, resizeMode: "contain" }} />
+            <Image source={companyLogoSource} style={{ width: 80, height: 80, resizeMode: "contain" }} />
           </View>
 
           {/* Personal Hero */}
@@ -1027,7 +1036,7 @@ export default function DashboardScreen() {
       <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
         {/* Company Logo */}
         <View style={{ alignItems: "center", paddingTop: 8, paddingBottom: 2 }}>
-          <Image source={companyLogo} style={{ width: 100, height: 100, resizeMode: "contain" }} />
+          <Image source={companyLogoSource} style={{ width: 100, height: 100, resizeMode: "contain" }} />
         </View>
 
         {/* Header */}

@@ -41,6 +41,8 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   const app = express();
+  // Trust proxy headers (required for express-rate-limit behind reverse proxy)
+  app.set('trust proxy', 1);
   const server = createServer(app);
 
   // Enable CORS for all routes - reflect the request origin to support credentials

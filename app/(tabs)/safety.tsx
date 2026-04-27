@@ -9,6 +9,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { useState, useCallback, useMemo } from "react";
 import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { useOfflineMutation } from "@/hooks/use-offline-mutation";
 import { CACHE_KEYS } from "@/lib/data-cache";
 import { ActivityIndicator,
   Alert,
@@ -114,6 +115,8 @@ export default function SafetyScreen() {
   const createMeeting = trpc.safetyMeetings.create.useMutation();
   const createTopic = trpc.safetyTopics.create.useMutation();
   const deleteTopic = trpc.safetyTopics.delete.useMutation();
+  // ─── Offline-aware mutation wrapper ───
+  const offlineCreateMeeting = useOfflineMutation("safetyMeetings.create", createMeeting, { offlineMessage: "Safety meeting will be recorded when back online. Photos will need to be re-attached." });
 
   const uploadPhotoFile = async (uri: string): Promise<string | null> => {
     try {
@@ -167,7 +170,7 @@ export default function SafetyScreen() {
         const url = await uploadPhotoFile(photo.uri);
         if (url) photoUrl = url;
       }
-      await createMeeting.mutateAsync({
+      await offlineCreateMeeting.mutateAsync({
         topicId: selectedTopicId || undefined,
         jobId: selectedJobId,
         meetingType,

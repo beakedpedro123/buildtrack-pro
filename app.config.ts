@@ -8,7 +8,7 @@ const schemeFromBundleId = "manust20260317205444";
 const env = {
   appName: "BuildTrack Pro",
   appSlug: "construction-manager",
-  logoUrl: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663449841780/rSnGYsBBVhLkjsmE.png",
+  logoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663449841780/dNJxctHZxj6wCg3jq4j4kh/icon-9TkDusx4aMbPrR9F7FRDtW.png",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,

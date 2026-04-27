@@ -22,6 +22,7 @@ import { ActivityIndicator,
 
 import { BG_JOBS as bg_jobs } from "@/constants/bg-urls";
 import { useOfflineCache } from "@/hooks/use-offline-cache";
+import { useOfflineMutation } from "@/hooks/use-offline-mutation";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { GoalsCalendar } from "@/components/goals-calendar";
 
@@ -251,6 +252,10 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
       utils.punchList.listForJob.invalidate({ jobId: selectedJobId! });
     },
   });
+  // ─── Offline-aware punch list wrappers ───
+  const offlineToggleItem = useOfflineMutation("punchList.toggle", toggleItem, { silent: true });
+  const offlineCreateItem = useOfflineMutation("punchList.create", createItem, { offlineMessage: "Punch list item will be created when back online." });
+  const offlineDeleteItem = useOfflineMutation("punchList.delete", deleteItem, { silent: true });
 
   // Group items by area
   const groupedItems = useMemo(() => {
@@ -269,7 +274,7 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
 
   const handleAddSingle = () => {
     if (!singleTitle.trim() || !selectedJobId) return;
-    createItem.mutate({
+    offlineCreateItem.mutate({
       jobId: selectedJobId,
       title: singleTitle.trim(),
       area: singleArea.trim() || undefined,
@@ -294,7 +299,7 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
   const handleDeleteItem = (id: number) => {
     Alert.alert("Delete Item", "Remove this punch list item?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteItem.mutate({ id }) },
+      { text: "Delete", style: "destructive", onPress: () => offlineDeleteItem.mutate({ id }) },
     ]);
   };
 
@@ -477,7 +482,7 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
                   return (
                     <TouchableOpacity
                       key={item.id}
-                      onPress={() => toggleItem.mutate({ id: item.id, completedBy: employee?.id || 0 })}
+                      onPress={() => offlineToggleItem.mutate({ id: item.id, completedBy: employee?.id || 0 })}
                       onLongPress={() => canManage && handleDeleteItem(item.id)}
                       activeOpacity={0.7}
                       style={{
@@ -737,6 +742,11 @@ export default function GoalsScreen() {
       Alert.alert("Error", "Failed to sync schedule to goals.");
     },
   });
+  // ─── Offline-aware mutation wrappers ───
+  const offlineCreateGoal = useOfflineMutation("goals.create", createGoal, { offlineMessage: "Goal will be created when back online." });
+  const offlineUpdateGoal = useOfflineMutation("goals.update", updateGoal, { silent: true });
+  const offlineDeleteGoal = useOfflineMutation("goals.delete", deleteGoal, { silent: true });
+
 
   const resetForm = () => {
     setNewGoalTitle("");
@@ -818,7 +828,7 @@ export default function GoalsScreen() {
     const current = goal.status as GoalStatus;
     const nextIdx = (cycle.indexOf(current) + 1) % cycle.length;
     const nextStatus = cycle[nextIdx];
-    updateGoal.mutate({
+    offlineUpdateGoal.mutate({
       id: goal.id,
       status: nextStatus,
       completedAt: nextStatus === "completed" ? new Date().toISOString() : undefined });
@@ -827,7 +837,7 @@ export default function GoalsScreen() {
   const handleDelete = (goalId: number) => {
     Alert.alert("Delete Goal", "Remove this goal?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteGoal.mutate({ id: goalId }) },
+      { text: "Delete", style: "destructive", onPress: () => offlineDeleteGoal.mutate({ id: goalId }) },
     ]);
   };
 
@@ -851,7 +861,7 @@ export default function GoalsScreen() {
 
   const handleSaveEdit = () => {
     if (!editingGoal) return;
-    updateGoal.mutate({
+    offlineUpdateGoal.mutate({
       id: editingGoal.id,
       title: newGoalTitle.trim() || undefined,
       description: newGoalDescription.trim() || undefined,
@@ -868,7 +878,7 @@ export default function GoalsScreen() {
       Alert.alert("Title Required", "Please enter a goal title.");
       return;
     }
-    createGoal.mutate({
+    offlineCreateGoal.mutate({
       title: newGoalTitle.trim(),
       description: newGoalDescription.trim() || undefined,
       priority: newGoalPriority,
@@ -1072,7 +1082,7 @@ export default function GoalsScreen() {
   // ─── Goal Card ────────────────────────────────────────────────────────────────
   const setGoalStatus = useCallback((goalId: number, newStatus: GoalStatus) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    updateGoal.mutate({
+    offlineUpdateGoal.mutate({
       id: goalId,
       status: newStatus,
       completedAt: newStatus === "completed" ? new Date().toISOString() : undefined });
@@ -1453,7 +1463,7 @@ export default function GoalsScreen() {
             onGoalPress={(goal) => canManage ? openEditModal(goal) : handleStatusCycle(goal)}
             onStatusChange={(goalId, newStatus) => {
               if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              updateGoal.mutate({
+              offlineUpdateGoal.mutate({
                 id: goalId,
                 status: newStatus,
                 completedAt: newStatus === "completed" ? new Date().toISOString() : undefined,

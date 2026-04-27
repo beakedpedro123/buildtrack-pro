@@ -2500,3 +2500,24 @@
 - [ ] Build payment/subscription UI in the mobile app
 - [x] Company brand color affects PDF report color themes (headers, accents, dividers)
 - [x] Apply company brand color to payroll PDF, job completion PDF, and field report exports
+
+## Phase 122: App Audit, Marketing Posts, Logo Fix
+- [x] Full app audit (features, security, architecture, market analysis)
+- [x] Create comprehensive audit PDF in BuildTrack Pro gold/black theme
+- [x] Fix company logo on dashboard — uploaded logos replace BTP logo, default to helmet
+- [ ] Generate 12 marketing post images (3 concepts x EN/ES x light/dark) with QR code to marketing site
+
+### New Logo Replacement (Golden Hard Hat - Permanent)
+- [x] Generate clean square app icon from golden hard hat logo
+- [x] Replace icon.png, splash-icon.png, favicon.png, android-icon-foreground.png
+- [x] Update app.config.ts logoUrl with new S3 URL
+- [x] Update marketing site with new golden hard hat logo
+- [ ] Update all marketing posts to use new logo
+- [x] Remove all traces of orange helmet logo
+
+## Phase 123: Offline Functionality Audit & Improvements
+- [x] Audit offline queue system (AsyncStorage sync)
+- [x] Audit offline data persistence across all screens
+- [x] Fix any offline queue or sync issues found — expanded MutationType from 5→17, created useOfflineMutation hook, wired up goals/jobs/schedule/safety/reports
+- [x] Improve offline error handling and user feedback — offline mutations show toast messages
+- [x] Update any stale or broken offline-related code — removed dead duplicate offline-banner, fixed trust proxy, fixed TS errors
