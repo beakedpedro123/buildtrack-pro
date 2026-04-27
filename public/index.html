@@ -69,6 +69,7 @@ a:hover{opacity:.85}
 .nav-logo{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:800;color:var(--text);letter-spacing:-.5px}
 .nav-logo span{color:var(--gold)}
 .nav-logo svg{width:32px;height:32px}
+.nav-logo img{width:36px;height:36px;object-fit:contain}
 .nav-links{display:flex;gap:32px;align-items:center}
 .nav-links a{color:var(--text-2);font-size:14px;font-weight:500}
 .nav-links a:hover{color:var(--text)}
@@ -260,7 +261,7 @@ a:hover{opacity:.85}
 <nav class="nav">
   <div class="nav-inner">
     <div class="nav-logo">
-      <svg><use href="#ico-pivot"/></svg>
+      <img src="logo_hardhat.png" alt="BuildTrack Pro">
       Build<span>Track</span> Pro
     </div>
     <div class="nav-links">
@@ -948,7 +949,7 @@ function initTradeGrid() {
     btn.className = 'trade-btn';
     btn.dataset.slug = t.slug;
     btn.innerHTML = `<span style="font-size:13px;font-weight:600">${t.name}</span><span style="font-size:10px;color:var(--text-3)">${t.nameEs}</span>`;
-    btn.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);cursor:pointer;transition:all 0.15s;min-height:48px;text-align:center';
+    btn.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text);cursor:pointer;transition:all 0.15s;min-height:48px;text-align:center';
     btn.onclick = () => {
       if (selectedTrades.has(t.slug)) {
         selectedTrades.delete(t.slug);

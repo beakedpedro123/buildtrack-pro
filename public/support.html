@@ -39,8 +39,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--f
 .login-card .logo h1{font-size:24px;font-weight:800;margin-top:16px}
 .login-card .logo h1 span{color:var(--primary)}
 .login-card .logo p{color:var(--fg2);font-size:14px;margin-top:4px}
-.login-card .pivot-icon{width:64px;height:64px;margin:0 auto;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center}
-.login-card .pivot-icon svg{width:36px;height:36px;fill:var(--bg)}
+.login-card .pivot-icon{width:64px;height:64px;margin:0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.login-card .pivot-icon img{width:64px;height:64px;object-fit:contain}
 .form-group{margin-bottom:20px}
 .form-group label{display:block;font-size:13px;font-weight:600;color:var(--fg2);margin-bottom:6px}
 .form-group input{width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:10px;font-size:15px;background:var(--bg);color:var(--fg);outline:none;transition:border-color .2s}
@@ -53,8 +53,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--f
 .app{display:none}
 .header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
 .header-left{display:flex;align-items:center;gap:12px}
-.header-left .logo-icon{width:32px;height:32px;background:var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center}
-.header-left .logo-icon svg{width:18px;height:18px;fill:#fff}
+.header-left .logo-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.header-left .logo-icon img{width:32px;height:32px;object-fit:contain}
 .header h2{font-size:18px;font-weight:700}
 .header h2 span{color:var(--primary)}
 .header-right{display:flex;align-items:center;gap:12px}
@@ -179,19 +179,20 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--f
   <div class="login-card">
     <div class="logo">
       <div class="pivot-icon">
-        <svg viewBox="0 0 24 24"><path d="M12 2a2 2 0 012 2v1h2a3 3 0 013 3v2a3 3 0 01-1 2.24V14a3 3 0 01-3 3h-1v2a2 2 0 01-4 0v-2H9a3 3 0 01-3-3v-1.76A3 3 0 015 10V8a3 3 0 013-3h2V4a2 2 0 012-2zm-2 7a1 1 0 100 2 1 1 0 000-2zm4 0a1 1 0 100 2 1 1 0 000-2z"/></svg>
+        <img src="logo_hardhat.png" alt="BuildTrack Pro">
       </div>
       <h1>Build<span>Track</span> Pro</h1>
       <p>Support Portal — Team Login</p>
     </div>
     <form id="loginForm" onsubmit="handleLogin(event)">
       <div class="form-group">
-        <label>Email Address</label>
-        <input type="email" id="loginEmail" placeholder="you@company.com" required>
+        <label>Company Code</label>
+        <input type="text" id="loginCompanyCode" placeholder="e.g. smith-construction" required>
+        <small style="color:var(--fg3);font-size:11px;margin-top:4px;display:block">The code your company owner shared with you</small>
       </div>
       <div class="form-group">
-        <label>Team PIN</label>
-        <input type="password" id="loginPin" placeholder="Enter your 4-digit PIN" required maxlength="6">
+        <label>Your PIN (4-6 digits)</label>
+        <input type="password" id="loginPin" placeholder="Enter your PIN" required maxlength="6" inputmode="numeric">
       </div>
       <button type="submit" class="login-btn">Sign In</button>
       <div id="loginError" class="login-error">Invalid credentials. Please try again.</div>
@@ -204,7 +205,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--f
   <div class="header">
     <div class="header-left">
       <div class="logo-icon">
-        <svg viewBox="0 0 24 24"><path d="M12 2a2 2 0 012 2v1h2a3 3 0 013 3v2a3 3 0 01-1 2.24V14a3 3 0 01-3 3h-1v2a2 2 0 01-4 0v-2H9a3 3 0 01-3-3v-1.76A3 3 0 015 10V8a3 3 0 013-3h2V4a2 2 0 012-2zm-2 7a1 1 0 100 2 1 1 0 000-2zm4 0a1 1 0 100 2 1 1 0 000-2z"/></svg>
+        <img src="logo_hardhat.png" alt="BuildTrack Pro">
       </div>
       <h2>Support <span>Portal</span></h2>
     </div>
@@ -272,7 +273,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--f
       <div class="chat-container">
         <div class="chat-header">
           <div class="avatar">
-            <svg viewBox="0 0 24 24"><path d="M12 2a2 2 0 012 2v1h2a3 3 0 013 3v2a3 3 0 01-1 2.24V14a3 3 0 01-3 3h-1v2a2 2 0 01-4 0v-2H9a3 3 0 01-3-3v-1.76A3 3 0 015 10V8a3 3 0 013-3h2V4a2 2 0 012-2zm-2 7a1 1 0 100 2 1 1 0 000-2zm4 0a1 1 0 100 2 1 1 0 000-2z"/></svg>
+            <img src="logo_hardhat.png" alt="Pivot" style="width:36px;height:36px;object-fit:contain">
           </div>
           <div>
             <h3>Pivot AI</h3>
@@ -322,29 +323,68 @@ let currentFilter = 'all';
 
 // === AUTH ===
 // Support team members (synced with BuildTrack Pro employees)
-// In production this would validate against the database
-const TEAM_CREDENTIALS = [
-  { email: 'pedro@buildtrackpro.com', pin: '1234', name: 'Pedro Carranza', role: 'owner' },
-  { email: 'lupe@buildtrackpro.com', pin: '1234', name: 'Lupe Mejia', role: 'office_manager' },
-  { email: 'pablo@buildtrackpro.com', pin: '1234', name: 'Pablo Carranza', role: 'office_manager' },
-  { email: 'support@buildtrackpro.com', pin: '2024', name: 'Support Agent', role: 'agent' },
-];
-
-function handleLogin(e) {
+// Authenticate against the database via API
+async function handleLogin(e) {
   e.preventDefault();
-  const email = document.getElementById('loginEmail').value.toLowerCase();
-  const pin = document.getElementById('loginPin').value;
-  const user = TEAM_CREDENTIALS.find(u => u.email === email && u.pin === pin);
-  if (user) {
-    currentUser = user;
-    localStorage.setItem('supportUser', JSON.stringify(user));
+  const companyCode = document.getElementById('loginCompanyCode').value.trim().toLowerCase();
+  const pin = document.getElementById('loginPin').value.trim();
+  const errorEl = document.getElementById('loginError');
+  errorEl.style.display = 'none';
+  if (!companyCode || !pin) {
+    errorEl.textContent = 'Please enter your company code and PIN.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  try {
+    // Step 1: Look up company by slug
+    const companyRes = await fetch(`${API}/company.lookupBySlug`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ json: { slug: companyCode } })
+    });
+    const companyData = await companyRes.json();
+    const company = companyData?.result?.data?.json;
+    if (!company) {
+      errorEl.textContent = 'Company not found. Check your company code.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    // Step 2: Verify PIN against company employees (scoped to company)
+    const pinRes = await fetch(`${API}/employees.verifyPin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ json: { pin: pin, companyId: company.id } })
+    });
+    const pinData = await pinRes.json();
+    const employee = pinData?.result?.data?.json;
+    if (!employee || employee.companyId !== company.id) {
+      errorEl.textContent = 'Invalid PIN for this company. Please try again.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    // Step 3: Only allow owner, office_manager, or foreman roles
+    const allowedRoles = ['owner', 'office_manager', 'foreman'];
+    if (!allowedRoles.includes(employee.role)) {
+      errorEl.textContent = 'Access denied. Only owners, office managers, and foremen can access the support portal.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    // Success - store user session
+    currentUser = {
+      id: employee.id,
+      name: employee.name,
+      role: employee.role,
+      companyId: company.id,
+      companyName: company.name,
+      companySlug: company.slug
+    };
+    localStorage.setItem('supportUser', JSON.stringify(currentUser));
     showApp();
-  } else {
-    document.getElementById('loginError').style.display = 'block';
-    setTimeout(() => document.getElementById('loginError').style.display = 'none', 3000);
+  } catch (err) {
+    errorEl.textContent = 'Connection error. Please check your internet and try again.';
+     errorEl.style.display = 'block';
   }
 }
-
 function handleLogout() {
   currentUser = null;
   localStorage.removeItem('supportUser');
@@ -552,8 +592,8 @@ async function askPivot() {
     ticketId: currentTicketId
   });
   
-  if (result?.response) {
-    document.getElementById('pivotSuggestionText').textContent = result.response;
+  if (result?.reply) {
+    document.getElementById('pivotSuggestionText').textContent = result.reply;
   } else {
     document.getElementById('pivotSuggestionText').textContent = 'Unable to generate suggestion. Please try again.';
   }
@@ -585,8 +625,8 @@ async function sendChat() {
   
   const typingEl = document.getElementById(typingId);
   if (typingEl) {
-    if (result?.response) {
-      typingEl.innerHTML = `<div class="sender">Pivot</div>${escHtml(result.response)}`;
+    if (result?.reply) {
+      typingEl.innerHTML = `<div class="sender">Pivot</div>${escHtml(result.reply)}`;
     } else {
       typingEl.innerHTML = `<div class="sender">Pivot</div>Sorry, I couldn't process that. Please try again.`;
     }

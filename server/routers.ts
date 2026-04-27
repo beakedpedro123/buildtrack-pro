@@ -46,7 +46,7 @@ async function assertRole(requestingId: number, allowedRoles: string[], action: 
 const employeeRouter = router({
   list: publicProcedure.query(() => db.getAllEmployees()),
   getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getEmployeeById(input.id)),
-  verifyPin: publicProcedure.input(z.object({ pin: z.string() })).mutation(({ input }) => db.getEmployeeByPin(input.pin)),
+  verifyPin: publicProcedure.input(z.object({ pin: z.string(), companyId: z.number().optional() })).mutation(({ input }) => db.getEmployeeByPin(input.pin, input.companyId)),
   create: publicProcedure.input(z.object({
     name: z.string().min(1).max(128),
     role: z.enum(["owner", "office_manager", "logistics", "foreman", "laborer"]),

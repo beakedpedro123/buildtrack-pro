@@ -2533,3 +2533,13 @@
 - [x] Fix GC trade selection bypass: selecting General Contractor should NOT auto-select all trades for free — GC counts as 1 trade toward the 3-trade limit, OR requires the $4.99 All Trades subscription
 - [x] If user already has 3 trades selected, prevent selecting General Contractor unless they have All Trades subscription
 - [x] Server-side validation: enforce trade limits on backend too, not just UI
+
+## Phase 125: Cross-Site Logo, Trade Selector, Pivot AI, Support Portal Login
+- [x] Replace logo on marketing site with hardhat logo (no modifications)
+- [x] Add trade selector to signup form on marketing site (already existed, fixed CSS variable)
+- [x] Replace logo on admin dashboard with hardhat logo
+- [x] Integrate Pivot AI assistant into admin dashboard (fixed response field: uses 'message')
+- [x] Replace logo on support portal with hardhat logo
+- [x] Fix support portal login flow (company code + PIN via API, scoped to company)
+- [x] Integrate Pivot AI assistant into support portal (fixed response field: uses 'reply')
+- [x] Ensure consistent theme/layout across all 3 sites (unified #C8A84E gold, Inter font, matching dark bg)
