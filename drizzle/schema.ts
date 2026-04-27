@@ -27,6 +27,9 @@ export const companies = mysqlTable("companies", {
   subscriptionStatus: mysqlEnum("subscriptionStatus", ["trialing", "active", "past_due", "cancelled", "expired"]).default("trialing").notNull(),
   maxEmployees: int("maxEmployees").default(50), // per plan limit
   maxJobs: int("maxJobs").default(20), // per plan limit
+  // Trade(s)
+  trades: text("trades"), // JSON array of trade slugs e.g. ["framing","steel_erection"]
+  primaryTrade: varchar("primaryTrade", { length: 64 }), // main trade slug for Pivot context
   // Settings
   timezone: varchar("timezone", { length: 64 }).default("America/Denver"),
   isActive: boolean("isActive").default(true).notNull(),
@@ -564,6 +567,36 @@ export const pivotSupportLearning = mysqlTable("pivot_support_learning", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+// ─── Trade Knowledge (Pivot Hivemind — anonymized operational patterns) ──────
+export const tradeKnowledge = mysqlTable("trade_knowledge", {
+  id: int("id").autoincrement().primaryKey(),
+  tradeSlug: varchar("tradeSlug", { length: 64 }).notNull(),
+  category: mysqlEnum("category", [
+    "scheduling", "safety", "terminology", "cost_benchmarks",
+    "best_practices", "common_tasks", "equipment", "materials",
+    "productivity_tips", "quality_checks"
+  ]).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  source: mysqlEnum("source", ["system", "aggregated", "admin"]).default("system").notNull(),
+  aggregatedFromCount: int("aggregatedFromCount").default(0),
+  confidenceScore: float("confidenceScore").default(1.0),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const tradeBenchmarks = mysqlTable("trade_benchmarks", {
+  id: int("id").autoincrement().primaryKey(),
+  tradeSlug: varchar("tradeSlug", { length: 64 }).notNull(),
+  metricName: varchar("metricName", { length: 128 }).notNull(),
+  metricValue: float("metricValue").notNull(),
+  unit: varchar("unit", { length: 32 }),
+  sampleSize: int("sampleSize").default(0).notNull(),
+  region: varchar("region", { length: 64 }).default("national"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 // ─── Types ───────────────────────────────────────────────────────────────────────
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = typeof companies.$inferInsert;
@@ -666,3 +699,7 @@ export type InsertKnowledgeBaseArticle = typeof knowledgeBase.$inferInsert;
 
 export type PivotSupportLearningEntry = typeof pivotSupportLearning.$inferSelect;
 export type InsertPivotSupportLearningEntry = typeof pivotSupportLearning.$inferInsert;
+export type TradeKnowledge = typeof tradeKnowledge.$inferSelect;
+export type InsertTradeKnowledge = typeof tradeKnowledge.$inferInsert;
+export type TradeBenchmark = typeof tradeBenchmarks.$inferSelect;
+export type InsertTradeBenchmark = typeof tradeBenchmarks.$inferInsert;

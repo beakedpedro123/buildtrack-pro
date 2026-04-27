@@ -597,6 +597,12 @@ a:hover{opacity:.85}
         <input type="text" id="companySlug" placeholder="e.g. smith-construction" oninput="formatSlug(this)">
         <small style="color:var(--text-3);font-size:12px">Your team will log in at this URL</small>
       </div>
+      <div class="form-group">
+        <label>Select Your Trade(s)</label>
+        <small style="color:var(--text-3);font-size:12px;display:block;margin-bottom:8px">Pivot AI will customize everything for your trade. Select all that apply.</small>
+        <div id="tradeGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:200px;overflow-y:auto;padding:4px">
+        </div>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label>Your Name</label>
@@ -908,6 +914,57 @@ function closeSignup() {
 function formatSlug(el) {
   el.value = el.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
 }
+// Trade grid data and initialization
+const TRADES = [
+  { slug:'general_contractor', name:'General Contractor', nameEs:'Contratista General' },
+  { slug:'framing', name:'Framing', nameEs:'Enmarcado / Framing' },
+  { slug:'steel_erection', name:'Steel Erection', nameEs:'Montaje de Acero' },
+  { slug:'concrete', name:'Concrete', nameEs:'Concreto' },
+  { slug:'electrical', name:'Electrical', nameEs:'Eléctrico' },
+  { slug:'plumbing', name:'Plumbing', nameEs:'Plomería' },
+  { slug:'hvac', name:'HVAC', nameEs:'HVAC / Climatización' },
+  { slug:'roofing', name:'Roofing', nameEs:'Techos' },
+  { slug:'painting', name:'Painting', nameEs:'Pintura' },
+  { slug:'construction_cleaning', name:'Construction / Home Cleaning', nameEs:'Limpieza de Construcción / Hogar' },
+  { slug:'drywall', name:'Drywall', nameEs:'Tablaroca / Drywall' },
+  { slug:'masonry', name:'Masonry', nameEs:'Albañilería' },
+  { slug:'landscaping', name:'Landscaping', nameEs:'Paisajismo' },
+  { slug:'demolition', name:'Demolition', nameEs:'Demolición' },
+  { slug:'insulation', name:'Insulation', nameEs:'Aislamiento' },
+  { slug:'flooring', name:'Flooring', nameEs:'Pisos' },
+  { slug:'welding', name:'Welding & Fabrication', nameEs:'Soldadura y Fabricación' },
+  { slug:'excavation', name:'Excavation & Grading', nameEs:'Excavación y Nivelación' },
+  { slug:'windows_doors', name:'Windows & Doors', nameEs:'Ventanas y Puertas' },
+  { slug:'other', name:'Other Trade', nameEs:'Otro Oficio' },
+];
+const selectedTrades = new Set();
+function initTradeGrid() {
+  const grid = document.getElementById('tradeGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  TRADES.forEach(t => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'trade-btn';
+    btn.dataset.slug = t.slug;
+    btn.innerHTML = `<span style="font-size:13px;font-weight:600">${t.name}</span><span style="font-size:10px;color:var(--text-3)">${t.nameEs}</span>`;
+    btn.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text-1);cursor:pointer;transition:all 0.15s;min-height:48px;text-align:center';
+    btn.onclick = () => {
+      if (selectedTrades.has(t.slug)) {
+        selectedTrades.delete(t.slug);
+        btn.style.borderColor = 'var(--border)';
+        btn.style.background = 'var(--bg-2)';
+      } else {
+        selectedTrades.add(t.slug);
+        btn.style.borderColor = 'var(--gold)';
+        btn.style.background = 'rgba(212,175,55,0.15)';
+      }
+    };
+    grid.appendChild(btn);
+  });
+}
+initTradeGrid();
+
 async function submitSignup() {
   const err = document.getElementById('formError');
   err.style.display = 'none';
@@ -917,8 +974,14 @@ async function submitSignup() {
   const ownerPin = document.getElementById('ownerPin').value.trim();
   const ownerEmail = document.getElementById('ownerEmail').value.trim() || undefined;
   const ownerPhone = document.getElementById('ownerPhone').value.trim() || undefined;
+  const trades = Array.from(selectedTrades);
   if (!companyName || !slug || !ownerName || !ownerPin) {
     err.textContent = 'Please fill in all required fields.';
+    err.style.display = 'block';
+    return;
+  }
+  if (trades.length === 0) {
+    err.textContent = 'Please select at least one trade.';
     err.style.display = 'block';
     return;
   }
@@ -937,7 +1000,7 @@ async function submitSignup() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        json: { companyName, slug, ownerName, ownerPin, ownerEmail, ownerPhone }
+        json: { companyName, slug, ownerName, ownerPin, ownerEmail, ownerPhone, trades, primaryTrade: trades[0] }
       })
     });
     const data = await res.json();
@@ -946,8 +1009,19 @@ async function submitSignup() {
       err.style.display = 'block';
       return;
     }
+    // Show success with company URL info
+    const successEl = document.getElementById('signupSuccess');
+    successEl.innerHTML = `<h3>Welcome to BuildTrack Pro!</h3>
+      <p>Your 14-day free trial has started.</p>
+      <div style="background:var(--bg-2);border:1px solid var(--gold);border-radius:12px;padding:16px;margin:16px 0">
+        <p style="color:var(--gold);font-weight:700;margin-bottom:4px">Your Company Code</p>
+        <p style="font-size:24px;font-weight:800;color:var(--text-1);letter-spacing:1px">${slug}</p>
+        <p style="font-size:12px;color:var(--text-3);margin-top:4px">Share this code with your team so they can join your company in the app.</p>
+      </div>
+      <p style="font-size:14px;color:var(--text-2)">Download the app, enter your company code <strong>${slug}</strong>, and log in with your PIN.</p>
+      <div style="margin-top:20px"><a href="#" class="btn btn-primary">Download the App</a></div>`;
     document.getElementById('signupForm').style.display = 'none';
-    document.getElementById('signupSuccess').style.display = 'block';
+    successEl.style.display = 'block';
   } catch (e) {
     err.textContent = 'Network error. Please check your connection and try again.';
     err.style.display = 'block';

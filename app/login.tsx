@@ -6,6 +6,7 @@ import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator,
   FlatList,
@@ -13,21 +14,21 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type Step = "select" | "pin";
+type Step = "company" | "select" | "pin";
 
 const ROLE_LABELS: Record<string, string> = {
-  owner: "Owner",
+  owner: "Owner / Dueño",
   office_manager: "Office Manager",
   logistics: "Logistics",
-  foreman: "Foreman",
-  laborer: "Laborer",
+  foreman: "Foreman / Capataz",
+  laborer: "Laborer / Trabajador",
 };
-
 const ROLE_COLORS: Record<string, string> = {
   owner: "#1E3A5F",
   office_manager: "#8B5CF6",
@@ -35,6 +36,8 @@ const ROLE_COLORS: Record<string, string> = {
   foreman: "#F59E0B",
   laborer: "#22C55E",
 };
+
+const COMPANY_CODE_KEY = "btp_company_code";
 
 function getInitials(name: string) {
   return name
@@ -49,7 +52,11 @@ export default function LoginScreen() {
   const colors = useColors();
   const { login } = useAppAuth();
   const { isOnline } = useOfflineQueue();
-  const [step, setStep] = useState<Step>("select");
+  const [step, setStep] = useState<Step>("company");
+  const [companyCode, setCompanyCode] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [companyError, setCompanyError] = useState("");
+  const [lookingUp, setLookingUp] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -59,8 +66,26 @@ export default function LoginScreen() {
   const { data: employees, isLoading } = trpc.employees.list.useQuery(undefined, {
     retry: 1,
     staleTime: 30000,
+    enabled: step !== "company",
   });
   const verifyPin = trpc.employees.verifyPin.useMutation();
+  const lookupCompany = trpc.company.lookupBySlug.useMutation();
+
+  // Check for saved company code on mount
+  useEffect(() => {
+    AsyncStorage.getItem(COMPANY_CODE_KEY).then((saved) => {
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setCompanyCode(parsed.slug);
+          setCompanyName(parsed.name);
+          setStep("select");
+        } catch {
+          // Invalid saved data, stay on company step
+        }
+      }
+    });
+  }, []);
 
   // Load cached employees on mount for offline use
   useEffect(() => {
@@ -77,8 +102,41 @@ export default function LoginScreen() {
     }
   }, [employees]);
 
-  // Use server data if available, fall back to cache
   const effectiveEmployees = employees || cachedEmployees || [];
+
+  const handleCompanyLookup = async () => {
+    const code = companyCode.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    if (!code || code.length < 2) {
+      setCompanyError("Enter your company code (at least 2 characters)");
+      return;
+    }
+    setLookingUp(true);
+    setCompanyError("");
+    try {
+      const result = await lookupCompany.mutateAsync({ slug: code });
+      if (result && result.name) {
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setCompanyName(result.name);
+        setCompanyCode(code);
+        await AsyncStorage.setItem(COMPANY_CODE_KEY, JSON.stringify({ slug: code, name: result.name }));
+        setStep("select");
+      } else {
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setCompanyError("Company not found. Check your code and try again.");
+      }
+    } catch {
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setCompanyError("Company not found. Check your code and try again.");
+    }
+    setLookingUp(false);
+  };
+
+  const handleChangeCompany = async () => {
+    await AsyncStorage.removeItem(COMPANY_CODE_KEY);
+    setCompanyCode("");
+    setCompanyName("");
+    setStep("company");
+  };
 
   const handleSelectEmployee = (emp: any) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -110,7 +168,6 @@ export default function LoginScreen() {
     if (!selectedEmployee || verifying) return;
     setVerifying(true);
 
-    // Try server verification first
     if (isOnline) {
       try {
         const result = await verifyPin.mutateAsync({ pin });
@@ -131,14 +188,13 @@ export default function LoginScreen() {
       }
     }
 
-    // Offline verification: check PIN against cached employee data
     if (selectedEmployee.pin && selectedEmployee.pin === pin) {
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await login(selectedEmployee as any);
       router.replace("/(tabs)");
     } else {
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(isOnline ? "Incorrect PIN. Try again." : "Incorrect PIN. Try again.");
+      setError("Incorrect PIN. Try again.");
       setPin("");
     }
     setVerifying(false);
@@ -222,22 +278,108 @@ export default function LoginScreen() {
       alignItems: "center" as const,
       gap: 8,
     },
+    // Company code step styles
+    companyContainer: { flex: 1, paddingHorizontal: 24, paddingTop: 40, alignItems: "center" },
+    companyTitle: { fontSize: 22, fontWeight: "700", color: colors.foreground, marginBottom: 8, textAlign: "center" },
+    companySubtitle: { fontSize: 14, color: colors.muted, marginBottom: 32, textAlign: "center", lineHeight: 20 },
+    companyInput: {
+      width: "100%",
+      maxWidth: 340,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 18,
+      fontWeight: "600" as const,
+      color: colors.foreground,
+      textAlign: "center" as const,
+      letterSpacing: 1,
+    },
+    companyHint: { fontSize: 12, color: colors.muted, marginTop: 8, textAlign: "center" },
+    companyBtn: {
+      width: "100%",
+      maxWidth: 340,
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: "center" as const,
+      marginTop: 24,
+    },
+    companyBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+    companyBadge: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      backgroundColor: colors.surface,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: colors.primary + "40",
+      marginBottom: 8,
+    },
   });
 
-  if (isLoading && !cachedEmployees) {
+  // ── STEP 1: Company Code ──────────────────────────────────────────────
+  if (step === "company") {
     return (
-      <SafeAreaView style={[styles.container, { alignItems: "center", justifyContent: "center" }]}>
-        <ActivityIndicator color={colors.primary} size="large" />
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.logo}>BuildTrack <Text style={styles.logoAccent}>Pro</Text></Text>
+        </View>
+        <View style={styles.companyContainer}>
+          <Text style={styles.companyTitle}>Enter Your Company Code</Text>
+          <Text style={styles.companySubtitle}>
+            Your company owner will give you this code.{"\n"}
+            Ingresa el código de tu empresa.
+          </Text>
+          <TextInput
+            style={styles.companyInput}
+            value={companyCode}
+            onChangeText={(t) => {
+              setCompanyCode(t.toLowerCase().replace(/[^a-z0-9-]/g, "-"));
+              setCompanyError("");
+            }}
+            placeholder="e.g. smith-construction"
+            placeholderTextColor={colors.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={handleCompanyLookup}
+          />
+          <Text style={styles.companyHint}>
+            This is the URL your owner chose during signup
+          </Text>
+          {companyError ? (
+            <Text style={[styles.errorText, { marginTop: 12 }]}>{companyError}</Text>
+          ) : null}
+          <TouchableOpacity
+            style={[styles.companyBtn, lookingUp && { opacity: 0.6 }]}
+            onPress={handleCompanyLookup}
+            disabled={lookingUp}
+          >
+            {lookingUp ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.companyBtnText}>Continue</Text>
+            )}
+          </TouchableOpacity>
+          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 24, textAlign: "center" }}>
+            Don't have a code? Ask your company owner{"\n"}or sign up at buildtrackpro.com
+          </Text>
+        </View>
       </SafeAreaView>
     );
   }
 
+  // ── STEP 3: PIN Entry ─────────────────────────────────────────────────
   if (step === "pin" && selectedEmployee) {
     const roleColor = ROLE_COLORS[selectedEmployee.role] || colors.primary;
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.logo}>BuildTrack Pro</Text>
+          <Text style={styles.logo}>BuildTrack <Text style={styles.logoAccent}>Pro</Text></Text>
         </View>
         {!isOnline && (
           <View style={styles.offlineBanner}>
@@ -286,10 +428,19 @@ export default function LoginScreen() {
     );
   }
 
+  // ── STEP 2: Employee Selection ────────────────────────────────────────
+  if (isLoading && !cachedEmployees) {
+    return (
+      <SafeAreaView style={[styles.container, { alignItems: "center", justifyContent: "center" }]}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.logo}>BuildTrack Pro</Text>
+        <Text style={styles.logo}>BuildTrack <Text style={styles.logoAccent}>Pro</Text></Text>
         <Text style={styles.subtitle}>Select your name to clock in</Text>
       </View>
       {!isOnline && (
@@ -299,6 +450,17 @@ export default function LoginScreen() {
           </Text>
         </View>
       )}
+      {/* Company badge */}
+      <View style={{ paddingHorizontal: 24, marginBottom: 12 }}>
+        <View style={styles.companyBadge}>
+          <Text style={{ fontSize: 13, color: colors.primary, fontWeight: "700", flex: 1 }}>
+            {companyName || "Your Company"}
+          </Text>
+          <TouchableOpacity onPress={handleChangeCompany}>
+            <Text style={{ fontSize: 12, color: colors.muted, textDecorationLine: "underline" }}>Change</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
       <View style={{ paddingHorizontal: 24, flex: 1 }}>
         <Text style={styles.sectionTitle}>Who are you?</Text>
         <FlatList

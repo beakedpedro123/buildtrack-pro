@@ -169,6 +169,13 @@
       "when": 1777245087139,
       "tag": "0023_ambiguous_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1777258173926,
+      "tag": "0024_wise_expediter",
+      "breakpoints": true
     }
   ]
 }

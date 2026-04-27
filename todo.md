@@ -2384,3 +2384,27 @@
 - [x] Added no-cache headers to all HTML responses
 - [x] Both /api/web/ and /api/portal/ paths serve correct content
 - [ ] Deploy and verify on live domain
+
+## Phase 119: Trade Selection, Pivot Hivemind & Company Login
+### Trade Selection
+- [x] Add trade field to companies table (primaryTrade + trades JSON)
+- [x] Add construction/home cleaning as a combined trade category
+- [x] Add painting as a trade category
+- [x] Add trade selection grid to marketing site signup form
+- [x] Seed trade knowledge database with initial data for all trades
+### Pivot Trade-Aware AI
+- [x] Make Pivot system prompt trade-aware — filter responses by company trade
+- [x] Trade-specific scheduling templates and task suggestions
+- [x] Trade-specific safety protocols and best practices
+- [x] Trade-specific cost benchmarks and productivity metrics
+- [x] Trade knowledge API routes (getForTrade, getForTrades, getBenchmarks, listTrades)
+### Multi-Tenant Data Isolation
+- [x] All queries scoped by companyId — zero cross-tenant data leakage
+- [x] Company lookup returns only name/slug (no sensitive data)
+### Company Code Login Flow
+- [x] Company code entry step added to mobile app login screen
+- [x] Company lookup mutation (lookupBySlug) — returns only public info
+- [x] Saved company code persists via AsyncStorage
+- [x] "Change company" option on employee selection screen
+- [ ] Anonymized trade benchmarking pipeline (future — federated learning)
+- [ ] Cross-company knowledge aggregation without personal data (future)

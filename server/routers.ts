@@ -10,6 +10,30 @@ import { invokeLLM } from "./_core/llm";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { generateImage } from "./_core/imageGeneration";
 
+// ─── Available Trades (Pivot Hivemind Trade Categories) ─────────────────────
+const AVAILABLE_TRADES = [
+  { slug: "general_contractor", name: "General Contractor", nameEs: "Contratista General", icon: "construction", description: "Multi-trade project management and coordination" },
+  { slug: "framing", name: "Framing", nameEs: "Enmarcado / Framing", icon: "carpenter", description: "Wood and metal framing for residential and commercial" },
+  { slug: "steel_erection", name: "Steel Erection", nameEs: "Montaje de Acero", icon: "precision_manufacturing", description: "Structural steel installation and erection" },
+  { slug: "concrete", name: "Concrete", nameEs: "Concreto", icon: "foundation", description: "Foundations, flatwork, walls, and decorative concrete" },
+  { slug: "electrical", name: "Electrical", nameEs: "Eléctrico", icon: "electrical_services", description: "Electrical systems installation and maintenance" },
+  { slug: "plumbing", name: "Plumbing", nameEs: "Plomería", icon: "plumbing", description: "Plumbing systems, fixtures, and piping" },
+  { slug: "hvac", name: "HVAC", nameEs: "HVAC / Climatización", icon: "hvac", description: "Heating, ventilation, and air conditioning" },
+  { slug: "roofing", name: "Roofing", nameEs: "Techos", icon: "roofing", description: "Roof installation, repair, and maintenance" },
+  { slug: "painting", name: "Painting", nameEs: "Pintura", icon: "format_paint", description: "Interior and exterior painting, coatings, and finishes" },
+  { slug: "construction_cleaning", name: "Construction / Home Cleaning", nameEs: "Limpieza de Construcción / Hogar", icon: "cleaning_services", description: "Post-construction cleanup, rough clean, final clean, and home cleaning" },
+  { slug: "drywall", name: "Drywall", nameEs: "Tablaroca / Drywall", icon: "wall", description: "Drywall hanging, taping, and finishing" },
+  { slug: "masonry", name: "Masonry", nameEs: "Albañilería", icon: "bricks", description: "Brick, block, stone, and tile work" },
+  { slug: "landscaping", name: "Landscaping", nameEs: "Paisajismo", icon: "yard", description: "Landscape design, hardscape, irrigation, and maintenance" },
+  { slug: "demolition", name: "Demolition", nameEs: "Demolición", icon: "demolition", description: "Structural and interior demolition" },
+  { slug: "insulation", name: "Insulation", nameEs: "Aislamiento", icon: "thermostat", description: "Thermal and acoustic insulation" },
+  { slug: "flooring", name: "Flooring", nameEs: "Pisos", icon: "grid_on", description: "Hardwood, tile, carpet, and specialty flooring" },
+  { slug: "welding", name: "Welding & Fabrication", nameEs: "Soldadura y Fabricación", icon: "hardware", description: "Structural welding, pipe welding, and metal fabrication" },
+  { slug: "excavation", name: "Excavation & Grading", nameEs: "Excavación y Nivelación", icon: "terrain", description: "Site prep, grading, trenching, and earthwork" },
+  { slug: "windows_doors", name: "Windows & Doors", nameEs: "Ventanas y Puertas", icon: "door_front", description: "Window and door installation and replacement" },
+  { slug: "other", name: "Other Trade", nameEs: "Otro Oficio", icon: "build", description: "Specialty or unlisted trade" },
+];
+
 // Helper: assert that the requesting employee has one of the allowed roles
 async function assertRole(requestingId: number, allowedRoles: string[], action: string) {
   const requester = await db.getEmployeeById(requestingId);
@@ -1104,6 +1128,48 @@ const pivotRouter = router({
     const isLaborer = employee.role === "laborer";
     const isOwner = employee.role === "owner";
 
+    // ── Load Company Trade Context (Pivot Hivemind) ─────────────────────────
+    let tradeContext = "";
+    try {
+      const companyWithTrades = await db.getCompanyWithTrades(employee.companyId);
+      if (companyWithTrades && companyWithTrades.tradesList.length > 0) {
+        const tradeSlugs = companyWithTrades.tradesList;
+        const primarySlug = companyWithTrades.primaryTrade || tradeSlugs[0];
+        const tradeNames = tradeSlugs.map(s => {
+          const t = AVAILABLE_TRADES.find(at => at.slug === s);
+          return t ? t.name : s;
+        });
+        const primaryTradeName = AVAILABLE_TRADES.find(t => t.slug === primarySlug)?.name || primarySlug;
+
+        tradeContext = `\n## Company Trade Profile\nThis company's primary trade is: **${primaryTradeName}**\nAll company trades: ${tradeNames.join(", ")}\n\n**CRITICAL TRADE RULES:**\n- ONLY provide advice, terminology, safety protocols, scheduling templates, and cost references relevant to these specific trades: ${tradeNames.join(", ")}\n- NEVER show information about trades this company does NOT do\n- When suggesting schedules, tasks, or goals, use terminology and workflows specific to ${primaryTradeName}\n- When discussing costs, use benchmarks relevant to ${primaryTradeName}\n- If the user asks about a trade they don't do, you can answer generally but note it's outside their registered trades\n`;
+
+        // Load trade-specific knowledge from the hivemind
+        const tradeKnowledgeEntries = await db.getTradeKnowledgeForMultipleTrades(tradeSlugs);
+        if (tradeKnowledgeEntries.length > 0) {
+          tradeContext += `\n## Pivot Hivemind Knowledge (${primaryTradeName})\n`;
+          const byCategory: Record<string, string[]> = {};
+          for (const entry of tradeKnowledgeEntries) {
+            if (!byCategory[entry.category]) byCategory[entry.category] = [];
+            byCategory[entry.category].push(`- **${entry.title}**: ${entry.content}`);
+          }
+          for (const [cat, items] of Object.entries(byCategory)) {
+            tradeContext += `### ${cat.replace(/_/g, " ").toUpperCase()}\n${items.join("\n")}\n`;
+          }
+        }
+
+        // Load benchmarks
+        const benchmarks = await db.getTradeBenchmarks(primarySlug);
+        if (benchmarks.length > 0) {
+          tradeContext += `\n### Industry Benchmarks (${primaryTradeName})\n`;
+          for (const b of benchmarks) {
+            tradeContext += `- ${b.metricName}: ${b.metricValue}${b.unit ? " " + b.unit : ""} (sample: ${b.sampleSize} companies)\n`;
+          }
+        }
+      }
+    } catch {
+      // Trade context unavailable — continue without it
+    }
+
     // ── Load Pivot Memory for this employee ─────────────────────────────────
     let memory = await db.getPivotMemory(input.employeeId);
     let memoryContext = "";
@@ -1615,6 +1681,7 @@ ${isOwner ? knowledgeBaseContext : ""}
 ${businessContext}
 ${goalsContext}
 ${allGoalsContext}
+${tradeContext}
 ${calculationBlock}
 
 ## Your Capabilities
@@ -1842,6 +1909,7 @@ ${greetingInstruction}
 ${memoryContext}
 ${recentHistory}
 ${goalsContext}
+${tradeContext}
 ${calculationBlock}
 
 ## Your Capabilities for Foremen
@@ -1920,6 +1988,7 @@ ${greetingInstruction}
 ${memoryContext}
 ${recentHistory}
 ${goalsContext}
+${tradeContext}
 
 ## Your Capabilities for Laborers
 - Show your assigned goals and deadlines
@@ -3684,6 +3753,13 @@ const companyRouter = router({
   // Get company by slug (for login/signup)
   getBySlug: publicProcedure.input(z.object({ slug: z.string() })).query(({ input }) => db.getCompanyBySlug(input.slug)),
   
+  // Lookup company by slug (for mobile app login - returns only name and slug, no sensitive data)
+  lookupBySlug: publicProcedure.input(z.object({ slug: z.string() })).mutation(async ({ input }) => {
+    const company = await db.getCompanyBySlug(input.slug);
+    if (!company) return null;
+    return { name: company.name, slug: company.slug, id: company.id };
+  }),
+  
   // Signup: create a new company with owner
   signup: publicProcedure.input(z.object({
     companyName: z.string().min(2).max(255),
@@ -3693,13 +3769,15 @@ const companyRouter = router({
     ownerPhone: z.string().optional(),
     ownerPin: z.string().min(4).max(6),
     timezone: z.string().default("America/Denver"),
+    trades: z.array(z.string()).min(1, "Select at least one trade").default(["general_contractor"]),
+    primaryTrade: z.string().default("general_contractor"),
   })).mutation(async ({ input }) => {
     // Check if slug is taken
     const existing = await db.getCompanyBySlug(input.slug);
     if (existing) {
       throw new TRPCError({ code: "CONFLICT", message: "Company URL is already taken. Try a different one." });
     }
-    // Create company
+    // Create company with trade info
     const companyId = await db.createCompany({
       name: input.companyName,
       slug: input.slug,
@@ -3708,6 +3786,8 @@ const companyRouter = router({
       timezone: input.timezone,
       plan: "trial",
       subscriptionStatus: "trialing",
+      trades: JSON.stringify(input.trades),
+      primaryTrade: input.primaryTrade,
     });
     // Create owner employee
     const ownerId = await db.createEmployee({
@@ -3957,6 +4037,33 @@ const supportRouter = router({
   stats: publicProcedure.query(() => db.getSupportStats()),
 });
 
+// ─── Trade Knowledge Router (Pivot Hivemind) ─────────────────────────────────
+const tradeKnowledgeRouter = router({
+  getForTrade: publicProcedure.input(z.object({
+    tradeSlug: z.string(),
+    category: z.string().optional(),
+  })).query(({ input }) => db.getTradeKnowledge(input.tradeSlug, input.category)),
+  getForTrades: publicProcedure.input(z.object({
+    tradeSlugs: z.array(z.string()),
+  })).query(({ input }) => db.getTradeKnowledgeForMultipleTrades(input.tradeSlugs)),
+  getBenchmarks: publicProcedure.input(z.object({
+    tradeSlug: z.string(),
+  })).query(({ input }) => db.getTradeBenchmarks(input.tradeSlug)),
+  create: publicProcedure.input(z.object({
+    tradeSlug: z.string(),
+    category: z.enum(["scheduling", "safety", "terminology", "cost_benchmarks", "best_practices", "common_tasks", "equipment", "materials", "productivity_tips", "quality_checks"]),
+    title: z.string().min(1),
+    content: z.string().min(1),
+    source: z.enum(["system", "aggregated", "admin"]).default("admin"),
+    requestingEmployeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.requestingEmployeeId, ["owner"], "manage trade knowledge");
+    const { requestingEmployeeId: _, ...data } = input;
+    return db.createTradeKnowledge(data);
+  }),
+  listTrades: publicProcedure.query(() => AVAILABLE_TRADES),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -3991,6 +4098,7 @@ export const appRouter = router({
   taxInfo: taxInfoRouter,
   company: companyRouter,
   support: supportRouter,
+  tradeKnowledge: tradeKnowledgeRouter,
 });
 
 export type AppRouter = typeof appRouter;

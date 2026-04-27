@@ -67,6 +67,10 @@ import {
   InsertKnowledgeBaseArticle,
   pivotSupportLearning,
   InsertPivotSupportLearningEntry,
+  tradeKnowledge,
+  InsertTradeKnowledge,
+  tradeBenchmarks,
+  InsertTradeBenchmark,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -2617,5 +2621,75 @@ export async function getSupportStats() {
     avgResolutionHours: resolvedCount > 0 ? Math.round(totalHours / resolvedCount * 10) / 10 : 0,
     kbArticles: allKB.length,
     learnings: allLearnings.length,
+  };
+}
+
+
+// ─── Trade Knowledge (Pivot Hivemind) ───────────────────────────────────────
+
+export async function getTradeKnowledge(tradeSlug: string, category?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  if (category) {
+    return db.select().from(tradeKnowledge)
+      .where(and(eq(tradeKnowledge.tradeSlug, tradeSlug), eq(tradeKnowledge.category, category as any), eq(tradeKnowledge.isActive, true)));
+  }
+  return db.select().from(tradeKnowledge)
+    .where(and(eq(tradeKnowledge.tradeSlug, tradeSlug), eq(tradeKnowledge.isActive, true)));
+}
+
+export async function getTradeKnowledgeForMultipleTrades(tradeSlugs: string[]) {
+  const db = await getDb();
+  if (!db) return [];
+  const results: any[] = [];
+  for (const slug of tradeSlugs) {
+    const rows = await db.select().from(tradeKnowledge)
+      .where(and(eq(tradeKnowledge.tradeSlug, slug), eq(tradeKnowledge.isActive, true)));
+    results.push(...rows);
+  }
+  return results;
+}
+
+export async function createTradeKnowledge(data: Omit<InsertTradeKnowledge, "id" | "createdAt" | "updatedAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(tradeKnowledge).values(data);
+  return result[0].insertId;
+}
+
+export async function getTradeBenchmarks(tradeSlug: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(tradeBenchmarks).where(eq(tradeBenchmarks.tradeSlug, tradeSlug));
+}
+
+export async function upsertTradeBenchmark(data: Omit<InsertTradeBenchmark, "id" | "updatedAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db.select().from(tradeBenchmarks)
+    .where(and(eq(tradeBenchmarks.tradeSlug, data.tradeSlug), eq(tradeBenchmarks.metricName, data.metricName)))
+    .limit(1);
+  if (existing.length > 0) {
+    await db.update(tradeBenchmarks).set({
+      metricValue: data.metricValue,
+      sampleSize: data.sampleSize,
+      unit: data.unit,
+      region: data.region,
+    }).where(eq(tradeBenchmarks.id, existing[0].id));
+    return existing[0].id;
+  }
+  const result = await db.insert(tradeBenchmarks).values(data);
+  return result[0].insertId;
+}
+
+export async function getCompanyWithTrades(companyId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
+  if (!rows[0]) return null;
+  const company = rows[0];
+  return {
+    ...company,
+    tradesList: company.trades ? JSON.parse(company.trades as string) as string[] : [],
   };
 }
