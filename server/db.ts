@@ -78,8 +78,9 @@ let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: ReturnType<typeof mysql.createPool> | null = null;
 let _lastConnectAttempt = 0;
 let _retryCount = 0;
-const RETRY_INTERVAL_MS = 10000; // 10 seconds between retries
-const MAX_RETRY_BACKOFF_MS = 60000; // Max 60 seconds between retries
+const RETRY_INTERVAL_MS = 3000; // 3 seconds between retries (fast recovery)
+const MAX_RETRY_BACKOFF_MS = 15000; // Max 15 seconds between retries
+let _keepAliveTimer: ReturnType<typeof setInterval> | null = null;
 
 function createPool() {
   if (!process.env.DATABASE_URL) return null;
@@ -87,17 +88,46 @@ function createPool() {
     const pool = mysql.createPool({
       uri: process.env.DATABASE_URL,
       timezone: "Z",
-      connectTimeout: 10000, // 10s connection timeout
+      connectTimeout: 30000, // 30s connection timeout (TiDB serverless can be slow to wake)
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
       enableKeepAlive: true,
-      keepAliveInitialDelay: 30000,
+      keepAliveInitialDelay: 10000, // Keep TCP alive every 10s
+      maxIdle: 10, // Keep all connections in pool
+      idleTimeout: 240000, // Close idle connections after 4 min (TiDB drops at 5 min)
     });
     return pool;
   } catch (error) {
     console.warn("[Database] Failed to create pool:", error);
     return null;
+  }
+}
+
+// Keep-alive: ping DB every 2 minutes to prevent TiDB serverless hibernation
+function startKeepAlive() {
+  if (_keepAliveTimer) return;
+  _keepAliveTimer = setInterval(async () => {
+    if (!_pool) return;
+    try {
+      const promisePool = _pool.promise();
+      await Promise.race([
+        promisePool.query("SELECT 1"),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("keepalive timeout")), 10000)),
+      ]);
+    } catch {
+      console.warn("[Database] Keep-alive ping failed, will reconnect on next query");
+      try { _pool?.end(); } catch {}
+      _db = null;
+      _pool = null;
+    }
+  }, 120000); // Every 2 minutes
+}
+
+function stopKeepAlive() {
+  if (_keepAliveTimer) {
+    clearInterval(_keepAliveTimer);
+    _keepAliveTimer = null;
   }
 }
 
@@ -109,12 +139,13 @@ export async function getDb() {
       const promisePool = _pool.promise();
       await Promise.race([
         promisePool.query("SELECT 1"),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("ping timeout")), 5000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("ping timeout")), 8000)),
       ]);
       _retryCount = 0; // Reset retry count on success
       return _db;
     } catch {
       console.warn("[Database] Connection lost, will recreate pool...");
+      stopKeepAlive();
       try { _pool.end(); } catch {}
       _db = null;
       _pool = null;
@@ -137,15 +168,16 @@ export async function getDb() {
       _retryCount++;
       return null;
     }
-    // Verify the pool actually works before returning
+    // Verify the pool actually works — give TiDB serverless up to 30s to wake
     const promisePool = _pool.promise();
     await Promise.race([
       promisePool.query("SELECT 1"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("connect timeout")), 10000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("connect timeout")), 30000)),
     ]);
     _db = drizzle({ client: _pool });
     _retryCount = 0;
     console.log("[Database] Connected successfully");
+    startKeepAlive(); // Start keep-alive pings to prevent hibernation
     return _db;
   } catch (error: any) {
     console.warn(`[Database] Connection attempt failed (retry #${_retryCount + 1}):`, error?.message || error);
@@ -157,8 +189,27 @@ export async function getDb() {
   }
 }
 
+// Aggressive startup connection: try up to 10 times with 5s delays to wake TiDB
+export async function ensureDbConnected(): Promise<boolean> {
+  for (let i = 0; i < 10; i++) {
+    console.log(`[Database] Startup connection attempt ${i + 1}/10...`);
+    _retryCount = 0;
+    _lastConnectAttempt = 0;
+    const db = await getDb();
+    if (db) {
+      console.log("[Database] Startup connection established!");
+      return true;
+    }
+    // Wait 5 seconds before next attempt
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+  console.error("[Database] Failed to connect after 10 startup attempts");
+  return false;
+}
+
 // Force reset the connection pool (call when you detect persistent errors)
 export function resetDbPool() {
+  stopKeepAlive();
   try { _pool?.end(); } catch {}
   _db = null;
   _pool = null;

@@ -3921,6 +3921,7 @@ const companyRouter = router({
   update: publicProcedure.input(z.object({
     companyId: z.number(),
     name: z.string().optional(),
+    slug: z.string().min(2).max(128).optional(),
     ownerEmail: z.string().email().optional(),
     ownerPhone: z.string().optional(),
     timezone: z.string().optional(),
@@ -3928,6 +3929,13 @@ const companyRouter = router({
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input }) => {
     await assertRole(input.requestingEmployeeId, ["owner"], "update company settings");
+    // If changing slug, check it's not taken
+    if (input.slug) {
+      const existing = await db.getCompanyBySlug(input.slug);
+      if (existing && existing.id !== input.companyId) {
+        throw new TRPCError({ code: "CONFLICT", message: "Company code is already taken." });
+      }
+    }
     const { companyId, requestingEmployeeId: _, ...data } = input;
     return db.updateCompany(companyId, data);
   }),

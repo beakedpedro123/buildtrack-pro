@@ -169,8 +169,16 @@ async function startServer() {
     }
   });
 
-  app.get("/api/health", (_req: Request, res: Response) => {
-    res.json({ ok: true, timestamp: Date.now() });
+  app.get("/api/health", async (_req: Request, res: Response) => {
+    let dbStatus = "unknown";
+    try {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      dbStatus = db ? "connected" : "disconnected";
+    } catch {
+      dbStatus = "error";
+    }
+    res.json({ ok: true, timestamp: Date.now(), database: dbStatus });
   });
 
   // File download proxy — fetches from S3 storage and streams to client with proper Content-Disposition
@@ -519,8 +527,41 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
+  server.listen(port, async () => {
     console.log(`[api] server listening on port ${port}`);
+
+    // ── Aggressive DB Connection on Startup ──────────────────────────────────
+    // Try to connect to TiDB serverless immediately and keep retrying
+    // This wakes up the serverless instance so it's ready for users
+    try {
+      const { ensureDbConnected } = await import("../db");
+      const connected = await ensureDbConnected();
+      if (connected) {
+        console.log("[api] Database ready for requests");
+        // Run migrations if needed
+        try {
+          const { migrate } = await import("drizzle-orm/mysql2/migrator");
+          const { getDb } = await import("../db");
+          const db = await getDb();
+          if (db) {
+            const path = await import("path");
+            const migrationsFolder = path.join(__dirname, "..", "..", "drizzle", "migrations");
+            const fs = await import("fs");
+            if (fs.existsSync(migrationsFolder)) {
+              await migrate(db, { migrationsFolder });
+              console.log("[api] Database migrations applied successfully");
+            }
+          }
+        } catch (migErr: any) {
+          // Migrations may fail if tables already exist — that's OK
+          console.warn("[api] Migration note:", migErr?.message?.substring(0, 100));
+        }
+      } else {
+        console.warn("[api] Database not available at startup — will retry on first request");
+      }
+    } catch (err: any) {
+      console.warn("[api] DB startup error:", err?.message);
+    }
   });
 
   // ── Daily Repeating Goals Cron ──────────────────────────────────────────────
