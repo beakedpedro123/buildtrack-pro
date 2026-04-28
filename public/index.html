@@ -1050,12 +1050,15 @@ async function submitSignup() {
         ${ownerEmail ? `<p style="font-size:11px;color:var(--text-3);margin-top:8px">✉️ Login details also sent to ${ownerEmail}</p>` : ''}
       </div>
       <p style="font-size:14px;font-weight:600;color:var(--text);margin:20px 0 12px">📱 Get the App:</p>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <a href="/api/portal/" target="_blank" id="openAppBtn" style="display:block;padding:14px 20px;background:var(--gold);color:#0a0a0a;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;text-align:center">Open Web App Now →</a>
-        <p style="font-size:12px;color:var(--text-3);text-align:center;margin:4px 0 0">Works on any device — phone, tablet, or desktop</p>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+        <a href="/api/portal/" target="_blank" id="openAppBtn" style="display:block;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.15);transition:transform 0.2s">
+          <img src="/api/web/qr-code.jpg" alt="Scan QR Code to open BuildTrack Pro" style="width:220px;height:220px;display:block;border-radius:16px" />
+        </a>
+        <p style="font-size:13px;color:var(--text-2);text-align:center;margin:0;font-weight:600">Tap the QR code or scan it with your phone camera</p>
+        <p style="font-size:12px;color:var(--text-3);text-align:center;margin:0">Works on any device — phone, tablet, or desktop</p>
       </div>
       <div style="margin-top:16px;padding:12px;background:var(--bg-3);border-radius:8px">
-        <p style="font-size:12px;color:var(--text-3);margin:0">💡 <strong>Quick Start:</strong> Open the web app above, enter company code <strong>${slug}</strong>, then log in with your PIN. You can download the mobile app anytime later.</p>
+        <p style="font-size:12px;color:var(--text-3);margin:0">💡 <strong>Quick Start:</strong> Scan the QR code above or tap it to open the app. Enter company code <strong>${slug}</strong>, then log in with your PIN.</p>
       </div>`;
     // Pre-save company code to localStorage so the app portal auto-fills it
     try { localStorage.setItem('btp_company_code', JSON.stringify({ slug: slug, name: companyName })); } catch(e) {}

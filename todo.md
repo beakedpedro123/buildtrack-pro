@@ -2619,3 +2619,6 @@
 - [x] Workers self-service lunch clocking from the clock/home tab
 - [x] Owner lunch management for historical entries (add/remove lunches from past clock entries)
 - [x] Owner can manage lunches on entries that predate the lunchMinutes feature
+
+## Phase 133: Marketing Page QR Code Button
+- [x] Replace post-signup button on marketing page with user's QR code image as clickable button
