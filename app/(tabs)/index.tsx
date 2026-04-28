@@ -395,7 +395,7 @@ export default function DashboardScreen() {
   const [lunchEntryId, setLunchEntryId] = useState<number | null>(null);
   const [lunchMinutes, setLunchMinutes] = useState("30");
   const [lunchSaving, setLunchSaving] = useState(false);
-  const adjustEntryMutation = trpc.clock.adjustEntry.useMutation();
+  const setLunchMutation = trpc.clock.setLunch.useMutation();
 
   const handleAddLunch = useCallback(async (entryId: number, empName: string) => {
     const mins = parseInt(lunchMinutes, 10);
@@ -406,25 +406,19 @@ export default function DashboardScreen() {
     if (!employee?.id) return;
     setLunchSaving(true);
     try {
-      const entry = (clockedIn || []).find((e: any) => e.id === entryId);
-      if (!entry) { Alert.alert("Error", "Entry not found."); return; }
-      // Adjust clock-in forward by lunch minutes to deduct lunch
-      const originalIn = new Date(entry.clockIn);
-      const adjustedIn = new Date(originalIn.getTime() + mins * 60000);
-      await adjustEntryMutation.mutateAsync({
+      await setLunchMutation.mutateAsync({
         entryId,
-        clockIn: adjustedIn.toISOString(),
+        lunchMinutes: mins,
         adjustedBy: employee.id,
-        reason: `Lunch deduction: ${mins} min for ${empName}`,
       });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setLunchEntryId(null);
       refetchClockedIn();
-      Alert.alert("Lunch Added", `${mins} min lunch deducted for ${empName}.`);
+      Alert.alert("Lunch Added", `${mins} min lunch recorded for ${empName}.`);
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Failed to add lunch.");
     } finally { setLunchSaving(false); }
-  }, [lunchMinutes, employee?.id, clockedIn, adjustEntryMutation, refetchClockedIn]);
+  }, [lunchMinutes, employee?.id, setLunchMutation, refetchClockedIn]);
 
   // Crew clock-in modal state (for management/foreman home dashboard)
   const [showCrewClockIn, setShowCrewClockIn] = useState(false);
@@ -1226,11 +1220,21 @@ export default function DashboardScreen() {
                       <TouchableOpacity
                         onPress={() => {
                           if (!employee?.id) return;
-                          Alert.alert("Delete Lunch", `Remove lunch deduction for ${empName}? This will restore the original clock-in time.`, [
+                          Alert.alert("Delete Lunch", `Remove lunch deduction for ${empName}?`, [
                             { text: "Cancel", style: "cancel" },
-                            { text: "Delete", style: "destructive", onPress: () => {
-                              // To delete lunch, we'd need to restore original time. For now show info.
-                              Alert.alert("Tip", "To remove a lunch deduction, use the Edit button to adjust the clock-in time back to the original.");
+                            { text: "Delete", style: "destructive", onPress: async () => {
+                              try {
+                                await setLunchMutation.mutateAsync({
+                                  entryId: entry.id,
+                                  lunchMinutes: 0,
+                                  adjustedBy: employee.id,
+                                });
+                                refetchClockedIn();
+                                if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                Alert.alert("Removed", `Lunch deduction removed for ${empName}.`);
+                              } catch (err: any) {
+                                Alert.alert("Error", err?.message || "Failed to remove lunch.");
+                              }
                             }},
                           ]);
                         }}

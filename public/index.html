@@ -1051,12 +1051,17 @@ async function submitSignup() {
       </div>
       <p style="font-size:14px;font-weight:600;color:var(--text);margin:20px 0 12px">📱 Get the App:</p>
       <div style="display:flex;flex-direction:column;gap:10px">
-        <a href="/api/portal/" target="_blank" style="display:block;padding:14px 20px;background:var(--gold);color:#0a0a0a;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;text-align:center">Open Web App Now →</a>
+        <a href="/api/portal/" target="_blank" id="openAppBtn" style="display:block;padding:14px 20px;background:var(--gold);color:#0a0a0a;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;text-align:center">Open Web App Now →</a>
         <p style="font-size:12px;color:var(--text-3);text-align:center;margin:4px 0 0">Works on any device — phone, tablet, or desktop</p>
       </div>
       <div style="margin-top:16px;padding:12px;background:var(--bg-3);border-radius:8px">
         <p style="font-size:12px;color:var(--text-3);margin:0">💡 <strong>Quick Start:</strong> Open the web app above, enter company code <strong>${slug}</strong>, then log in with your PIN. You can download the mobile app anytime later.</p>
       </div>`;
+    // Pre-save company code to localStorage so the app portal auto-fills it
+    try { localStorage.setItem('btp_company_code', JSON.stringify({ slug: slug, name: companyName })); } catch(e) {}
+    // Also set up the Open App button to pre-fill the company code via URL hash
+    const openBtn = document.getElementById('openAppBtn');
+    if (openBtn) openBtn.href = '/api/portal/#code=' + encodeURIComponent(slug);
     document.getElementById('signupForm').style.display = 'none';
     successEl.style.display = 'block';
   } catch (e) {

@@ -1724,8 +1724,28 @@ export async function deleteClockEntry(entryId: number, deletedBy: number, reaso
   return { success: true };
 }
 
-// ─── Messages / Notes ──────────────────────────────────────────────────────
+// ─── Lunch Minutes ────────────────────────────────────────────────────────────────────────────
 
+export async function setLunchMinutes(entryId: number, lunchMinutes: number, adjustedBy: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+  const [existing] = await dbConn.select().from(clockEntries).where(eq(clockEntries.id, entryId));
+  if (!existing) return null;
+  const oldLunch = existing.lunchMinutes || 0;
+  await dbConn.update(clockEntries).set({ lunchMinutes }).where(eq(clockEntries.id, entryId));
+  // Log the adjustment
+  await dbConn.insert(timeAdjustments).values({
+    clockEntryId: entryId,
+    adjustedBy,
+    fieldChanged: "lunchMinutes",
+    oldValue: String(oldLunch),
+    newValue: String(lunchMinutes),
+    reason: lunchMinutes > 0 ? `Lunch set to ${lunchMinutes} min` : "Lunch removed",
+  });
+  return { success: true, lunchMinutes };
+}
+
+// ─── Messages / Notes ────────────────────────────────────────────────────────────────────────
 export async function sendMessage(data: {
   senderId: number;
   subject: string;

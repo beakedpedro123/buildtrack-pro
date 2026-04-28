@@ -367,6 +367,15 @@ const clockRouter = router({
     await assertRole(input.deletedBy, ["owner", "office_manager", "logistics"], "delete time entries");
     return db.deleteClockEntry(input.entryId, input.deletedBy, input.reason);
   }),
+  // Set lunch minutes on a clock entry (does NOT adjust clock-in time)
+  setLunch: publicProcedure.input(z.object({
+    entryId: z.number(),
+    lunchMinutes: z.number().min(0).max(120),
+    adjustedBy: z.number(),
+  })).mutation(async ({ input }) => {
+    await assertRole(input.adjustedBy, ["owner", "office_manager", "logistics", "foreman"], "set lunch time");
+    return db.setLunchMinutes(input.entryId, input.lunchMinutes, input.adjustedBy);
+  }),
 });
 
 const reportsRouter = router({
@@ -4022,6 +4031,34 @@ const companyRouter = router({
   })).mutation(async ({ input }) => {
     const { companyId, ...data } = input;
     return db.updateCompany(companyId, data);
+  }),
+
+  // ── Lunch Settings (company-level) ──
+  getLunchSettings: publicProcedure.input(z.object({ companyId: z.number().optional() })).query(async ({ input }) => {
+    const cId = input.companyId || 1;
+    const company = await db.getCompanyById(cId);
+    if (!company) return { enabled: false, deductMinutes: 30, minShiftMinutes: 360, skipDays: [5] };
+    return {
+      enabled: company.lunchAutoDeduct ?? false,
+      deductMinutes: company.lunchDeductMinutes ?? 30,
+      minShiftMinutes: company.lunchMinShiftMinutes ?? 360,
+      skipDays: company.lunchSkipDays ? company.lunchSkipDays.split(',').map(Number).filter(n => !isNaN(n)) : [5],
+    };
+  }),
+  updateLunchSettings: publicProcedure.input(z.object({
+    companyId: z.number().optional(),
+    enabled: z.boolean(),
+    deductMinutes: z.number().min(5).max(120),
+    minShiftMinutes: z.number().min(60).max(720),
+    skipDays: z.array(z.number().min(0).max(6)),
+  })).mutation(async ({ input }) => {
+    const cId = input.companyId || 1;
+    return db.updateCompany(cId, {
+      lunchAutoDeduct: input.enabled,
+      lunchDeductMinutes: input.deductMinutes,
+      lunchMinShiftMinutes: input.minShiftMinutes,
+      lunchSkipDays: input.skipDays.join(','),
+    });
   }),
 });
 

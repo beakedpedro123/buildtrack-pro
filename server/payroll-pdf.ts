@@ -14,6 +14,7 @@ interface DayEntry {
   jobId: number;
   jobName: string;
   durationMinutes: number;
+  lunchMinutes: number;
   adjustments: any[];
 }
 
@@ -33,6 +34,7 @@ interface EmployeeTimecard {
   salaryProjects: number[];
   days: EmployeeDay[];
   totalMinutes: number;
+  totalLunchMinutes: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -131,6 +133,7 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
       const list = dayMap.get(dayKey) || [];
       const durationMs = new Date(entry.clockOut!).getTime() - new Date(entry.clockIn).getTime();
       const minutes = Math.floor(durationMs / 60000);
+      const entryLunch = (entry as any).lunchMinutes || 0;
       totalMinutes += minutes;
       const job = jobMap.get(entry.jobId);
       list.push({
@@ -140,6 +143,7 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
         jobId: entry.jobId,
         jobName: job?.name || `Job #${entry.jobId}`,
         durationMinutes: minutes,
+        lunchMinutes: entryLunch,
         adjustments: [],
       });
       dayMap.set(dayKey, list);
@@ -155,6 +159,26 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
 
     let salaryProjects: number[] = [];
     try { salaryProjects = emp.salaryProjects ? JSON.parse(emp.salaryProjects) : []; } catch {}
+    // Calculate total lunch minutes from per-entry data
+    let totalLunchMinutes = 0;
+    for (const day of days) {
+      for (const e of day.entries) {
+        totalLunchMinutes += e.lunchMinutes || 0;
+      }
+    }
+    // Also apply company-level auto-deduction if no per-entry lunch
+    if (totalLunchMinutes === 0) {
+      const company = await db.getCompanyById(1);
+      if (company?.lunchAutoDeduct) {
+        const skipDays = company.lunchSkipDays ? company.lunchSkipDays.split(",").map(Number) : [5];
+        for (const day of days) {
+          const dow = new Date(day.date + "T12:00:00").getDay();
+          if (!skipDays.includes(dow) && day.totalMinutes >= (company.lunchMinShiftMinutes || 360)) {
+            totalLunchMinutes += company.lunchDeductMinutes || 30;
+          }
+        }
+      }
+    }
     timecards.push({
       employeeId: empId,
       name: emp.name,
@@ -164,7 +188,8 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
       salaryAmount: emp.salaryAmount ?? null,
       salaryProjects,
       days,
-      totalMinutes,
+      totalMinutes: Math.max(0, totalMinutes - totalLunchMinutes),
+      totalLunchMinutes,
     });
   }
 
@@ -198,6 +223,7 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
         salaryProjects,
         days: [],
         totalMinutes: 0,
+        totalLunchMinutes: 0,
       });
     }
   }
@@ -380,7 +406,8 @@ function renderPayrollSummary(
     // FIX: Use lineBreak: false and ellipsis to prevent name overflow
     doc.text(tc.name, cx, y, { width: colWidths[0] - 4, lineBreak: false, ellipsis: true }); cx += colWidths[0];
     doc.text(ROLE_LABELS[tc.role] || tc.role, cx, y, { width: colWidths[1] - 4, lineBreak: false, ellipsis: true }); cx += colWidths[1];
-    doc.text(isSalary ? "Salary" : fmtHours(tc.totalMinutes), cx, y, { width: colWidths[2], lineBreak: false }); cx += colWidths[2];
+    const hoursText = isSalary ? "Salary" : (tc.totalLunchMinutes > 0 ? `${fmtHours(tc.totalMinutes)} (-${tc.totalLunchMinutes}m)` : fmtHours(tc.totalMinutes));
+    doc.text(hoursText, cx, y, { width: colWidths[2], lineBreak: false }); cx += colWidths[2];
     doc.text(isSalary ? "Salary" : (tc.hourlyRate ? fmtMoney(rate) : "—"), cx, y, { width: colWidths[3], lineBreak: false }); cx += colWidths[3];
     doc.text(fmtMoney(pay), cx, y, { width: colWidths[4], lineBreak: false }); cx += colWidths[4];
     doc.text(isSalary ? `${tc.salaryProjects.length} proj` : `${tc.days.length}`, cx, y, { width: colWidths[5], lineBreak: false });

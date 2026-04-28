@@ -156,4 +156,6 @@ export const CACHE_KEYS = {
   REPORTS_LIST: "reports_list",
   JOBS_LIST: "jobs_list",
   GOALS_LIST: "goals_list",
+  // Phase 130: Lunch settings offline cache
+  LUNCH_SETTINGS: "lunch_settings",
 } as const;

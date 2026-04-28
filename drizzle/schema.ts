@@ -34,6 +34,11 @@ export const companies = mysqlTable("companies", {
   allTradesUnlocked: boolean("allTradesUnlocked").default(false).notNull(), // $4.99/mo add-on to unlock all trades
   // Settings
   timezone: varchar("timezone", { length: 64 }).default("America/Denver"),
+  // Lunch/break settings (company-level)
+  lunchAutoDeduct: boolean("lunchAutoDeduct").default(false).notNull(),
+  lunchDeductMinutes: int("lunchDeductMinutes").default(30).notNull(),
+  lunchMinShiftMinutes: int("lunchMinShiftMinutes").default(360).notNull(), // 6 hours
+  lunchSkipDays: varchar("lunchSkipDays", { length: 32 }).default("5"), // comma-separated day numbers (0=Sun, 5=Fri)
   isActive: boolean("isActive").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -126,6 +131,7 @@ export const clockEntries = mysqlTable("clockEntries", {
   clockOutLongitude: float("clockOutLongitude"),
   isOfflineEntry: boolean("isOfflineEntry").default(false).notNull(),
   localId: varchar("localId", { length: 64 }),
+  lunchMinutes: int("lunchMinutes").default(0).notNull(),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

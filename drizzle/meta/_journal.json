@@ -197,6 +197,13 @@
       "when": 1777317310390,
       "tag": "0027_petite_firelord",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1777345280440,
+      "tag": "0028_friendly_wendell_vaughn",
+      "breakpoints": true
     }
   ]
 }

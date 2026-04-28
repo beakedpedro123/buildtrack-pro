@@ -2584,3 +2584,22 @@
 - [x] Email delivery audited — welcome email, ticket created, status update, resolved emails all wired
 - [x] Pivot context-awareness verified — admin knows it's admin, support knows it's support, app knows it's app
 - [x] End-to-end tested: signup → success modal → portal link → ticket creation → tracking token → Pivot chat
+
+## Phase 130: Critical Deployment Fix, Lunch/Payroll, Offline Cache, Production Polish
+- [x] Fix "Open Web App Now" button — created proper web app portal page at /api/web/app and /api/portal/
+- [x] Post-signup now redirects to portal with company code pre-filled via URL hash
+- [x] Added lunchMinutes column to clockEntries DB schema, server endpoints for setLunch/removeLunch
+- [x] Manual lunch add/delete works via clock.setLunch endpoint, synced to DB
+- [x] Payroll tab shows lunch deductions from DB entries via useOfflineCache
+- [x] Payroll PDF deducts lunch from total hours, shows (-Xm) in employee rows
+- [x] Lunch data synced: DB lunchMinutes → payroll tab → payroll PDF → company-level auto-deduction
+- [x] Offline caching already comprehensive (stale-while-revalidate), added LUNCH_SETTINGS cache key
+- [x] Audited all PDF reports, moved client-side to server-side PDFKit, added company branding
+- [x] Tested: signup → portal redirect → lunch endpoints → payroll → budget PDF → field reports PDF
+- [x] Budget PDF now 4 pages: logo, summary, change orders, employee breakdown, daily hours, categories, expenses, schedule, budget history
+- [x] Budget PDF matches app: hourly revenue, gross margin, billing rate, effective budget, all sections
+- [x] Change orders section added with description, amount, status, date
+- [x] All 4 PDF types now have company logo via getCompanyBranding()
+- [x] Payroll PDF already comprehensive (875 lines) with employee breakdown, daily hours, lunch, overtime
+- [x] Field reports PDF now server-side (8 pages) with daily reports, safety meetings, photos, weather
+- [x] Job completion PDF already comprehensive (594 lines) with change orders, expenses, schedule, reports

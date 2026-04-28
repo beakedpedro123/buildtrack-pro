@@ -308,6 +308,50 @@ async function startServer() {
     }
   });
 
+  // Budget Report PDF — comprehensive budget report for any job
+  app.get("/api/budget-report-pdf", async (req: Request, res: Response) => {
+    try {
+      const { jobId, companyId: cmpId } = req.query;
+      if (!jobId) {
+        res.status(400).json({ error: "jobId query param required" });
+        return;
+      }
+      const { generateBudgetReportPDF } = await import("../budget-report-pdf");
+      const compId = cmpId ? parseInt(cmpId as string) : undefined;
+      const pdfBuffer = await generateBudgetReportPDF(parseInt(jobId as string), compId);
+      const filename = `budget_report_${jobId}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", pdfBuffer.length);
+      res.send(pdfBuffer);
+    } catch (err: any) {
+      console.error("Budget Report PDF error:", err);
+      res.status(500).json({ error: "Failed to generate PDF", details: err?.message });
+    }
+  });
+
+  // Field Reports PDF (server-side, comprehensive)
+  app.get("/api/field-reports-pdf", async (req: Request, res: Response) => {
+    try {
+      const { jobId, companyId: cmpId } = req.query;
+      if (!jobId) {
+        res.status(400).json({ error: "jobId query param required" });
+        return;
+      }
+      const { generateFieldReportsPDF } = await import("../field-reports-pdf");
+      const compId = cmpId ? parseInt(cmpId as string) : undefined;
+      const pdfBuffer = await generateFieldReportsPDF(parseInt(jobId as string), compId);
+      const filename = `field_reports_${jobId}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", pdfBuffer.length);
+      res.send(pdfBuffer);
+    } catch (err: any) {
+      console.error("Field Reports PDF error:", err);
+      res.status(500).json({ error: "Failed to generate PDF", details: err?.message });
+    }
+  });
+
   // Steel beam cross-section diagram endpoint
   app.get("/api/beam-diagram", async (req: Request, res: Response) => {
     try {
@@ -415,8 +459,11 @@ async function startServer() {
   app.get("/api/web", (_req: Request, res: Response) => sendHtmlFile(res, "index.html"));
   app.get("/api/web/", (_req: Request, res: Response) => sendHtmlFile(res, "index.html"));
   app.get("/api/web/index.html", (_req: Request, res: Response) => sendHtmlFile(res, "index.html"));
-  app.get("/api/portal", (_req: Request, res: Response) => sendHtmlFile(res, "index.html"));
-  app.get("/api/portal/", (_req: Request, res: Response) => sendHtmlFile(res, "index.html"));
+  // Portal routes serve the app login page (not the marketing page)
+  app.get("/api/portal", (_req: Request, res: Response) => sendHtmlFile(res, "app.html"));
+  app.get("/api/portal/", (_req: Request, res: Response) => sendHtmlFile(res, "app.html"));
+  app.get("/api/web/app", (_req: Request, res: Response) => sendHtmlFile(res, "app.html"));
+  app.get("/api/portal/app", (_req: Request, res: Response) => sendHtmlFile(res, "app.html"));
 
   // 2. Admin Dashboard
   app.get("/api/web/admin", (_req: Request, res: Response) => sendHtmlFile(res, "admin.html"));

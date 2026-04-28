@@ -6,8 +6,6 @@ import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import * as Print from "expo-print";
-import { shareAsync } from "expo-sharing";
 import * as Linking from "expo-linking";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { useState, useCallback, useEffect } from "react";
@@ -251,145 +249,21 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     }
   };
 
-  // Generate PDF Budget Report
+  // Generate PDF Budget Report — uses server-side PDFKit for detailed report with logo
   const handleGenerateBudgetPdf = async () => {
     if (!selectedJob) return;
     setGeneratingPdf(true);
     try {
-      const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-      const catRows = (budgetCategories || []).map((cat) => {
-        const spent = parseFloat(cat.spentAmount || "0");
-        const budgeted = parseFloat(cat.budgetedAmount || "0");
-        const pct = budgeted > 0 ? Math.round((spent / budgeted) * 100) : 0;
-        return `<tr><td>${cat.name}</td><td>$${budgeted.toLocaleString()}</td><td>$${spent.toLocaleString()}</td><td>${pct}%</td></tr>`;
-      }).join("");
-
-      const expenseRows = (expenses || []).map((exp) => {
-        return `<tr><td>${exp.description}</td><td>$${parseFloat(exp.amount).toLocaleString()}</td><td>${new Date(exp.expenseDate).toLocaleDateString()}</td></tr>`;
-      }).join("");
-
-      const remaining = Math.max(0, totalBudget - totalSpent);
-      const usedPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
-
-      const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; padding: 32px; color: #1a1a1a; font-size: 13px; }
-  h1 { font-size: 22px; margin-bottom: 4px; color: #1a1a1a; }
-  h2 { font-size: 16px; margin-top: 28px; margin-bottom: 10px; color: #333; border-bottom: 2px solid #D4A843; padding-bottom: 4px; }
-  .subtitle { color: #666; font-size: 13px; margin-bottom: 24px; }
-  .summary-grid { display: flex; gap: 12px; margin-bottom: 20px; }
-  .summary-box { flex: 1; background: #f8f8f8; border-radius: 8px; padding: 14px; text-align: center; border: 1px solid #e0e0e0; }
-  .summary-value { font-size: 20px; font-weight: 800; color: #1a1a1a; }
-  .summary-label { font-size: 11px; color: #888; margin-top: 2px; }
-  .bar-container { height: 10px; background: #e5e7eb; border-radius: 5px; overflow: hidden; margin: 8px 0 16px; }
-  .bar-fill { height: 100%; border-radius: 5px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-  th { background: #f5f5f5; text-align: left; padding: 8px 10px; font-size: 12px; font-weight: 700; color: #555; border-bottom: 2px solid #ddd; }
-  td { padding: 8px 10px; border-bottom: 1px solid #eee; font-size: 12px; }
-  .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #ddd; color: #999; font-size: 10px; text-align: center; }
-  .status-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
-  @page { margin: 20px; }
-</style></head><body>
-  <h1>${selectedJob.name}</h1>
-  <p class="subtitle">${selectedJob.clientName || ""} ${selectedJob.address ? "· " + selectedJob.address : ""} · Generated ${today}</p>
-
-  <div class="summary-grid">
-    <div class="summary-box">
-      <div class="summary-value">$${totalBudget.toLocaleString()}</div>
-      <div class="summary-label">Total Budget</div>
-    </div>
-    <div class="summary-box">
-      <div class="summary-value">$${totalSpent.toLocaleString()}</div>
-      <div class="summary-label">Total Spent</div>
-    </div>
-    <div class="summary-box">
-      <div class="summary-value" style="color: ${remaining > 0 ? "#22C55E" : "#EF4444"}">$${remaining.toLocaleString()}</div>
-      <div class="summary-label">Remaining</div>
-    </div>
-    <div class="summary-box">
-      <div class="summary-value">${usedPct}%</div>
-      <div class="summary-label">Used</div>
-    </div>
-  </div>
-
-  <div class="bar-container">
-    <div class="bar-fill" style="width: ${usedPct}%; background: ${usedPct < 60 ? "#22C55E" : usedPct < 85 ? "#F59E0B" : "#EF4444"};"></div>
-  </div>
-
-  <div class="summary-grid">
-    <div class="summary-box">
-      <div class="summary-value">$${laborSpent.toLocaleString()}</div>
-      <div class="summary-label">Labor Cost</div>
-    </div>
-    <div class="summary-box">
-      <div class="summary-value">${laborHours}h</div>
-      <div class="summary-label">Hours Logged</div>
-    </div>
-    <div class="summary-box">
-      <div class="summary-value">${reportCount}</div>
-      <div class="summary-label">Reports</div>
-    </div>
-    <div class="summary-box">
-      <div class="summary-value">${photoCount}</div>
-      <div class="summary-label">Photos</div>
-    </div>
-  </div>
-
-  ${(budgetCategories || []).length > 0 ? `
-  <h2>Budget Categories</h2>
-  <table>
-    <thead><tr><th>Category</th><th>Budgeted</th><th>Spent</th><th>Used</th></tr></thead>
-    <tbody>${catRows}</tbody>
-  </table>` : ""}
-
-  ${(expenses || []).length > 0 ? `
-  <h2>Expenses</h2>
-  <table>
-    <thead><tr><th>Description</th><th>Amount</th><th>Date</th></tr></thead>
-    <tbody>${expenseRows}</tbody>
-  </table>` : ""}
-
-  ${(jobScheduleItems || []).length > 0 ? `
-  <h2>Schedule Progress</h2>
-  ${(() => {
-    const items = jobScheduleItems as any[];
-    const total = items.length;
-    const completed = items.filter(i => i.status === "completed").length;
-    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-    const phases = new Map<string, { total: number; completed: number }>();
-    for (const item of items) {
-      const p = item.phase || "General";
-      if (!phases.has(p)) phases.set(p, { total: 0, completed: 0 });
-      const pd = phases.get(p)!;
-      pd.total++;
-      if (item.status === "completed") pd.completed++;
-    }
-    let phaseRows = "";
-    for (const [name, pd] of phases) {
-      const pp = pd.total > 0 ? Math.round((pd.completed / pd.total) * 100) : 0;
-      phaseRows += `<tr><td>${name}</td><td>${pd.completed}/${pd.total}</td><td>${pp}%</td></tr>`;
-    }
-    return `
-    <div class="summary-grid">
-      <div class="summary-box"><div class="summary-value">${total}</div><div class="summary-label">Total Tasks</div></div>
-      <div class="summary-box"><div class="summary-value">${completed}</div><div class="summary-label">Completed</div></div>
-      <div class="summary-box"><div class="summary-value">${pct}%</div><div class="summary-label">Progress</div></div>
-    </div>
-    <div class="bar-container"><div class="bar-fill" style="width: ${pct}%; background: ${pct >= 80 ? '#22C55E' : pct >= 40 ? '#F59E0B' : '#EF4444'};"></div></div>
-    <table><thead><tr><th>Phase</th><th>Tasks</th><th>Progress</th></tr></thead><tbody>${phaseRows}</tbody></table>`;
-  })()}` : ""}
-
-  <div class="footer">BuildTrack Pro · ${selectedJob.name} Budget Report · ${today}</div>
-</body></html>`;
-
-      const { uri } = await Print.printToFileAsync({ html });
-      if (Platform.OS !== "web") {
-        await shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${selectedJob.name} Budget Report` });
+      const apiBase = getApiBaseUrl();
+      const pdfUrl = `${apiBase}/api/budget-report-pdf?jobId=${selectedJob.id}&companyId=${(employee as any)?.companyId || ""}`;
+      if (Platform.OS === "web") {
+        window.open(pdfUrl, "_blank");
+      } else {
+        await Linking.openURL(pdfUrl);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (err) {
-      Alert.alert("Error", "Could not generate PDF report. Please try again.");
+    } catch (err: any) {
+      Alert.alert("Error", `Could not generate PDF report: ${err?.message || "Please try again."}`);
     } finally {
       setGeneratingPdf(false);
     }
@@ -400,60 +274,16 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     if (!selectedJob) return;
     setGeneratingPdf(true);
     try {
-      const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-      const reportRows = (jobReports || []).map((report) => {
-        let workItems: string[] = [];
-        try { workItems = JSON.parse(report.workCompleted || "[]"); } catch {}
-        const workStr = workItems.join(", ");
-        return `<tr>
-          <td>${new Date(report.reportDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</td>
-          <td>${report.crewCount}</td>
-          <td>${report.weatherCondition || "—"}</td>
-          <td style="max-width: 250px;">${workStr || "—"}</td>
-          <td>${report.notes || "—"}</td>
-        </tr>`;
-      }).join("");
-
-      const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; padding: 32px; color: #1a1a1a; font-size: 13px; }
-  h1 { font-size: 22px; margin-bottom: 4px; }
-  h2 { font-size: 16px; margin-top: 24px; margin-bottom: 10px; color: #333; border-bottom: 2px solid #D4A843; padding-bottom: 4px; }
-  .subtitle { color: #666; font-size: 13px; margin-bottom: 24px; }
-  .stat { display: inline-block; background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px 18px; margin-right: 10px; text-align: center; }
-  .stat-value { font-size: 20px; font-weight: 800; }
-  .stat-label { font-size: 11px; color: #888; }
-  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-  th { background: #f5f5f5; text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700; color: #555; border-bottom: 2px solid #ddd; }
-  td { padding: 8px 10px; border-bottom: 1px solid #eee; font-size: 11px; vertical-align: top; }
-  .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #ddd; color: #999; font-size: 10px; text-align: center; }
-  @page { margin: 20px; }
-</style></head><body>
-  <h1>${selectedJob.name} — Field Reports</h1>
-  <p class="subtitle">${selectedJob.clientName || ""} ${selectedJob.address ? "· " + selectedJob.address : ""} · Generated ${today}</p>
-
-  <div style="margin-bottom: 20px;">
-    <div class="stat"><div class="stat-value">${reportCount}</div><div class="stat-label">Reports</div></div>
-    <div class="stat"><div class="stat-value">${photoCount}</div><div class="stat-label">Photos</div></div>
-  </div>
-
-  <h2>Daily Reports</h2>
-  <table>
-    <thead><tr><th>Date</th><th>Crew</th><th>Weather</th><th>Work Completed</th><th>Notes</th></tr></thead>
-    <tbody>${reportRows}</tbody>
-  </table>
-
-  <div class="footer">BuildTrack Pro · ${selectedJob.name} Field Reports · ${today}</div>
-</body></html>`;
-
-      const { uri } = await Print.printToFileAsync({ html });
-      if (Platform.OS !== "web") {
-        await shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${selectedJob.name} Field Reports` });
+      const apiBase = getApiBaseUrl();
+      const pdfUrl = `${apiBase}/api/field-reports-pdf?jobId=${selectedJob.id}&companyId=${(employee as any)?.companyId || ""}`;
+      if (Platform.OS === "web") {
+        window.open(pdfUrl, "_blank");
+      } else {
+        await Linking.openURL(pdfUrl);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-    } catch (err) {
-      Alert.alert("Error", "Could not generate PDF report. Please try again.");
+    } catch (err: any) {
+      Alert.alert("Error", `Could not generate PDF report: ${err?.message || "Please try again."}`);
     } finally {
       setGeneratingPdf(false);
     }
