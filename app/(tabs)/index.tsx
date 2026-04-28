@@ -490,12 +490,48 @@ export default function DashboardScreen() {
   }, [crewClockEmpId, crewClockJobId, crewClockLoading, crewClockInMutation, utils, refetchClockedIn, useCustomCrewClockTime, customCrewClockTime, customCrewClockAmpm]);
 
   // Self clock state
-  const { activeEntry, optimisticClockIn, optimisticClockOut } = useClockState();
+  const { activeEntry, optimisticClockIn, optimisticClockOut, forceRefresh: clockForceRefreshSelf } = useClockState();
   const clockInMutation = trpc.clock.in.useMutation();
   const clockOutMutationSelf = trpc.clock.out.useMutation();
   const [selfClockJobId, setSelfClockJobId] = useState<number | null>(null);
   const [selfClockLoading, setSelfClockLoading] = useState(false);
   const [selfClockSuccess, setSelfClockSuccess] = useState<string | null>(null);
+
+  // Lunch break state
+  const startLunchMutation = trpc.clock.startLunch.useMutation();
+  const endLunchMutation = trpc.clock.endLunch.useMutation();
+  const [lunchLoading, setLunchLoading] = useState(false);
+  const isOnLunch = !!(activeEntry && activeEntry.lunchStartedAt);
+
+  const handleToggleLunch = useCallback(async () => {
+    if (!activeEntry || !employee?.id || lunchLoading) return;
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setLunchLoading(true);
+    try {
+      if (isOnLunch) {
+        const result = await endLunchMutation.mutateAsync({ entryId: activeEntry.id, employeeId: employee.id });
+        if ((result as any)?.error) {
+          Alert.alert("Error", (result as any).error);
+        } else {
+          setSelfClockSuccess(`Lunch ended (${(result as any)?.elapsedMinutes || 0} min)`);
+          if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setTimeout(() => setSelfClockSuccess(null), 4000);
+        }
+      } else {
+        const result = await startLunchMutation.mutateAsync({ entryId: activeEntry.id, employeeId: employee.id });
+        if ((result as any)?.error) {
+          Alert.alert("Error", (result as any).error);
+        } else {
+          setSelfClockSuccess("Lunch started!");
+          if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setTimeout(() => setSelfClockSuccess(null), 4000);
+        }
+      }
+      await clockForceRefreshSelf();
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to toggle lunch.");
+    } finally { setLunchLoading(false); }
+  }, [activeEntry, employee?.id, lunchLoading, isOnLunch, startLunchMutation, endLunchMutation, clockForceRefreshSelf]);
 
   const handleSelfClockIn = useCallback(async () => {
     if (!employee?.id || !selfClockJobId) {
@@ -690,6 +726,36 @@ export default function DashboardScreen() {
                 <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, marginBottom: 16 }}>
                   {activeJobForEntry?.name || "Unknown Job"} · Since {formatTime12(activeEntry.clockIn)}
                 </Text>
+                {/* Lunch info */}
+                {(activeEntry.lunchMinutes || 0) > 0 && !isOnLunch && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <MaterialIcons name="restaurant" size={14} color={colors.muted} />
+                    <Text style={{ fontSize: 13, color: colors.muted, fontWeight: "600" }}>Lunch: {activeEntry.lunchMinutes} min</Text>
+                  </View>
+                )}
+                {/* Lunch Break Button */}
+                <TouchableOpacity
+                  style={{
+                    borderRadius: 14, padding: 14, alignItems: "center", width: "100%",
+                    backgroundColor: isOnLunch ? "#F59E0B" : "#F59E0B22",
+                    borderWidth: isOnLunch ? 0 : 1.5,
+                    borderColor: "#F59E0B",
+                    marginBottom: 10,
+                    opacity: lunchLoading ? 0.7 : 1,
+                    flexDirection: "row", justifyContent: "center", gap: 8,
+                  }}
+                  onPress={handleToggleLunch}
+                  disabled={lunchLoading}
+                >
+                  {lunchLoading ? <ActivityIndicator color={isOnLunch ? "#fff" : "#F59E0B"} /> : (
+                    <>
+                      <MaterialIcons name="restaurant" size={18} color={isOnLunch ? "#fff" : "#F59E0B"} />
+                      <Text style={{ color: isOnLunch ? "#fff" : "#F59E0B", fontWeight: "800", fontSize: 15 }}>
+                        {isOnLunch ? "End Lunch Break" : "Start Lunch Break"}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={{ borderRadius: 14, padding: 16, alignItems: "center", width: "100%", backgroundColor: colors.error, opacity: selfClockLoading ? 0.7 : 1 }}
                   onPress={handleSelfClockOut}
@@ -878,6 +944,36 @@ export default function DashboardScreen() {
                 <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, marginBottom: 16 }}>
                   {activeJobForEntry?.name || "Unknown Job"} · Since {formatTime12(activeEntry.clockIn)}
                 </Text>
+                {/* Lunch info */}
+                {(activeEntry.lunchMinutes || 0) > 0 && !isOnLunch && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <MaterialIcons name="restaurant" size={14} color={colors.muted} />
+                    <Text style={{ fontSize: 13, color: colors.muted, fontWeight: "600" }}>Lunch: {activeEntry.lunchMinutes} min</Text>
+                  </View>
+                )}
+                {/* Lunch Break Button */}
+                <TouchableOpacity
+                  style={{
+                    borderRadius: 14, padding: 14, alignItems: "center", width: "100%",
+                    backgroundColor: isOnLunch ? "#F59E0B" : "#F59E0B22",
+                    borderWidth: isOnLunch ? 0 : 1.5,
+                    borderColor: "#F59E0B",
+                    marginBottom: 10,
+                    opacity: lunchLoading ? 0.7 : 1,
+                    flexDirection: "row", justifyContent: "center", gap: 8,
+                  }}
+                  onPress={handleToggleLunch}
+                  disabled={lunchLoading}
+                >
+                  {lunchLoading ? <ActivityIndicator color={isOnLunch ? "#fff" : "#F59E0B"} /> : (
+                    <>
+                      <MaterialIcons name="restaurant" size={18} color={isOnLunch ? "#fff" : "#F59E0B"} />
+                      <Text style={{ color: isOnLunch ? "#fff" : "#F59E0B", fontWeight: "800", fontSize: 15 }}>
+                        {isOnLunch ? "End Lunch Break" : "Start Lunch Break"}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={{ borderRadius: 14, padding: 16, alignItems: "center", width: "100%", backgroundColor: colors.error, opacity: selfClockLoading ? 0.7 : 1 }}
                   onPress={handleSelfClockOut}
@@ -1108,6 +1204,18 @@ export default function DashboardScreen() {
                     <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push(`/timecard/${entry.employeeId}` as any)} activeOpacity={0.6}>
                       <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>{empName}</Text>
                       <Text style={{ fontSize: 12, color: colors.muted }}>{jobName} • In: {timeStr}</Text>
+                      {entry.lunchStartedAt && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                          <MaterialIcons name="restaurant" size={11} color="#F59E0B" />
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#F59E0B" }}>On Lunch</Text>
+                        </View>
+                      )}
+                      {!entry.lunchStartedAt && (entry.lunchMinutes || 0) > 0 && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                          <MaterialIcons name="restaurant" size={11} color={colors.muted} />
+                          <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>Lunch: {entry.lunchMinutes}m</Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
                     {isEditing ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>

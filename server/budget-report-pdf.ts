@@ -75,7 +75,11 @@ function checkPageBreak(doc: PDFKit.PDFDocument, y: number, needed: number = 60)
 }
 
 // ─── Main Generator ──────────────────────────────────────────────────────
-export async function generateBudgetReportPDF(jobId: number, companyId?: number): Promise<Buffer> {
+export async function generateBudgetReportPDF(
+  jobId: number,
+  companyId?: number,
+  opts?: { startDate?: string; endDate?: string; billingRate?: number }
+): Promise<Buffer> {
   // Fetch all data
   const job = await db.getJobById(jobId);
   if (!job) throw new Error(`Job #${jobId} not found`);
@@ -86,7 +90,17 @@ export async function generateBudgetReportPDF(jobId: number, companyId?: number)
   const budgetCategories = await db.getBudgetCategoriesForJob(jobId);
   const expenses = await db.getExpensesForJob(jobId);
   const changeOrders = await db.getChangeOrdersForJob(jobId);
-  const clockEntries = await db.getClockEntriesForJob(jobId);
+  let clockEntries = await db.getClockEntriesForJob(jobId);
+
+  // Filter clock entries by date range if provided
+  if (opts?.startDate || opts?.endDate) {
+    const rangeStart = opts.startDate ? new Date(opts.startDate + "T00:00:00") : new Date(0);
+    const rangeEnd = opts.endDate ? new Date(opts.endDate + "T23:59:59") : new Date();
+    clockEntries = clockEntries.filter(e => {
+      const d = new Date(e.clockIn);
+      return d >= rangeStart && d <= rangeEnd;
+    });
+  }
   const scheduleItems = await db.getJobSchedule(jobId);
   const auditLog = await db.getBudgetAuditLog(jobId);
   const allEmployees = await db.getAllEmployees();
@@ -144,7 +158,7 @@ export async function generateBudgetReportPDF(jobId: number, companyId?: number)
 
   // Hourly job calculations
   const isHourly = (job as any).billingType === "hourly";
-  const hourlyRate = parseFloat((job as any).hourlyRate || "55");
+  const hourlyRate = opts?.billingRate && opts.billingRate > 0 ? opts.billingRate : parseFloat((job as any).hourlyRate || "55");
   const hourlyRevenue = isHourly ? (totalLaborMinutes / 60) * hourlyRate : 0;
   const grossMargin = isHourly ? hourlyRevenue - totalLaborCost : effectiveBudget - totalSpent;
 
@@ -190,7 +204,14 @@ export async function generateBudgetReportPDF(jobId: number, companyId?: number)
   if (subtitle) {
     doc.fontSize(9).fillColor("#AAAAAA").text(subtitle, textX, 64, { width: pageWidth - (textX - 40) });
   }
-  doc.fontSize(8).fillColor("#888888").text(`Generated ${fmtDate(new Date())}`, textX, 80, { width: pageWidth - (textX - 40) });
+  let genLine = `Generated ${fmtDate(new Date())}`;
+  if (opts?.startDate || opts?.endDate) {
+    genLine += ` | Period: ${opts.startDate || "start"} to ${opts.endDate || "now"}`;
+  }
+  if (opts?.billingRate && opts.billingRate > 0) {
+    genLine += ` | Billing Rate: $${opts.billingRate}/hr`;
+  }
+  doc.fontSize(8).fillColor("#888888").text(genLine, textX, 80, { width: pageWidth - (textX - 40) });
 
   // Company name on right
   doc.font("Helvetica-Bold").fontSize(10).fillColor(brandGold);

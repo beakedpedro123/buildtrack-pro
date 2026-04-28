@@ -311,14 +311,18 @@ async function startServer() {
   // Budget Report PDF — comprehensive budget report for any job
   app.get("/api/budget-report-pdf", async (req: Request, res: Response) => {
     try {
-      const { jobId, companyId: cmpId } = req.query;
+      const { jobId, companyId: cmpId, startDate, endDate, billingRate } = req.query;
       if (!jobId) {
         res.status(400).json({ error: "jobId query param required" });
         return;
       }
       const { generateBudgetReportPDF } = await import("../budget-report-pdf");
       const compId = cmpId ? parseInt(cmpId as string) : undefined;
-      const pdfBuffer = await generateBudgetReportPDF(parseInt(jobId as string), compId);
+      const opts: any = {};
+      if (startDate) opts.startDate = startDate as string;
+      if (endDate) opts.endDate = endDate as string;
+      if (billingRate) opts.billingRate = parseFloat(billingRate as string);
+      const pdfBuffer = await generateBudgetReportPDF(parseInt(jobId as string), compId, opts);
       const filename = `budget_report_${jobId}_${new Date().toISOString().slice(0, 10)}.pdf`;
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);

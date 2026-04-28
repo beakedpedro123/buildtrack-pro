@@ -368,13 +368,37 @@ const clockRouter = router({
     return db.deleteClockEntry(input.entryId, input.deletedBy, input.reason);
   }),
   // Set lunch minutes on a clock entry (does NOT adjust clock-in time)
+  // Managers can set lunch on any entry; laborers can set lunch on their OWN active entry
   setLunch: publicProcedure.input(z.object({
     entryId: z.number(),
     lunchMinutes: z.number().min(0).max(120),
     adjustedBy: z.number(),
   })).mutation(async ({ input }) => {
-    await assertRole(input.adjustedBy, ["owner", "office_manager", "logistics", "foreman"], "set lunch time");
+    const requester = await db.getEmployeeById(input.adjustedBy);
+    if (!requester) throw new TRPCError({ code: "FORBIDDEN", message: "Employee not found" });
+    const isManager = ["owner", "office_manager", "logistics", "foreman"].includes(requester.role);
+    if (!isManager) {
+      // Laborers can only set lunch on their own entries
+      const entry = await db.getClockEntryById(input.entryId);
+      if (!entry || entry.employeeId !== input.adjustedBy) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You can only manage lunch on your own time entries." });
+      }
+    }
     return db.setLunchMinutes(input.entryId, input.lunchMinutes, input.adjustedBy);
+  }),
+  // Start lunch break — records the timestamp when lunch started on the active entry
+  startLunch: publicProcedure.input(z.object({
+    entryId: z.number(),
+    employeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    return db.startLunchBreak(input.entryId, input.employeeId);
+  }),
+  // End lunch break — calculates elapsed lunch minutes and adds to lunchMinutes
+  endLunch: publicProcedure.input(z.object({
+    entryId: z.number(),
+    employeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    return db.endLunchBreak(input.entryId, input.employeeId);
   }),
 });
 

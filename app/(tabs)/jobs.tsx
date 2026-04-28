@@ -65,6 +65,14 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [generatingCompletionPdf, setGeneratingCompletionPdf] = useState(false);
 
+  // Budget report config
+  const [showBudgetReportConfig, setShowBudgetReportConfig] = useState(false);
+  const [budgetDateRange, setBudgetDateRange] = useState<"1pay" | "2pay" | "month" | "custom">("month");
+  const [budgetCustomStart, setBudgetCustomStart] = useState("");
+  const [budgetCustomEnd, setBudgetCustomEnd] = useState("");
+  const [budgetBillingRate, setBudgetBillingRate] = useState<number | null>(null);
+  const [budgetCustomRate, setBudgetCustomRate] = useState("");
+
   // New job form
   const [jobName, setJobName] = useState("");
   const [jobAddress, setJobAddress] = useState("");
@@ -249,13 +257,52 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     }
   };
 
+  // Compute date range for budget report
+  const getBudgetDateParams = () => {
+    const now = new Date();
+    let startDate = "";
+    let endDate = "";
+    if (budgetDateRange === "1pay") {
+      // Last 2 weeks
+      const end = new Date(now);
+      const start = new Date(now);
+      start.setDate(start.getDate() - 14);
+      startDate = start.toISOString().slice(0, 10);
+      endDate = end.toISOString().slice(0, 10);
+    } else if (budgetDateRange === "2pay") {
+      // Last 4 weeks
+      const end = new Date(now);
+      const start = new Date(now);
+      start.setDate(start.getDate() - 28);
+      startDate = start.toISOString().slice(0, 10);
+      endDate = end.toISOString().slice(0, 10);
+    } else if (budgetDateRange === "month") {
+      // Current month
+      startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      endDate = now.toISOString().slice(0, 10);
+    } else if (budgetDateRange === "custom") {
+      startDate = budgetCustomStart;
+      endDate = budgetCustomEnd;
+    }
+    return { startDate, endDate };
+  };
+
   // Generate PDF Budget Report — uses server-side PDFKit for detailed report with logo
   const handleGenerateBudgetPdf = async () => {
     if (!selectedJob) return;
+    const { startDate, endDate } = getBudgetDateParams();
+    if (budgetDateRange === "custom" && (!startDate || !endDate)) {
+      Alert.alert("Date Required", "Please enter both start and end dates for custom range.");
+      return;
+    }
+    const effectiveRate = budgetBillingRate === -1 ? (parseInt(budgetCustomRate) || 0) : budgetBillingRate;
     setGeneratingPdf(true);
     try {
       const apiBase = getApiBaseUrl();
-      const pdfUrl = `${apiBase}/api/budget-report-pdf?jobId=${selectedJob.id}&companyId=${(employee as any)?.companyId || ""}`;
+      let pdfUrl = `${apiBase}/api/budget-report-pdf?jobId=${selectedJob.id}&companyId=${(employee as any)?.companyId || ""}`;
+      if (startDate) pdfUrl += `&startDate=${encodeURIComponent(startDate)}`;
+      if (endDate) pdfUrl += `&endDate=${encodeURIComponent(endDate)}`;
+      if (effectiveRate && effectiveRate > 0) pdfUrl += `&billingRate=${effectiveRate}`;
       if (Platform.OS === "web") {
         window.open(pdfUrl, "_blank");
       } else {
@@ -266,6 +313,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
       Alert.alert("Error", `Could not generate PDF report: ${err?.message || "Please try again."}`);
     } finally {
       setGeneratingPdf(false);
+      setShowBudgetReportConfig(false);
     }
   };
 
@@ -1056,8 +1104,13 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                     <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 12 }}>
                       Generate professional PDF reports to share with clients, accountants, or your team.
                     </Text>
-                    <TouchableOpacity style={styles.pdfBtn} onPress={handleGenerateBudgetPdf} disabled={generatingPdf}>
-                      {generatingPdf ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Generate Budget Report PDF</Text>}
+                    <TouchableOpacity style={styles.pdfBtn} onPress={() => setShowBudgetReportConfig(true)} disabled={generatingPdf}>
+                      {generatingPdf ? <ActivityIndicator color="#fff" /> : (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <MaterialIcons name="date-range" size={18} color="#fff" />
+                          <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Budget Report PDF</Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.pdfBtn, { backgroundColor: colors.primary, marginTop: 8 }]} onPress={handleGenerateReportsPdf} disabled={generatingPdf}>
                       {generatingPdf ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Generate Field Reports PDF</Text>}
@@ -1317,6 +1370,124 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
           </KeyboardAvoidingView>
         </Modal>
       )}
+
+      {/* Budget Report Config Modal */}
+      <Modal visible={showBudgetReportConfig} animationType="slide" presentationStyle="formSheet">
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <TouchableOpacity onPress={() => setShowBudgetReportConfig(false)}>
+              <Text style={{ fontSize: 16, color: colors.primary, fontWeight: "600" }}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Budget Report</Text>
+            <View style={{ width: 60 }} />
+          </View>
+          <ScrollView style={{ flex: 1, padding: 20 }}>
+            {/* Date Range */}
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Date Range</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+              {[
+                { key: "1pay" as const, label: "1 Payroll (2 Weeks)" },
+                { key: "2pay" as const, label: "2 Payrolls (4 Weeks)" },
+                { key: "month" as const, label: "Full Month" },
+                { key: "custom" as const, label: "Custom Range" },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.key}
+                  onPress={() => setBudgetDateRange(opt.key)}
+                  style={{
+                    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
+                    backgroundColor: budgetDateRange === opt.key ? colors.primary : colors.surface,
+                    borderWidth: 1, borderColor: budgetDateRange === opt.key ? colors.primary : colors.border,
+                  }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: budgetDateRange === opt.key ? "#fff" : colors.foreground }}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Custom date inputs */}
+            {budgetDateRange === "custom" && (
+              <View style={{ marginBottom: 16, gap: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted, width: 50 }}>From:</Text>
+                  <TextInput
+                    value={budgetCustomStart}
+                    onChangeText={setBudgetCustomStart}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.muted}
+                    style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.foreground, backgroundColor: colors.surface }}
+                  />
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted, width: 50 }}>To:</Text>
+                  <TextInput
+                    value={budgetCustomEnd}
+                    onChangeText={setBudgetCustomEnd}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.muted}
+                    style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.foreground, backgroundColor: colors.surface }}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* Billing Rate */}
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 8, marginTop: 8 }}>Billing Rate (per hour)</Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 12 }}>Select a rate to override the default job billing rate, or leave blank to use the job's configured rate.</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+              {[null, 45, 50, 55, 60, -1].map((rate) => {
+                const isSelected = budgetBillingRate === rate;
+                const label = rate === null ? "Job Default" : rate === -1 ? "Custom" : `$${rate}/hr`;
+                return (
+                  <TouchableOpacity
+                    key={String(rate)}
+                    onPress={() => setBudgetBillingRate(rate)}
+                    style={{
+                      paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
+                      backgroundColor: isSelected ? "#F59E0B" : colors.surface,
+                      borderWidth: 1, borderColor: isSelected ? "#F59E0B" : colors.border,
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: isSelected ? "#fff" : colors.foreground }}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Custom rate input */}
+            {budgetBillingRate === -1 && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted }}>$</Text>
+                <TextInput
+                  value={budgetCustomRate}
+                  onChangeText={setBudgetCustomRate}
+                  placeholder="Enter rate"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="numeric"
+                  style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.foreground, backgroundColor: colors.surface }}
+                />
+                <Text style={{ fontSize: 13, color: colors.muted }}>/hr</Text>
+              </View>
+            )}
+
+            {/* Generate button */}
+            <TouchableOpacity
+              style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 16, opacity: generatingPdf ? 0.7 : 1 }}
+              onPress={handleGenerateBudgetPdf}
+              disabled={generatingPdf}
+            >
+              {generatingPdf ? <ActivityIndicator color="#fff" /> : (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <MaterialIcons name="picture-as-pdf" size={20} color="#fff" />
+                  <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Generate Budget Report</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <View style={{ height: 60 }} />
+          </ScrollView>
+        </View>
+      </Modal>
     </ImageBackground>
     </JWrapper>
   );

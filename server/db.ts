@@ -512,6 +512,8 @@ export async function getClockedInEmployees(companyId?: number) {
       jobName: jobs.name,
       clockInLatitude: clockEntries.clockInLatitude,
       clockInLongitude: clockEntries.clockInLongitude,
+      lunchMinutes: clockEntries.lunchMinutes,
+      lunchStartedAt: clockEntries.lunchStartedAt,
     })
     .from(clockEntries)
     .leftJoin(employees, eq(clockEntries.employeeId, employees.id))
@@ -1743,6 +1745,50 @@ export async function setLunchMinutes(entryId: number, lunchMinutes: number, adj
     reason: lunchMinutes > 0 ? `Lunch set to ${lunchMinutes} min` : "Lunch removed",
   });
   return { success: true, lunchMinutes };
+}
+
+// ─── Clock Entry Helpers ──────────────────────────────────────────────────────────────────────
+export async function getClockEntryById(entryId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+  const [entry] = await dbConn.select().from(clockEntries).where(eq(clockEntries.id, entryId));
+  return entry || null;
+}
+
+export async function startLunchBreak(entryId: number, employeeId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+  const [entry] = await dbConn.select().from(clockEntries).where(eq(clockEntries.id, entryId));
+  if (!entry) return { error: "Entry not found" };
+  if (entry.employeeId !== employeeId) return { error: "Not your entry" };
+  if (!entry.clockOut === false && entry.clockOut !== null) return { error: "Entry already clocked out" };
+  if (entry.lunchStartedAt) return { error: "Lunch already started" };
+  await dbConn.update(clockEntries).set({ lunchStartedAt: new Date() }).where(eq(clockEntries.id, entryId));
+  return { success: true, lunchStartedAt: new Date().toISOString() };
+}
+
+export async function endLunchBreak(entryId: number, employeeId: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+  const [entry] = await dbConn.select().from(clockEntries).where(eq(clockEntries.id, entryId));
+  if (!entry) return { error: "Entry not found" };
+  if (entry.employeeId !== employeeId) return { error: "Not your entry" };
+  if (!entry.lunchStartedAt) return { error: "Lunch not started" };
+  const lunchStartTime = new Date(entry.lunchStartedAt).getTime();
+  const now = Date.now();
+  const elapsedMinutes = Math.max(1, Math.round((now - lunchStartTime) / 60000));
+  const newLunchMinutes = Math.min(120, (entry.lunchMinutes || 0) + elapsedMinutes);
+  await dbConn.update(clockEntries).set({ lunchMinutes: newLunchMinutes, lunchStartedAt: null }).where(eq(clockEntries.id, entryId));
+  // Log the adjustment
+  await dbConn.insert(timeAdjustments).values({
+    clockEntryId: entryId,
+    adjustedBy: employeeId,
+    fieldChanged: "lunchMinutes",
+    oldValue: String(entry.lunchMinutes || 0),
+    newValue: String(newLunchMinutes),
+    reason: `Lunch break ended (${elapsedMinutes} min)`,
+  });
+  return { success: true, lunchMinutes: newLunchMinutes, elapsedMinutes };
 }
 
 // ─── Messages / Notes ────────────────────────────────────────────────────────────────────────

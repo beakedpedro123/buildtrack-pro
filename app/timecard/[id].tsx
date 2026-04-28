@@ -149,6 +149,12 @@ export default function TimecardScreen() {
     },
   });
 
+  // ── Set Lunch Mutation ──
+  const setLunchMut = trpc.clock.setLunch.useMutation({
+    onSuccess: () => { invalidateAll(); },
+    onError: (err) => { Alert.alert("Error", err.message); },
+  });
+
   // ── Delete Entry Mutation ──
   const deleteEntryMutation = trpc.clock.deleteEntry.useMutation({
     onSuccess: () => {
@@ -571,6 +577,53 @@ export default function TimecardScreen() {
                       </View>
                     </View>
                   </TouchableOpacity>
+
+                  {/* Lunch display & management */}
+                  {(entry.lunchMinutes > 0 || isManagement) && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                      {entry.lunchMinutes > 0 && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F59E0B15", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                          <MaterialIcons name="restaurant" size={12} color="#F59E0B" />
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#F59E0B" }}>Lunch: {entry.lunchMinutes}m</Text>
+                        </View>
+                      )}
+                      {isManagement && entry.lunchMinutes > 0 && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            Alert.alert("Remove Lunch", `Remove ${entry.lunchMinutes}m lunch from this entry?`, [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Remove", style: "destructive", onPress: async () => {
+                                try {
+                                  await setLunchMut.mutateAsync({ entryId: entry.id, lunchMinutes: 0, adjustedBy: currentUser?.id || 0 });
+                                  refetch();
+                                  if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                } catch (err: any) { Alert.alert("Error", err?.message || "Failed"); }
+                              }},
+                            ]);
+                          }}
+                          style={{ paddingHorizontal: 6, paddingVertical: 3 }}
+                        >
+                          <Text style={{ fontSize: 11, color: colors.error, fontWeight: "600" }}>Remove</Text>
+                        </TouchableOpacity>
+                      )}
+                      {isManagement && entry.lunchMinutes === 0 && entry.clockOut && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            Alert.alert("Add Lunch", "Add 30 minute lunch deduction?", [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "15 min", onPress: async () => { try { await setLunchMut.mutateAsync({ entryId: entry.id, lunchMinutes: 15, adjustedBy: currentUser?.id || 0 }); refetch(); } catch {} }},
+                              { text: "30 min", onPress: async () => { try { await setLunchMut.mutateAsync({ entryId: entry.id, lunchMinutes: 30, adjustedBy: currentUser?.id || 0 }); refetch(); } catch {} }},
+                              { text: "45 min", onPress: async () => { try { await setLunchMut.mutateAsync({ entryId: entry.id, lunchMinutes: 45, adjustedBy: currentUser?.id || 0 }); refetch(); } catch {} }},
+                            ]);
+                          }}
+                          style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F59E0B15", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: "#F59E0B40" }}
+                        >
+                          <MaterialIcons name="restaurant" size={12} color="#F59E0B" />
+                          <Text style={{ fontSize: 11, fontWeight: "600", color: "#F59E0B" }}>Add Lunch</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
 
                   {/* Delete button for management */}
                   {isManagement && (

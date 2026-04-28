@@ -2609,3 +2609,13 @@
 - [x] Show each employee's daily cost alongside their hours + Earned column for hourly jobs
 - [x] Show daily total hours and total cost after the employee list for each day (DAY TOTAL row)
 - [x] Filled blank space: date header (gold), per-employee rows, DAY TOTAL — report now 10 pages
+
+## Phase 132: Date Range Picker, Custom Billing Rates, Lunch Clock for All Roles
+- [x] Budget report date range picker: 1 payroll (2 weeks), 2 payrolls (4 weeks), full month, custom date range
+- [x] Server-side budget report PDF accepts startDate/endDate query params and filters clock entries
+- [x] Custom billing rate option: presets at $45, $50, $55, $60/hr plus custom amount field
+- [x] Billing rate passed to budget report PDF generation
+- [x] Lunch clock button for ALL accounts (laborer, foreman, owner) — "Start Lunch" / "End Lunch" when clocked in
+- [x] Workers self-service lunch clocking from the clock/home tab
+- [x] Owner lunch management for historical entries (add/remove lunches from past clock entries)
+- [x] Owner can manage lunches on entries that predate the lunchMinutes feature

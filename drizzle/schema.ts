@@ -132,6 +132,7 @@ export const clockEntries = mysqlTable("clockEntries", {
   isOfflineEntry: boolean("isOfflineEntry").default(false).notNull(),
   localId: varchar("localId", { length: 64 }),
   lunchMinutes: int("lunchMinutes").default(0).notNull(),
+  lunchStartedAt: timestamp("lunchStartedAt"),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

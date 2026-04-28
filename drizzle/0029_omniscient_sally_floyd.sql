@@ -1,0 +1,1 @@
+ALTER TABLE `clockEntries` ADD `lunchStartedAt` timestamp;

@@ -31,6 +31,8 @@ export interface ActiveClockEntry {
   jobId: number;
   clockIn: string;
   clockOut: string | null;
+  lunchMinutes?: number;
+  lunchStartedAt?: string | null;
 }
 
 interface ClockStateContextValue {
