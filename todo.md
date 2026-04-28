@@ -2603,3 +2603,9 @@
 - [x] Payroll PDF already comprehensive (875 lines) with employee breakdown, daily hours, lunch, overtime
 - [x] Field reports PDF now server-side (8 pages) with daily reports, safety meetings, photos, weather
 - [x] Job completion PDF already comprehensive (594 lines) with change orders, expenses, schedule, reports
+
+## Phase 131: Budget Report Daily Hours Log Per-Employee Breakdown
+- [x] Show each employee's name and individual hours per day in the Daily Hours Log section
+- [x] Show each employee's daily cost alongside their hours + Earned column for hourly jobs
+- [x] Show daily total hours and total cost after the employee list for each day (DAY TOTAL row)
+- [x] Filled blank space: date header (gold), per-employee rows, DAY TOTAL — report now 10 pages

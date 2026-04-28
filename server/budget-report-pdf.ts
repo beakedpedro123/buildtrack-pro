@@ -357,39 +357,86 @@ export async function generateBudgetReportPDF(jobId: number, companyId?: number)
     doc.restore();
     y += 26;
 
-    // Daily hours breakdown (top 10 days)
+    // Daily hours breakdown with per-employee detail
+    // Build day → employee breakdown map
+    const dayEmployeeMap = new Map<string, { empId: number; name: string; mins: number; rate: number; cost: number }[]>();
     const allDays = new Map<string, number>();
     for (const emp of empEntries) {
       for (const [day, mins] of emp.dailyEntries) {
         allDays.set(day, (allDays.get(day) || 0) + mins);
+        if (!dayEmployeeMap.has(day)) dayEmployeeMap.set(day, []);
+        const cost = (mins / 60) * emp.rate;
+        dayEmployeeMap.get(day)!.push({ empId: 0, name: emp.name, mins, rate: emp.rate, cost });
       }
     }
-    const sortedDays = [...allDays.entries()].sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime()).slice(0, 15);
+    const sortedDays = [...allDays.entries()].sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime()).slice(0, 30);
 
     if (sortedDays.length > 0) {
-      y = checkPageBreak(doc, y, 60);
-      doc.font("Helvetica-Bold").fontSize(9).fillColor(COLORS.text);
-      doc.text("Daily Hours Log (Recent):", 42, y, { width: pageWidth });
-      y += 14;
+      y = checkPageBreak(doc, y, 80);
+      y = drawSectionHeader(doc, "Daily Hours Log (Per Employee)", y, brandGold, pageWidth);
 
-      const dayCols = [
-        { text: "Date", x: 42, width: 100 },
-        { text: "Total Hours", x: 144, width: 80, align: "right" as const },
-        { text: "Est. Cost", x: 226, width: 80, align: "right" as const },
-      ];
-      y = drawTableHeader(doc, dayCols, y, pageWidth);
+      for (let di = 0; di < sortedDays.length; di++) {
+        const [day, totalMins] = sortedDays[di];
+        const dayEmps = dayEmployeeMap.get(day) || [];
+        // Need space for date header + employees + total row
+        y = checkPageBreak(doc, y, 20 + dayEmps.length * 14 + 20);
 
-      for (let i = 0; i < sortedDays.length; i++) {
-        y = checkPageBreak(doc, y);
-        const [day, mins] = sortedDays[i];
-        const avgRate = totalLaborMinutes > 0 ? totalLaborCost / (totalLaborMinutes / 60) : 0;
-        y = drawTableRow(doc, [
-          { text: day, x: 42, width: 100 },
-          { text: `${fmtHours(mins)}h`, x: 144, width: 80, align: "right" },
-          { text: fmtMoney((mins / 60) * avgRate), x: 226, width: 80, align: "right" },
-        ], y, i % 2 === 0 ? "#F9F9F9" : undefined);
+        // Date header row (dark background)
+        doc.save();
+        doc.rect(40, y - 2, pageWidth, 18).fill(COLORS.darkBg);
+        doc.font("Helvetica-Bold").fontSize(8).fillColor(brandGold);
+        doc.text(day, 46, y + 1, { width: 120 });
+        doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.white);
+        doc.text(`${dayEmps.length} worker${dayEmps.length !== 1 ? "s" : ""}`, 170, y + 1, { width: 80 });
+        const totalDayCost = dayEmps.reduce((s, e) => s + e.cost, 0);
+        doc.text(`${fmtHours(totalMins)}h`, 350, y + 1, { width: 80, align: "right" });
+        doc.text(fmtMoney(totalDayCost), 440, y + 1, { width: 90, align: "right" });
+        doc.restore();
+        y += 20;
+
+        // Column headers for this day's employees
+        const empDayCols = [
+          { text: "Employee", x: 56, width: 160 },
+          { text: "Rate", x: 220, width: 70, align: "right" as const },
+          { text: "Hours", x: 294, width: 70, align: "right" as const },
+          { text: "Earned", x: 368, width: 70, align: "right" as const },
+          { text: "Cost to Co.", x: 440, width: 90, align: "right" as const },
+        ];
+        y = drawTableHeader(doc, empDayCols, y, pageWidth);
+
+        // Each employee who worked that day
+        const sortedDayEmps = dayEmps.sort((a, b) => b.mins - a.mins);
+        for (let ei = 0; ei < sortedDayEmps.length; ei++) {
+          y = checkPageBreak(doc, y);
+          const e = sortedDayEmps[ei];
+          const earned = (e.mins / 60) * hourlyRate; // what the company bills for this employee's time
+          y = drawTableRow(doc, [
+            { text: `  ${e.name}`, x: 56, width: 160 },
+            { text: e.rate > 0 ? `$${e.rate.toFixed(2)}/hr` : "—", x: 220, width: 70, align: "right" },
+            { text: `${fmtHours(e.mins)}h`, x: 294, width: 70, align: "right" },
+            { text: isHourly ? fmtMoney(earned) : "—", x: 368, width: 70, align: "right", color: COLORS.success },
+            { text: fmtMoney(e.cost), x: 440, width: 90, align: "right" },
+          ], y, ei % 2 === 0 ? "#FAFAFA" : undefined);
+        }
+
+        // Daily total row
+        y += 2;
+        doc.save();
+        doc.rect(40, y - 2, pageWidth, 16).fill("#F0F0F0");
+        doc.font("Helvetica-Bold").fontSize(7).fillColor(COLORS.text);
+        doc.text("DAY TOTAL", 56, y + 1, { width: 160 });
+        doc.text(`${fmtHours(totalMins)}h`, 294, y + 1, { width: 70, align: "right" });
+        if (isHourly) {
+          const dayRevenue = (totalMins / 60) * hourlyRate;
+          doc.fillColor(COLORS.success);
+          doc.text(fmtMoney(dayRevenue), 368, y + 1, { width: 70, align: "right" });
+        }
+        doc.fillColor(COLORS.text);
+        doc.text(fmtMoney(totalDayCost), 440, y + 1, { width: 90, align: "right" });
+        doc.restore();
+        y += 22;
       }
-      y += 10;
+      y += 6;
     }
   }
 
