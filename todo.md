@@ -2746,3 +2746,6 @@
 - [x] Ensure all flows work end-to-end (clock, reports, jobs, budget, goals, meetings, Pivot)
 - [x] Fix any broken onPress handlers or empty states
 - [x] Verify role-based access is correct across all screens
+
+## Phase 144: Pivot FAB Tap Fix
+- [x] Fix Pivot FAB: tapping should open chat, dragging should move it (currently only drag works)

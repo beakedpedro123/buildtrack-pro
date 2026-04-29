@@ -459,7 +459,14 @@ export function PivotChat() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, []);
 
+  const tapGesture = Gesture.Tap()
+    .onEnd(() => {
+      runOnJS(handleFabTap)();
+    })
+    .runOnJS(false);
+
   const panGesture = Gesture.Pan()
+    .minDistance(10)
     .onStart(() => {
       isDragging.value = true;
       dragDistance.value = 0;
@@ -473,14 +480,11 @@ export function PivotChat() {
     })
     .onEnd(() => {
       isDragging.value = false;
-      // If barely moved, treat as tap
-      if (dragDistance.value < 10) {
-        runOnJS(handleFabTap)();
-      } else {
-        runOnJS(snapToEdge)(fabX.value, fabY.value);
-      }
+      runOnJS(snapToEdge)(fabX.value, fabY.value);
     })
     .runOnJS(false);
+
+  const composedGesture = Gesture.Exclusive(panGesture, tapGesture);
 
   const fabAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: fabX.value }, { translateY: fabY.value }],
@@ -997,7 +1001,7 @@ export function PivotChat() {
   return (
     <>
       {/* ─── Draggable Premium FAB ─── */}
-      <GestureDetector gesture={panGesture}>
+      <GestureDetector gesture={composedGesture}>
         <Animated.View
           style={[
             styles.fabDraggable,
