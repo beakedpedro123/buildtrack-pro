@@ -2738,3 +2738,11 @@
 - [x] Market research: pricing analysis of competing apps
 - [x] Honest assessment: BuildTrack Pro competitive position and market potential
 - [x] Marketing strategy recommendations
+
+## Phase 143: Subscription UI + Marketing Connection + Full Polish
+- [x] Build payment/subscription UI in the mobile app (plan selection, checkout, manage subscription)
+- [x] Connect marketing site signups to multi-tenant server (new signups create company + trial)
+- [x] Full polish pass: review ALL screens for dead ends, broken buttons, missing feedback
+- [x] Ensure all flows work end-to-end (clock, reports, jobs, budget, goals, meetings, Pivot)
+- [x] Fix any broken onPress handlers or empty states
+- [x] Verify role-based access is correct across all screens

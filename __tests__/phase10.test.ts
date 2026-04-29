@@ -19,18 +19,9 @@ describe("Phase 10 — QuickBooks Removal & PDF Reports", () => {
     expect(jobsContent).not.toContain("'estimates'");
   });
 
-  it("should import expo-print for PDF generation", () => {
-    expect(jobsContent).toContain("expo-print");
-  });
-
-  it("should import expo-sharing for sharing PDFs", () => {
-    expect(jobsContent).toContain("expo-sharing");
-  });
-
-  it("should have a budget PDF generation function", () => {
+  it("should have a budget PDF generation function (server-side)", () => {
     expect(jobsContent).toContain("handleGenerateBudgetPdf");
-    expect(jobsContent).toContain("printToFileAsync");
-    expect(jobsContent).toContain("shareAsync");
+    expect(jobsContent).toContain("budget-report-pdf");
   });
 
   it("should have a field reports PDF generation function", () => {
@@ -38,9 +29,8 @@ describe("Phase 10 — QuickBooks Removal & PDF Reports", () => {
   });
 
   it("should have PDF report buttons in the UI", () => {
-    expect(jobsContent).toContain("Generate Budget Report PDF");
+    expect(jobsContent).toContain("Generate Budget Report");
     expect(jobsContent).toContain("Generate Field Reports PDF");
-    expect(jobsContent).toContain("Export PDF");
   });
 
   it("should only have overview, budget, reports, and photos tabs", () => {

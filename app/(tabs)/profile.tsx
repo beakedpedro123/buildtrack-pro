@@ -20,6 +20,7 @@ import { ActivityIndicator,
 
 import { BG_MORE as bg_more } from "@/constants/bg-urls";
 import { useLanguage, type AppLanguage } from "@/lib/language-context";
+import { SubscriptionModal } from "@/components/subscription-modal";
 // Messages feature removed
 import { OverheadSettings } from "@/components/overhead-settings";
 import { useGpsTracking } from "@/hooks/use-gps-tracking";
@@ -150,6 +151,7 @@ export default function ProfileScreen() {
   const updateBrandColorMutation = trpc.branding.updateBrandColor.useMutation();
   const removeLogoMutation = trpc.branding.removeLogo.useMutation();
   const [showBrandingModal, setShowBrandingModal] = useState(false);
+  const [showSubscription, setShowSubscription] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [brandColorInput, setBrandColorInput] = useState("");
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -911,6 +913,29 @@ export default function ProfileScreen() {
             </View>
           )}
 
+          {/* Subscription & Billing — Owner Only */}
+          {employee?.role === "owner" && (
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={[styles.rowLast, { justifyContent: "flex-start", gap: 12 }]}
+                onPress={() => {
+                  setShowSubscription(true);
+                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+                activeOpacity={0.6}
+              >
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#D4AF37" + "20", alignItems: "center", justifyContent: "center" }}>
+                  <MaterialIcons name="card-membership" size={20} color="#D4AF37" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Subscription & Billing</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>Manage your plan, upgrade, or view billing</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Contact Support — Owner Only */}
           {employee?.role === "owner" && (
             <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
@@ -1052,6 +1077,15 @@ export default function ProfileScreen() {
           </ScrollView>
         </View>
       </Modal>
+    )}
+
+    {/* Subscription Modal */}
+    {employee?.role === "owner" && (
+      <SubscriptionModal
+        visible={showSubscription}
+        onClose={() => setShowSubscription(false)}
+        companyId={companyId}
+      />
     )}
 
     {/* Trade Management Modal — Server-Backed Multi-Trade Picker */}
