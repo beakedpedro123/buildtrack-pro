@@ -1,0 +1,1 @@
+ALTER TABLE `employees` ADD `pushToken` varchar(255);

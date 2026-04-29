@@ -211,6 +211,13 @@
       "when": 1777350131215,
       "tag": "0029_omniscient_sally_floyd",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1777436467997,
+      "tag": "0030_thankful_weapon_omega",
+      "breakpoints": true
     }
   ]
 }

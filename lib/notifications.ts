@@ -5,6 +5,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const MEETING_NOTIF_ID_KEY = "buildtrack_meeting_notif_id";
 const MEETING_NOTIF_ENABLED_KEY = "buildtrack_meeting_notif_enabled";
 const CHANNEL_ID = "meeting_reminders";
+const GOALS_CHANNEL_ID = "goals_tasks";
+const PUSH_TOKEN_KEY = "buildtrack_push_token";
 
 // Management roles that should receive the Friday meeting reminder
 const MANAGEMENT_ROLES = ["owner", "office_manager", "logistics", "foreman"];
@@ -36,6 +38,13 @@ async function ensureAndroidChannel() {
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#E85D04",
       description: "Weekly Friday management meeting reminders",
+    });
+    await Notifications.setNotificationChannelAsync(GOALS_CHANNEL_ID, {
+      name: "Goals & Tasks",
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#D4AF37",
+      description: "Goal assignments, task reminders, and schedule updates",
     });
   }
 }
@@ -142,4 +151,132 @@ export async function toggleMeetingReminder(role: string, enable: boolean): Prom
     await cancelFridayMeetingReminder();
     return false;
   }
+}
+
+/**
+ * Register the device's Expo push token with the server.
+ * Call this after login to enable push notifications for goals, tasks, etc.
+ */
+export async function registerPushToken(
+  employeeId: number,
+  trpcClient: { employees: { registerPushToken: { mutate: (input: { employeeId: number; pushToken: string }) => Promise<any> } } }
+): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+
+  try {
+    const granted = await requestNotificationPermissions();
+    if (!granted) return null;
+
+    // Get the Expo push token
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: undefined, // Uses the project ID from app.json automatically
+    });
+    const token = tokenData.data;
+
+    // Check if token changed
+    const storedToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+    if (storedToken === token) return token; // Already registered
+
+    // Register with server
+    await trpcClient.employees.registerPushToken.mutate({
+      employeeId,
+      pushToken: token,
+    });
+
+    await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+    return token;
+  } catch (err) {
+    console.warn("[Push] Failed to register push token:", err);
+    return null;
+  }
+}
+
+/**
+ * Clear the push token on logout.
+ */
+export async function clearPushToken(
+  employeeId: number,
+  trpcClient: { employees: { clearPushToken: { mutate: (input: { employeeId: number }) => Promise<any> } } }
+): Promise<void> {
+  if (Platform.OS === "web") return;
+  try {
+    await trpcClient.employees.clearPushToken.mutate({ employeeId });
+    await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+  } catch {}
+}
+
+/**
+ * Handle notification response (when user taps a notification).
+ * Returns the screen path to navigate to, or null.
+ */
+/**
+ * Register push token using direct fetch (no tRPC client needed).
+ * Used from auth-context callbacks where hooks aren't available.
+ */
+export async function registerPushTokenDirect(employeeId: number): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+  try {
+    const granted = await requestNotificationPermissions();
+    if (!granted) return null;
+
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId: undefined });
+    const token = tokenData.data;
+
+    const storedToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+    if (storedToken === token) return token;
+
+    // Use the trpc batch endpoint directly
+    const { getApiBaseUrl } = await import("@/constants/oauth");
+    const baseUrl = getApiBaseUrl();
+    const empRaw = await AsyncStorage.getItem("buildtrack_employee");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (empRaw) {
+      try { const emp = JSON.parse(empRaw); if (emp?.companyId) headers["x-company-id"] = String(emp.companyId); } catch {}
+    }
+
+    await fetch(`${baseUrl}/api/trpc/employees.registerPushToken`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({ json: { employeeId, pushToken: token } }),
+    });
+
+    await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+    return token;
+  } catch (err) {
+    console.warn("[Push] Failed to register push token:", err);
+    return null;
+  }
+}
+
+/**
+ * Clear push token using direct fetch.
+ */
+export async function clearPushTokenDirect(employeeId: number): Promise<void> {
+  if (Platform.OS === "web") return;
+  try {
+    const { getApiBaseUrl } = await import("@/constants/oauth");
+    const baseUrl = getApiBaseUrl();
+    const empRaw = await AsyncStorage.getItem("buildtrack_employee");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (empRaw) {
+      try { const emp = JSON.parse(empRaw); if (emp?.companyId) headers["x-company-id"] = String(emp.companyId); } catch {}
+    }
+
+    await fetch(`${baseUrl}/api/trpc/employees.clearPushToken`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({ json: { employeeId } }),
+    });
+    await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+  } catch {}
+}
+
+export function getNotificationScreen(response: Notifications.NotificationResponse): string | null {
+  const data = response.notification.request.content.data;
+  if (data && typeof data === "object" && "screen" in data) {
+    return data.screen as string;
+  }
+  return null;
 }

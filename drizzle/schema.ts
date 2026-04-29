@@ -76,6 +76,7 @@ export const employees = mysqlTable("employees", {
   salaryProjects: text("salaryProjects"),  // JSON array of up to 6 job IDs for salary distribution
   inviteToken: varchar("inviteToken", { length: 64 }),
   inviteStatus: mysqlEnum("inviteStatus", ["pending", "accepted"]).default("accepted"),
+  pushToken: varchar("pushToken", { length: 255 }),  // Expo push notification token for this device
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

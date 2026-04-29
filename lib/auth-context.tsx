@@ -3,7 +3,7 @@ import { getGlobalQueryClient } from "@/lib/query-client-ref";
 import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from "react";
 import { Platform } from "react-native";
 import { trpc } from "./trpc";
-import { scheduleFridayMeetingReminder, cancelFridayMeetingReminder } from "./notifications";
+import { scheduleFridayMeetingReminder, cancelFridayMeetingReminder, registerPushTokenDirect, clearPushTokenDirect } from "./notifications";
 
 export type EmployeeRole = "owner" | "office_manager" | "logistics" | "foreman" | "laborer";
 
@@ -124,6 +124,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Schedule Friday meeting reminder for management roles
     if (Platform.OS !== "web") {
       scheduleFridayMeetingReminder(emp.role).catch(() => {});
+      // Register push token for goal/task notifications
+      // Use fetch directly since we're in a callback, not in a hook context
+      registerPushTokenDirect(emp.id).catch(() => {});
     }
   }, []);
 
@@ -136,11 +139,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (qc) {
       qc.clear();
     }
-    // Cancel meeting reminder on logout
+    // Cancel meeting reminder on logout and clear push token
     if (Platform.OS !== "web") {
       cancelFridayMeetingReminder().catch(() => {});
+      if (employee) {
+        clearPushTokenDirect(employee.id).catch(() => {});
+      }
     }
-  }, []);
+  }, [employee]);
 
   return (
     <AuthContext.Provider value={{ employee, isAuthenticated: !!employee, loading, login, logout }}>

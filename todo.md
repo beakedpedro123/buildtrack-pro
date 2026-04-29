@@ -2706,3 +2706,35 @@
 - [x] Change Pivot dark theme from blue to BLACK with gold accents
 - [x] Keep light theme as-is
 - [x] Ensure all Pivot UI elements (chat bubbles, input bar, header, FAB) use black background in dark mode
+
+## Phase 140: Push Notifications for Goals & Tasks
+- [x] Send push notification when a goal is assigned to an employee
+- [x] Send push notification when a task/schedule item is assigned to an employee
+- [x] Send push notification reminder for overdue/upcoming goals
+- [x] Send push notification reminder for upcoming schedule tasks (day before)
+- [x] Notification taps deep-link to the Goals or Schedule screen
+- [x] Server-side notification delivery using expo-notifications push API
+
+## Phase 140 Addendum: Pivot PDF Payroll/Hours Report
+- [x] Pivot generates PDF payroll/hours report on demand via chat
+- [x] Support custom date ranges (this week, last week, custom dates)
+- [x] PDF generated in Spanish or English based on user's language preference
+- [x] PDF includes employee name, daily hours, job names, total hours, pay rate (owner only)
+- [x] PDF downloadable directly to phone from Pivot chat
+## Phase 141: Pivot Voice Clock Commands
+- [x] Pivot can clock in employees when they say "clock me in to [job name]" — uses exact timestamp of command
+- [x] Pivot can start lunch break when they say "take lunch" or "start lunch"
+- [x] Pivot can end lunch break when they say "end lunch" or "back from lunch"
+- [x] Pivot can clock out when they say "clock me out"
+- [x] All clock commands use the exact time the voice command was spoken (not when processed)
+- [x] Clock commands work offline — queue mutations for sync when back online
+- [x] Pivot confirms the action with job name, time, and status
+## Phase 142: Publish Readiness Report & Market Research
+- [x] Verify all web/mobile clients sync to same database properly
+- [x] Report: what's needed to fully publish on App Store and Play Store
+- [x] Report: legal requirements (privacy policy, terms of service, EULA)
+- [x] Report: App Store review guidelines compliance check
+- [x] Market research: construction management app market size and competitors
+- [x] Market research: pricing analysis of competing apps
+- [x] Honest assessment: BuildTrack Pro competitive position and market potential
+- [x] Marketing strategy recommendations

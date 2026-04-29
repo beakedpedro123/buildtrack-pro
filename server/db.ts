@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2";
 import {
@@ -2834,4 +2834,50 @@ export async function getCompanyWithTrades(companyId: number) {
     ...company,
     tradesList: company.trades ? JSON.parse(company.trades as string) as string[] : [],
   };
+}
+
+
+// ─── Push Notification Token Management ─────────────────────────────────────
+
+export async function updatePushToken(employeeId: number, pushToken: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(employees).set({ pushToken }).where(eq(employees.id, employeeId));
+}
+
+export async function clearPushToken(employeeId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(employees).set({ pushToken: null }).where(eq(employees.id, employeeId));
+}
+
+export async function getPushTokensForEmployees(employeeIds: number[]): Promise<Array<{ id: number; name: string; pushToken: string }>> {
+  const db = await getDb();
+  if (!db) return [];
+  if (employeeIds.length === 0) return [];
+  const rows = await db.select({
+    id: employees.id,
+    name: employees.name,
+    pushToken: employees.pushToken,
+  }).from(employees).where(
+    and(
+      inArray(employees.id, employeeIds),
+      isNotNull(employees.pushToken),
+      eq(employees.isActive, true),
+    )
+  );
+  return rows.filter((r): r is { id: number; name: string; pushToken: string } => !!r.pushToken);
+}
+
+export async function getAllPushTokens(companyId?: number): Promise<Array<{ id: number; name: string; pushToken: string }>> {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [isNotNull(employees.pushToken), eq(employees.isActive, true)];
+  if (companyId) conditions.push(eq(employees.companyId, companyId));
+  const rows = await db.select({
+    id: employees.id,
+    name: employees.name,
+    pushToken: employees.pushToken,
+  }).from(employees).where(and(...conditions));
+  return rows.filter((r): r is { id: number; name: string; pushToken: string } => !!r.pushToken);
 }

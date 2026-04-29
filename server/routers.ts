@@ -11,6 +11,7 @@ import { transcribeAudio } from "./_core/voiceTranscription";
 import { notifyTicketCreated, notifyTicketResolved, notifyTicketStatusUpdate } from "./email";
 import { generateImage } from "./_core/imageGeneration";
 import crypto from "crypto";
+import { notifyGoalAssigned, notifyTaskAssigned, notifyGoalOverdue, notifyUpcomingTask, sendPushToAll } from "./push-notifications";
 
 // ─── Available Trades (Pivot Hivemind Trade Categories) ─────────────────────
 const AVAILABLE_TRADES = [
@@ -110,6 +111,19 @@ const employeeRouter = router({
     name: z.string().min(1).max(128),
     pin: z.string().min(4).max(6),
   })).mutation(({ input }) => db.acceptInvite(input.token, input.name, input.pin)),
+  registerPushToken: publicProcedure.input(z.object({
+    employeeId: z.number(),
+    pushToken: z.string(),
+  })).mutation(async ({ input }) => {
+    await db.updatePushToken(input.employeeId, input.pushToken);
+    return { success: true };
+  }),
+  clearPushToken: publicProcedure.input(z.object({
+    employeeId: z.number(),
+  })).mutation(async ({ input }) => {
+    await db.clearPushToken(input.employeeId);
+    return { success: true };
+  }),
 });
 
 const jobsRouter = router({
@@ -2092,6 +2106,25 @@ This data makes future estimates more accurate. Remind Pedro: "Hey, framing fini
 - A 2-man framing crew can do 80-120 LF of wall per day, NOT per hour
 - An addition wall frame (3-4 walls, ~200 LF total) takes 2-4 days with a 2-3 man crew, NOT 10 days
 - Always factor in crew size — more crew = faster but with diminishing returns (85% efficiency per added worker)
+
+## Clock Commands (ALL ROLES)
+When any employee says "clock me in", "clock me in to [job]", "take lunch", "end lunch", "clock me out" (in English OR Spanish):
+- Use the clock_action tool IMMEDIATELY with the exact current timestamp
+- For clock_in: MUST have a job name. If not specified, ask which job.
+- For start_lunch, end_lunch, clock_out: no job needed, finds their active entry
+- The timestamp parameter should be the EXACT time the command was spoken (use current time)
+- Confirm the action clearly with time, job name, and status
+- Spanish equivalents: "fichame", "entrada", "salida", "almuerzo", "regreso del almuerzo"
+
+## PDF Payroll Reports (ALL ROLES)
+When any employee asks for their hours report, payroll, pay stub, or "give me my hours" (English or Spanish):
+- Use generate_payroll_pdf tool
+- Detect language from how they asked (Spanish → language: "es", English → language: "en")
+- If they say "this week", "last week", "this month", "last pay period" — use the matching periodType
+- If they give specific dates like "April 1 to April 15" — use periodType: "custom" with startDate/endDate
+- The PDF will be rendered as a downloadable button in the chat
+- Pay rates are ONLY shown if the requesting user is the owner
+- Spanish equivalents: "dame mis horas", "mi reporte", "cuántas horas tengo", "mi pago"
 ` : ""}
 
 Current page: ${input.context?.currentPage || "unknown"} — tailor your response to what the user is viewing.
@@ -2861,6 +2894,41 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
           },
         },
       },
+      {
+        type: "function" as const,
+        function: {
+          name: "generate_payroll_pdf",
+          description: "Generate a PDF payroll/hours report for an employee. Use when someone asks 'give me my hours as PDF', 'download my timesheet', 'dame mi reporte de horas', 'send me my payroll for this week/month/custom dates'. Returns a downloadable PDF link with detailed hours breakdown including daily entries, job names, lunch deductions, and totals. Supports both English and Spanish output.",
+          parameters: {
+            type: "object",
+            properties: {
+              employeeName: { type: "string", description: "Employee name to generate report for. Use the requesting user's name if they say 'my hours'." },
+              periodType: { type: "string", enum: ["this_week", "last_week", "this_month", "last_month", "current", "last", "custom"], description: "Time period for the report." },
+              startDate: { type: "string", description: "Custom start date (YYYY-MM-DD). Required if periodType is 'custom'." },
+              endDate: { type: "string", description: "Custom end date (YYYY-MM-DD). Required if periodType is 'custom'." },
+              language: { type: "string", enum: ["en", "es"], description: "Report language. Detect from user's message — if they spoke Spanish, use 'es'. Default 'en'." },
+            },
+            required: ["employeeName", "periodType"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "clock_action",
+          description: "Clock an employee in, out, start lunch, or end lunch. Use when someone says 'clock me in to [job]', 'clock me out', 'start my lunch', 'end my lunch', 'ponme en [trabajo]', 'salida', 'lonche'. Records the EXACT timestamp of when the command was spoken. Works offline too — queues for sync.",
+          parameters: {
+            type: "object",
+            properties: {
+              action: { type: "string", enum: ["clock_in", "clock_out", "start_lunch", "end_lunch"], description: "The clock action to perform." },
+              employeeName: { type: "string", description: "Employee name. Use the requesting user's name if they say 'me'." },
+              jobName: { type: "string", description: "Job name to clock into. Required for clock_in action. Match against active jobs." },
+              timestamp: { type: "string", description: "ISO timestamp of when the command was given. Use the current server time." },
+            },
+            required: ["action", "employeeName"],
+          },
+        },
+      },
     ];
 
     // ── Call LLM with tool support ──────────────────────────────────────────
@@ -3087,6 +3155,21 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             });
 
             toolResult = `Goal created successfully! ID: ${goalId}\nTitle: ${title}\nAssigned to: ${assignedName}\nPriority: ${priority}\n${repeatDaily ? "Repeats: DAILY (will auto-create each morning)\n" : ""}${deadline ? `Deadline: ${new Date(deadline).toLocaleDateString("en-US", { timeZone: "America/Denver" })}` : "No deadline set"}\n\nTell the user the goal was created and they can see it in the Goals tab.${assignToEveryone ? " This goal is visible to ALL employees." : ""}`;
+
+            // Send push notification to assigned employees
+            try {
+              const assignedIds = assignedToList ? assignedToList.split(",").map(Number).filter(id => id !== input.employeeId) : [];
+              if (assignedIds.length > 0) {
+                const creatorEmp = allEmps.find((e: any) => e.id === input.employeeId);
+                notifyGoalAssigned({
+                  assignedEmployeeIds: assignedIds,
+                  goalTitle: title,
+                  priority: priority || "medium",
+                  deadline,
+                  assignedBy: creatorEmp?.name || "Management",
+                }).catch(() => {});
+              }
+            } catch {}
           } catch (goalErr) {
             toolResult = `Failed to create goal: ${goalErr instanceof Error ? goalErr.message : "unknown error"}`;
           }
@@ -4734,6 +4817,15 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             toolResult += `- Profit margin: $${avgDailyProfit.toFixed(0)}/day\n`;
             toolResult += `- Total burn rate: $${(avgDailyLabor + avgDailyMaterials + avgDailyOverhead).toFixed(0)}/day\n`;
             toolResult += `\nPresent this as a clean summary. The job is now live in the Jobs tab with the schedule. Ask Pedro if he wants to adjust any phase durations or budgets.`;
+
+            // Send push notification to all employees about the new job
+            try {
+              sendPushToAll(ctx.companyId, {
+                title: "📋 New Job Created",
+                body: `${jobName} — ${totalSqft.toLocaleString()} SF, starts ${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+                data: { screen: "/(tabs)/jobs", type: "job_created" },
+              }).catch(() => {});
+            } catch {}
           } catch (jobErr) {
             toolResult = `Failed to create job: ${jobErr instanceof Error ? jobErr.message : "unknown error"}`;
           }
@@ -4854,6 +4946,227 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             toolResult = response;
           } catch (logErr) {
             toolResult = `Failed to log completion data: ${logErr instanceof Error ? logErr.message : "unknown"}`;
+          }
+        } else if (toolName === "generate_payroll_pdf") {
+          try {
+            const empName = args.employeeName || employee.name;
+            const periodType = args.periodType || "current";
+            const language = args.language || "en";
+            const PERIOD_ANCHOR_MS = new Date('2026-04-06T00:00:00').getTime();
+            const PERIOD_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
+            const now = new Date();
+            const elapsed = now.getTime() - PERIOD_ANCHOR_MS;
+            const periodsElapsed = Math.floor(elapsed / PERIOD_LENGTH_MS);
+            let periodStart: Date, periodEnd: Date, periodLabel: string;
+
+            if (periodType === "last" || periodType === "last_week") {
+              if (periodType === "last_week") {
+                const dayOfWeek = now.getDay();
+                periodStart = new Date(now); periodStart.setDate(now.getDate() - dayOfWeek - 7); periodStart.setHours(0,0,0,0);
+                periodEnd = new Date(periodStart); periodEnd.setDate(periodStart.getDate() + 6); periodEnd.setHours(23,59,59,999);
+                periodLabel = language === "es" ? "Semana Pasada" : "Last Week";
+              } else {
+                periodStart = new Date(PERIOD_ANCHOR_MS + (periodsElapsed - 1) * PERIOD_LENGTH_MS);
+                periodEnd = new Date(PERIOD_ANCHOR_MS + periodsElapsed * PERIOD_LENGTH_MS - 1);
+                periodLabel = language === "es" ? "Período Anterior" : "Last Pay Period";
+              }
+            } else if (periodType === "this_week") {
+              const dayOfWeek = now.getDay();
+              periodStart = new Date(now); periodStart.setDate(now.getDate() - dayOfWeek); periodStart.setHours(0,0,0,0);
+              periodEnd = new Date(periodStart); periodEnd.setDate(periodStart.getDate() + 6); periodEnd.setHours(23,59,59,999);
+              periodLabel = language === "es" ? "Esta Semana" : "This Week";
+            } else if (periodType === "this_month" || periodType === "last_month") {
+              if (periodType === "last_month") {
+                periodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                periodEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+                periodLabel = language === "es" ? "Mes Pasado" : "Last Month";
+              } else {
+                periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+                periodLabel = language === "es" ? "Este Mes" : "This Month";
+              }
+            } else if (periodType === "custom" && args.startDate && args.endDate) {
+              periodStart = new Date(args.startDate + "T00:00:00");
+              periodEnd = new Date(args.endDate + "T23:59:59.999");
+              periodLabel = language === "es" ? "Período Personalizado" : "Custom Period";
+            } else {
+              periodStart = new Date(PERIOD_ANCHOR_MS + periodsElapsed * PERIOD_LENGTH_MS);
+              periodEnd = new Date(periodStart.getTime() + PERIOD_LENGTH_MS - 1);
+              periodLabel = language === "es" ? "Período Actual" : "Current Pay Period";
+            }
+
+            const allEmps = await db.getAllEmployees(ctx.companyId);
+            const matchedEmp = allEmps.find((e: any) =>
+              e.name.toLowerCase().includes(empName.toLowerCase()) ||
+              empName.toLowerCase().includes(e.name.split(' ')[0].toLowerCase())
+            );
+            if (!matchedEmp) {
+              toolResult = language === "es"
+                ? `No encontré al empleado "${empName}". Disponibles: ${allEmps.filter((e: any) => e.isActive).map((e: any) => e.name).join(', ')}`
+                : `Could not find employee "${empName}". Available: ${allEmps.filter((e: any) => e.isActive).map((e: any) => e.name).join(', ')}`;
+            } else {
+              const entries = await db.getClockEntriesForEmployee(matchedEmp.id, periodStart);
+              const periodEntries = entries.filter((e: any) => new Date(e.clockIn) <= periodEnd);
+              const allJobs = await db.getAllJobs(ctx.companyId);
+              let totalMinutes = 0;
+              let totalLunchMinutes = 0;
+              const dayRows: { date: string; inTime: string; outTime: string; hours: string; lunch: string; job: string }[] = [];
+
+              for (const entry of periodEntries) {
+                if (!entry.clockOut) continue;
+                const clockIn = new Date(entry.clockIn);
+                const clockOut = new Date(entry.clockOut);
+                const rawMinutes = (clockOut.getTime() - clockIn.getTime()) / 60000;
+                const lunch = entry.lunchMinutes || 0;
+                const netMinutes = Math.max(0, rawMinutes - lunch);
+                totalMinutes += netMinutes;
+                totalLunchMinutes += lunch;
+                const job = allJobs.find((j: any) => j.id === entry.jobId);
+                const locale = language === "es" ? "es-MX" : "en-US";
+                dayRows.push({
+                  date: clockIn.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' }),
+                  inTime: clockIn.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' }),
+                  outTime: clockOut.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' }),
+                  hours: `${Math.floor(netMinutes/60)}h ${Math.round(netMinutes%60)}m`,
+                  lunch: lunch > 0 ? `${lunch}m` : "-",
+                  job: job?.name || (language === "es" ? "Sin asignar" : "Unassigned"),
+                });
+              }
+
+              const rate = parseFloat(matchedEmp.hourlyRate || '0');
+              const totalPay = (totalMinutes / 60) * rate;
+              const dateRange = `${periodStart.toLocaleDateString(language === "es" ? "es-MX" : "en-US", {month:'short',day:'numeric'})} - ${periodEnd.toLocaleDateString(language === "es" ? "es-MX" : "en-US", {month:'short',day:'numeric',year:'numeric'})}`;
+
+              // Build HTML for PDF
+              const isOwnerViewing = isOwner;
+              const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+                body { font-family: Arial, sans-serif; padding: 40px; color: #111; }
+                h1 { color: #D4AF37; font-size: 24px; margin-bottom: 4px; }
+                h2 { color: #333; font-size: 16px; font-weight: normal; margin-top: 0; }
+                .meta { margin: 20px 0; padding: 12px; background: #f9f9f9; border-left: 4px solid #D4AF37; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+                th { background: #111; color: #D4AF37; padding: 8px; text-align: left; }
+                td { padding: 8px; border-bottom: 1px solid #ddd; }
+                tr:nth-child(even) { background: #f9f9f9; }
+                .total { margin-top: 20px; padding: 16px; background: #111; color: #D4AF37; font-size: 18px; border-radius: 8px; }
+                .footer { margin-top: 30px; font-size: 10px; color: #999; text-align: center; }
+              </style></head><body>
+                <h1>${language === "es" ? "Reporte de Horas" : "Hours Report"}</h1>
+                <h2>${matchedEmp.name} — ${periodLabel} (${dateRange})</h2>
+                <div class="meta">
+                  <strong>${language === "es" ? "Total Horas" : "Total Hours"}:</strong> ${Math.floor(totalMinutes/60)}h ${Math.round(totalMinutes%60)}m<br>
+                  ${totalLunchMinutes > 0 ? `<strong>${language === "es" ? "Almuerzo Descontado" : "Lunch Deducted"}:</strong> ${totalLunchMinutes}m<br>` : ""}
+                  ${isOwnerViewing && rate > 0 ? `<strong>${language === "es" ? "Pago Estimado" : "Estimated Pay"}:</strong> $${totalPay.toFixed(2)} @ $${rate}/hr` : ""}
+                </div>
+                <table>
+                  <tr><th>${language === "es" ? "Fecha" : "Date"}</th><th>${language === "es" ? "Entrada" : "In"}</th><th>${language === "es" ? "Salida" : "Out"}</th><th>${language === "es" ? "Horas" : "Hours"}</th><th>${language === "es" ? "Almuerzo" : "Lunch"}</th><th>${language === "es" ? "Trabajo" : "Job"}</th></tr>
+                  ${dayRows.map(r => `<tr><td>${r.date}</td><td>${r.inTime}</td><td>${r.outTime}</td><td>${r.hours}</td><td>${r.lunch}</td><td>${r.job}</td></tr>`).join("")}
+                  ${dayRows.length === 0 ? `<tr><td colspan="6" style="text-align:center;padding:20px;">${language === "es" ? "Sin entradas para este período" : "No entries for this period"}</td></tr>` : ""}
+                </table>
+                <div class="total">${language === "es" ? "Total" : "Total"}: ${Math.floor(totalMinutes/60)}h ${Math.round(totalMinutes%60)}m${isOwnerViewing && rate > 0 ? ` — $${totalPay.toFixed(2)}` : ""}</div>
+                <div class="footer">BuildTrack Pro — ${language === "es" ? "Generado" : "Generated"} ${new Date().toLocaleDateString(language === "es" ? "es-MX" : "en-US", { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+              </body></html>`;
+
+              // Return the HTML as a downloadable report (client will render as PDF)
+              toolResult = `PDF_REPORT_HTML::${htmlContent}::END_PDF_REPORT\n\n`;
+              toolResult += language === "es"
+                ? `✅ Reporte de horas generado para ${matchedEmp.name} (${periodLabel}, ${dateRange}).\nTotal: ${Math.floor(totalMinutes/60)}h ${Math.round(totalMinutes%60)}m${isOwnerViewing && rate > 0 ? ` — $${totalPay.toFixed(2)}` : ""}\n\nEl PDF está listo para descargar. Dile al usuario que puede guardarlo en su teléfono.`
+                : `✅ Hours report generated for ${matchedEmp.name} (${periodLabel}, ${dateRange}).\nTotal: ${Math.floor(totalMinutes/60)}h ${Math.round(totalMinutes%60)}m${isOwnerViewing && rate > 0 ? ` — $${totalPay.toFixed(2)}` : ""}\n\nThe PDF is ready to download. Let the user know they can save it to their phone.`;
+            }
+          } catch (pdfErr) {
+            toolResult = `Failed to generate PDF report: ${pdfErr instanceof Error ? pdfErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "clock_action") {
+          try {
+            const action = args.action || "clock_in";
+            const empName = args.employeeName || employee.name;
+            const jobName = args.jobName || "";
+            const timestamp = args.timestamp || new Date().toISOString();
+            const clockTime = new Date(timestamp);
+
+            const allEmps = await db.getAllEmployees(ctx.companyId);
+            const matchedEmp = allEmps.find((e: any) =>
+              e.name.toLowerCase().includes(empName.toLowerCase()) ||
+              empName.toLowerCase().includes(e.name.split(' ')[0].toLowerCase())
+            );
+
+            if (!matchedEmp) {
+              toolResult = `Could not find employee "${empName}". Available: ${allEmps.filter((e: any) => e.isActive).map((e: any) => e.name).join(', ')}`;
+            } else {
+              const allJobs = await db.getAllJobs(ctx.companyId);
+
+              if (action === "clock_in") {
+                if (!jobName) {
+                  const activeJobs = allJobs.filter((j: any) => j.status === "active");
+                  toolResult = `Which job should I clock ${matchedEmp.name} into? Active jobs: ${activeJobs.map((j: any) => j.name).join(', ')}`;
+                } else {
+                  const matchedJob = allJobs.find((j: any) =>
+                    j.name.toLowerCase().includes(jobName.toLowerCase()) ||
+                    jobName.toLowerCase().includes(j.name.split(' ')[0].toLowerCase())
+                  );
+                  if (!matchedJob) {
+                    toolResult = `Could not find job "${jobName}". Active jobs: ${allJobs.filter((j: any) => j.status === "active").map((j: any) => j.name).join(', ')}`;
+                  } else {
+                    await db.clockIn({
+                      employeeId: matchedEmp.id,
+                      companyId: ctx.companyId,
+                      jobId: matchedJob.id,
+                      clockIn: clockTime,
+                    });
+                    const timeStr = clockTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                    toolResult = `✅ ${matchedEmp.name} clocked IN to ${matchedJob.name} at ${timeStr}.\nStatus: Active\nTell them they're good to go!`;
+                  }
+                }
+              } else if (action === "clock_out") {
+                // Find the active clock entry for this employee
+                const activeEntries = await db.getClockEntriesForEmployee(matchedEmp.id, new Date(Date.now() - 24*60*60*1000));
+                const activeEntry = activeEntries.find((e: any) => !e.clockOut);
+                if (!activeEntry) {
+                  toolResult = `${matchedEmp.name} doesn't have an active clock entry. They may not be clocked in.`;
+                } else {
+                  await db.updateClockEntry(activeEntry.id, { clockOut: clockTime });
+                  const inTime = new Date(activeEntry.clockIn);
+                  const minutes = (clockTime.getTime() - inTime.getTime()) / 60000;
+                  const lunch = activeEntry.lunchMinutes || 0;
+                  const netMinutes = Math.max(0, minutes - lunch);
+                  const timeStr = clockTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                  const job = allJobs.find((j: any) => j.id === activeEntry.jobId);
+                  toolResult = `✅ ${matchedEmp.name} clocked OUT at ${timeStr}.\nJob: ${job?.name || 'Unknown'}\nTotal time: ${Math.floor(netMinutes/60)}h ${Math.round(netMinutes%60)}m${lunch > 0 ? ` (${lunch}m lunch deducted)` : ''}\nGood work today!`;
+                }
+              } else if (action === "start_lunch") {
+                const activeEntries = await db.getClockEntriesForEmployee(matchedEmp.id, new Date(Date.now() - 24*60*60*1000));
+                const activeEntry = activeEntries.find((e: any) => !e.clockOut);
+                if (!activeEntry) {
+                  toolResult = `${matchedEmp.name} doesn't have an active clock entry. Clock in first.`;
+                } else {
+                  await db.updateClockEntry(activeEntry.id, { lunchStart: clockTime } as any);
+                  const timeStr = clockTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                  toolResult = `✅ ${matchedEmp.name} started lunch at ${timeStr}. Enjoy your break! 🍽️`;
+                }
+              } else if (action === "end_lunch") {
+                const activeEntries = await db.getClockEntriesForEmployee(matchedEmp.id, new Date(Date.now() - 24*60*60*1000));
+                const activeEntry = activeEntries.find((e: any) => !e.clockOut);
+                if (!activeEntry) {
+                  toolResult = `${matchedEmp.name} doesn't have an active clock entry.`;
+                } else {
+                  const lunchStart = (activeEntry as any).lunchStart ? new Date((activeEntry as any).lunchStart) : null;
+                  if (lunchStart) {
+                    const lunchMinutes = Math.round((clockTime.getTime() - lunchStart.getTime()) / 60000);
+                    await db.updateClockEntry(activeEntry.id, { lunchMinutes, lunchStart: null } as any);
+                    const timeStr = clockTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                    toolResult = `✅ ${matchedEmp.name} ended lunch at ${timeStr}. Lunch duration: ${lunchMinutes} minutes. Back to work! 💪`;
+                  } else {
+                    // No lunchStart recorded, assume 30 min default
+                    await db.updateClockEntry(activeEntry.id, { lunchMinutes: 30 } as any);
+                    toolResult = `✅ ${matchedEmp.name} lunch ended. Recorded 30 minutes (default). Back to work! 💪`;
+                  }
+                }
+              } else {
+                toolResult = `Unknown clock action: ${action}. Use clock_in, clock_out, start_lunch, or end_lunch.`;
+              }
+            }
+          } catch (clockErr) {
+            toolResult = `Failed to perform clock action: ${clockErr instanceof Error ? clockErr.message : "unknown error"}`;
           }
         } else if (toolName === "get_employee_hours") {
           try {

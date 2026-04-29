@@ -100,12 +100,13 @@ export default function RootLayout() {
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as Record<string, unknown>;
       if (data?.screen === "meetings") {
-        // Navigate to meetings — if user doesn't have meetings tab, it will just go to home
         try { router.push("/(tabs)/meetings"); } catch { router.push("/(tabs)"); }
       } else if (data?.screen === "goals") {
         try { router.push("/(tabs)/goals"); } catch { router.push("/(tabs)"); }
       } else if (data?.screen === "clock") {
         try { router.push("/(tabs)/clock" as any); } catch { router.push("/(tabs)"); }
+      } else if (data?.screen === "schedule" || data?.screen === "jobs") {
+        try { router.push("/(tabs)/jobs" as any); } catch { router.push("/(tabs)"); }
       }
     });
     return () => sub.remove();

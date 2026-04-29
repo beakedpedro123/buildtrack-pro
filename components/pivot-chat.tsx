@@ -51,6 +51,9 @@ import {
   RecordingPresets,
 } from "expo-audio";
 import * as Haptics from "expo-haptics";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Print from "expo-print";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { trpc } from "@/lib/trpc";
 import { useAppAuth } from "@/lib/auth-context";
@@ -855,7 +858,39 @@ export function PivotChat() {
     return <View key={blockKey}>{elements}</View>;
   };
 
+  const handleDownloadPdf = async (htmlContent: string) => {
+    try {
+      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+      } else {
+        Alert.alert("PDF Saved", `Report saved to: ${uri}`);
+      }
+    } catch (err) {
+      Alert.alert("Error", "Failed to generate PDF. Please try again.");
+    }
+  };
+
   const renderMessageContent = (content: string, msgRole: "user" | "assistant") => {
+    // Check for PDF report HTML
+    const pdfMatch = content.match(/PDF_REPORT_HTML::(.+?)::END_PDF_REPORT/s);
+    if (pdfMatch) {
+      const htmlContent = pdfMatch[1];
+      const displayText = content.replace(/PDF_REPORT_HTML::.*?::END_PDF_REPORT\\n\\n/s, "").trim();
+      return (
+        <View>
+          {displayText ? renderMarkdownBlock(displayText, msgRole, 0) : null}
+          <TouchableOpacity
+            onPress={() => handleDownloadPdf(htmlContent)}
+            style={{ backgroundColor: '#D4AF37', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+          >
+            <MaterialIcons name="picture-as-pdf" size={20} color="#111" />
+            <Text style={{ color: '#111', fontWeight: '700', fontSize: 14 }}>Download PDF Report</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
