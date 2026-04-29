@@ -26,6 +26,7 @@ import { trpc, createTRPCClient } from "@/lib/trpc";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
 import { PivotChat } from "@/components/pivot-chat";
 import { LanguageProvider } from "@/lib/language-context";
+import * as NavigationBar from "expo-navigation-bar";
 import { BrandingProvider } from "@/lib/branding-context";
 import { setGlobalQueryClient } from "@/lib/query-client-ref";
 
@@ -83,6 +84,14 @@ export default function RootLayout() {
   // Initialize Manus runtime for cookie injection from parent container
   useEffect(() => {
     initManusRuntime();
+  }, []);
+
+  // Set Android navigation bar to match app background (eliminates silver/grey bar)
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      NavigationBar.setBackgroundColorAsync("#111111").catch(() => {});
+      NavigationBar.setButtonStyleAsync("light").catch(() => {});
+    }
   }, []);
 
   // Handle notification taps — deep-link to Meetings tab

@@ -2047,6 +2047,51 @@ You are learning Pedro's patterns and decision-making style. After each conversa
 - Remember his communication style and adapt
 - Proactively surface insights based on patterns you've observed
 This information is PRIVATE to Pedro — never share it with other team members.
+
+## Owner-Only: Job Creation Pipeline (Budget-to-Schedule)
+When Pedro asks you to create a job, start a new project, or set up a new build, follow this CONVERSATIONAL FLOW:
+
+**Step 1 — Gather Info (ask one question at a time):**
+1. "What's the project name?" (e.g. 'Smith Residence Addition')
+2. "What type of project?" (new home, addition, remodel, commercial, steel building)
+3. "What's the approximate square footage?"
+4. "What's the total budget?" (or ask if they want you to estimate based on $/SF)
+5. "How many crew members will you have on this job?"
+6. "Any special conditions?" (multi-story, complex roof, tight access, steep site, etc.)
+7. "When do you want to start?" (default to next Monday)
+8. "What's the address and client name?"
+
+**Step 2 — Use productivity_lookup FIRST:**
+Before estimating ANY duration, ALWAYS call productivity_lookup to get real production rates.
+NEVER guess how long something takes. Example:
+- User says "3000 SF addition" → call productivity_lookup for each phase (framing, roofing, drywall, etc.)
+- The tool returns rates like "wall framing: 2-man crew = 80-120 LF/day"
+- Use those rates to calculate realistic durations
+
+**Step 3 — Generate Budget + Schedule:**
+Call create_job_with_budget with all gathered info. The tool will:
+- Generate phase-by-phase schedule with realistic durations
+- Allocate budget across phases (labor 45%, materials 35%, overhead 15%, profit 5%)
+- Create the job in the database with schedule tasks
+- Show daily cost breakdown (burn rate)
+
+**Step 4 — Review + Adjust:**
+Present the schedule and budget to Pedro. Ask:
+- "Does this schedule look right? Want to adjust any phase durations?"
+- "Is the budget allocation correct? Want to move money between phases?"
+- If Pedro says "framing should only take 3 days not 10", use the overridePhases parameter
+
+**Step 5 — Learn:**
+When a job phase completes, use log_job_completion to capture actual vs estimated.
+This data makes future estimates more accurate. Remind Pedro: "Hey, framing finished on the Smith job — how many days did it actually take? I want to learn from this."
+
+**CRITICAL RULES:**
+- NEVER say "10 days to frame walls" without checking productivity_lookup first
+- 6 productive hours per day is realistic (not 8)
+- Add 10-15% buffer for Northern Utah weather (snow, cold, wind)
+- A 2-man framing crew can do 80-120 LF of wall per day, NOT per hour
+- An addition wall frame (3-4 walls, ~200 LF total) takes 2-4 days with a 2-3 man crew, NOT 10 days
+- Always factor in crew size — more crew = faster but with diminishing returns (85% efficiency per added worker)
 ` : ""}
 
 Current page: ${input.context?.currentPage || "unknown"} — tailor your response to what the user is viewing.
@@ -2739,6 +2784,80 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               periodType: { type: "string", enum: ["current", "last", "this_week", "last_week", "this_month"], description: "Time period. Default 'current' for current pay period." },
             },
             required: ["employeeName"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "create_job_with_budget",
+          description: "Create a new job with an auto-generated budget and schedule based on project type, square footage, and budget. Use when the owner asks you to create a job, start a new project, or set up a new job with a budget. This tool generates phase-by-phase schedule with durations based on real production rates, allocates budget across phases, and creates the job in the database. ALWAYS use the conversational flow first: ask project type, sqft, budget, crew size, and special conditions before calling this tool.",
+          parameters: {
+            type: "object",
+            properties: {
+              jobName: { type: "string", description: "Name of the job/project (e.g. 'Smith Residence Addition', 'Park City Commercial Build')." },
+              projectType: { type: "string", enum: ["new_home", "addition", "remodel", "commercial", "steel_building", "custom"], description: "Type of construction project." },
+              totalSqft: { type: "number", description: "Total square footage of the project." },
+              totalBudget: { type: "number", description: "Total project budget in dollars." },
+              crewSize: { type: "number", description: "Average crew size for the project." },
+              address: { type: "string", description: "Job site address." },
+              clientName: { type: "string", description: "Client/customer name." },
+              billingType: { type: "string", enum: ["fixed", "time_materials", "cost_plus"], description: "Billing type for the job. Default 'fixed'." },
+              specialConditions: { type: "string", description: "Any special conditions: multi-story, complex roof, tight access, steep site, etc." },
+              startDate: { type: "string", description: "Planned start date (ISO format). Default to next Monday if not specified." },
+              overridePhases: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    phaseName: { type: "string" },
+                    durationDays: { type: "number" },
+                    budgetAmount: { type: "number" },
+                  },
+                },
+                description: "Optional: override specific phase durations or budgets based on owner input.",
+              },
+            },
+            required: ["jobName", "projectType", "totalSqft", "totalBudget"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "productivity_lookup",
+          description: "Look up construction production rates for specific tasks. Returns real-world rates (e.g. how many LF of wall a 2-man crew can frame per day). Use this BEFORE estimating any duration. Also checks historical data from completed jobs to give personalized rates based on YOUR crew's actual performance. This is what makes you accurate — ALWAYS look up rates instead of guessing.",
+          parameters: {
+            type: "object",
+            properties: {
+              task: { type: "string", description: "The construction task to look up (e.g. 'wall framing', 'roof sheathing', 'drywall hanging', 'concrete slab')." },
+              trade: { type: "string", description: "Optional trade filter (framing, roofing, drywall, concrete, steel, insulation, siding, painting, electrical, plumbing, hvac)." },
+              crewSize: { type: "number", description: "Optional crew size to adjust rate for." },
+              sqft: { type: "number", description: "Optional square footage for duration estimate." },
+            },
+            required: ["task"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "log_job_completion",
+          description: "Log actual job completion data for the learning engine. Use when a job phase or entire job is completed to capture actual vs estimated performance. This data trains Pivot to give better estimates over time — the more data logged, the smarter the estimates become. OWNER ONLY.",
+          parameters: {
+            type: "object",
+            properties: {
+              jobName: { type: "string", description: "The job name." },
+              phaseName: { type: "string", description: "The phase that was completed (e.g. 'Framing', 'Foundation'). Use 'full_job' for entire job completion." },
+              estimatedDays: { type: "number", description: "How many days were originally estimated." },
+              actualDays: { type: "number", description: "How many days it actually took." },
+              estimatedCost: { type: "number", description: "Estimated cost for this phase." },
+              actualCost: { type: "number", description: "Actual cost for this phase." },
+              crewSize: { type: "number", description: "Average crew size used." },
+              sqft: { type: "number", description: "Square footage of this phase's scope." },
+              notes: { type: "string", description: "Any notes about why actual differed from estimate (weather, complexity, crew issues, etc.)." },
+            },
+            required: ["jobName", "phaseName", "actualDays"],
           },
         },
       },
@@ -4488,6 +4607,253 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             }
           } catch (acctErr) {
             toolResult = `Accounting calculation error: ${acctErr instanceof Error ? acctErr.message : "unknown error"}`;
+          }        } else if (toolName === "create_job_with_budget") {
+          try {
+            const { getPhasesForProjectType, generateSchedule } = await import("./productivity-knowledge.js");
+            const projectType = args.projectType || "custom";
+            const totalSqft = args.totalSqft || 2000;
+            const totalBudget = args.totalBudget || 100000;
+            const crewSize = args.crewSize || 3;
+            const jobName = args.jobName || "New Job";
+            const billingType = args.billingType || "fixed";
+            const address = args.address || "";
+            const clientName = args.clientName || "";
+            const startDateStr = args.startDate || "";
+            const specialConditions = args.specialConditions || "";
+
+            // Generate schedule from productivity knowledge
+            const phases = getPhasesForProjectType(projectType);
+            const schedule = generateSchedule(phases, totalSqft, totalBudget);
+
+            // Apply overrides if provided
+            if (args.overridePhases && Array.isArray(args.overridePhases)) {
+              for (const ov of args.overridePhases) {
+                const entry = schedule.find((s: any) => s.phase.toLowerCase().includes(ov.phaseName?.toLowerCase()));
+                if (entry) {
+                  if (ov.durationDays) entry.durationDays = ov.durationDays;
+                  if (ov.budgetAmount) entry.budgetAmount = ov.budgetAmount;
+                }
+              }
+            }
+
+            // Apply special conditions multiplier
+            let complexityFactor = 1.0;
+            if (specialConditions) {
+              const sc = specialConditions.toLowerCase();
+              if (sc.includes("multi-story") || sc.includes("3-story") || sc.includes("three story")) complexityFactor += 0.2;
+              if (sc.includes("complex roof") || sc.includes("hip") || sc.includes("valley")) complexityFactor += 0.15;
+              if (sc.includes("tight access") || sc.includes("narrow lot")) complexityFactor += 0.1;
+              if (sc.includes("steep") || sc.includes("hillside")) complexityFactor += 0.15;
+              if (sc.includes("custom") || sc.includes("high-end")) complexityFactor += 0.1;
+            }
+
+            // Calculate start date
+            let startDate = new Date();
+            if (startDateStr) {
+              startDate = new Date(startDateStr);
+            } else {
+              // Default to next Monday
+              const day = startDate.getDay();
+              const daysUntilMonday = day === 0 ? 1 : day === 1 ? 0 : 8 - day;
+              startDate.setDate(startDate.getDate() + daysUntilMonday);
+            }
+
+            // Create the job in the database
+            const newJob = await db.createJob({
+              companyId: ctx.companyId,
+              createdBy: input.employeeId,
+              name: jobName,
+              address: address || null,
+              status: "active",
+              totalBudget: totalBudget.toString(),
+              billingType,
+              startDate: startDate,
+            });
+
+            // Create schedule tasks for each phase
+            const scheduleTasks: string[] = [];
+            let currentDay = 0;
+            let totalDays = 0;
+            for (const entry of schedule) {
+              const adjustedDuration = Math.ceil(entry.durationDays * complexityFactor);
+              const taskStartDate = new Date(startDate);
+              taskStartDate.setDate(taskStartDate.getDate() + currentDay);
+              // Skip weekends
+              while (taskStartDate.getDay() === 0 || taskStartDate.getDay() === 6) {
+                taskStartDate.setDate(taskStartDate.getDate() + 1);
+              }
+              const taskEndDate = new Date(taskStartDate);
+              let workDaysAdded = 0;
+              while (workDaysAdded < adjustedDuration) {
+                taskEndDate.setDate(taskEndDate.getDate() + 1);
+                if (taskEndDate.getDay() !== 0 && taskEndDate.getDay() !== 6) workDaysAdded++;
+              }
+
+              try {
+                await db.createScheduleItem({
+                  companyId: ctx.companyId,
+                  jobId: (newJob as any).id ?? newJob,
+                  title: entry.phase,
+                  description: entry.description || "",
+                  phase: entry.phase,
+                  scheduledDate: taskStartDate,
+                  endDate: taskEndDate,
+                  status: "pending",
+                  createdBy: input.employeeId,
+                  sortOrder: schedule.indexOf(entry),
+                });
+              } catch {}
+
+              const startStr = taskStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const endStr = taskEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              scheduleTasks.push(`${entry.phase}: ${startStr} - ${endStr} (${adjustedDuration} work days) — $${entry.budgetAmount.toLocaleString()} (${entry.budgetPercent.toFixed(0)}%)`);
+              currentDay += adjustedDuration;
+              totalDays += adjustedDuration;
+            }
+
+            // Calculate daily cost breakdown
+            const avgDailyLabor = (totalBudget * 0.45) / totalDays; // 45% labor
+            const avgDailyMaterials = (totalBudget * 0.35) / totalDays; // 35% materials
+            const avgDailyOverhead = (totalBudget * 0.15) / totalDays; // 15% overhead
+            const avgDailyProfit = (totalBudget * 0.05) / totalDays; // 5% profit margin
+
+            toolResult = `✅ Job "${jobName}" created successfully!\n\n`;
+            toolResult += `📋 **Project Summary:**\n`;
+            toolResult += `- Type: ${projectType.replace('_', ' ')}\n`;
+            toolResult += `- Size: ${totalSqft.toLocaleString()} SF\n`;
+            toolResult += `- Budget: $${totalBudget.toLocaleString()}\n`;
+            toolResult += `- Crew: ${crewSize} workers\n`;
+            toolResult += `- Start: ${startDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}\n`;
+            toolResult += `- Duration: ~${totalDays} work days (${Math.ceil(totalDays / 5)} weeks)\n`;
+            if (complexityFactor > 1.0) toolResult += `- Complexity factor: ${((complexityFactor - 1) * 100).toFixed(0)}% added for: ${specialConditions}\n`;
+            toolResult += `\n📅 **Phase Schedule:**\n${scheduleTasks.join('\n')}\n`;
+            toolResult += `\n💰 **Daily Cost Breakdown (average):**\n`;
+            toolResult += `- Labor: $${avgDailyLabor.toFixed(0)}/day\n`;
+            toolResult += `- Materials: $${avgDailyMaterials.toFixed(0)}/day\n`;
+            toolResult += `- Overhead: $${avgDailyOverhead.toFixed(0)}/day\n`;
+            toolResult += `- Profit margin: $${avgDailyProfit.toFixed(0)}/day\n`;
+            toolResult += `- Total burn rate: $${(avgDailyLabor + avgDailyMaterials + avgDailyOverhead).toFixed(0)}/day\n`;
+            toolResult += `\nPresent this as a clean summary. The job is now live in the Jobs tab with the schedule. Ask Pedro if he wants to adjust any phase durations or budgets.`;
+          } catch (jobErr) {
+            toolResult = `Failed to create job: ${jobErr instanceof Error ? jobErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "productivity_lookup") {
+          try {
+            const { lookupProductionRate, PRODUCTION_RATES } = await import("./productivity-knowledge.js");
+            const task = args.task || "";
+            const trade = args.trade || undefined;
+            const crewSize = args.crewSize || undefined;
+            const sqft = args.sqft || undefined;
+
+            const rates = lookupProductionRate(task, trade);
+
+            if (rates.length === 0) {
+              // Try broader search
+              const allMatches = PRODUCTION_RATES.filter((r: any) =>
+                r.task.toLowerCase().includes(task.toLowerCase().split(' ')[0]) ||
+                r.trade.toLowerCase().includes(task.toLowerCase().split(' ')[0])
+              );
+              if (allMatches.length > 0) {
+                toolResult = `No exact match for "${task}", but found related rates:\n`;
+                for (const r of allMatches.slice(0, 5)) {
+                  toolResult += `- ${r.task}: ${r.crewSize}-man crew = ${r.rateMin}-${r.rateMax} ${r.unit}/day (avg ${r.ratePerDay}). ${r.notes}\n`;
+                }
+              } else {
+                toolResult = `No production rate data found for "${task}". Available trades: framing, roofing, drywall, concrete, steel, insulation, siding, painting, electrical, plumbing, hvac. Try a more specific query.`;
+              }
+            } else {
+              toolResult = `Production rates for "${task}":\n`;
+              for (const r of rates) {
+                let line = `- ${r.task}: ${r.crewSize}-man crew = ${r.rateMin}-${r.rateMax} ${r.unit}/day (avg ${r.ratePerDay})`;
+                if (crewSize && crewSize !== r.crewSize) {
+                  const scaleFactor = crewSize / r.crewSize;
+                  const adjustedRate = Math.round(r.ratePerDay * scaleFactor * 0.85); // 85% efficiency for larger crews
+                  line += ` → adjusted for ${crewSize}-man crew: ~${adjustedRate} ${r.unit}/day`;
+                }
+                if (sqft && r.unit === "SF") {
+                  const daysNeeded = Math.ceil(sqft / r.ratePerDay);
+                  line += ` → ${sqft} SF would take ~${daysNeeded} days`;
+                }
+                line += `. ${r.notes}`;
+                toolResult += line + `\n`;
+              }
+            }
+
+            // Check for historical data from completed jobs (learning engine)
+            try {
+              // Check pivot memory for historical corrections
+              const pivotMem = await db.getPivotMemory(input.employeeId);
+              if (pivotMem?.preferences) {
+                const prefs = JSON.parse(pivotMem.preferences);
+                const corrections = prefs.corrections || [];
+                const relevant = corrections.filter((c: any) =>
+                  c.category === "pricing" && c.correction.toLowerCase().includes(task.toLowerCase().split(' ')[0])
+                );
+                if (relevant.length > 0) {
+                  toolResult += `\n📊 **From your historical data:**\n`;
+                  for (const c of relevant) {
+                    toolResult += `- ${c.correction}\n`;
+                  }
+                }
+              }
+            } catch {}
+
+            toolResult += `\nUse these rates for estimating. Remember: 6 actual work hours per day is realistic. Add 10-15% for Northern Utah weather delays.`;
+          } catch (lookupErr) {
+            toolResult = `Productivity lookup error: ${lookupErr instanceof Error ? lookupErr.message : "unknown"}`;
+          }
+        } else if (toolName === "log_job_completion") {
+          try {
+            const jobName = args.jobName || "";
+            const phaseName = args.phaseName || "full_job";
+            const actualDays = args.actualDays || 0;
+            const estimatedDays = args.estimatedDays || 0;
+            const actualCost = args.actualCost || 0;
+            const estimatedCost = args.estimatedCost || 0;
+            const crewSize = args.crewSize || 0;
+            const sqft = args.sqft || 0;
+            const notes = args.notes || "";
+
+            // Store as a correction/learning data point
+            const learningData = [
+              `JOB COMPLETION DATA — ${jobName} / ${phaseName}:`,
+              `Estimated: ${estimatedDays} days, $${estimatedCost}`,
+              `Actual: ${actualDays} days, $${actualCost}`,
+              `Crew size: ${crewSize}, Sqft: ${sqft}`,
+              estimatedDays > 0 ? `Duration variance: ${((actualDays - estimatedDays) / estimatedDays * 100).toFixed(0)}%` : "",
+              estimatedCost > 0 ? `Cost variance: ${((actualCost - estimatedCost) / estimatedCost * 100).toFixed(0)}%` : "",
+              notes ? `Notes: ${notes}` : "",
+              sqft > 0 && actualDays > 0 ? `Actual rate: ${Math.round(sqft / actualDays)} SF/day with ${crewSize}-man crew` : "",
+            ].filter(Boolean).join(" | ");
+
+            // Store in pivot memory as a correction
+            const currentMemory = await db.getPivotMemory(input.employeeId);
+            const existingCorrections = currentMemory?.preferences ? JSON.parse(currentMemory.preferences) : {};
+            if (!existingCorrections.corrections) existingCorrections.corrections = [];
+            existingCorrections.corrections.push({ correction: learningData, category: "pricing", learnedAt: new Date().toISOString() });
+            if (existingCorrections.corrections.length > 100) existingCorrections.corrections = existingCorrections.corrections.slice(-100);
+            await db.upsertPivotMemory(input.employeeId, { preferences: JSON.stringify(existingCorrections) });
+
+            let response = `✅ Job completion data logged for ${jobName} — ${phaseName}\n\n`;
+            if (estimatedDays > 0) {
+              const variance = ((actualDays - estimatedDays) / estimatedDays * 100);
+              if (variance > 10) {
+                response += `⚠️ Took ${variance.toFixed(0)}% longer than estimated. `;
+                response += notes ? `Reason: ${notes}` : `Consider adding buffer for similar future jobs.`;
+              } else if (variance < -10) {
+                response += `🎉 Finished ${Math.abs(variance).toFixed(0)}% faster than estimated! Your crew is getting more efficient.`;
+              } else {
+                response += `✅ Right on target — within 10% of estimate. Great estimating!`;
+              }
+              response += `\n`;
+            }
+            if (sqft > 0 && actualDays > 0) {
+              response += `\n📊 Actual production rate: ${Math.round(sqft / actualDays)} SF/day with ${crewSize}-man crew`;
+              response += `\nThis data will improve future estimates for similar jobs.`;
+            }
+            toolResult = response;
+          } catch (logErr) {
+            toolResult = `Failed to log completion data: ${logErr instanceof Error ? logErr.message : "unknown"}`;
           }
         } else if (toolName === "get_employee_hours") {
           try {

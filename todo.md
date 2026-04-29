@@ -2677,5 +2677,32 @@
 ## Phase 137: Android Bottom Bar & Pivot Overlap Fix
 - [x] Android: tab bar icons pushed up creating ~1/4in grey border at bottom — remove extra padding/inset (capped bottomPadding to Math.min(insets.bottom, 16) on Android)
 - [x] Android: Pivot FAB overlaps Profile tab due to icons being pushed up — fixed with platform-specific bottom offset
-- [ ] Android: make Pivot FAB draggable/movable so user can position it where they want
+- [x] Android: make Pivot FAB draggable/movable so user can position it where they want
 - [x] Android: eliminate grey border at bottom of tab bar that wastes screen space (same fix as above)
+
+## Phase 138: Pivot Job Creation Pipeline + Learning Engine + Budget-to-Schedule
+- [x] Research construction productivity data (framing, concrete, steel, drywall, roofing rates per day/crew)
+- [x] Research how top CM apps (Buildertrend, CoConstruct, Procore) handle job creation and scheduling
+- [x] Research construction budgeting best practices and daily cost breakdown methods
+- [x] Build construction productivity knowledge base with REAL labor durations (not guesses)
+- [x] Fix Pivot's time estimates (e.g., addition walls = 3-4 days not 10 days)
+- [x] Build Pivot conversational job creation flow (Pivot asks questions, generates budget + schedule)
+- [x] Build budget-to-schedule pipeline: job creation → budget breakdown → schedule with milestones
+- [x] Build daily cost breakdown view (payroll + overhead per day per job)
+- [x] Build learning engine: capture actual job durations from clock entries and reports
+- [x] Learning engine: compare estimated vs actual durations to improve future estimates
+- [x] Learning engine: aggregate patterns across all jobs to become "hivemind" for new users
+- [x] Pivot can create a job by asking questions conversationally then push to budget + schedule
+- [x] Schedule view shows overhead tracking integrated with real-time labor costs
+- [x] Help new contractors understand how to budget and schedule jobs for profit
+
+## Phase 138 Addendum: Android UI Fixes (from video recording Apr 28)
+- [x] Make Pivot FAB draggable (user can move it anywhere on screen)
+- [x] Fix Pivot FAB default position — fixed with platform-specific bottom offset
+- [x] Fix Android silver/grey bar at bottom — expo-navigation-bar plugin + runtime color set to #111111
+- [x] Fix Pivot chat UI — keyboard behavior changed to 'height' on Android to prevent push-up
+
+## Phase 139: Pivot Dark Theme Color Fix
+- [x] Change Pivot dark theme from blue to BLACK with gold accents
+- [x] Keep light theme as-is
+- [x] Ensure all Pivot UI elements (chat bubbles, input bar, header, FAB) use black background in dark mode

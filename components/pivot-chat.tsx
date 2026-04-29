@@ -34,8 +34,12 @@ import {
   Linking,
   StatusBar,
   Animated as RNAnimated,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from "react-native-reanimated";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -83,13 +87,13 @@ const RECORDING_RED = "#EF4444";
 // Theme-aware palettes
 const PALETTES = {
   dark: {
-    BG: "#0A0A12",
-    SURFACE: "#12121E",
-    CARD: "#1A1A2A",
-    INPUT: "#16162A",
-    BORDER: "#2A2A3E",
-    TEXT_PRIMARY: "#F0F0F5",
-    TEXT_SECONDARY: "#8888A0",
+    BG: "#000000",
+    SURFACE: "#0A0A0A",
+    CARD: "#141414",
+    INPUT: "#0F0F0F",
+    BORDER: "#2A2A2A",
+    TEXT_PRIMARY: "#F0F0F0",
+    TEXT_SECONDARY: "#888888",
   },
   light: {
     BG: "#F5F5F0",
@@ -402,6 +406,82 @@ export function PivotChat() {
   const inputRef = useRef<TextInput>(null);
   const pendingVoiceRef = useRef<string | null>(null);
   const fabPulse = useRef(new RNAnimated.Value(1)).current;
+
+  // ─── Draggable FAB state ─────────────────────────────────────────────────
+  const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+  const FAB_SIZE = 56;
+  const TAB_BAR_H = Platform.OS === "android" ? 56 + Math.min(insets.bottom, 16) : 56 + Math.max(insets.bottom, 8);
+  const MIN_Y = insets.top + 20;
+  const MAX_Y = SCREEN_H - TAB_BAR_H - FAB_SIZE - 8;
+  const DEFAULT_X = SCREEN_W - FAB_SIZE - 16;
+  const DEFAULT_Y = MAX_Y - 20;
+
+  const fabX = useSharedValue(DEFAULT_X);
+  const fabY = useSharedValue(DEFAULT_Y);
+  const fabStartX = useSharedValue(DEFAULT_X);
+  const fabStartY = useSharedValue(DEFAULT_Y);
+  const isDragging = useSharedValue(false);
+  const dragDistance = useSharedValue(0);
+
+  // Load saved FAB position
+  useEffect(() => {
+    AsyncStorage.getItem("pivot_fab_pos").then((val) => {
+      if (val) {
+        try {
+          const { x, y } = JSON.parse(val);
+          const clampedX = Math.max(4, Math.min(x, SCREEN_W - FAB_SIZE - 4));
+          const clampedY = Math.max(MIN_Y, Math.min(y, MAX_Y));
+          fabX.value = clampedX;
+          fabY.value = clampedY;
+        } catch {}
+      }
+    });
+  }, []);
+
+  const saveFabPosition = useCallback((x: number, y: number) => {
+    AsyncStorage.setItem("pivot_fab_pos", JSON.stringify({ x, y })).catch(() => {});
+  }, []);
+
+  // Snap to nearest edge after drag
+  const snapToEdge = useCallback((x: number, y: number) => {
+    const snapX = x < SCREEN_W / 2 ? 4 : SCREEN_W - FAB_SIZE - 4;
+    const clampedY = Math.max(MIN_Y, Math.min(y, MAX_Y));
+    fabX.value = withSpring(snapX, { damping: 20, stiffness: 200 });
+    fabY.value = withSpring(clampedY, { damping: 20, stiffness: 200 });
+    saveFabPosition(snapX, clampedY);
+  }, [SCREEN_W, SCREEN_H, MIN_Y, MAX_Y, saveFabPosition]);
+
+  const handleFabTap = useCallback(() => {
+    setOpen(true);
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
+
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
+      isDragging.value = true;
+      dragDistance.value = 0;
+      fabStartX.value = fabX.value;
+      fabStartY.value = fabY.value;
+    })
+    .onUpdate((e) => {
+      fabX.value = fabStartX.value + e.translationX;
+      fabY.value = fabStartY.value + e.translationY;
+      dragDistance.value = Math.sqrt(e.translationX ** 2 + e.translationY ** 2);
+    })
+    .onEnd(() => {
+      isDragging.value = false;
+      // If barely moved, treat as tap
+      if (dragDistance.value < 10) {
+        runOnJS(handleFabTap)();
+      } else {
+        runOnJS(snapToEdge)(fabX.value, fabY.value);
+      }
+    })
+    .runOnJS(false);
+
+  const fabAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: fabX.value }, { translateY: fabY.value }],
+  }));
 
   const chatMutation = trpc.pivot.chat.useMutation();
   const transcribeMutation = trpc.pivot.transcribeVoice.useMutation();
@@ -881,34 +961,25 @@ export function PivotChat() {
 
   return (
     <>
-      {/* ─── Premium FAB ─── */}
-      <RNAnimated.View
-        style={[
-          styles.fabOuter,
-          {
-            // Android: cap inset to prevent FAB overlapping Profile tab
-            bottom: Platform.OS === "android"
-              ? 56 + Math.min(insets.bottom, 16) + 12
-              : 56 + Math.max(insets.bottom, 16) + 28,
-            transform: [{ scale: fabPulse }],
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => {
-            setOpen(true);
-            if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
-          activeOpacity={0.85}
+      {/* ─── Draggable Premium FAB ─── */}
+      <GestureDetector gesture={panGesture}>
+        <Animated.View
+          style={[
+            styles.fabDraggable,
+            fabAnimStyle,
+          ]}
         >
-          <Image
-            source={{ uri: PIVOT_ICON_URL }}
-            style={{ width: 52, height: 52, borderRadius: 26 }}
-            contentFit="cover"
-          />
-        </TouchableOpacity>
-      </RNAnimated.View>
+          <RNAnimated.View style={{ transform: [{ scale: fabPulse }] }}>
+            <View style={styles.fab}>
+              <Image
+                source={{ uri: PIVOT_ICON_URL }}
+                style={{ width: 52, height: 52, borderRadius: 26 }}
+                contentFit="cover"
+              />
+            </View>
+          </RNAnimated.View>
+        </Animated.View>
+      </GestureDetector>
 
       {/* ─── Full-Screen Chat Modal ─── */}
       <Modal
@@ -919,9 +990,9 @@ export function PivotChat() {
         statusBarTranslucent
       >
         <KeyboardAvoidingView
-          behavior="padding"
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1, backgroundColor: P.BG }}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : StatusBar.currentHeight || 0}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         >
           <View style={{ flex: 1 }}>
             {/* ─── Premium Header ─── */}
@@ -1183,11 +1254,14 @@ export function PivotChat() {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // FAB
-  fabOuter: {
+  // FAB (draggable — positioned via translateX/translateY)
+  fabDraggable: {
     position: "absolute",
-    right: 16,
+    top: 0,
+    left: 0,
     zIndex: 100,
+    width: 56,
+    height: 56,
   },
   fab: {
     width: 56,

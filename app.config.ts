@@ -116,6 +116,14 @@ const config: ExpoConfig = {
     ],
     "./plugins/withMinSdk24",
     "expo-font",
+    [
+      "expo-navigation-bar",
+      {
+        "backgroundColor": "#111111",
+        "barStyle": "light",
+        "position": "absolute"
+      }
+    ],
   ],
   experiments: {
     typedRoutes: true,
