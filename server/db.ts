@@ -2614,9 +2614,12 @@ export async function updateSupportTicket(id: number, data: Partial<InsertSuppor
   await db.update(supportTickets).set(data).where(eq(supportTickets.id, id));
 }
 
-export async function getSupportTicketsByStatus(status: string) {
+export async function getSupportTicketsByStatus(status: string, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
+  if (companyId) {
+    return db.select().from(supportTickets).where(and(eq(supportTickets.status, status as any), eq(supportTickets.companyId, companyId))).orderBy(desc(supportTickets.createdAt));
+  }
   return db.select().from(supportTickets).where(eq(supportTickets.status, status as any)).orderBy(desc(supportTickets.createdAt));
 }
 

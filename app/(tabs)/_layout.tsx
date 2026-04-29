@@ -12,7 +12,8 @@ export default function TabLayout() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { employee, isAuthenticated, loading } = useAppAuth();
-  const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
+  // Android edge-to-edge: cap bottom inset to prevent grey border; iOS uses full inset for home indicator
+  const bottomPadding = Platform.OS === "web" ? 12 : Platform.OS === "android" ? Math.min(insets.bottom, 16) : Math.max(insets.bottom, 8);
   const tabBarHeight = 56 + bottomPadding;
 
   if (loading) {

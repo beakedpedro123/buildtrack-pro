@@ -2,6 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { useOfflineQueue } from "@/lib/offline-queue";
+import { useLanguage } from "@/lib/language-context";
 import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -22,12 +23,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 type Step = "company" | "select" | "pin";
 
-const ROLE_LABELS: Record<string, string> = {
-  owner: "Owner / Dueño",
+const ROLE_KEYS: Record<string, string> = {
+  owner: "Owner",
   office_manager: "Office Manager",
   logistics: "Logistics",
-  foreman: "Foreman / Capataz",
-  laborer: "Laborer / Trabajador",
+  foreman: "Foreman",
+  laborer: "Laborer",
 };
 const ROLE_COLORS: Record<string, string> = {
   owner: "#1E3A5F",
@@ -52,22 +53,28 @@ export default function LoginScreen() {
   const colors = useColors();
   const { login } = useAppAuth();
   const { isOnline } = useOfflineQueue();
+  const { t } = useLanguage();
+  const getRoleLabel = (role: string) => t(ROLE_KEYS[role] || role);
   const [step, setStep] = useState<Step>("company");
   const [companyCode, setCompanyCode] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyError, setCompanyError] = useState("");
   const [lookingUp, setLookingUp] = useState(false);
+  const [companyId, setCompanyId] = useState<number | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [cachedEmployees, setCachedEmployees] = useState<any[] | null>(null);
 
-  const { data: employees, isLoading } = trpc.employees.list.useQuery(undefined, {
-    retry: 1,
-    staleTime: 30000,
-    enabled: step !== "company",
-  });
+  const { data: employees, isLoading } = trpc.employees.listByCompany.useQuery(
+    { companyId: companyId! },
+    {
+      retry: 1,
+      staleTime: 30000,
+      enabled: step !== "company" && !!companyId,
+    }
+  );
   const verifyPin = trpc.employees.verifyPin.useMutation();
   const lookupCompany = trpc.company.lookupBySlug.useMutation();
 
@@ -79,6 +86,7 @@ export default function LoginScreen() {
           const parsed = JSON.parse(saved);
           setCompanyCode(parsed.slug);
           setCompanyName(parsed.name);
+          if (parsed.id) setCompanyId(parsed.id);
           setStep("select");
         } catch {
           // Invalid saved data, stay on company step
@@ -118,7 +126,8 @@ export default function LoginScreen() {
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setCompanyName(result.name);
         setCompanyCode(code);
-        await AsyncStorage.setItem(COMPANY_CODE_KEY, JSON.stringify({ slug: code, name: result.name }));
+        setCompanyId(result.id);
+        await AsyncStorage.setItem(COMPANY_CODE_KEY, JSON.stringify({ slug: code, name: result.name, id: result.id }));
         setStep("select");
       } else {
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -170,7 +179,7 @@ export default function LoginScreen() {
 
     if (isOnline) {
       try {
-        const result = await verifyPin.mutateAsync({ pin });
+        const result = await verifyPin.mutateAsync({ pin, companyId: companyId || undefined });
         if (result && result.id === selectedEmployee.id) {
           if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           await login(result as any);
@@ -398,7 +407,7 @@ export default function LoginScreen() {
             <Text style={[styles.avatarText, { fontSize: 22 }]}>{getInitials(selectedEmployee.name)}</Text>
           </View>
           <Text style={styles.selectedName}>{selectedEmployee.name}</Text>
-          <Text style={styles.selectedRole}>{ROLE_LABELS[selectedEmployee.role]}</Text>
+          <Text style={styles.selectedRole}>{getRoleLabel(selectedEmployee.role)}</Text>
           <Text style={{ fontSize: 15, color: colors.muted, marginBottom: 20 }}>Enter your PIN</Text>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
           <View style={styles.pinDots}>
@@ -477,7 +486,7 @@ export default function LoginScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.empName}>{item.name}</Text>
                   <View style={[styles.roleBadge, { backgroundColor: roleColor }]}>
-                    <Text style={styles.roleBadgeText}>{ROLE_LABELS[item.role]}</Text>
+                    <Text style={styles.roleBadgeText}>{getRoleLabel(item.role)}</Text>
                   </View>
                 </View>
                 <Text style={{ color: colors.muted, fontSize: 18 }}>›</Text>

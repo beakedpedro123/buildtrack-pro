@@ -152,7 +152,7 @@ async function startServer() {
               return;
             }
             const contentType = req.headers["content-type"] || "application/octet-stream";
-            const ext = contentType.includes("audio") ? "m4a" : contentType.includes("pdf") ? "pdf" : contentType.includes("image") ? "jpg" : "bin";
+            const ext = contentType.includes("audio") ? "m4a" : contentType.includes("pdf") ? "pdf" : contentType.includes("image") ? "jpg" : contentType.includes("video") ? "mp4" : "bin";
             const key = `uploads/${Date.now()}.${ext}`;
             const { url } = await storagePut(key, body, contentType);
             console.log(`[upload] Saved raw: ${key} (${body.length} bytes)`);

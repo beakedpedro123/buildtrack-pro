@@ -60,12 +60,15 @@ if ('serviceWorker' in navigator) {
 
 html{scroll-behavior:smooth}
 body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}
+*{word-wrap:break-word;overflow-wrap:break-word}
+h1,h2,h3,p,label,small,span,a,.feature-card p,.comp-feature,.pricing-card,.hero p,.section-header p{max-width:100%;overflow-wrap:break-word;word-break:break-word}
 a{color:var(--gold);text-decoration:none;transition:opacity .2s}
 a:hover{opacity:.85}
 
 /* NAV */
 .nav{position:fixed;top:0;left:0;right:0;z-index:100;background:var(--nav-bg);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
 .nav-inner{max-width:1200px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+.nav-lang-mobile{display:none;background:var(--gold-dim);border:1px solid var(--gold);color:var(--gold);padding:6px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
 .nav-logo{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:800;color:var(--text);letter-spacing:-.5px}
 .nav-logo span{color:var(--gold)}
 .nav-logo svg{width:32px;height:32px}
@@ -204,7 +207,7 @@ a:hover{opacity:.85}
 .modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--text-3);font-size:24px;cursor:pointer}
 .form-group{margin-bottom:16px}
 .form-group label{display:block;font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:6px}
-.form-group input,.form-group select{width:100%;padding:12px 16px;background:var(--bg-3);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border-color .2s}
+.form-group input,.form-group select{width:100%;padding:12px 16px;background:var(--bg-3);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border-color .2s;box-sizing:border-box;max-width:100%}
 .form-group input:focus,.form-group select:focus{border-color:var(--gold)}
 .form-group input::placeholder{color:var(--text-3)}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -216,6 +219,7 @@ a:hover{opacity:.85}
 /* RESPONSIVE */
 @media(max-width:768px){
   .nav-links{display:none}
+  .nav-lang-mobile{display:block}
   .ai-grid{grid-template-columns:1fr;gap:40px}
   .hero-stats{gap:24px}
   .form-row{grid-template-columns:1fr}
@@ -273,12 +277,14 @@ a:hover{opacity:.85}
       Build<span>Track</span> Pro
     </div>
     <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#ai">AI Assistant</a>
-      <a href="#compare">Compare</a>
-      <a href="#pricing">Pricing</a>
-      <a href="#" class="btn btn-primary" onclick="openSignup()">Start Free Trial</a>
+      <a href="#features" data-i18n="nav_features">Features</a>
+      <a href="#ai" data-i18n="nav_ai">AI Assistant</a>
+      <a href="#compare" data-i18n="nav_compare">Compare</a>
+      <a href="#pricing" data-i18n="nav_pricing">Pricing</a>
+      <a href="#" class="btn btn-primary" onclick="openSignup()" data-i18n="nav_trial">Start Free Trial</a>
+      <button onclick="toggleLang()" id="langToggle" style="background:var(--gold-dim);border:1px solid var(--gold);color:var(--gold);padding:6px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">ES</button>
     </div>
+    <button onclick="toggleLang()" class="nav-lang-mobile" id="langToggleMobile">ES</button>
   </div>
 </nav>
 
@@ -286,30 +292,30 @@ a:hover{opacity:.85}
 <section class="hero">
   <div class="hero-badge">
     <svg style="width:16px;height:16px"><use href="#ico-hardhat"/></svg>
-    Built by contractors, for contractors
+    <span data-i18n="hero_badge">Built by contractors, for contractors</span>
   </div>
-  <h1>Run Your Crew.<br><em>Not Spreadsheets.</em></h1>
-  <p>The only construction management app with a built-in AI assistant that speaks your language. Time tracking, job costing, daily reports, and crew management — all in one place.</p>
+  <h1 data-i18n="hero_title">Run Your Crew.<br><em>Not Spreadsheets.</em></h1>
+  <p data-i18n="hero_desc">The only construction management app with a built-in AI assistant that speaks your language. Time tracking, job costing, daily reports, and crew management — all in one place.</p>
   <div class="hero-cta">
-    <a href="#" class="btn btn-primary btn-large" onclick="openSignup()">Start 14-Day Free Trial</a>
-    <a href="#features" class="btn btn-outline btn-large">See Features</a>
+    <a href="#" class="btn btn-primary btn-large" onclick="openSignup()" data-i18n="hero_cta">Start 14-Day Free Trial</a>
+    <a href="#features" class="btn btn-outline btn-large" data-i18n="hero_features">See Features</a>
   </div>
   <div class="hero-stats">
     <div class="hero-stat">
       <div class="hero-stat-value">24/7</div>
-      <div class="hero-stat-label">Budget & Hours Tracking</div>
+      <div class="hero-stat-label" data-i18n="stat_budget">Budget & Hours Tracking</div>
     </div>
     <div class="hero-stat">
       <div class="hero-stat-value">GPS</div>
-      <div class="hero-stat-label">Verified Time Tracking</div>
+      <div class="hero-stat-label" data-i18n="stat_gps">Verified Time Tracking</div>
     </div>
     <div class="hero-stat">
       <div class="hero-stat-value">2</div>
-      <div class="hero-stat-label">Languages (EN + ES)</div>
+      <div class="hero-stat-label" data-i18n="stat_lang">Languages (EN + ES)</div>
     </div>
     <div class="hero-stat">
       <div class="hero-stat-value">14</div>
-      <div class="hero-stat-label">Day Free Trial</div>
+      <div class="hero-stat-label" data-i18n="stat_trial">Day Free Trial</div>
     </div>
   </div>
 </section>
@@ -318,9 +324,9 @@ a:hover{opacity:.85}
 <section class="section" id="features">
   <div class="section-inner">
     <div class="section-header">
-      <div class="section-tag">Features</div>
-      <h2>Everything Your Crew Needs</h2>
-      <p>From the field to the office, BuildTrack Pro covers every part of your operation.</p>
+      <div class="section-tag" data-i18n="feat_tag">Features</div>
+      <h2 data-i18n="feat_title">Everything Your Crew Needs</h2>
+      <p data-i18n="feat_desc">From the field to the office, BuildTrack Pro covers every part of your operation.</p>
     </div>
     <div class="features-grid">
       <div class="feature-card">
@@ -601,45 +607,45 @@ a:hover{opacity:.85}
   <div class="modal">
     <button class="modal-close" onclick="closeSignup()">&times;</button>
     <div id="signupForm">
-      <h2>Start Your Free Trial</h2>
-      <p class="modal-desc">14 days free. No credit card required. Set up in 2 minutes.</p>
+      <h2 data-i18n="signup_title">Start Your Free Trial</h2>
+      <p class="modal-desc" data-i18n="signup_desc">14 days free. No credit card required. Set up in 2 minutes.</p>
       <div class="form-group">
-        <label>Company Name</label>
+        <label data-i18n="lbl_company">Company Name</label>
         <input type="text" id="companyName" placeholder="e.g. Smith Construction LLC">
       </div>
       <div class="form-group">
-        <label>Company URL (for your team's login)</label>
+        <label data-i18n="lbl_url">Company URL (for your team's login)</label>
         <input type="text" id="companySlug" placeholder="e.g. smith-construction" oninput="formatSlug(this)">
         <small style="color:var(--text-3);font-size:12px">Your team will log in at this URL</small>
       </div>
       <div class="form-group">
-        <label>Select Your Trade(s)</label>
+        <label data-i18n="lbl_trade">Select Your Trade(s)</label>
         <small style="color:var(--text-3);font-size:12px;display:block;margin-bottom:8px">Pivot AI will customize everything for your trade. Select all that apply.</small>
         <div id="tradeGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:200px;overflow-y:auto;padding:4px">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Your Name</label>
+          <label data-i18n="lbl_name">Your Name</label>
           <input type="text" id="ownerName" placeholder="Full name">
         </div>
         <div class="form-group">
-          <label>Your PIN (4-6 digits)</label>
+          <label data-i18n="lbl_pin">Your PIN (4-6 digits)</label>
           <input type="password" id="ownerPin" placeholder="****" maxlength="6" inputmode="numeric">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Email (optional)</label>
+          <label data-i18n="lbl_email">Email (optional)</label>
           <input type="email" id="ownerEmail" placeholder="you@company.com">
         </div>
         <div class="form-group">
-          <label>Phone (optional)</label>
+          <label data-i18n="lbl_phone">Phone (optional)</label>
           <input type="tel" id="ownerPhone" placeholder="(555) 123-4567">
         </div>
       </div>
       <div class="form-group">
-        <label>Plan</label>
+        <label data-i18n="lbl_plan">Plan</label>
         <select id="selectedPlan">
           <option value="starter">Starter — $29/mo</option>
           <option value="professional" selected>Professional — $59/mo (Most Popular)</option>
@@ -647,7 +653,7 @@ a:hover{opacity:.85}
         </select>
       </div>
       <div class="form-error" id="formError"></div>
-      <button class="btn btn-primary btn-large" style="width:100%;margin-top:8px" onclick="submitSignup()">Create My Account</button>
+      <button class="btn btn-primary btn-large" style="width:100%;margin-top:8px" onclick="submitSignup()" data-i18n="btn_create">Create My Account</button>
     </div>
     <div class="form-success" id="signupSuccess">
       <!-- Dynamically populated by submitSignup() -->
@@ -1057,9 +1063,22 @@ async function submitSignup() {
         <p style="font-size:13px;color:var(--text-2);text-align:center;margin:0;font-weight:600">Tap the QR code or scan it with your phone camera</p>
         <p style="font-size:12px;color:var(--text-3);text-align:center;margin:0">Works on any device — phone, tablet, or desktop</p>
       </div>
-      <div style="margin-top:16px;padding:12px;background:var(--bg-3);border-radius:8px">
+      <div style="margin-top:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <a href="#" id="androidDownloadBtn" onclick="downloadAndroidAPK()" style="display:inline-flex;align-items:center;gap:8px;background:#3DDC84;color:#000;font-weight:700;padding:12px 20px;border-radius:12px;text-decoration:none;font-size:14px">
+          🤖 Download Android App
+        </a>
+        <a href="#" id="iosTestFlightBtn" style="display:inline-flex;align-items:center;gap:8px;background:#007AFF;color:#fff;font-weight:700;padding:12px 20px;border-radius:12px;text-decoration:none;font-size:14px">
+          🍎 iOS TestFlight
+        </a>
+      </div>
+      <div style="margin-top:12px;padding:12px;background:var(--bg-3);border-radius:8px">
         <p style="font-size:12px;color:var(--text-3);margin:0">💡 <strong>Quick Start:</strong> Scan the QR code above or tap it to open the app. Enter company code <strong>${slug}</strong>, then log in with your PIN.</p>
       </div>`;
+    // Auto-detect Android and trigger APK download
+    const isAndroid = /android/i.test(navigator.userAgent);
+    if (isAndroid) {
+      setTimeout(() => { downloadAndroidAPK(); }, 1500);
+    }
     // Pre-save company code to localStorage so the app portal auto-fills it
     try { localStorage.setItem('btp_company_code', JSON.stringify({ slug: slug, name: companyName })); } catch(e) {}
     // Also set up the Open App button to pre-fill the company code via URL hash
@@ -1075,6 +1094,82 @@ async function submitSignup() {
 document.getElementById('signupModal').addEventListener('click', function(e) {
   if (e.target === this) closeSignup();
 });
+
+/* ===== LANGUAGE TOGGLE (EN / ES) ===== */
+var siteLang = localStorage.getItem('btp_site_lang') || 'en';
+var i18n = {
+  nav_features: { en:'Features', es:'Funciones' },
+  nav_ai: { en:'AI Assistant', es:'Asistente IA' },
+  nav_compare: { en:'Compare', es:'Comparar' },
+  nav_pricing: { en:'Pricing', es:'Precios' },
+  nav_trial: { en:'Start Free Trial', es:'Prueba Gratis' },
+  hero_badge: { en:'Built by contractors, for contractors', es:'Hecho por contratistas, para contratistas' },
+  hero_title: { en:'Run Your Crew.<br><em>Not Spreadsheets.</em>', es:'Maneja Tu Equipo.<br><em>No Hojas de C\u00e1lculo.</em>' },
+  hero_desc: { en:'The only construction management app with a built-in AI assistant that speaks your language. Time tracking, job costing, daily reports, and crew management \u2014 all in one place.', es:'La \u00fanica app de gesti\u00f3n de construcci\u00f3n con un asistente IA que habla tu idioma. Control de horas, costos, reportes diarios y manejo de cuadrilla \u2014 todo en un solo lugar.' },
+  hero_cta: { en:'Start 14-Day Free Trial', es:'Prueba Gratis 14 D\u00edas' },
+  hero_features: { en:'See Features', es:'Ver Funciones' },
+  stat_budget: { en:'Budget & Hours Tracking', es:'Control de Presupuesto y Horas' },
+  stat_gps: { en:'Verified Time Tracking', es:'Control de Tiempo con GPS' },
+  stat_lang: { en:'Languages (EN + ES)', es:'Idiomas (EN + ES)' },
+  stat_trial: { en:'Day Free Trial', es:'D\u00edas de Prueba Gratis' },
+  feat_tag: { en:'Features', es:'Funciones' },
+  feat_title: { en:'Everything Your Crew Needs', es:'Todo lo que Tu Equipo Necesita' },
+  feat_desc: { en:'From the field to the office, BuildTrack Pro covers every part of your operation.', es:'Del campo a la oficina, BuildTrack Pro cubre cada parte de tu operaci\u00f3n.' },
+  signup_title: { en:'Start Your Free Trial', es:'Comienza Tu Prueba Gratis' },
+  signup_desc: { en:'14 days free. No credit card required. Set up in 2 minutes.', es:'14 d\u00edas gratis. Sin tarjeta de cr\u00e9dito. Configura en 2 minutos.' },
+  lbl_company: { en:'Company Name', es:'Nombre de la Empresa' },
+  lbl_url: { en:"Company URL (for your team's login)", es:'URL de la Empresa (para que tu equipo inicie sesi\u00f3n)' },
+  lbl_trade: { en:'Select Your Trade(s)', es:'Selecciona Tu(s) Oficio(s)' },
+  lbl_name: { en:'Your Name', es:'Tu Nombre' },
+  lbl_pin: { en:'Your PIN (4-6 digits)', es:'Tu PIN (4-6 d\u00edgitos)' },
+  lbl_email: { en:'Email (optional)', es:'Correo (opcional)' },
+  lbl_phone: { en:'Phone (optional)', es:'Tel\u00e9fono (opcional)' },
+  lbl_plan: { en:'Plan', es:'Plan' },
+  btn_create: { en:'Create My Account', es:'Crear Mi Cuenta' },
+};
+function applyLang(lang) {
+  siteLang = lang;
+  localStorage.setItem('btp_site_lang', lang);
+  var label = lang === 'en' ? 'ES' : 'EN';
+  document.getElementById('langToggle').textContent = label;
+  var mob = document.getElementById('langToggleMobile');
+  if (mob) mob.textContent = label;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var key = el.getAttribute('data-i18n');
+    if (i18n[key] && i18n[key][lang]) el.innerHTML = i18n[key][lang];
+  });
+}
+function toggleLang() {
+  applyLang(siteLang === 'en' ? 'es' : 'en');
+}
+// Apply saved language on load
+if (siteLang !== 'en') applyLang(siteLang);
+
+/* ===== ANDROID APK DOWNLOAD ===== */
+function downloadAndroidAPK() {
+  // Check if published APK exists, otherwise redirect to web portal
+  var apkUrl = '/api/web/buildtrack-pro.apk';
+  // Try to download the APK; if it doesn't exist, open the web portal instead
+  var link = document.createElement('a');
+  link.href = apkUrl;
+  link.download = 'BuildTrack-Pro.apk';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  // Also show a fallback message
+  setTimeout(function() {
+    var btn = document.getElementById('androidDownloadBtn');
+    if (btn) {
+      btn.innerHTML = '\u2705 Download Started!';
+      btn.style.background = '#22C55E';
+      setTimeout(function() {
+        btn.innerHTML = '\ud83e\udd16 Download Android App';
+        btn.style.background = '#3DDC84';
+      }, 3000);
+    }
+  }, 500);
+}
 </script>
 </body>
 </html>

@@ -352,5 +352,173 @@ When estimating, always ask:
 - Flag any scope changes immediately
 - Track actual hours and materials for future estimates
 - Debrief after job close — what went well, what to improve next time
+
+### 2026 TAX RATES — UTAH & FEDERAL (OWNER-ONLY)
+Use these exact rates for all payroll, burden, and tax calculations:
+
+**Federal Taxes (2026):**
+- Social Security (OASDI): 6.2% employee + 6.2% employer = 12.4% total
+- SS Wage Base: $184,500 (projected 2026 — no SS tax on wages above this)
+- Medicare: 1.45% employee + 1.45% employer = 2.9% total (no wage cap)
+- Additional Medicare: 0.9% on wages over $200K (single) / $250K (married)
+- FUTA: 6.0% gross, 5.4% credit = 0.6% effective on first $7,000 per employee
+- Federal income tax brackets (2026 Single): 10% ($0-$11,925), 12% ($11,926-$48,475), 22% ($48,476-$103,350), 24% ($103,351-$197,300), 32% ($197,301-$250,525), 35% ($250,526-$626,350), 37% ($626,351+)
+- Federal income tax brackets (2026 MFJ): 10% ($0-$23,850), 12% ($23,851-$96,950), 22% ($96,951-$206,700), 24% ($206,701-$394,600), 32% ($394,601-$501,050), 35% ($501,051-$751,600), 37% ($751,601+)
+- Standard deduction 2026: $15,700 (single), $31,400 (MFJ), $23,500 (HoH)
+
+**Utah State Taxes (2026):**
+- Utah income tax: 4.65% flat rate (effective 2026)
+- Utah taxpayer credit: 6% of federal deductions (reduces effective rate)
+- SUTA (State Unemployment): 0.2% to 7.1% on first $50,700 per employee
+- New employer SUTA rate: ~1.2% (construction industry may be higher)
+- Utah does not have local/city income taxes
+
+**Workers Compensation Rates (Utah 2026, per $100 of payroll):**
+- 5403 Carpentry — NOC (framing, rough carpentry): $10.18
+- 5059 Iron/Steel Erection — NOC: $4.77
+- 5022 Masonry — NOC: $7.56
+- 5190 Electrical Wiring: $5.82
+- 5183 Plumbing — NOC: $6.41
+- 5474 Painting — exterior: $8.93
+- 5437 Finish carpentry, cabinet install: $5.21
+- 5213 Concrete work — NOC: $6.89
+- 5551 Roofing — all kinds: $9.45
+- 5645 Carpentry — detached one/two family: $5.12
+- 6217 Excavation — NOC: $4.35
+- 5102 Iron/Steel erection — buildings < 2 stories: $3.87
+- 8810 Clerical office employees: $0.18
+- 8742 Salespersons — outside: $0.25
+- 5606 Contractor — executive supervisor: $12.54
+- 5221 Concrete/cement work — floors: $7.12
+- 5538 Sheet metal work — installation: $6.78
+- 5535 HVAC ductwork: $4.56
+- 5480 Plastering/stucco: $3.92
+- 5020 Ceiling installation: $8.34
+
+**Pedro's Typical Burden Rate (framing crew, class 5403):**
+- Base wage: $25-35/hr
+- Employer SS (6.2%): +$1.55-$2.17/hr
+- Employer Medicare (1.45%): +$0.36-$0.51/hr
+- Workers Comp (10.18/$100): +$2.55-$3.56/hr
+- GL Insurance (~1.5%): +$0.38-$0.53/hr
+- FUTA+SUTA (amortized): +$0.15-$0.25/hr
+- TOTAL BURDEN: ~$5.00-$7.00/hr on top of base wage
+- FULLY BURDENED RATE: $30-42/hr (what each worker REALLY costs Pedro)
+- To break even billing: charge at least the fully burdened rate
+- For profit: bill at $45-55/hr (20-50% markup over burdened rate)
+
+### ACCOUNTING AUTOMATION — WHAT PIVOT CAN DO FOR PEDRO
+Pivot has a built-in accounting_calculator tool that replaces much of what an accountant does:
+
+**Payroll Calculations (use accounting_calculator with calc_type="payroll_tax"):**
+- Calculate exact federal income tax withholding per pay period
+- Calculate FICA (SS + Medicare) for both employee and employer
+- Calculate Utah state tax withholding (4.65% flat)
+- Show net pay after all deductions
+- Show true employer cost per pay period
+
+**Burden Rate Analysis (calc_type="burden_rate"):**
+- Calculate fully burdened hourly rate for any employee
+- Include all employer taxes, WC, GL insurance
+- Show annual cost breakdown
+- Recommend billing rates for profit
+
+**Job Profitability (calc_type="job_profit_loss"):**
+- Full P&L statement per job
+- Direct costs (labor, materials, equipment)
+- Indirect costs (labor burden, overhead allocation)
+- Gross and net profit margins
+- Industry benchmark comparison
+
+**Workers Comp Estimates (calc_type="workers_comp_estimate"):**
+- Premium calculation by class code
+- Per-hour WC cost for any employee
+- Full rate table for all construction class codes
+
+**Overhead Allocation (calc_type="overhead_allocation"):**
+- Distribute monthly overhead across active jobs
+- Equal or revenue-weighted allocation
+- Per-job daily/weekly/monthly overhead cost
+- Typical construction overhead categories
+
+**Certified Payroll (calc_type="certified_payroll"):**
+- Davis-Bacon / state prevailing wage calculations
+- Per-employee compensation breakdown
+- Multi-employee payroll totals
+- WH-347 form data preparation
+
+**Overtime Analysis (calc_type="overtime_cost"):**
+- True cost of OT including burden
+- Effective hourly rate calculation
+- Each OT hour costs ~$38-48 for a $25/hr framing worker
+
+**Annual Employee Cost (calc_type="annual_employee_cost"):**
+- Full annual cost including all taxes and insurance
+- Monthly and true hourly cost
+- Helps Pedro decide hire vs. sub decisions
+
+**Markup vs Margin (calc_type="markup_margin"):**
+- Convert between markup % and margin %
+- Quick reference: 20% markup = 16.7% margin, 25% markup = 20% margin, 50% markup = 33.3% margin
+
+### CONSTRUCTION MATH — EXPANDED CAPABILITIES
+Pivot's construction_math tool now includes these calculation types:
+
+**Roof & Rafter Math:**
+- pitch_to_degrees, degrees_to_pitch, common_rafter_length, hip_valley_rafter_length
+- compound_angle_same_direction, compound_angle_opposite_direction
+- irregular_valley, rafter_total_length, jack_rafter_difference
+- ridge_height, roof_area, speed_square_lookup, angle_from_measurements
+- two_roof_intersection — COMPLETE geometry for two roofs meeting (different pitches, valley angles, jack rafter side cuts, backing angles)
+
+**Arch & Circle Math:**
+- arch_radius — calculate radius from chord+height, or arc from radius+angle
+- circle_geometry — circumference, area, arc length, sector area, common fractions
+
+**Volume & Area:**
+- concrete_volume — slabs, footings, walls, columns/piers with CY and bag counts
+- area_perimeter — rectangle, triangle, circle, trapezoid with diagonals
+- board_feet — lumber board feet with waste factor and common reference
+
+**Structural:**
+- steel_beam_moment — W-shape beam analysis with bending stress, deflection check, and utilization ratio (50+ beam sizes in database)
+- material_weight — weight estimates for 15+ construction materials
+
+**Layout & Grade:**
+- stair_stringer — complete stair layout with riser/tread dimensions
+- percent_grade — slope percentage, angle, ADA compliance check
+- diagonal_brace — brace length and angle calculation
+- rake_wall_studs — complete stud cut list for angled walls
+- pythagorean — basic right triangle calculations
+
+### UTAH CONSTRUCTION REGULATIONS (OWNER REFERENCE)
+**Building Codes:**
+- Utah adopts IRC 2021 for residential, IBC 2021 for commercial (as of 2025)
+- Summit County: additional snow load requirements (60-100 psf ground snow load depending on elevation)
+- Park City: design review required for all new construction, strict height limits
+- Morgan County: less restrictive than Summit, but still IRC 2021 base
+- Wasatch County: IRC 2021 with local amendments
+
+**Licensing:**
+- Utah contractor license required: S200 (General Building), S210 (Framing), E100 (General Engineering)
+- Pedro should carry: S210 Framing Contractor license
+- Subcontractors must be licensed for their trade
+- Business license required in each municipality where work is performed
+
+**OSHA Requirements (Construction):**
+- Fall protection required at 6' or more (29 CFR 1926.501)
+- Scaffolding: must be erected by competent person
+- Hard hats required on all construction sites
+- Eye protection required for power tool use
+- Steel erection: connector must have fall protection at all times
+- Crane signals: designated signalman required
+
+**Utah-Specific:**
+- Lien rights: file preliminary notice within 20 days of first work
+- Mechanics lien: must file within 180 days of completion
+- Payment: owner must pay within 30 days of invoice (Utah Prompt Payment Act)
+- Retainage: max 5% on private projects, released within 45 days of completion
+- Workers comp: REQUIRED for all employers in Utah (no exceptions for construction)
+- Utah OSHA (UOSH): state-run program, mirrors federal OSHA
 `;
 }

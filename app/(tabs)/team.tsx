@@ -30,6 +30,7 @@ import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
 import { EmployeeTaxInfoModal } from "@/components/employee-tax-info";
 import { useGpsTracking } from "@/hooks/use-gps-tracking";
 import { CrewMap } from "@/components/crew-map";
+import { useLanguage } from "@/lib/language-context";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#1E3A5F",
@@ -38,7 +39,7 @@ const ROLE_COLORS: Record<string, string> = {
   foreman: "#F59E0B",
   laborer: "#22C55E" };
 
-const ROLE_LABELS: Record<string, string> = {
+const ROLE_LABEL_KEYS: Record<string, string> = {
   owner: "Owner",
   office_manager: "Office Manager",
   logistics: "Logistics",
@@ -62,6 +63,10 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
+  const { t } = useLanguage();
+  const ROLE_LABELS: Record<string, string> = Object.fromEntries(
+    Object.entries(ROLE_LABEL_KEYS).map(([k, v]) => [k, t(v)])
+  );
   const utils = trpc.useUtils();
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {

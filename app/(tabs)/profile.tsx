@@ -46,7 +46,7 @@ const AVAILABLE_TRADES_MAP: Record<string, { name: string; icon: string; descrip
   Object.entries(TRADE_ICON_MAP).map(([slug, icon]) => [slug, { name: slug.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()), icon, description: "" }])
 );
 
-const ROLE_LABELS: Record<string, string> = {
+const ROLE_LABEL_KEYS: Record<string, string> = {
   owner: "Owner",
   office_manager: "Office Manager",
   logistics: "Logistics",
@@ -90,7 +90,10 @@ export default function ProfileScreen() {
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [saving, setSaving] = useState(false);
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
+  const ROLE_LABELS: Record<string, string> = Object.fromEntries(
+    Object.entries(ROLE_LABEL_KEYS).map(([k, v]) => [k, t(v)])
+  );
   const { gpsEnabled, toggleGps } = useGpsTracking();
   const { lunchSettings, updateSettings: updateLunchSettings } = useLunchSettings();
   const { trade: companyTrade, updateTrade } = useCompanyTrade();

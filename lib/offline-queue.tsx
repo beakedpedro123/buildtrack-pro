@@ -33,7 +33,10 @@ export type MutationType =
   | "changeOrders.create"
   | "changeOrders.delete"
   | "budgetAuditLog.create"
-  | "budget.addExpense";
+  | "budget.addExpense"
+  | "clock.startLunch"
+  | "clock.endLunch"
+  | "clock.setLunch";
 
 export interface OfflineMutation {
   localId: string;
@@ -50,6 +53,7 @@ interface OfflineQueueContextType {
   addClockEntry: (entry: Omit<OfflineClockEntry, "localId" | "createdAt">) => Promise<string>;
   addMutation: (type: MutationType, payload: any) => Promise<string>;
   syncPending: () => Promise<void>;
+  clearPendingQueue: () => Promise<void>;
   lastSyncTime: number | null;
 }
 
@@ -59,6 +63,7 @@ const OfflineQueueContext = createContext<OfflineQueueContextType>({
   addClockEntry: async () => "",
   addMutation: async () => "",
   syncPending: async () => {},
+  clearPendingQueue: async () => {},
   lastSyncTime: null,
 });
 
@@ -219,6 +224,15 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
         case "budget.addExpense":
           await utils.client.budget.addExpense.mutate(entry.payload);
           break;
+        case "clock.startLunch":
+          await utils.client.clock.startLunch.mutate(entry.payload);
+          break;
+        case "clock.endLunch":
+          await utils.client.clock.endLunch.mutate(entry.payload);
+          break;
+        case "clock.setLunch":
+          await utils.client.clock.setLunch.mutate(entry.payload);
+          break;
         default:
           return false;
       }
@@ -256,11 +270,20 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
             notes: entry.notes,
           });
         }
-      } catch {
-        remainingClock.push(entry);
+      } catch (err: any) {
+        // If server says conflict/duplicate, treat as success (already synced)
+        const code = err?.data?.code || err?.message || "";
+        if (code === "CONFLICT" || code === "NOT_FOUND" || String(code).includes("duplicate") || String(code).includes("already")) {
+          // Already synced or entry was deleted — don't re-queue
+        } else {
+          remainingClock.push(entry);
+        }
       }
     }
-    await saveClockQueue(remainingClock);
+    // Also drop stale entries older than 48 hours
+    const staleThreshold = Date.now() - 48 * 60 * 60 * 1000;
+    const freshClock = remainingClock.filter(e => new Date(e.createdAt).getTime() > staleThreshold);
+    await saveClockQueue(freshClock);
 
     // Sync generic mutations
     const remainingMutations: OfflineMutation[] = [];
@@ -270,10 +293,12 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
         if (entry.retries < MAX_RETRIES) {
           remainingMutations.push({ ...entry, retries: entry.retries + 1 });
         }
-        // Drop entries that exceeded MAX_RETRIES
+        // Drop entries that exceeded MAX_RETRIES — clear them from queue to prevent stuck banner
       }
     }
-    await saveMutationQueue(remainingMutations);
+    // Also drop stale mutations older than 48 hours
+    const freshMutations = remainingMutations.filter(e => new Date(e.createdAt).getTime() > staleThreshold);
+    await saveMutationQueue(freshMutations);
 
     syncingRef.current = false;
 
@@ -288,6 +313,12 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
       utils.invalidate();
     }
   }, [saveClockQueue, saveMutationQueue, executeMutation, utils]);
+
+  // Force clear stuck entries (called from banner tap)
+  const clearPendingQueue = useCallback(async () => {
+    await saveClockQueue([]);
+    await saveMutationQueue([]);
+  }, [saveClockQueue, saveMutationQueue]);
 
   // Periodic connectivity check
   useEffect(() => {
@@ -340,6 +371,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
       addClockEntry,
       addMutation,
       syncPending,
+      clearPendingQueue,
       lastSyncTime,
     }}>
       {children}

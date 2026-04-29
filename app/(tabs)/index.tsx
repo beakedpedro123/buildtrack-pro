@@ -33,6 +33,7 @@ import { JobPicker } from "@/components/ui/job-picker";
 import { ConstructionCalculator } from "@/components/construction-calculator";
 import { CompassModal } from "@/components/compass-modal";
 import { useBranding } from "@/lib/branding-context";
+import { useLanguage } from "@/lib/language-context";
 
 const defaultCompanyLogo = require("@/assets/images/company-logo.png");
 import { BG_HOME as bgHome } from "@/constants/bg-urls";
@@ -45,13 +46,7 @@ const ROLE_COLORS: Record<string, string> = {
   laborer: "#22C55E",
 };
 
-const ROLE_LABELS: Record<string, string> = {
-  owner: "Owner",
-  office_manager: "Office Manager",
-  logistics: "Logistics",
-  foreman: "Foreman",
-  laborer: "Laborer",
-};
+// Role labels now use t() translation function — see getRoleLabel() below
 
 type LaborPeriod = "week" | "month" | "30days";
 
@@ -269,6 +264,12 @@ export default function DashboardScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  const { t } = useLanguage();
+  const getRoleLabel = (r: string) => {
+    const map: Record<string, string> = { owner: "Owner", office_manager: "Office Manager", logistics: "Logistics", foreman: "Foreman", laborer: "Laborer" };
+    return t(map[r] || r);
+  };
+
   const role = employee?.role || "laborer";
   const isManagement = role === "owner" || role === "office_manager" || role === "logistics";
   const isOwner = role === "owner";
@@ -311,7 +312,7 @@ export default function DashboardScreen() {
   const refetchClockedIn = clockedInQ.refetch;
 
   const [showVoiceGoals, setShowVoiceGoals] = useState(false);
-  const { addClockEntry } = useOfflineQueue();
+  const { addClockEntry, addMutation, isOnline } = useOfflineQueue();
 
   // Clock-out from dashboard
   const { forceRefresh: clockForceRefresh } = useClockState();
@@ -509,20 +510,36 @@ export default function DashboardScreen() {
     setLunchLoading(true);
     try {
       if (isOnLunch) {
-        const result = await endLunchMutation.mutateAsync({ entryId: activeEntry.id, employeeId: employee.id });
-        if ((result as any)?.error) {
-          Alert.alert("Error", (result as any).error);
-        } else {
-          setSelfClockSuccess(`Lunch ended (${(result as any)?.elapsedMinutes || 0} min)`);
+        try {
+          const result = await endLunchMutation.mutateAsync({ entryId: activeEntry.id, employeeId: employee.id });
+          if ((result as any)?.error) {
+            Alert.alert("Error", (result as any).error);
+          } else {
+            setSelfClockSuccess(`Lunch ended (${(result as any)?.elapsedMinutes || 0} min)`);
+            if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setTimeout(() => setSelfClockSuccess(null), 4000);
+          }
+        } catch (netErr) {
+          // Offline fallback: queue the mutation
+          await addMutation("clock.endLunch", { entryId: activeEntry.id, employeeId: employee.id });
+          setSelfClockSuccess("Lunch ended (will sync when online)");
           if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           setTimeout(() => setSelfClockSuccess(null), 4000);
         }
       } else {
-        const result = await startLunchMutation.mutateAsync({ entryId: activeEntry.id, employeeId: employee.id });
-        if ((result as any)?.error) {
-          Alert.alert("Error", (result as any).error);
-        } else {
-          setSelfClockSuccess("Lunch started!");
+        try {
+          const result = await startLunchMutation.mutateAsync({ entryId: activeEntry.id, employeeId: employee.id });
+          if ((result as any)?.error) {
+            Alert.alert("Error", (result as any).error);
+          } else {
+            setSelfClockSuccess("Lunch started!");
+            if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setTimeout(() => setSelfClockSuccess(null), 4000);
+          }
+        } catch (netErr) {
+          // Offline fallback: queue the mutation
+          await addMutation("clock.startLunch", { entryId: activeEntry.id, employeeId: employee.id });
+          setSelfClockSuccess("Lunch started (will sync when online)");
           if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           setTimeout(() => setSelfClockSuccess(null), 4000);
         }
@@ -531,7 +548,7 @@ export default function DashboardScreen() {
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Failed to toggle lunch.");
     } finally { setLunchLoading(false); }
-  }, [activeEntry, employee?.id, lunchLoading, isOnLunch, startLunchMutation, endLunchMutation, clockForceRefreshSelf]);
+  }, [activeEntry, employee?.id, lunchLoading, isOnLunch, startLunchMutation, endLunchMutation, clockForceRefreshSelf, addMutation]);
 
   const handleSelfClockIn = useCallback(async () => {
     if (!employee?.id || !selfClockJobId) {
@@ -700,7 +717,7 @@ export default function DashboardScreen() {
           {/* Personal Hero */}
           <View style={{ alignItems: "center", paddingVertical: 24, paddingHorizontal: 20 }}>
             <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground, marginBottom: 2 }}>{employee.name}</Text>
-            <Text style={{ fontSize: 14, fontWeight: "600", color: roleColor }}>{ROLE_LABELS[role]}</Text>
+            <Text style={{ fontSize: 14, fontWeight: "600", color: roleColor }}>{getRoleLabel(role)}</Text>
             <Text style={{ fontSize: 13, color: colors.muted, marginTop: 4 }}>
               {now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
             </Text>
@@ -918,7 +935,7 @@ export default function DashboardScreen() {
           {/* Personal Hero */}
           <View style={{ alignItems: "center", paddingVertical: 24, paddingHorizontal: 20 }}>
             <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground, marginBottom: 2 }}>{employee.name}</Text>
-            <Text style={{ fontSize: 14, fontWeight: "600", color: roleColor }}>{ROLE_LABELS[role]}</Text>
+            <Text style={{ fontSize: 14, fontWeight: "600", color: roleColor }}>{getRoleLabel(role)}</Text>
             <Text style={{ fontSize: 13, color: colors.muted, marginTop: 4 }}>
               {now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
             </Text>
@@ -1135,7 +1152,7 @@ export default function DashboardScreen() {
                 {now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening"}, {employee.name.split(" ")[0]}
               </Text>
               <View style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, alignSelf: "flex-start", marginTop: 4, backgroundColor: roleColor }}>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>{ROLE_LABELS[role]}</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>{getRoleLabel(role)}</Text>
               </View>
             </View>
             <Text style={{ fontSize: 13, color: colors.muted }}>

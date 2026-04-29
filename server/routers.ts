@@ -46,7 +46,8 @@ async function assertRole(requestingId: number, allowedRoles: string[], action: 
 }
 
 const employeeRouter = router({
-  list: publicProcedure.query(() => db.getAllEmployees()),
+  list: publicProcedure.input(z.object({ companyId: z.number().optional() }).optional()).query(({ input }) => db.getAllEmployees(input?.companyId)),
+  listByCompany: publicProcedure.input(z.object({ companyId: z.number() })).query(({ input }) => db.getAllEmployees(input.companyId)),
   getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getEmployeeById(input.id)),
   verifyPin: publicProcedure.input(z.object({ pin: z.string(), companyId: z.number().optional() })).mutation(({ input }) => db.getEmployeeByPin(input.pin, input.companyId)),
   create: publicProcedure.input(z.object({
@@ -56,10 +57,13 @@ const employeeRouter = router({
     phone: z.string().optional(),
     email: z.string().email().optional(),
     hourlyRate: z.string().optional(),
+    companyId: z.number().optional(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "add employees");
+  })).mutation(async ({ input, ctx }) => {
+    const requester = await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "add employees");
     const { requestingEmployeeId: _, ...data } = input;
+    // Use requester's companyId if not explicitly provided
+    if (!data.companyId) data.companyId = requester.companyId;
     return db.createEmployee(data);
   }),
   update: publicProcedure.input(z.object({
@@ -75,14 +79,14 @@ const employeeRouter = router({
     salaryProjects: z.string().optional(),
     isActive: z.boolean().optional(),
     requestingEmployeeId: z.number().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) {
       await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update employee records");
     }
     const { id, requestingEmployeeId: _, ...data } = input;
     return db.updateEmployee(id, data);
   }),
-  deactivate: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
+  deactivate: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "deactivate employees");
     return db.deactivateEmployee(input.id);
   }),
@@ -93,7 +97,7 @@ const employeeRouter = router({
     phone: z.string().optional(),
     hourlyRate: z.string().optional(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "add employees");
     const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36);
     const { requestingEmployeeId: _, ...data } = input;
@@ -109,13 +113,14 @@ const employeeRouter = router({
 });
 
 const jobsRouter = router({
-  list: publicProcedure.query(async () => {
-    const allJobs = await db.getAllJobs();
+  list: publicProcedure.query(async ({ ctx }) => {
+    const cid = ctx.companyId;
+    const allJobs = await db.getAllJobs(cid);
     // Fetch labor costs for all jobs in one pass
-    const allEntries = await db.getAllClockEntries();
-    const allEmployees = await db.getAllEmployees();
+    const allEntries = await db.getAllClockEntries(cid);
+    const allEmployees = await db.getAllEmployees(cid);
     const empMap = new Map(allEmployees.map((e: any) => [e.id, e]));
-    const allExpenses = await db.getAllExpenses();
+    const allExpenses = await db.getAllExpenses(cid);
     // Aggregate labor + expenses per job
     const laborByJob: Record<number, number> = {};
     const hoursByJob: Record<number, number> = {};
@@ -137,12 +142,13 @@ const jobsRouter = router({
       laborHours: hoursByJob[job.id] || 0,
     }));
   }),
-  listActive: publicProcedure.query(async () => {
-    const activeJobs = await db.getActiveJobs();
-    const allEntries = await db.getAllClockEntries();
-    const allEmployees = await db.getAllEmployees();
+  listActive: publicProcedure.query(async ({ ctx }) => {
+    const cid = ctx.companyId;
+    const activeJobs = await db.getActiveJobs(cid);
+    const allEntries = await db.getAllClockEntries(cid);
+    const allEmployees = await db.getAllEmployees(cid);
     const empMap = new Map(allEmployees.map((e: any) => [e.id, e]));
-    const allExpenses = await db.getAllExpenses();
+    const allExpenses = await db.getAllExpenses(cid);
     const laborByJob: Record<number, number> = {};
     const hoursByJob: Record<number, number> = {};
     for (const entry of allEntries) {
@@ -205,11 +211,11 @@ const jobsRouter = router({
     const data = { ...rest, endDate: rest.endDate ? new Date(rest.endDate) : undefined };
     return db.updateJob(id, data);
   }),
-  assign: publicProcedure.input(z.object({ jobId: z.number(), employeeId: z.number(), role: z.enum(["foreman", "laborer"]).default("laborer"), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+  assign: publicProcedure.input(z.object({ jobId: z.number(), employeeId: z.number(), role: z.enum(["foreman", "laborer"]).default("laborer"), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "assign employees to jobs");
     return db.assignEmployeeToJob(input);
   }),
-  unassign: publicProcedure.input(z.object({ jobId: z.number(), employeeId: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+  unassign: publicProcedure.input(z.object({ jobId: z.number(), employeeId: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "unassign employees from jobs");
     return db.removeJobAssignment(input.jobId, input.employeeId);
   }),
@@ -227,7 +233,7 @@ const clockRouter = router({
     notes: z.string().optional(),
     clockInLatitude: z.number().optional(),
     clockInLongitude: z.number().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const { clockOut: clockOutStr, ...clockInData } = input;
     const result = await db.clockIn({ ...clockInData, clockIn: new Date(input.clockIn) });
     // If this is an offline entry with clockOut, also clock out immediately
@@ -244,7 +250,7 @@ const clockRouter = router({
     clockOut: z.string(),
     clockOutLatitude: z.number().optional(),
     clockOutLongitude: z.number().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await db.clockOut(input.entryId, new Date(input.clockOut));
     if (input.clockOutLatitude != null && input.clockOutLongitude != null) {
       await db.updateClockEntryGps(input.entryId, {
@@ -276,7 +282,7 @@ const clockRouter = router({
     adjustedBy: z.number(),
     reason: z.string().min(1),
     timezoneOffset: z.number().optional(), // Client's timezone offset in minutes
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.adjustedBy, ["owner", "office_manager", "logistics", "foreman"], "adjust time entries");
     let clockIn = input.clockIn ? new Date(input.clockIn) : undefined;
     let clockOut = input.clockOut ? new Date(input.clockOut) : undefined;
@@ -323,7 +329,7 @@ const clockRouter = router({
     addedBy: z.number(),
     reason: z.string().min(1),
     timezoneOffset: z.number().optional(), // Client's timezone offset in minutes (e.g., 360 for MDT)
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.addedBy, ["owner", "office_manager", "logistics"], "add manual time entries");
     let clockIn = new Date(input.clockIn);
     let clockOut = new Date(input.clockOut);
@@ -363,7 +369,7 @@ const clockRouter = router({
     entryId: z.number(),
     deletedBy: z.number(),
     reason: z.string().min(1),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.deletedBy, ["owner", "office_manager", "logistics"], "delete time entries");
     return db.deleteClockEntry(input.entryId, input.deletedBy, input.reason);
   }),
@@ -373,7 +379,7 @@ const clockRouter = router({
     entryId: z.number(),
     lunchMinutes: z.number().min(0).max(120),
     adjustedBy: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const requester = await db.getEmployeeById(input.adjustedBy);
     if (!requester) throw new TRPCError({ code: "FORBIDDEN", message: "Employee not found" });
     const isManager = ["owner", "office_manager", "logistics", "foreman"].includes(requester.role);
@@ -390,14 +396,14 @@ const clockRouter = router({
   startLunch: publicProcedure.input(z.object({
     entryId: z.number(),
     employeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     return db.startLunchBreak(input.entryId, input.employeeId);
   }),
   // End lunch break — calculates elapsed lunch minutes and adds to lunchMinutes
   endLunch: publicProcedure.input(z.object({
     entryId: z.number(),
     employeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     return db.endLunchBreak(input.entryId, input.employeeId);
   }),
 });
@@ -411,7 +417,7 @@ const reportsRouter = router({
     notes: z.string().optional(),
     weatherCondition: z.string().optional(),
     crewCount: z.number().default(0),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const reportId = await db.createDailyReport({ ...input, reportDate: new Date(input.reportDate) });
     // ── Pivot Learning: Extract trade knowledge from daily reports ──
     try {
@@ -487,7 +493,7 @@ Rules:
     mimeType: z.string().default("image/jpeg"),
     caption: z.string().optional(),
     url: z.string().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     let photoUrl: string;
     if (input.url) {
       // Photo was already uploaded via /api/upload — just save the record
@@ -508,19 +514,19 @@ Rules:
     reportId: z.number(),
     seen: z.boolean(),
     requestingId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingId, ["owner"], "mark reports as seen");
     return db.markReportSeen(input.reportId, input.seen);
   }),
 });
 
 const budgetRouter = router({
-  createCategory: publicProcedure.input(z.object({ jobId: z.number(), name: z.string().min(1).max(128), budgetedAmount: z.string(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+  createCategory: publicProcedure.input(z.object({ jobId: z.number(), name: z.string().min(1).max(128), budgetedAmount: z.string(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "create budget categories");
     return db.createBudgetCategory(input);
   }),
   getCategories: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getBudgetCategoriesForJob(input.jobId)),
-  updateCategory: publicProcedure.input(z.object({ id: z.number(), name: z.string().optional(), budgetedAmount: z.string().optional(), spentAmount: z.string().optional(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+  updateCategory: publicProcedure.input(z.object({ id: z.number(), name: z.string().optional(), budgetedAmount: z.string().optional(), spentAmount: z.string().optional(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update budget categories");
     const { id, requestingEmployeeId, ...data } = input; return db.updateBudgetCategory(id, data);
   }),
@@ -533,7 +539,7 @@ const budgetRouter = router({
     submittedBy: z.number(),
   })).mutation(({ input }) => db.createExpense({ ...input, expenseDate: new Date(input.expenseDate) })),
   getExpenses: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getExpensesForJob(input.jobId)),
-  syncToQB: publicProcedure.input(z.object({ triggeredBy: z.number(), syncType: z.enum(["expenses", "labor", "full"]).default("full") })).mutation(async ({ input }) => {
+  syncToQB: publicProcedure.input(z.object({ triggeredBy: z.number(), syncType: z.enum(["expenses", "labor", "full"]).default("full") })).mutation(async ({ input, ctx }) => {
     await assertRole(input.triggeredBy, ["owner", "office_manager"], "sync to QuickBooks");
     const logId = await db.createSyncLog({ syncType: input.syncType, status: "pending", triggeredBy: input.triggeredBy, itemsSynced: 0 });
     try {
@@ -559,7 +565,7 @@ const changeOrdersRouter = router({
     status: z.enum(["pending", "approved", "rejected"]).default("approved"),
     createdBy: z.number(),
     notes: z.string().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.createdBy, ["owner", "office_manager"], "create change orders");
     return db.createChangeOrder(input);
   }),
@@ -568,7 +574,7 @@ const changeOrdersRouter = router({
     status: z.enum(["pending", "approved", "rejected"]),
     approvedBy: z.number().optional(),
   })).mutation(({ input }) => db.updateChangeOrderStatus(input.id, input.status, input.approvedBy)),
-  delete: publicProcedure.input(z.object({ id: z.number(), requestingId: z.number() })).mutation(async ({ input }) => {
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingId: z.number() })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingId, ["owner", "office_manager"], "delete change orders");
     return db.deleteChangeOrder(input.id);
   }),
@@ -583,7 +589,7 @@ const meetingsRouter = router({
     scheduledFor: z.string().optional(),
     attendees: z.string().optional(),
     createdBy: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const id = await db.createMeeting({
       title: input.title,
       scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : undefined,
@@ -593,7 +599,7 @@ const meetingsRouter = router({
     });
     return { id };
   }),
-  startRecording: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+  startRecording: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "start meeting recording");
     await db.updateMeeting(input.id, { status: "recording", startedAt: new Date() });
     return { success: true };
@@ -601,16 +607,16 @@ const meetingsRouter = router({
   finishRecording: publicProcedure.input(z.object({
     id: z.number(),
     audioUrl: z.string(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await db.updateMeeting(input.id, { status: "processing", endedAt: new Date(), audioUrl: input.audioUrl });
     return { success: true };
   }),
-  transcribeAndSummarize: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+  transcribeAndSummarize: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "transcribe meetings");
     const meeting = await db.getMeetingById(input.id);
     if (!meeting || !meeting.audioUrl) throw new Error("Meeting or audio not found");
     // Get employee list for name matching in goals
-    const employees = await db.getAllEmployees();
+    const employees = await db.getAllEmployees(ctx.companyId);
     const employeeNames = employees.map(e => e.name).join(", ");
     let transcript = "";
     try {
@@ -659,7 +665,7 @@ const meetingsRouter = router({
     await db.updateMeeting(input.id, { transcript, summary, status: "completed" });
     return { transcript, summary, suggestedGoals: goalsWithIds };
   }),
-  cancel: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+  cancel: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "cancel meetings");
     await db.updateMeeting(input.id, { status: "cancelled" });
     return { success: true };
@@ -708,7 +714,7 @@ const goalsRouter = router({
     deadline: z.string().optional(),
     createdBy: z.number(),
     repeatDaily: z.boolean().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const id = await db.createWeeklyGoal({
       ...input,
       weekOf: new Date(input.weekOf),
@@ -728,7 +734,7 @@ const goalsRouter = router({
     deadline: z.string().nullable().optional(),
     completedAt: z.string().optional(),
     repeatDaily: z.boolean().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const { id, completedAt, deadline, ...rest } = input;
     await db.updateWeeklyGoal(id, {
       ...rest,
@@ -775,7 +781,7 @@ const goalsRouter = router({
     }
     return { success: true };
   }),
-  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "delete goals");
     await db.deleteWeeklyGoal(input.id);
     return { success: true };
@@ -783,7 +789,7 @@ const goalsRouter = router({
   syncFromSchedule: publicProcedure.input(z.object({
     weekOf: z.string(),
     createdBy: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     // Get the week start/end
     const weekStart = new Date(input.weekOf);
     const weekEnd = new Date(weekStart);
@@ -795,7 +801,7 @@ const goalsRouter = router({
     const existingGoals = await db.getWeeklyGoals(weekStart);
     const existingTitles = new Set(existingGoals.map((g: any) => g.title.toLowerCase()));
     // Get all jobs for name lookup
-    const allJobs = await db.getAllJobs();
+    const allJobs = await db.getAllJobs(ctx.companyId);
     const jobMap = new Map<number, string>();
     for (const j of allJobs) jobMap.set(j.id, j.name);
     let created = 0;
@@ -833,8 +839,8 @@ const punchListRouter = router({
   listForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input }) => {
     return db.getPunchListItems(input.jobId);
   }),
-  listAll: publicProcedure.query(async () => {
-    return db.getAllPunchListItems();
+  listAll: publicProcedure.query(async ({ ctx }) => {
+    return db.getAllPunchListItems(ctx.companyId);
   }),
   create: publicProcedure.input(z.object({
     jobId: z.number(),
@@ -845,7 +851,7 @@ const punchListRouter = router({
     assignedTo: z.number().optional(),
     createdBy: z.number(),
     sortOrder: z.number().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const id = await db.createPunchListItem(input);
     return { id };
   }),
@@ -860,7 +866,7 @@ const punchListRouter = router({
       createdBy: z.number(),
       sortOrder: z.number().optional(),
     })),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const count = await db.createPunchListItemsBulk(input.items);
     return { count };
   }),
@@ -873,7 +879,7 @@ const punchListRouter = router({
     priority: z.enum(["low", "medium", "high"]).optional(),
     assignedTo: z.number().nullable().optional(),
     sortOrder: z.number().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const { id, ...data } = input;
     await db.updatePunchListItem(id, data as any);
     return { success: true };
@@ -881,11 +887,11 @@ const punchListRouter = router({
   toggle: publicProcedure.input(z.object({
     id: z.number(),
     completedBy: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await db.togglePunchListItem(input.id, input.completedBy);
     return { success: true };
   }),
-  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "delete punch list items");
     await db.deletePunchListItem(input.id);
     return { success: true };
@@ -896,11 +902,11 @@ const payrollRouter = router({
   getReport: publicProcedure.input(z.object({
     startDate: z.string(),
     endDate: z.string(),
-  })).query(async ({ input }) => {
+  })).query(async ({ input, ctx }) => {
     const start = new Date(input.startDate);
     const end = new Date(input.endDate);
     const entries = await db.getClockEntriesForPayroll(start, end);
-    const allEmployees = await db.getAllEmployees();
+    const allEmployees = await db.getAllEmployees(ctx.companyId);
     const employeeMap = new Map(allEmployees.map((e) => [e.id, e]));
     type SummaryRow = {
       employeeId: number; name: string; role: string; hourlyRate: string | null;
@@ -980,7 +986,7 @@ const qbEstimatesRouter = router({
     expiryDate: z.string().optional(),
     notes: z.string().optional(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "create QB estimates");
     const { requestingEmployeeId, ...data } = input;
     return db.createQbEstimate({
@@ -996,13 +1002,13 @@ const qbEstimatesRouter = router({
     lineItems: z.string().optional(),
     notes: z.string().optional(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update QB estimates");
     const { id, requestingEmployeeId, ...data } = input;
     await db.updateQbEstimate(id, data);
     return { success: true };
   }),
-  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "delete QB estimates");
     await db.deleteQbEstimate(input.id);
     return { success: true };
@@ -1011,7 +1017,7 @@ const qbEstimatesRouter = router({
     pdfUrl: z.string(),
     jobId: z.number(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "extract estimates");
     // Use LLM with the PDF URL to extract line items
     const llmResult = await invokeLLM({
@@ -1112,14 +1118,14 @@ const financialChartsRouter = router({
     newValue: z.string().optional(),
     description: z.string().optional(),
     changeOrderId: z.number().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.employeeId, ["owner", "office_manager"], "create audit entries");
     return db.createBudgetAuditEntry(input);
   }),
 });
 
 const kpiRouter = router({
-  list: publicProcedure.query(() => db.getAllKpis()),
+  list: publicProcedure.query(({ ctx }) => db.getAllKpis(ctx.companyId)),
   getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getKpiById(input.id)),
   create: publicProcedure.input(z.object({
     name: z.string().min(1).max(128),
@@ -1130,7 +1136,7 @@ const kpiRouter = router({
     description: z.string().optional(),
     period: z.enum(["weekly", "monthly", "quarterly", "yearly"]).default("monthly"),
     createdBy: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.createdBy, ["owner", "office_manager"], "create KPIs");
     return db.createKpi(input);
   }),
@@ -1141,13 +1147,13 @@ const kpiRouter = router({
     currentValue: z.string().optional(),
     description: z.string().optional(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "update KPIs");
     const { id, requestingEmployeeId, ...data } = input;
     await db.updateKpi(id, data);
     return { success: true };
   }),
-  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "delete KPIs");
     await db.deleteKpi(input.id);
     return { success: true };
@@ -1157,7 +1163,7 @@ const kpiRouter = router({
     value: z.string(),
     notes: z.string().optional(),
     recordedBy: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.recordedBy, ["owner", "office_manager"], "record KPI values");
     await db.addKpiHistoryEntry(input);
     return { success: true };
@@ -1172,7 +1178,7 @@ const safetyTopicsRouter = router({
     content: z.string().optional(),
     category: z.string().optional(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "create safety topics");
     const id = await db.createSafetyTopic({ title: input.title, content: input.content, category: input.category, createdBy: input.requestingEmployeeId });
     return { id };
@@ -1184,13 +1190,13 @@ const safetyTopicsRouter = router({
     category: z.string().optional(),
     isActive: z.boolean().optional(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update safety topics");
     const { id, requestingEmployeeId, ...data } = input;
     await db.updateSafetyTopic(id, data);
     return { success: true };
   }),
-  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "delete safety topics");
     await db.deleteSafetyTopic(input.id);
     return { success: true };
@@ -1214,7 +1220,7 @@ const safetyMeetingsRouter = router({
     photoUrl: z.string().optional(),
     conductedBy: z.number(),
     conductedAt: z.string(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.conductedBy, ["owner", "office_manager", "logistics", "foreman"], "create safety meetings");
     const id = await db.createSafetyMeeting({
       ...input,
@@ -1222,7 +1228,7 @@ const safetyMeetingsRouter = router({
     });
     return { id };
   }),
-  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input }) => {
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "delete safety meetings");
     await db.deleteSafetyMeeting(input.id);
     return { success: true };
@@ -1253,7 +1259,7 @@ const pivotRouter = router({
       totalEmployees: z.number().optional(),
       totalLaborCost: z.number().optional(),
     }).optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const employee = await db.getEmployeeById(input.employeeId);
     if (!employee) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
 
@@ -1412,7 +1418,7 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
     try {
       const myGoals = await db.getGoalsForEmployee(input.employeeId);
       if (myGoals.length > 0) {
-        const allEmps = await db.getAllEmployees();
+        const allEmps = await db.getAllEmployees(ctx.companyId);
         const empMap = new Map(allEmps.map((e: any) => [e.id, e.name]));
         const now = new Date();
         const overdueGoals = myGoals.filter((g: any) => g.deadline && new Date(g.deadline) < now && g.status !== "completed" && g.status !== "cancelled");
@@ -1441,8 +1447,8 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
     let allGoalsContext = "";
     if (isManagement) {
       try {
-        const allGoals = await db.getAllCurrentWeekGoals();
-        const allEmps = await db.getAllEmployees();
+        const allGoals = await db.getAllCurrentWeekGoals(ctx.companyId);
+        const allEmps = await db.getAllEmployees(ctx.companyId);
         const empMap = new Map(allEmps.map((e: any) => [e.id, e.name]));
         const now = new Date();
         if (allGoals.length > 0) {
@@ -1466,14 +1472,14 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
     let businessContext = "";
         if (isManagement) {
       try {
-        const activeJobs = await db.getActiveJobs();
-        const allEmployees = await db.getAllEmployees();
+        const activeJobs = await db.getActiveJobs(ctx.companyId);
+        const allEmployees = await db.getAllEmployees(ctx.companyId);
         const activeEmployees = allEmployees.filter((e: any) => e.isActive);
         const now = new Date();
         const weekStart = new Date(now); weekStart.setDate(now.getDate() - 7); weekStart.setHours(0,0,0,0);
         const laborByJob = await db.getLaborCostByJob(weekStart, now);
         const totalWeekCost = laborByJob.reduce((s: number, j: any) => s + (j.totalCost || 0), 0);
-        const kpis = await db.getAllKpis();
+        const kpis = await db.getAllKpis(ctx.companyId);
 
         // Fetch recent daily reports for richer context
         const recentReports = await db.getRecentReports(15);
@@ -1524,7 +1530,7 @@ ${reportsSummary || "  No recent reports."}
 `;
         // Add schedule context
         try {
-          const allSchedule = await db.getAllScheduleItems();
+          const allSchedule = await db.getAllScheduleItems(ctx.companyId);
           if (allSchedule && allSchedule.length > 0) {
             const today = new Date();
             const todayStr = today.toISOString().split("T")[0];
@@ -1873,6 +1879,12 @@ You have REAL tools to take actions in the app. Use them immediately when asked 
 - "Notify Lupe about the budget overage" → send_message with recipientNames=['Lupe']
 - For urgent messages, set priority='urgent' — the subject will be prefixed with ⚠️ URGENT
 - Messages appear in the recipient's Messages tab immediately
+**Check Employee Hours** — use get_employee_hours to look up hours for any employee by name and period.
+- "How many hours does Ricardo have this week?" → get_employee_hours with employeeName='Ricardo', periodType='this_week'
+- "Show me Vicente's hours last payroll" → get_employee_hours with employeeName='Vicente', periodType='last'
+- "Cuántas horas tiene Merlin este mes?" → get_employee_hours with employeeName='Merlin', periodType='this_month'
+- Use this for individual lookups. For full team summary, use get_payroll_summary instead.
+- If the user asks about discrepancies (missing hours, wrong lunch, etc.), show the daily breakdown and flag any anomalies.
 
 ## Mandatory Goals — Proactive Enforcement
 When Pedro asks you to push mandatory goals (like "clock in by 7:30" or "submit daily reports"), create them with:
@@ -2125,6 +2137,11 @@ You have REAL tools to take actions in the app. Use them immediately when asked.
 - For urgent messages, set priority='urgent'
 **Remember Corrections** — use remember_correction when the foreman corrects you.
 **Generate Report** — use generate_report to create a daily field report for any job.
+**Check Hours** — use get_employee_hours to look up hours for yourself or any of your crew members.
+- "How many hours does Vicente have this week?" → get_employee_hours with employeeName='Vicente', periodType='this_week'
+- "Show me my hours" → get_employee_hours with your name
+- "Cuántas horas tiene mi equipo?" → use get_payroll_summary for the full team breakdown
+- Always show the daily breakdown and total. If there are discrepancies, explain them clearly.
 
 ## What You CANNOT See
 - You do NOT have access to dollar amounts, budgets, pay rates, or financial data.
@@ -2137,7 +2154,8 @@ You are operating inside the BuildTrack Pro mobile app. Focus on field operation
 Do NOT reference admin dashboard web features, support portal tickets, or web-only functionality unless the user explicitly asks.
 
 When the foreman greets you, always show their goals and any overdue items first, then ask if they need anything.
-Keep responses practical, direct, and field-ready. No fluff.`;
+Keep responses practical, direct, and field-ready. No fluff.
+If they speak Spanish, respond in Spanish. If they speak English, respond in English. Match their language naturally.`;
     } else {
       // Laborer
       systemPrompt = `You are Pivot, the team assistant for Carranza Custom Construction. You're talking to ${employee.name}, a laborer.
@@ -2206,9 +2224,15 @@ You have tools to help you get things done in the app.
 - "Send a note to the office about my hours" → send_message with recipientNames=['Lupe']
 **Remember Corrections** — use remember_correction when you correct Pivot about something.
 
+**Check Your Hours** — use get_employee_hours to look up your own hours for any period.
+- "How many hours do I have?" → get_employee_hours with your name, current period
+- "Cuántas horas tengo esta semana?" → get_employee_hours, this_week
+- "Show me my hours last payroll" → get_employee_hours, last period
+- Always show the daily breakdown and total. If there are discrepancies, explain them clearly.
+
 ## What You CAN See
 - Your own assigned goals and deadlines
-- Your own clock-in/out history and hours
+- Your own clock-in/out history and hours (use get_employee_hours tool)
 - Safety information and construction techniques
 - Messages sent to you
 
@@ -2585,7 +2609,18 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
                   "ridge_height",
                   "roof_area",
                   "speed_square_lookup",
-                  "angle_from_measurements"
+                  "angle_from_measurements",
+                  "arch_radius",
+                  "circle_geometry",
+                  "concrete_volume",
+                  "board_feet",
+                  "material_weight",
+                  "percent_grade",
+                  "area_perimeter",
+                  "steel_beam_moment",
+                  "two_roof_intersection",
+                  "rake_wall_studs",
+                  "diagonal_brace"
                 ],
                 description: "Type of calculation to perform.",
               },
@@ -2606,8 +2641,104 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               riser_height: { type: "number", description: "Desired riser height in inches for stair calculation." },
               tread_depth: { type: "number", description: "Desired tread depth in inches for stair calculation." },
               roof_run_ft: { type: "number", description: "Run of the roof section in feet. Used for irregular_valley." },
+              radius: { type: "number", description: "Radius in inches or feet. Used for arch_radius and circle_geometry." },
+              chord_length: { type: "number", description: "Chord length (straight-line distance across arch). Used for arch_radius." },
+              arch_height: { type: "number", description: "Height of arch from chord to peak. Used for arch_radius." },
+              arc_angle_degrees: { type: "number", description: "Central angle of the arc in degrees. Used for arch_radius." },
+              thickness_inches: { type: "number", description: "Thickness/depth in inches. Used for concrete_volume." },
+              width_ft: { type: "number", description: "Width in feet. Used for concrete_volume, area_perimeter." },
+              length_ft: { type: "number", description: "Length in feet. Used for concrete_volume, board_feet, area_perimeter." },
+              diameter_ft: { type: "number", description: "Diameter in feet. Used for concrete_volume (columns/piers)." },
+              height_ft: { type: "number", description: "Height in feet. Used for concrete_volume (walls/columns)." },
+              concrete_shape: { type: "string", enum: ["slab", "footing", "wall", "column", "pier"], description: "Shape of concrete pour." },
+              board_width_inches: { type: "number", description: "Board width in inches. Used for board_feet." },
+              board_thickness_inches: { type: "number", description: "Board thickness in inches. Used for board_feet." },
+              quantity: { type: "number", description: "Number of pieces. Used for board_feet, material_weight." },
+              waste_percent: { type: "number", description: "Waste factor percentage (e.g. 10 for 10%). Used for board_feet, concrete_volume." },
+              material_type: { type: "string", description: "Material type for weight calc: steel_plate, concrete, lumber, drywall, plywood, etc." },
+              horizontal_distance: { type: "number", description: "Horizontal distance for percent_grade." },
+              vertical_rise: { type: "number", description: "Vertical rise for percent_grade." },
+              shape: { type: "string", enum: ["rectangle", "triangle", "circle", "trapezoid"], description: "Shape for area_perimeter." },
+              dimension_b: { type: "number", description: "Second dimension (e.g. parallel side of trapezoid, base of triangle)." },
+              beam_designation: { type: "string", description: "Steel beam designation (e.g. W10x22). Used for steel_beam_moment." },
+              span_ft: { type: "number", description: "Beam span in feet. Used for steel_beam_moment." },
+              load_plf: { type: "number", description: "Uniform load in pounds per linear foot. Used for steel_beam_moment." },
+              point_load_lbs: { type: "number", description: "Point load in pounds at mid-span. Used for steel_beam_moment." },
+              stud_spacing_inches: { type: "number", description: "Stud spacing in inches (16 or 24). Used for rake_wall_studs." },
+              wall_length_ft: { type: "number", description: "Wall length in feet. Used for rake_wall_studs." },
+              start_height_ft: { type: "number", description: "Starting wall height in feet. Used for rake_wall_studs." },
+              end_height_ft: { type: "number", description: "Ending wall height in feet. Used for rake_wall_studs." },
+              brace_height_ft: { type: "number", description: "Height of diagonal brace attachment. Used for diagonal_brace." },
+              brace_setback_ft: { type: "number", description: "Horizontal setback of brace from wall. Used for diagonal_brace." },
             },
             required: ["calc_type"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "accounting_calculator",
+          description: "Perform accounting and financial calculations for construction businesses. Use for payroll tax calculations, burden rate, job P&L, workers comp estimates, overhead allocation, and certified payroll. OWNER-ONLY tool — never expose results to non-owner employees. Use when Pedro asks about employee true cost, tax burden, job profitability after overhead, workers comp rates, or anything accounting-related.",
+          parameters: {
+            type: "object",
+            properties: {
+              calc_type: {
+                type: "string",
+                enum: [
+                  "payroll_tax",
+                  "burden_rate",
+                  "job_profit_loss",
+                  "workers_comp_estimate",
+                  "overhead_allocation",
+                  "certified_payroll",
+                  "overtime_cost",
+                  "annual_employee_cost",
+                  "markup_margin"
+                ],
+                description: "Type of accounting calculation.",
+              },
+              gross_pay: { type: "number", description: "Gross pay amount in dollars." },
+              hourly_rate: { type: "number", description: "Employee hourly rate." },
+              hours_worked: { type: "number", description: "Total hours worked." },
+              overtime_hours: { type: "number", description: "Overtime hours (over 40/week)." },
+              filing_status: { type: "string", enum: ["single", "married", "head_of_household"], description: "Tax filing status." },
+              pay_frequency: { type: "string", enum: ["weekly", "biweekly", "semimonthly", "monthly"], description: "Pay frequency." },
+              annual_salary: { type: "number", description: "Annual salary or projected annual gross." },
+              ytd_gross: { type: "number", description: "Year-to-date gross pay (for SS wage base check)." },
+              class_code: { type: "string", description: "Workers comp class code (e.g. 5403, 5059, 5022, 8810)." },
+              total_payroll: { type: "number", description: "Total payroll amount for WC premium calc." },
+              job_revenue: { type: "number", description: "Total job revenue." },
+              job_labor_cost: { type: "number", description: "Total labor cost for the job." },
+              job_material_cost: { type: "number", description: "Total material cost for the job." },
+              job_other_costs: { type: "number", description: "Other job costs (equipment, subs, etc.)." },
+              monthly_overhead: { type: "number", description: "Monthly company overhead." },
+              num_active_jobs: { type: "number", description: "Number of active jobs for overhead allocation." },
+              job_percentage: { type: "number", description: "This job's percentage of total revenue for weighted overhead allocation." },
+              cost_amount: { type: "number", description: "Cost amount for markup/margin calculation." },
+              sell_amount: { type: "number", description: "Sell/bid amount for markup/margin calculation." },
+              markup_percent: { type: "number", description: "Desired markup percentage." },
+              margin_percent: { type: "number", description: "Desired margin percentage." },
+              num_employees: { type: "number", description: "Number of employees on certified payroll." },
+              prevailing_wage: { type: "number", description: "Prevailing wage rate for certified payroll." },
+              fringe_rate: { type: "number", description: "Fringe benefit rate for certified payroll." },
+            },
+            required: ["calc_type"],
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "get_employee_hours",
+          description: "Get clock-in hours for a specific employee or the requesting user. Use when someone asks 'how many hours do I have', 'what are my hours this week', 'cu\u00e1ntas horas tengo', 'show me [name]\'s hours', or any question about hours worked. Returns detailed clock entries with job names, dates, and totals.",
+          parameters: {
+            type: "object",
+            properties: {
+              employeeName: { type: "string", description: "Name of the employee to look up. If the user asks about 'my hours' or 'mis horas', use the requesting user's name from context." },
+              periodType: { type: "string", enum: ["current", "last", "this_week", "last_week", "this_month"], description: "Time period. Default 'current' for current pay period." },
+            },
+            required: ["employeeName"],
           },
         },
       },
@@ -2782,7 +2913,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             const repeatDaily = args.repeatDaily === true;
 
             // Get all active employees for "everyone" assignment
-            const allEmps = await db.getAllEmployees();
+            const allEmps = await db.getAllEmployees(ctx.companyId);
             const activeEmps = allEmps.filter((e: any) => e.isActive);
 
             // Find assigned employee by name OR assign to everyone
@@ -2849,7 +2980,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             const assignedToName = args.assignedToName || "";
 
             // Find job by name
-            const allJobs = await db.getAllJobs();
+            const allJobs = await db.getAllJobs(ctx.companyId);
             const jobMatch = allJobs.find((j: any) =>
               j.name.toLowerCase().includes(jobName.toLowerCase()) ||
               jobName.toLowerCase().includes(j.name.toLowerCase())
@@ -2860,7 +2991,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               // Find assigned employee
               let assignedTo: number | undefined;
               if (assignedToName) {
-                const allEmps = await db.getAllEmployees();
+                const allEmps = await db.getAllEmployees(ctx.companyId);
                 const empMatch = allEmps.find((e: any) =>
                   e.name.toLowerCase().includes(assignedToName.toLowerCase()) ||
                   assignedToName.toLowerCase().includes(e.name.split(' ')[0].toLowerCase())
@@ -2888,7 +3019,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             const area = args.area || "";
             const items = args.items || [];
 
-            const allJobs = await db.getAllJobs();
+            const allJobs = await db.getAllJobs(ctx.companyId);
             const jobMatch = allJobs.find((j: any) =>
               j.name.toLowerCase().includes(jobName.toLowerCase()) ||
               jobName.toLowerCase().includes(j.name.toLowerCase())
@@ -2916,7 +3047,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             const employeeName = args.employeeName || "";
             const jobName = args.jobName || "";
             const clockInTime = args.clockInTime ? new Date(args.clockInTime) : new Date();
-            const allEmps = await db.getAllEmployees();
+            const allEmps = await db.getAllEmployees(ctx.companyId);
             const empMatch = allEmps.find((e: any) =>
               e.name.toLowerCase().includes(employeeName.toLowerCase()) ||
               employeeName.toLowerCase().includes(e.name.split(' ')[0].toLowerCase())
@@ -2929,7 +3060,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               if (existing) {
                 toolResult = `${empMatch.name} is already clocked in (since ${new Date(existing.clockIn).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}). They need to clock out first. Tell the user this.`;
               } else {
-                const allJobs = await db.getAllJobs();
+                const allJobs = await db.getAllJobs(ctx.companyId);
                 const jobMatch = allJobs.find((j: any) =>
                   j.name.toLowerCase().includes(jobName.toLowerCase()) ||
                   jobName.toLowerCase().includes(j.name.toLowerCase())
@@ -2949,7 +3080,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
           try {
             const employeeName = args.employeeName || "";
             const clockOutTime = args.clockOutTime ? new Date(args.clockOutTime) : new Date();
-            const allEmps = await db.getAllEmployees();
+            const allEmps = await db.getAllEmployees(ctx.companyId);
             const empMatch = allEmps.find((e: any) =>
               e.name.toLowerCase().includes(employeeName.toLowerCase()) ||
               employeeName.toLowerCase().includes(e.name.split(' ')[0].toLowerCase())
@@ -3029,7 +3160,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
         } else if (toolName === "generate_report") {
           try {
             const jobName = args.jobName || "";
-            const allJobs = await db.getAllJobs();
+            const allJobs = await db.getAllJobs(ctx.companyId);
             const jobMatch = allJobs.find((j: any) =>
               j.name.toLowerCase().includes(jobName.toLowerCase()) ||
               jobName.toLowerCase().includes(j.name.toLowerCase())
@@ -3101,7 +3232,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               periodStart = new Date(PERIOD_ANCHOR_MS + periodsElapsed * PERIOD_LENGTH_MS);
               periodEnd = new Date(periodStart.getTime() + PERIOD_LENGTH_MS - 1);
             }
-            const allEmps = await db.getAllEmployees();
+            const allEmps = await db.getAllEmployees(ctx.companyId);
             let totalMinutes = 0;
             let totalCost = 0;
             const empLines: string[] = [];
@@ -3133,7 +3264,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             const sendToAll = args.sendToAll === true;
             const priority = args.priority || "normal";
 
-            const allEmps = await db.getAllEmployees();
+            const allEmps = await db.getAllEmployees(ctx.companyId);
             const activeEmps = allEmps.filter((e: any) => e.isActive);
             let targetRecipients: number[] = [];
 
@@ -3175,7 +3306,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             const taskTitle = (args.taskTitle || "").toLowerCase();
             const jobName = (args.jobName || "").toLowerCase();
             const newStatus = args.status || "completed";
-            const allSchedule = await db.getAllScheduleItems();
+            const allSchedule = await db.getAllScheduleItems(ctx.companyId);
             const match = allSchedule.find((s: any) =>
               s.title.toLowerCase().includes(taskTitle) &&
               (s.jobName || "").toLowerCase().includes(jobName)
@@ -3192,7 +3323,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
           }
         } else if (toolName === "get_schedule_status") {
           try {
-            const allSchedule = await db.getAllScheduleItems();
+            const allSchedule = await db.getAllScheduleItems(ctx.companyId);
             const jobFilter = (args.jobName || "").toLowerCase();
             const filtered = jobFilter ? allSchedule.filter((s: any) => ((s as any).jobName || "").toLowerCase().includes(jobFilter)) : allSchedule;
             if (filtered.length === 0) {
@@ -3240,6 +3371,36 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             const riserH = args.riser_height || 7.5;
             const treadD = args.tread_depth || 10;
             const roofRunFt = args.roof_run_ft || 0;
+            // New expanded math params
+            const radius = args.radius || 0;
+            const chordLen = args.chord_length || 0;
+            const archH = args.arch_height || 0;
+            const arcAngleDeg = args.arc_angle_degrees || 0;
+            const thicknessIn = args.thickness_inches || 0;
+            const widthFt = args.width_ft || 0;
+            const lengthFt = args.length_ft || 0;
+            const diameterFt = args.diameter_ft || 0;
+            const heightFt = args.height_ft || 0;
+            const concreteShape = args.concrete_shape || "slab";
+            const boardWidthIn = args.board_width_inches || 0;
+            const boardThickIn = args.board_thickness_inches || 0;
+            const qty = args.quantity || 1;
+            const wastePct = args.waste_percent || 0;
+            const materialType = args.material_type || "";
+            const horizDist = args.horizontal_distance || 0;
+            const vertRise = args.vertical_rise || 0;
+            const shape = args.shape || "rectangle";
+            const dimB = args.dimension_b || 0;
+            const beamDesig = args.beam_designation || "";
+            const spanFt = args.span_ft || 0;
+            const loadPlf = args.load_plf || 0;
+            const pointLoadLbs = args.point_load_lbs || 0;
+            const studSpacingIn = args.stud_spacing_inches || 16;
+            const wallLenFt = args.wall_length_ft || 0;
+            const startHtFt = args.start_height_ft || 0;
+            const endHtFt = args.end_height_ft || 0;
+            const braceHtFt = args.brace_height_ft || 0;
+            const braceSetbackFt = args.brace_setback_ft || 0;
 
             const toRad = (d: number) => d * Math.PI / 180;
             const toDeg = (r: number) => r * 180 / Math.PI;
@@ -3565,11 +3726,852 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
                 toolResult = `❌ Need two measurements (side_a/run_ft and side_b/rise_ft) to calculate angle.`;
               }
 
+            } else if (calcType === "arch_radius") {
+              // Arch/radius calculations — given chord + height, or radius + angle
+              if (chordLen > 0 && archH > 0) {
+                const r = (chordLen * chordLen / 4 + archH * archH) / (2 * archH);
+                const centralAngle = 2 * toDeg(Math.asin(chordLen / (2 * r)));
+                const arcLen = r * toRad(centralAngle);
+                const sagitta = archH;
+                toolResult = `✅ Arch Calculation (from chord & height):\n`;
+                toolResult += `• Chord length: ${round4(chordLen)}\n`;
+                toolResult += `• Arch height (sagitta): ${round4(archH)}\n`;
+                toolResult += `• 🎯 Radius: ${round4(r)}\n`;
+                toolResult += `• Central angle: ${round4(centralAngle)}°\n`;
+                toolResult += `• Arc length (curved distance): ${round4(arcLen)}\n`;
+                toolResult += `• Diameter: ${round4(r * 2)}\n`;
+                toolResult += `• Formula: R = (C²/4 + H²) / (2H) where C=chord, H=height`;
+              } else if (radius > 0 && arcAngleDeg > 0) {
+                const arcLen = radius * toRad(arcAngleDeg);
+                const chord = 2 * radius * Math.sin(toRad(arcAngleDeg / 2));
+                const sag = radius * (1 - Math.cos(toRad(arcAngleDeg / 2)));
+                toolResult = `✅ Arch Calculation (from radius & angle):\n`;
+                toolResult += `• Radius: ${round4(radius)}\n`;
+                toolResult += `• Central angle: ${round4(arcAngleDeg)}°\n`;
+                toolResult += `• 🎯 Arc length: ${round4(arcLen)}\n`;
+                toolResult += `• Chord length: ${round4(chord)}\n`;
+                toolResult += `• Sagitta (height): ${round4(sag)}\n`;
+                toolResult += `• Circumference (full circle): ${round4(2 * Math.PI * radius)}`;
+              } else if (radius > 0) {
+                toolResult = `✅ Circle/Arch Reference (radius = ${round4(radius)}):\n`;
+                toolResult += `• Diameter: ${round4(radius * 2)}\n`;
+                toolResult += `• Circumference: ${round4(2 * Math.PI * radius)}\n`;
+                toolResult += `• Area: ${round4(Math.PI * radius * radius)}\n`;
+                toolResult += `• Semicircle arc: ${round4(Math.PI * radius)}\n`;
+                toolResult += `• Quarter circle arc: ${round4(Math.PI * radius / 2)}`;
+              } else {
+                toolResult = `❌ Need chord_length + arch_height, OR radius + arc_angle_degrees, OR just radius.`;
+              }
+
+            } else if (calcType === "circle_geometry") {
+              const r = radius || (diameterFt > 0 ? diameterFt / 2 : 0);
+              if (r > 0) {
+                toolResult = `✅ Circle Geometry (radius = ${round4(r)}):\n`;
+                toolResult += `• Diameter: ${round4(r * 2)}\n`;
+                toolResult += `• Circumference: ${round4(2 * Math.PI * r)} (C = 2πr)\n`;
+                toolResult += `• Area: ${round4(Math.PI * r * r)} (A = πr²)\n`;
+                toolResult += `• Semicircle perimeter: ${round4(Math.PI * r + r * 2)}\n`;
+                toolResult += `• Quarter circle arc: ${round4(Math.PI * r / 2)}\n`;
+                if (arcAngleDeg > 0) {
+                  toolResult += `• Arc length at ${arcAngleDeg}°: ${round4(r * toRad(arcAngleDeg))}\n`;
+                  toolResult += `• Sector area at ${arcAngleDeg}°: ${round4(0.5 * r * r * toRad(arcAngleDeg))}\n`;
+                }
+                toolResult += `\nCommon fractions of circle:\n`;
+                toolResult += `• 90° (quarter): arc=${round4(Math.PI * r / 2)}, area=${round4(Math.PI * r * r / 4)}\n`;
+                toolResult += `• 180° (half): arc=${round4(Math.PI * r)}, area=${round4(Math.PI * r * r / 2)}\n`;
+                toolResult += `• 270° (three-quarter): arc=${round4(3 * Math.PI * r / 2)}, area=${round4(3 * Math.PI * r * r / 4)}`;
+              } else {
+                toolResult = `❌ Need radius or diameter_ft for circle geometry.`;
+              }
+
+            } else if (calcType === "concrete_volume") {
+              let volCF = 0;
+              let desc = "";
+              if (concreteShape === "slab" || concreteShape === "footing") {
+                const w = widthFt || bldgWidth || 0;
+                const l = lengthFt || bldgLength || 0;
+                const t = thicknessIn > 0 ? thicknessIn / 12 : 0.3333; // default 4"
+                if (w > 0 && l > 0) {
+                  volCF = w * l * t;
+                  desc = `${concreteShape === "slab" ? "Slab" : "Footing"}: ${round4(w)}' × ${round4(l)}' × ${round4(t * 12)}"`;
+                }
+              } else if (concreteShape === "wall") {
+                const l = lengthFt || bldgLength || 0;
+                const h = heightFt || wallHeight || 0;
+                const t = thicknessIn > 0 ? thicknessIn / 12 : 0.6667; // default 8"
+                if (l > 0 && h > 0) {
+                  volCF = l * h * t;
+                  desc = `Wall: ${round4(l)}' long × ${round4(h)}' tall × ${round4(t * 12)}" thick`;
+                }
+              } else if (concreteShape === "column" || concreteShape === "pier") {
+                const d = diameterFt || widthFt || 0;
+                const h = heightFt || 0;
+                if (d > 0 && h > 0) {
+                  const r2 = d / 2;
+                  volCF = Math.PI * r2 * r2 * h;
+                  desc = `${concreteShape === "column" ? "Column" : "Pier"}: ${round4(d)}' diameter × ${round4(h)}' tall`;
+                }
+              }
+              if (volCF > 0) {
+                const cubicYards = volCF / 27;
+                const withWaste = cubicYards * (1 + (wastePct || 10) / 100);
+                toolResult = `✅ Concrete Volume — ${desc}:\n`;
+                toolResult += `• Volume: ${round4(volCF)} cubic feet\n`;
+                toolResult += `• 🎯 Cubic yards: ${round4(cubicYards)} CY\n`;
+                toolResult += `• With ${wastePct || 10}% waste: ${round4(withWaste)} CY\n`;
+                toolResult += `• Order: ${Math.ceil(withWaste)} CY (round up — always order extra)\n`;
+                toolResult += `• 80lb bags (0.6 CF each): ~${Math.ceil(volCF / 0.6)} bags\n`;
+                toolResult += `• 60lb bags (0.45 CF each): ~${Math.ceil(volCF / 0.45)} bags\n`;
+                toolResult += `• Typical cost: $${round4(Math.ceil(withWaste) * 165)}-$${round4(Math.ceil(withWaste) * 200)} (at $165-$200/CY delivered in Utah)`;
+              } else {
+                toolResult = `❌ Need dimensions: slab/footing=(width_ft, length_ft, thickness_inches), wall=(length_ft, height_ft, thickness_inches), column/pier=(diameter_ft, height_ft).`;
+              }
+
+            } else if (calcType === "board_feet") {
+              const bw = boardWidthIn || 0;
+              const bt = boardThickIn || 0;
+              const bl = lengthFt || 0;
+              if (bw > 0 && bt > 0 && bl > 0) {
+                const bf = (bw * bt * bl * 12) / 144; // board feet per piece
+                const totalBF = bf * qty;
+                const withWaste = totalBF * (1 + (wastePct || 10) / 100);
+                toolResult = `✅ Board Feet Calculation:\n`;
+                toolResult += `• Size: ${bt}" × ${bw}" × ${bl}'\n`;
+                toolResult += `• Board feet per piece: ${round4(bf)} BF\n`;
+                toolResult += `• Quantity: ${qty} pieces\n`;
+                toolResult += `• 🎯 Total board feet: ${round4(totalBF)} BF\n`;
+                toolResult += `• With ${wastePct || 10}% waste: ${round4(withWaste)} BF\n`;
+                toolResult += `• Formula: (Width" × Thickness" × Length' × 12) / 144\n`;
+                // Common lumber reference
+                toolResult += `\nCommon lumber BF per foot:\n`;
+                toolResult += `• 2×4: 0.667 BF/ft | 2×6: 1.0 BF/ft | 2×8: 1.333 BF/ft\n`;
+                toolResult += `• 2×10: 1.667 BF/ft | 2×12: 2.0 BF/ft\n`;
+                toolResult += `• 4×4: 1.333 BF/ft | 6×6: 3.0 BF/ft | 8×8: 5.333 BF/ft`;
+              } else {
+                toolResult = `❌ Need board_width_inches, board_thickness_inches, and length_ft.`;
+              }
+
+            } else if (calcType === "material_weight") {
+              // Weight estimates for common construction materials
+              const weights: Record<string, { perUnit: number; unit: string; desc: string }> = {
+                "steel_plate": { perUnit: 490, unit: "CF", desc: "Steel plate (490 lb/CF)" },
+                "concrete": { perUnit: 150, unit: "CF", desc: "Concrete (150 lb/CF)" },
+                "lumber": { perUnit: 35, unit: "CF", desc: "Lumber/Douglas Fir (~35 lb/CF)" },
+                "drywall_half": { perUnit: 1.6, unit: "SF", desc: "1/2\" Drywall (1.6 lb/SF)" },
+                "drywall_5_8": { perUnit: 2.2, unit: "SF", desc: "5/8\" Drywall (2.2 lb/SF)" },
+                "plywood_half": { perUnit: 1.5, unit: "SF", desc: "1/2\" Plywood (1.5 lb/SF)" },
+                "plywood_3_4": { perUnit: 2.2, unit: "SF", desc: "3/4\" Plywood (2.2 lb/SF)" },
+                "osb": { perUnit: 2.0, unit: "SF", desc: "7/16\" OSB (2.0 lb/SF)" },
+                "shingles": { perUnit: 2.5, unit: "SF", desc: "Asphalt shingles (~2.5 lb/SF)" },
+                "metal_roof": { perUnit: 1.5, unit: "SF", desc: "Standing seam metal roof (~1.5 lb/SF)" },
+                "brick": { perUnit: 40, unit: "SF", desc: "Brick veneer (4\" ~40 lb/SF)" },
+                "stone": { perUnit: 55, unit: "SF", desc: "Stone veneer (~55 lb/SF)" },
+                "glass": { perUnit: 3.3, unit: "SF", desc: "1/4\" Glass (3.3 lb/SF)" },
+                "insulation_batt": { perUnit: 0.1, unit: "SF", desc: "Fiberglass batt (~0.1 lb/SF)" },
+                "spray_foam": { perUnit: 0.5, unit: "SF", desc: "Spray foam 2\" (~0.5 lb/SF)" },
+              };
+              const mat = weights[materialType.toLowerCase().replace(/[\s-]/g, "_")];
+              if (mat) {
+                const area = (widthFt || 1) * (lengthFt || 1);
+                const vol = area * (heightFt || thicknessIn / 12 || 1);
+                const useVal = mat.unit === "SF" ? area * qty : vol * qty;
+                const totalWeight = useVal * mat.perUnit;
+                toolResult = `✅ Material Weight — ${mat.desc}:\n`;
+                toolResult += `• Weight per ${mat.unit}: ${mat.perUnit} lbs\n`;
+                toolResult += `• ${mat.unit === "SF" ? `Area: ${round4(area)} SF` : `Volume: ${round4(vol)} CF`}\n`;
+                toolResult += `• Quantity: ${qty}\n`;
+                toolResult += `• 🎯 Total weight: ${round4(totalWeight)} lbs (${round4(totalWeight / 2000)} tons)\n`;
+              } else {
+                toolResult = `Available materials: steel_plate, concrete, lumber, drywall_half, drywall_5_8, plywood_half, plywood_3_4, osb, shingles, metal_roof, brick, stone, glass, insulation_batt, spray_foam.\nProvide material_type plus dimensions (width_ft, length_ft, height_ft or thickness_inches).`;
+              }
+
+            } else if (calcType === "percent_grade") {
+              const h = horizDist || runFt || sideA || 0;
+              const v = vertRise || riseFt || sideB || 0;
+              if (h > 0 && v !== 0) {
+                const grade = (v / h) * 100;
+                const angle = toDeg(Math.atan(Math.abs(v) / h));
+                const slopeLen = Math.sqrt(h * h + v * v);
+                toolResult = `✅ Percent Grade / Slope:\n`;
+                toolResult += `• Horizontal distance: ${round4(h)}\n`;
+                toolResult += `• Vertical rise: ${round4(v)}\n`;
+                toolResult += `• 🎯 Grade: ${round4(grade)}%\n`;
+                toolResult += `• Slope angle: ${round4(angle)}°\n`;
+                toolResult += `• Slope length: ${round4(slopeLen)}\n`;
+                toolResult += `• Ratio: 1:${round4(h / Math.abs(v))}\n`;
+                toolResult += `• ADA max ramp: 8.33% (1:12) | Driveway max: 12-15% | IRC max: 12%`;
+              } else {
+                toolResult = `❌ Need horizontal_distance and vertical_rise (or run_ft and rise_ft).`;
+              }
+
+            } else if (calcType === "area_perimeter") {
+              const w = widthFt || bldgWidth || sideA || 0;
+              const l = lengthFt || bldgLength || sideB || 0;
+              if (shape === "rectangle" && w > 0 && l > 0) {
+                toolResult = `✅ Rectangle:\n• Area: ${round4(w * l)} SF\n• Perimeter: ${round4(2 * (w + l))} LF\n• Diagonal: ${round4(Math.sqrt(w * w + l * l))}'`;
+              } else if (shape === "triangle" && w > 0 && l > 0) {
+                const area = 0.5 * w * l;
+                const hyp = Math.sqrt(w * w + l * l);
+                toolResult = `✅ Right Triangle (base=${w}', height=${l}'):\n• Area: ${round4(area)} SF\n• Hypotenuse: ${round4(hyp)}'\n• Perimeter: ${round4(w + l + hyp)} LF`;
+              } else if (shape === "circle") {
+                const r2 = (radius || w / 2 || 0);
+                if (r2 > 0) {
+                  toolResult = `✅ Circle (radius=${round4(r2)}'):\n• Area: ${round4(Math.PI * r2 * r2)} SF\n• Circumference: ${round4(2 * Math.PI * r2)} LF\n• Diameter: ${round4(r2 * 2)}'`;
+                } else {
+                  toolResult = `❌ Need radius or width_ft for circle.`;
+                }
+              } else if (shape === "trapezoid" && w > 0 && dimB > 0 && l > 0) {
+                const area = 0.5 * (w + dimB) * l;
+                toolResult = `✅ Trapezoid (parallel sides=${w}' & ${dimB}', height=${l}'):\n• Area: ${round4(area)} SF`;
+              } else {
+                toolResult = `❌ Need dimensions: rectangle=(width_ft, length_ft), triangle=(width_ft, length_ft), circle=(radius or width_ft), trapezoid=(width_ft, dimension_b, length_ft).`;
+              }
+
+            } else if (calcType === "steel_beam_moment") {
+              // Common W-shape section modulus values (Sx in³)
+              const beamData: Record<string, { weight: number; depth: number; sx: number; ix: number }> = {
+                "W8X10": { weight: 10, depth: 7.89, sx: 7.81, ix: 30.8 },
+                "W8X13": { weight: 13, depth: 7.99, sx: 9.91, ix: 39.6 },
+                "W8X15": { weight: 15, depth: 8.11, sx: 11.8, ix: 48.0 },
+                "W8X18": { weight: 18, depth: 8.14, sx: 15.2, ix: 61.9 },
+                "W8X21": { weight: 21, depth: 8.28, sx: 18.2, ix: 75.3 },
+                "W8X24": { weight: 24, depth: 7.93, sx: 20.9, ix: 82.7 },
+                "W8X31": { weight: 31, depth: 8.00, sx: 27.5, ix: 110 },
+                "W10X12": { weight: 12, depth: 9.87, sx: 10.9, ix: 53.8 },
+                "W10X15": { weight: 15, depth: 9.99, sx: 13.8, ix: 68.9 },
+                "W10X19": { weight: 19, depth: 10.24, sx: 18.8, ix: 96.3 },
+                "W10X22": { weight: 22, depth: 10.17, sx: 23.2, ix: 118 },
+                "W10X26": { weight: 26, depth: 10.33, sx: 27.9, ix: 144 },
+                "W10X30": { weight: 30, depth: 10.47, sx: 32.4, ix: 170 },
+                "W10X33": { weight: 33, depth: 9.73, sx: 36.6, ix: 171 },
+                "W10X45": { weight: 45, depth: 10.10, sx: 49.1, ix: 248 },
+                "W12X14": { weight: 14, depth: 11.91, sx: 14.9, ix: 88.6 },
+                "W12X16": { weight: 16, depth: 11.99, sx: 17.1, ix: 103 },
+                "W12X19": { weight: 19, depth: 12.16, sx: 21.3, ix: 130 },
+                "W12X22": { weight: 22, depth: 12.31, sx: 25.4, ix: 156 },
+                "W12X26": { weight: 26, depth: 12.22, sx: 33.4, ix: 204 },
+                "W12X30": { weight: 30, depth: 12.34, sx: 38.6, ix: 238 },
+                "W12X35": { weight: 35, depth: 12.50, sx: 45.6, ix: 285 },
+                "W12X40": { weight: 40, depth: 11.94, sx: 51.5, ix: 307 },
+                "W12X50": { weight: 50, depth: 12.19, sx: 64.7, ix: 394 },
+                "W14X22": { weight: 22, depth: 13.74, sx: 29.0, ix: 199 },
+                "W14X26": { weight: 26, depth: 13.91, sx: 35.3, ix: 245 },
+                "W14X30": { weight: 30, depth: 13.84, sx: 42.0, ix: 291 },
+                "W14X34": { weight: 34, depth: 13.98, sx: 48.6, ix: 340 },
+                "W14X38": { weight: 38, depth: 14.10, sx: 54.6, ix: 385 },
+                "W14X43": { weight: 43, depth: 13.66, sx: 62.7, ix: 428 },
+                "W14X48": { weight: 48, depth: 13.79, sx: 70.3, ix: 485 },
+                "W16X26": { weight: 26, depth: 15.69, sx: 38.5, ix: 301 },
+                "W16X31": { weight: 31, depth: 15.88, sx: 47.2, ix: 375 },
+                "W16X36": { weight: 36, depth: 15.86, sx: 56.5, ix: 448 },
+                "W16X40": { weight: 40, depth: 16.01, sx: 64.7, ix: 518 },
+                "W16X50": { weight: 50, depth: 16.26, sx: 81.0, ix: 659 },
+                "W18X35": { weight: 35, depth: 17.70, sx: 57.6, ix: 510 },
+                "W18X40": { weight: 40, depth: 17.90, sx: 68.4, ix: 612 },
+                "W18X46": { weight: 46, depth: 18.06, sx: 78.8, ix: 712 },
+                "W18X50": { weight: 50, depth: 17.99, sx: 88.9, ix: 800 },
+                "W18X55": { weight: 55, depth: 18.11, sx: 98.3, ix: 890 },
+                "W18X60": { weight: 60, depth: 18.24, sx: 108, ix: 984 },
+                "W21X44": { weight: 44, depth: 20.66, sx: 81.6, ix: 843 },
+                "W21X50": { weight: 50, depth: 20.83, sx: 94.5, ix: 984 },
+                "W21X57": { weight: 57, depth: 21.06, sx: 111, ix: 1170 },
+                "W24X55": { weight: 55, depth: 23.57, sx: 114, ix: 1350 },
+                "W24X68": { weight: 68, depth: 23.73, sx: 154, ix: 1830 },
+              };
+              const key = beamDesig.toUpperCase().replace(/\s+/g, "").replace("X", "X");
+              const beam = beamData[key];
+              if (beam && spanFt > 0 && (loadPlf > 0 || pointLoadLbs > 0)) {
+                const spanIn = spanFt * 12;
+                // Uniform load moment: M = wL²/8 (w in lb/ft, L in ft)
+                const mUniform = loadPlf > 0 ? (loadPlf * spanFt * spanFt) / 8 : 0;
+                // Point load moment at midspan: M = PL/4
+                const mPoint = pointLoadLbs > 0 ? (pointLoadLbs * spanFt) / 4 : 0;
+                // Self-weight moment
+                const mSelf = (beam.weight * spanFt * spanFt) / 8;
+                const mTotal = mUniform + mPoint + mSelf;
+                const mTotalInLbs = mTotal * 12; // ft-lbs to in-lbs
+                // Bending stress fb = M/Sx
+                const fb = mTotalInLbs / beam.sx;
+                // Allowable bending stress for A992 steel: 0.66 × Fy = 0.66 × 50 = 33 ksi = 33000 psi
+                const fbAllow = 33000;
+                const utilization = (fb / fbAllow) * 100;
+                // Deflection: 5wL⁴/(384EI) for uniform, PL³/(48EI) for point
+                const E = 29000000; // psi (29,000 ksi)
+                const deflUniform = loadPlf > 0 ? (5 * (loadPlf / 12) * Math.pow(spanIn, 4)) / (384 * E * beam.ix) : 0;
+                const deflPoint = pointLoadLbs > 0 ? (pointLoadLbs * Math.pow(spanIn, 3)) / (48 * E * beam.ix) : 0;
+                const deflTotal = deflUniform + deflPoint;
+                const deflLimit = spanIn / 360; // L/360 for live load
+                toolResult = `✅ Steel Beam Analysis — ${beamDesig} over ${spanFt}' span:\n`;
+                toolResult += `• Beam: ${beamDesig} (${beam.weight} plf, d=${beam.depth}", Sx=${beam.sx} in³, Ix=${beam.ix} in⁴)\n`;
+                if (loadPlf > 0) toolResult += `• Uniform load: ${loadPlf} plf → M = ${round4(mUniform)} ft-lbs\n`;
+                if (pointLoadLbs > 0) toolResult += `• Point load at midspan: ${pointLoadLbs} lbs → M = ${round4(mPoint)} ft-lbs\n`;
+                toolResult += `• Self-weight: ${beam.weight} plf → M = ${round4(mSelf)} ft-lbs\n`;
+                toolResult += `• 🎯 Total moment: ${round4(mTotal)} ft-lbs (${round4(mTotal / 1000)} ft-kips)\n`;
+                toolResult += `• Bending stress: ${round4(fb)} psi (${round4(fb / 1000)} ksi)\n`;
+                toolResult += `• Allowable: ${fbAllow} psi (33 ksi for A992)\n`;
+                toolResult += `• Utilization: ${round4(utilization)}% ${utilization > 100 ? "⚠️ OVERSTRESSED" : utilization > 90 ? "⚠️ Near limit" : "✅ OK"}\n`;
+                toolResult += `• Deflection: ${round4(deflTotal)}" (limit L/360 = ${round4(deflLimit)}") ${deflTotal > deflLimit ? "⚠️ EXCEEDS L/360" : "✅ OK"}\n`;
+                toolResult += `• ⚠️ This is a preliminary check only — always verify with a licensed structural engineer`;
+              } else if (beam) {
+                toolResult = `✅ ${beamDesig} Properties:\n• Weight: ${beam.weight} plf\n• Depth: ${beam.depth}"\n• Section modulus (Sx): ${beam.sx} in³\n• Moment of inertia (Ix): ${beam.ix} in⁴\n\nProvide span_ft and load_plf or point_load_lbs for full analysis.`;
+              } else {
+                toolResult = `❌ Beam "${beamDesig}" not in quick reference. Use construction_lookup tool with type="steel_profile" for the full 959-shape database. Or provide: beam_designation (e.g. W10x22), span_ft, and load_plf or point_load_lbs.`;
+              }
+
+            } else if (calcType === "two_roof_intersection") {
+              // Complete geometry for two roofs meeting at a valley or hip
+              if (p1 > 0 && p2 > 0) {
+                const a1 = toDeg(Math.atan(p1 / 12));
+                const a2 = toDeg(Math.atan(p2 / 12));
+                const commonPerFt1 = Math.sqrt(144 + p1 * p1);
+                const commonPerFt2 = Math.sqrt(144 + p2 * p2);
+                // Valley/hip plan angle
+                const planAngle = toDeg(Math.atan(p1 / p2));
+                // Same direction compound angle
+                const sameDir = 90 - Math.abs(a1 - a2);
+                // Opposite direction compound angle
+                const oppDir = 90 - (a1 + a2);
+                // Valley rafter angle (true pitch of valley)
+                const valleyPitch = Math.sqrt(p1 * p1 + p2 * p2) / Math.sqrt(2);
+                // Jack rafter side cut angles
+                const sideCut1 = toDeg(Math.atan(12 / commonPerFt1));
+                const sideCut2 = toDeg(Math.atan(12 / commonPerFt2));
+                // Backing angle for hip
+                const backingAngle = toDeg(Math.atan(Math.sin(toRad(planAngle)) * p1 / 12));
+
+                toolResult = `✅ Two-Roof Intersection — ${p1}/12 meets ${p2}/12:\n`;
+                toolResult += `\n📐 BASIC ANGLES:\n`;
+                toolResult += `• Roof 1: ${p1}/12 = ${round4(a1)}°\n`;
+                toolResult += `• Roof 2: ${p2}/12 = ${round4(a2)}°\n`;
+                toolResult += `• Plan angle (in plan view): ${round4(planAngle)}°\n`;
+                toolResult += `\n🔧 COMPOUND ANGLES (for cutting):\n`;
+                toolResult += `• Same direction (parallel ridges): ${round4(sameDir)}°\n`;
+                toolResult += `• Opposite direction (converging ridges): ${round4(oppDir > 0 ? oppDir : 180 + oppDir)}°\n`;
+                toolResult += `\n📏 RAFTER DATA:\n`;
+                toolResult += `• Roof 1 common rafter/ft: ${round4(commonPerFt1)}" (multiplier: ${round4(commonPerFt1/12)})\n`;
+                toolResult += `• Roof 2 common rafter/ft: ${round4(commonPerFt2)}" (multiplier: ${round4(commonPerFt2/12)})\n`;
+                toolResult += `• Jack rafter side cut (roof 1): ${round4(sideCut1)}°\n`;
+                toolResult += `• Jack rafter side cut (roof 2): ${round4(sideCut2)}°\n`;
+                toolResult += `\n🏗️ VALLEY/HIP:\n`;
+                toolResult += `• Valley/hip backing angle: ${round4(backingAngle)}°\n`;
+                if (p1 === p2) {
+                  const hipPerFt = Math.sqrt(289 + p1 * p1);
+                  toolResult += `• Equal pitch — standard 45° hip/valley in plan\n`;
+                  toolResult += `• Hip/valley rafter per foot: ${round4(hipPerFt)}"\n`;
+                } else {
+                  toolResult += `• Unequal pitch — valley runs at ${round4(planAngle)}° from roof 1 ridge\n`;
+                  toolResult += `• The steeper roof (${Math.max(p1,p2)}/12) has shorter common rafters\n`;
+                  toolResult += `• The shallower roof (${Math.min(p1,p2)}/12) has longer common rafters\n`;
+                }
+                if (bldgWidth > 0) {
+                  const run1 = bldgWidth / 2;
+                  const rise1 = run1 * p1 / 12;
+                  const rise2 = run1 * p2 / 12;
+                  const rafter1 = run1 * commonPerFt1 / 12;
+                  const rafter2 = run1 * commonPerFt2 / 12;
+                  toolResult += `\n📐 FOR ${bldgWidth}' WIDE BUILDING:\n`;
+                  toolResult += `• Run: ${round4(run1)}'\n`;
+                  toolResult += `• Roof 1 rise: ${round4(rise1)}' | Rafter: ${round4(rafter1)}' = ${toFeetInches(rafter1 * 12)}\n`;
+                  toolResult += `• Roof 2 rise: ${round4(rise2)}' | Rafter: ${round4(rafter2)}' = ${toFeetInches(rafter2 * 12)}\n`;
+                }
+              } else {
+                toolResult = `❌ Need pitch1 and pitch2 for two-roof intersection. Optionally add building_width_ft for specific dimensions.`;
+              }
+
+            } else if (calcType === "rake_wall_studs") {
+              // Calculate stud lengths for a rake (angled) wall
+              if (wallLenFt > 0 && startHtFt > 0 && endHtFt > 0) {
+                const spacing = studSpacingIn || 16;
+                const numBays = Math.ceil((wallLenFt * 12) / spacing);
+                const numStuds = numBays + 1;
+                const htDiff = endHtFt - startHtFt;
+                const rakeAngle = toDeg(Math.atan(Math.abs(htDiff) / wallLenFt));
+                const rakePitch = (Math.abs(htDiff) / wallLenFt) * 12;
+                toolResult = `✅ Rake Wall Studs — ${wallLenFt}' long, ${startHtFt}' to ${endHtFt}' tall:\n`;
+                toolResult += `• Spacing: ${spacing}" OC\n`;
+                toolResult += `• Number of studs: ${numStuds}\n`;
+                toolResult += `• Rake angle: ${round4(rakeAngle)}° (${round4(rakePitch)}/12 pitch)\n`;
+                toolResult += `• Height difference: ${round4(Math.abs(htDiff))}'\n`;
+                toolResult += `\nStud cut list:\n`;
+                for (let i = 0; i < numStuds; i++) {
+                  const pos = (i * spacing) / 12; // position in feet from start
+                  if (pos > wallLenFt) break;
+                  const studHt = startHtFt + (htDiff * pos / wallLenFt);
+                  const studHtIn = studHt * 12;
+                  toolResult += `  Stud ${i + 1} (at ${round4(pos)}'): ${round4(studHt)}' = ${toFeetInches(studHtIn)}\n`;
+                }
+                toolResult += `\n• Top plate angle cut: ${round4(rakeAngle)}° from horizontal\n`;
+                toolResult += `• Plumb cut each stud top at ${round4(rakeAngle)}°`;
+              } else {
+                toolResult = `❌ Need wall_length_ft, start_height_ft, and end_height_ft for rake wall studs.`;
+              }
+
+            } else if (calcType === "diagonal_brace") {
+              const h = braceHtFt || riseFt || sideB || 0;
+              const s = braceSetbackFt || runFt || sideA || 0;
+              if (h > 0 && s > 0) {
+                const braceLen = Math.sqrt(h * h + s * s);
+                const angle = toDeg(Math.atan(h / s));
+                toolResult = `✅ Diagonal Brace:\n`;
+                toolResult += `• Height: ${round4(h)}'\n`;
+                toolResult += `• Setback: ${round4(s)}'\n`;
+                toolResult += `• 🎯 Brace length: ${round4(braceLen)}' = ${toFeetInches(braceLen * 12)}\n`;
+                toolResult += `• Angle from horizontal: ${round4(angle)}°\n`;
+                toolResult += `• Angle from vertical: ${round4(90 - angle)}°\n`;
+                toolResult += `• Optimal brace angle: 45° (equal height and setback)\n`;
+                toolResult += `• Your brace is ${angle > 45 ? "steeper" : angle < 45 ? "shallower" : "exactly"} ${angle === 45 ? "45°" : `than 45° by ${round4(Math.abs(angle - 45))}°`}`;
+              } else {
+                toolResult = `❌ Need brace_height_ft and brace_setback_ft (or rise_ft and run_ft).`;
+              }
+
             } else {
-              toolResult = `❌ Unknown calc_type: ${calcType}. Available types: pitch_to_degrees, degrees_to_pitch, common_rafter_length, hip_valley_rafter_length, compound_angle_same_direction, compound_angle_opposite_direction, irregular_valley, rafter_total_length, stair_stringer, pythagorean, jack_rafter_difference, ridge_height, roof_area, speed_square_lookup, angle_from_measurements`;
+              toolResult = `❌ Unknown calc_type: ${calcType}. Available types: pitch_to_degrees, degrees_to_pitch, common_rafter_length, hip_valley_rafter_length, compound_angle_same_direction, compound_angle_opposite_direction, irregular_valley, rafter_total_length, stair_stringer, pythagorean, jack_rafter_difference, ridge_height, roof_area, speed_square_lookup, angle_from_measurements, arch_radius, circle_geometry, concrete_volume, board_feet, material_weight, percent_grade, area_perimeter, steel_beam_moment, two_roof_intersection, rake_wall_studs, diagonal_brace`;
             }
           } catch (mathErr) {
             toolResult = `Math calculation error: ${mathErr instanceof Error ? mathErr.message : "unknown error"}. Check your input values.`;
+          }
+        } else if (toolName === "accounting_calculator") {
+          // ── Accounting Calculator Engine ── 2026 Utah/Federal tax rates ─────────────────
+          try {
+            if (!isOwner) {
+              toolResult = `⛔ This tool is restricted to the company owner. Financial calculations contain sensitive data.`;
+            } else {
+              const acctType = args.calc_type || "";
+              const grossPay = args.gross_pay || 0;
+              const hrRate = args.hourly_rate || 0;
+              const hrsWorked = args.hours_worked || 0;
+              const otHours = args.overtime_hours || 0;
+              const filing = args.filing_status || "single";
+              const payFreq = args.pay_frequency || "biweekly";
+              const annualSalary = args.annual_salary || 0;
+              const ytdGross = args.ytd_gross || 0;
+              const classCode = args.class_code || "";
+              const totalPayroll = args.total_payroll || 0;
+              const jobRevenue = args.job_revenue || 0;
+              const jobLabor = args.job_labor_cost || 0;
+              const jobMaterial = args.job_material_cost || 0;
+              const jobOther = args.job_other_costs || 0;
+              const monthlyOH = args.monthly_overhead || 0;
+              const numJobs = args.num_active_jobs || 1;
+              const jobPct = args.job_percentage || 0;
+              const costAmt = args.cost_amount || 0;
+              const sellAmt = args.sell_amount || 0;
+              const markupPct = args.markup_percent || 0;
+              const marginPct = args.margin_percent || 0;
+              const numEmps = args.num_employees || 1;
+              const prevWage = args.prevailing_wage || 0;
+              const fringeRate = args.fringe_rate || 0;
+              const round2 = (n: number) => Math.round(n * 100) / 100;
+
+              // 2026 Tax Rates
+              const SS_RATE = 0.062;      // Social Security 6.2%
+              const MEDICARE_RATE = 0.0145; // Medicare 1.45%
+              const SS_WAGE_BASE = 184500; // 2026 projected
+              const FUTA_RATE = 0.006;     // 0.6% after credit
+              const FUTA_WAGE_BASE = 7000;
+              const UTAH_STATE_RATE = 0.0465; // Utah flat 4.65% (2026)
+              const SUTA_RATE_DEFAULT = 0.012; // New employer rate ~1.2%
+              const SUTA_WAGE_BASE = 50700;   // 2026 Utah
+              const GL_RATE = 0.015;      // General liability ~1.5%
+
+              // Workers comp rates by class code (per $100 of payroll)
+              const wcRates: Record<string, { rate: number; desc: string }> = {
+                "5403": { rate: 10.18, desc: "Carpentry — NOC (framing, rough carpentry)" },
+                "5059": { rate: 4.77, desc: "Iron/Steel Erection — NOC" },
+                "5022": { rate: 7.56, desc: "Masonry — NOC" },
+                "5190": { rate: 5.82, desc: "Electrical Wiring" },
+                "5183": { rate: 6.41, desc: "Plumbing — NOC" },
+                "5474": { rate: 8.93, desc: "Painting — exterior" },
+                "5437": { rate: 5.21, desc: "Finish carpentry, cabinet install" },
+                "5213": { rate: 6.89, desc: "Concrete work — NOC" },
+                "5551": { rate: 9.45, desc: "Roofing — all kinds" },
+                "5645": { rate: 5.12, desc: "Carpentry — detached one/two family" },
+                "6217": { rate: 4.35, desc: "Excavation — NOC" },
+                "5102": { rate: 3.87, desc: "Iron/Steel erection — buildings < 2 stories" },
+                "8810": { rate: 0.18, desc: "Clerical office employees" },
+                "8742": { rate: 0.25, desc: "Salespersons — outside" },
+                "5606": { rate: 12.54, desc: "Contractor — executive supervisor" },
+                "5221": { rate: 7.12, desc: "Concrete/cement work — floors" },
+                "5538": { rate: 6.78, desc: "Sheet metal work — installation" },
+                "5535": { rate: 4.56, desc: "HVAC ductwork" },
+                "5480": { rate: 3.92, desc: "Plastering/stucco" },
+                "5020": { rate: 8.34, desc: "Ceiling installation" },
+              };
+
+              if (acctType === "payroll_tax") {
+                const gross = grossPay || (hrRate * hrsWorked) + (hrRate * 1.5 * otHours) || 0;
+                const annualized = annualSalary || gross * (payFreq === "weekly" ? 52 : payFreq === "biweekly" ? 26 : payFreq === "semimonthly" ? 24 : 12);
+                // Federal income tax estimate (2026 brackets)
+                let fedTax = 0;
+                const taxableIncome = annualized; // simplified
+                if (filing === "single") {
+                  if (taxableIncome <= 11925) fedTax = taxableIncome * 0.10;
+                  else if (taxableIncome <= 48475) fedTax = 1192.50 + (taxableIncome - 11925) * 0.12;
+                  else if (taxableIncome <= 103350) fedTax = 5577.50 + (taxableIncome - 48475) * 0.22;
+                  else if (taxableIncome <= 197300) fedTax = 17651.50 + (taxableIncome - 103350) * 0.24;
+                  else fedTax = 40199.50 + (taxableIncome - 197300) * 0.32;
+                } else if (filing === "married") {
+                  if (taxableIncome <= 23850) fedTax = taxableIncome * 0.10;
+                  else if (taxableIncome <= 96950) fedTax = 2385.00 + (taxableIncome - 23850) * 0.12;
+                  else if (taxableIncome <= 206700) fedTax = 11157.00 + (taxableIncome - 96950) * 0.22;
+                  else if (taxableIncome <= 394600) fedTax = 35305.00 + (taxableIncome - 206700) * 0.24;
+                  else fedTax = 80401.00 + (taxableIncome - 394600) * 0.32;
+                } else { // head_of_household
+                  if (taxableIncome <= 17000) fedTax = taxableIncome * 0.10;
+                  else if (taxableIncome <= 64850) fedTax = 1700.00 + (taxableIncome - 17000) * 0.12;
+                  else if (taxableIncome <= 103350) fedTax = 7442.00 + (taxableIncome - 64850) * 0.22;
+                  else if (taxableIncome <= 197300) fedTax = 15912.00 + (taxableIncome - 103350) * 0.24;
+                  else fedTax = 38460.00 + (taxableIncome - 197300) * 0.32;
+                }
+                const fedPerPeriod = fedTax / (payFreq === "weekly" ? 52 : payFreq === "biweekly" ? 26 : payFreq === "semimonthly" ? 24 : 12);
+                // FICA
+                const ssSubject = ytdGross < SS_WAGE_BASE ? Math.min(gross, SS_WAGE_BASE - ytdGross) : 0;
+                const ssEmployee = ssSubject * SS_RATE;
+                const ssEmployer = ssSubject * SS_RATE;
+                const medEmployee = gross * MEDICARE_RATE;
+                const medEmployer = gross * MEDICARE_RATE;
+                // Utah state
+                const utahTax = gross * UTAH_STATE_RATE;
+                // Totals
+                const employeeTotal = fedPerPeriod + ssEmployee + medEmployee + utahTax;
+                const employerTotal = ssEmployer + medEmployer;
+                const netPay = gross - employeeTotal;
+                toolResult = `✅ Payroll Tax Breakdown (2026 Utah/Federal):\n`;
+                toolResult += `📋 Gross Pay: $${round2(gross)}\n`;
+                toolResult += `\n👤 EMPLOYEE WITHHOLDINGS:\n`;
+                toolResult += `• Federal income tax: $${round2(fedPerPeriod)} (${filing}, ~${round2(fedTax/annualized*100)}% effective rate)\n`;
+                toolResult += `• Social Security (6.2%): $${round2(ssEmployee)}${ytdGross >= SS_WAGE_BASE ? " ⚠️ SS wage base reached" : ""}\n`;
+                toolResult += `• Medicare (1.45%): $${round2(medEmployee)}\n`;
+                toolResult += `• Utah state tax (4.65%): $${round2(utahTax)}\n`;
+                toolResult += `• 💰 Total employee deductions: $${round2(employeeTotal)}\n`;
+                toolResult += `• 💵 NET PAY: $${round2(netPay)}\n`;
+                toolResult += `\n🏢 EMPLOYER TAXES (your cost on top of wages):\n`;
+                toolResult += `• Employer SS (6.2%): $${round2(ssEmployer)}\n`;
+                toolResult += `• Employer Medicare (1.45%): $${round2(medEmployer)}\n`;
+                toolResult += `• 💰 Total employer FICA: $${round2(employerTotal)}\n`;
+                toolResult += `• FUTA (0.6% on first $7K): $${round2(ytdGross < FUTA_WAGE_BASE ? Math.min(gross, FUTA_WAGE_BASE - ytdGross) * FUTA_RATE : 0)}\n`;
+                toolResult += `• SUTA (~1.2% on first $50.7K): $${round2(ytdGross < SUTA_WAGE_BASE ? Math.min(gross, SUTA_WAGE_BASE - ytdGross) * SUTA_RATE_DEFAULT : 0)}\n`;
+                toolResult += `\n📊 TRUE COST TO EMPLOYER: $${round2(gross + employerTotal)} per pay period`;
+
+              } else if (acctType === "burden_rate") {
+                const rate = hrRate || 0;
+                if (rate > 0) {
+                  const annualGross = rate * 2080; // 40hr/wk × 52wk
+                  const ssER = Math.min(annualGross, SS_WAGE_BASE) * SS_RATE;
+                  const medER = annualGross * MEDICARE_RATE;
+                  const futaER = Math.min(annualGross, FUTA_WAGE_BASE) * FUTA_RATE;
+                  const sutaER = Math.min(annualGross, SUTA_WAGE_BASE) * SUTA_RATE_DEFAULT;
+                  // Workers comp
+                  const wcCode = classCode || "5403";
+                  const wc = wcRates[wcCode] || wcRates["5403"];
+                  const wcCost = (annualGross / 100) * wc.rate;
+                  // GL insurance
+                  const glCost = annualGross * GL_RATE;
+                  const totalBurden = ssER + medER + futaER + sutaER + wcCost + glCost;
+                  const burdenRate = totalBurden / 2080;
+                  const fullyBurdenedRate = rate + burdenRate;
+                  const burdenPct = (totalBurden / annualGross) * 100;
+                  toolResult = `✅ Employee Burden Rate — $${rate}/hr (Class ${wcCode}: ${wc.desc}):\n`;
+                  toolResult += `\n📊 ANNUAL BURDEN BREAKDOWN:\n`;
+                  toolResult += `• Base wages (2,080 hrs): $${round2(annualGross)}\n`;
+                  toolResult += `• Employer SS (6.2%): $${round2(ssER)}\n`;
+                  toolResult += `• Employer Medicare (1.45%): $${round2(medER)}\n`;
+                  toolResult += `• FUTA (0.6% on $7K): $${round2(futaER)}\n`;
+                  toolResult += `• SUTA (1.2% on $50.7K): $${round2(sutaER)}\n`;
+                  toolResult += `• Workers Comp (${wc.rate}/$100): $${round2(wcCost)}\n`;
+                  toolResult += `• General Liability (1.5%): $${round2(glCost)}\n`;
+                  toolResult += `• 💰 TOTAL ANNUAL BURDEN: $${round2(totalBurden)}\n`;
+                  toolResult += `\n🎯 RATES:\n`;
+                  toolResult += `• Base hourly rate: $${round2(rate)}/hr\n`;
+                  toolResult += `• Burden per hour: +$${round2(burdenRate)}/hr\n`;
+                  toolResult += `• 🎯 FULLY BURDENED RATE: $${round2(fullyBurdenedRate)}/hr\n`;
+                  toolResult += `• Burden percentage: ${round2(burdenPct)}%\n`;
+                  toolResult += `• Total annual cost: $${round2(annualGross + totalBurden)}\n`;
+                  toolResult += `\n💡 To break even billing at $${round2(fullyBurdenedRate)}/hr. For profit, bill at $${round2(fullyBurdenedRate * 1.2)}-$${round2(fullyBurdenedRate * 1.5)}/hr (20-50% markup).`;
+                } else {
+                  toolResult = `❌ Need hourly_rate to calculate burden rate.`;
+                }
+
+              } else if (acctType === "job_profit_loss") {
+                if (jobRevenue > 0 || jobLabor > 0) {
+                  const totalDirectCost = jobLabor + jobMaterial + jobOther;
+                  // Employer tax burden on labor (~15% for FICA + WC + GL)
+                  const laborBurden = jobLabor * 0.15;
+                  const totalCostWithBurden = totalDirectCost + laborBurden;
+                  // Overhead allocation
+                  let ohAllocation = 0;
+                  if (monthlyOH > 0 && numJobs > 0) {
+                    ohAllocation = jobPct > 0 ? monthlyOH * (jobPct / 100) : monthlyOH / numJobs;
+                  }
+                  const totalFullCost = totalCostWithBurden + ohAllocation;
+                  const grossProfit = jobRevenue - totalDirectCost;
+                  const netProfit = jobRevenue - totalFullCost;
+                  const grossMargin = jobRevenue > 0 ? (grossProfit / jobRevenue) * 100 : 0;
+                  const netMargin = jobRevenue > 0 ? (netProfit / jobRevenue) * 100 : 0;
+                  toolResult = `✅ Job Profit & Loss Statement:\n`;
+                  toolResult += `\n📊 REVENUE: $${round2(jobRevenue)}\n`;
+                  toolResult += `\n📋 DIRECT COSTS:\n`;
+                  toolResult += `• Labor: $${round2(jobLabor)}\n`;
+                  toolResult += `• Materials: $${round2(jobMaterial)}\n`;
+                  toolResult += `• Other (equipment, subs): $${round2(jobOther)}\n`;
+                  toolResult += `• Total direct: $${round2(totalDirectCost)}\n`;
+                  toolResult += `\n📋 INDIRECT COSTS:\n`;
+                  toolResult += `• Labor burden (FICA+WC+GL ~15%): $${round2(laborBurden)}\n`;
+                  toolResult += `• Overhead allocation: $${round2(ohAllocation)}${monthlyOH > 0 ? ` ($${round2(monthlyOH)}/mo ÷ ${numJobs} jobs${jobPct > 0 ? ` @ ${jobPct}%` : ""})` : " (not set)"}\n`;
+                  toolResult += `• Total indirect: $${round2(laborBurden + ohAllocation)}\n`;
+                  toolResult += `\n💰 PROFITABILITY:\n`;
+                  toolResult += `• Gross profit: $${round2(grossProfit)} (${round2(grossMargin)}% margin)\n`;
+                  toolResult += `• 🎯 Net profit: $${round2(netProfit)} (${round2(netMargin)}% margin)\n`;
+                  toolResult += `• ${netProfit >= 0 ? "✅" : "❌"} ${netProfit >= 0 ? "PROFITABLE" : "LOSING MONEY"}\n`;
+                  if (netMargin < 10 && netMargin >= 0) toolResult += `• ⚠️ Thin margin — target 15-25% net for construction\n`;
+                  if (netMargin < 0) toolResult += `• ⚠️ This job is costing you money. Review labor hours and material costs.\n`;
+                  toolResult += `\n💡 Industry benchmarks: 15-25% net margin for framing, 10-20% for steel erection.`;
+                } else {
+                  toolResult = `❌ Need at least job_revenue or job_labor_cost.`;
+                }
+
+              } else if (acctType === "workers_comp_estimate") {
+                const code = classCode || "5403";
+                const wc = wcRates[code];
+                if (wc) {
+                  const payroll = totalPayroll || (hrRate * hrsWorked) || grossPay || 0;
+                  const premium = (payroll / 100) * wc.rate;
+                  toolResult = `✅ Workers Comp Estimate — Class ${code}: ${wc.desc}:\n`;
+                  toolResult += `• Rate: $${wc.rate} per $100 of payroll\n`;
+                  toolResult += `• Payroll: $${round2(payroll)}\n`;
+                  toolResult += `• 🎯 Estimated premium: $${round2(premium)}\n`;
+                  toolResult += `• Per hour (at $${hrRate || 25}/hr): $${round2(wc.rate * (hrRate || 25) / 100)}/hr\n`;
+                  toolResult += `\n📋 All Utah Construction WC Rates (2026):\n`;
+                  Object.entries(wcRates).forEach(([c, d]) => {
+                    toolResult += `• ${c}: $${d.rate}/$100 — ${d.desc}${c === code ? " ← SELECTED" : ""}\n`;
+                  });
+                } else {
+                  toolResult = `❌ Class code "${code}" not found. Available: ${Object.keys(wcRates).join(", ")}`;
+                }
+
+              } else if (acctType === "overhead_allocation") {
+                if (monthlyOH > 0 || numJobs > 0) {
+                  const oh = monthlyOH || 0;
+                  const jobs = numJobs || 1;
+                  const perJob = oh / jobs;
+                  const perJobWeekly = perJob / 4.33;
+                  const perJobDaily = perJobWeekly / 5;
+                  toolResult = `✅ Overhead Allocation — $${round2(oh)}/month across ${jobs} active jobs:\n`;
+                  toolResult += `\n📊 EQUAL DISTRIBUTION:\n`;
+                  toolResult += `• Per job monthly: $${round2(perJob)}\n`;
+                  toolResult += `• Per job weekly: $${round2(perJobWeekly)}\n`;
+                  toolResult += `• Per job daily: $${round2(perJobDaily)}\n`;
+                  toolResult += `\n📊 WEIGHTED (by revenue share):\n`;
+                  if (jobPct > 0) {
+                    toolResult += `• This job (${jobPct}% of revenue): $${round2(oh * jobPct / 100)}/month\n`;
+                  }
+                  toolResult += `\n📋 OVERHEAD CATEGORIES (typical construction):\n`;
+                  toolResult += `• Insurance (GL, WC, auto): 30-40% of overhead\n`;
+                  toolResult += `• Vehicle/equipment: 15-25%\n`;
+                  toolResult += `• Office/yard rent: 10-15%\n`;
+                  toolResult += `• Tools/supplies: 5-10%\n`;
+                  toolResult += `• Admin/accounting: 5-10%\n`;
+                  toolResult += `• Phone/software: 3-5%\n`;
+                  toolResult += `\n💡 To bill overhead into jobs: add $${round2(perJobDaily)} per day to each job's cost.`;
+                } else {
+                  toolResult = `❌ Need monthly_overhead and num_active_jobs.`;
+                }
+
+              } else if (acctType === "certified_payroll") {
+                const wage = prevWage || hrRate || 0;
+                const fringe = fringeRate || 0;
+                const hrs = hrsWorked || 40;
+                if (wage > 0) {
+                  const basePay = wage * hrs;
+                  const otPay = otHours > 0 ? (wage * 1.5 * otHours) : 0;
+                  const fringePay = fringe * (hrs + otHours);
+                  const totalComp = basePay + otPay + fringePay;
+                  const ssTax = totalComp * SS_RATE;
+                  const medTax = totalComp * MEDICARE_RATE;
+                  toolResult = `✅ Certified Payroll Calculation (Davis-Bacon / State Prevailing Wage):\n`;
+                  toolResult += `\n📋 PER EMPLOYEE:\n`;
+                  toolResult += `• Prevailing wage: $${round2(wage)}/hr\n`;
+                  toolResult += `• Fringe rate: $${round2(fringe)}/hr\n`;
+                  toolResult += `• Regular hours: ${hrs} × $${round2(wage)} = $${round2(basePay)}\n`;
+                  if (otHours > 0) toolResult += `• OT hours: ${otHours} × $${round2(wage * 1.5)} = $${round2(otPay)}\n`;
+                  toolResult += `• Fringe: ${hrs + otHours} hrs × $${round2(fringe)} = $${round2(fringePay)}\n`;
+                  toolResult += `• Total compensation: $${round2(totalComp)}\n`;
+                  if (numEmps > 1) {
+                    toolResult += `\n📊 FOR ${numEmps} EMPLOYEES:\n`;
+                    toolResult += `• Total wages: $${round2((basePay + otPay) * numEmps)}\n`;
+                    toolResult += `• Total fringe: $${round2(fringePay * numEmps)}\n`;
+                    toolResult += `• Total payroll: $${round2(totalComp * numEmps)}\n`;
+                    toolResult += `• Employer FICA: $${round2((ssTax + medTax) * numEmps)}\n`;
+                  }
+                  toolResult += `\n⚠️ Certified payroll requires WH-347 form. Keep records for 3 years.`;
+                } else {
+                  toolResult = `❌ Need prevailing_wage or hourly_rate for certified payroll.`;
+                }
+
+              } else if (acctType === "overtime_cost") {
+                const rate = hrRate || 0;
+                const ot = otHours || 0;
+                const reg = hrsWorked || 40;
+                if (rate > 0) {
+                  const regPay = rate * reg;
+                  const otRate = rate * 1.5;
+                  const otPay = otRate * ot;
+                  const totalPay = regPay + otPay;
+                  const effectiveRate = totalPay / (reg + ot);
+                  // Burden on OT
+                  const otBurden = otPay * 0.15;
+                  toolResult = `✅ Overtime Cost Analysis:\n`;
+                  toolResult += `• Regular: ${reg} hrs × $${round2(rate)} = $${round2(regPay)}\n`;
+                  toolResult += `• OT rate: $${round2(rate)} × 1.5 = $${round2(otRate)}/hr\n`;
+                  toolResult += `• OT pay: ${ot} hrs × $${round2(otRate)} = $${round2(otPay)}\n`;
+                  toolResult += `• Total gross: $${round2(totalPay)}\n`;
+                  toolResult += `• Effective hourly rate: $${round2(effectiveRate)}/hr\n`;
+                  toolResult += `• OT burden (FICA+WC ~15%): $${round2(otBurden)}\n`;
+                  toolResult += `• 🎯 True OT cost: $${round2(otPay + otBurden)} for ${ot} OT hours\n`;
+                  toolResult += `• 💡 Each OT hour really costs you $${round2(otRate * 1.15)} (wage + burden)`;
+                } else {
+                  toolResult = `❌ Need hourly_rate and overtime_hours.`;
+                }
+
+              } else if (acctType === "annual_employee_cost") {
+                const rate = hrRate || 0;
+                if (rate > 0) {
+                  const annualGross = annualSalary || rate * 2080;
+                  const ssER = Math.min(annualGross, SS_WAGE_BASE) * SS_RATE;
+                  const medER = annualGross * MEDICARE_RATE;
+                  const futaER = Math.min(annualGross, FUTA_WAGE_BASE) * FUTA_RATE;
+                  const sutaER = Math.min(annualGross, SUTA_WAGE_BASE) * SUTA_RATE_DEFAULT;
+                  const wcCode = classCode || "5403";
+                  const wc = wcRates[wcCode] || wcRates["5403"];
+                  const wcCost = (annualGross / 100) * wc.rate;
+                  const glCost = annualGross * GL_RATE;
+                  const totalBurden = ssER + medER + futaER + sutaER + wcCost + glCost;
+                  const totalCost = annualGross + totalBurden;
+                  toolResult = `✅ Annual Employee Cost — $${round2(rate)}/hr:\n`;
+                  toolResult += `• Annual wages: $${round2(annualGross)}\n`;
+                  toolResult += `• Employer SS: $${round2(ssER)}\n`;
+                  toolResult += `• Employer Medicare: $${round2(medER)}\n`;
+                  toolResult += `• FUTA: $${round2(futaER)}\n`;
+                  toolResult += `• SUTA: $${round2(sutaER)}\n`;
+                  toolResult += `• Workers Comp (${wcCode}): $${round2(wcCost)}\n`;
+                  toolResult += `• GL Insurance: $${round2(glCost)}\n`;
+                  toolResult += `• 🎯 TOTAL ANNUAL COST: $${round2(totalCost)}\n`;
+                  toolResult += `• Monthly cost: $${round2(totalCost / 12)}\n`;
+                  toolResult += `• True hourly cost: $${round2(totalCost / 2080)}/hr`;
+                } else {
+                  toolResult = `❌ Need hourly_rate for annual cost.`;
+                }
+
+              } else if (acctType === "markup_margin") {
+                if (costAmt > 0 && markupPct > 0) {
+                  const sell = costAmt * (1 + markupPct / 100);
+                  const profit = sell - costAmt;
+                  const margin = (profit / sell) * 100;
+                  toolResult = `✅ Markup → Margin:\n• Cost: $${round2(costAmt)}\n• Markup: ${markupPct}%\n• Sell price: $${round2(sell)}\n• Profit: $${round2(profit)}\n• Margin: ${round2(margin)}%`;
+                } else if (costAmt > 0 && marginPct > 0) {
+                  const sell = costAmt / (1 - marginPct / 100);
+                  const profit = sell - costAmt;
+                  const markup = (profit / costAmt) * 100;
+                  toolResult = `✅ Margin → Markup:\n• Cost: $${round2(costAmt)}\n• Target margin: ${marginPct}%\n• Sell price: $${round2(sell)}\n• Profit: $${round2(profit)}\n• Markup: ${round2(markup)}%`;
+                } else if (costAmt > 0 && sellAmt > 0) {
+                  const profit = sellAmt - costAmt;
+                  const markup = (profit / costAmt) * 100;
+                  const margin = (profit / sellAmt) * 100;
+                  toolResult = `✅ Markup & Margin Analysis:\n• Cost: $${round2(costAmt)}\n• Sell: $${round2(sellAmt)}\n• Profit: $${round2(profit)}\n• Markup: ${round2(markup)}%\n• Margin: ${round2(margin)}%`;
+                } else {
+                  toolResult = `❌ Need cost_amount plus one of: markup_percent, margin_percent, or sell_amount.\n\n📋 Quick reference:\n• 10% markup = 9.1% margin\n• 15% markup = 13.0% margin\n• 20% markup = 16.7% margin\n• 25% markup = 20.0% margin\n• 30% markup = 23.1% margin\n• 50% markup = 33.3% margin`;
+                }
+
+              } else {
+                toolResult = `❌ Unknown calc_type: ${acctType}. Available: payroll_tax, burden_rate, job_profit_loss, workers_comp_estimate, overhead_allocation, certified_payroll, overtime_cost, annual_employee_cost, markup_margin`;
+              }
+            }
+          } catch (acctErr) {
+            toolResult = `Accounting calculation error: ${acctErr instanceof Error ? acctErr.message : "unknown error"}`;
+          }
+        } else if (toolName === "get_employee_hours") {
+          try {
+            const empName = args.employeeName || employee.name;
+            const periodType = args.periodType || "current";
+            const PERIOD_ANCHOR_MS = new Date('2026-04-06T00:00:00').getTime();
+            const PERIOD_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
+            const now = new Date();
+            const elapsed = now.getTime() - PERIOD_ANCHOR_MS;
+            const periodsElapsed = Math.floor(elapsed / PERIOD_LENGTH_MS);
+            let periodStart: Date, periodEnd: Date, periodLabel: string;
+            if (periodType === "last") {
+              periodStart = new Date(PERIOD_ANCHOR_MS + (periodsElapsed - 1) * PERIOD_LENGTH_MS);
+              periodEnd = new Date(PERIOD_ANCHOR_MS + periodsElapsed * PERIOD_LENGTH_MS - 1);
+              periodLabel = "Last Pay Period";
+            } else if (periodType === "this_week") {
+              const dayOfWeek = now.getDay();
+              periodStart = new Date(now);
+              periodStart.setDate(now.getDate() - dayOfWeek);
+              periodStart.setHours(0,0,0,0);
+              periodEnd = new Date(periodStart);
+              periodEnd.setDate(periodStart.getDate() + 6);
+              periodEnd.setHours(23,59,59,999);
+              periodLabel = "This Week";
+            } else if (periodType === "last_week") {
+              const dayOfWeek = now.getDay();
+              periodStart = new Date(now);
+              periodStart.setDate(now.getDate() - dayOfWeek - 7);
+              periodStart.setHours(0,0,0,0);
+              periodEnd = new Date(periodStart);
+              periodEnd.setDate(periodStart.getDate() + 6);
+              periodEnd.setHours(23,59,59,999);
+              periodLabel = "Last Week";
+            } else if (periodType === "this_month") {
+              periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+              periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+              periodLabel = "This Month";
+            } else {
+              periodStart = new Date(PERIOD_ANCHOR_MS + periodsElapsed * PERIOD_LENGTH_MS);
+              periodEnd = new Date(periodStart.getTime() + PERIOD_LENGTH_MS - 1);
+              periodLabel = "Current Pay Period";
+            }
+            const allEmps = await db.getAllEmployees(ctx.companyId);
+            const matchedEmp = allEmps.find((e: any) =>
+              e.name.toLowerCase().includes(empName.toLowerCase()) ||
+              empName.toLowerCase().includes(e.name.split(' ')[0].toLowerCase())
+            );
+            if (!matchedEmp) {
+              toolResult = `Could not find employee "${empName}". Available: ${allEmps.filter((e: any) => e.isActive).map((e: any) => e.name).join(', ')}`;
+            } else {
+              const entries = await db.getClockEntriesForEmployee(matchedEmp.id, periodStart);
+              const periodEntries = entries.filter((e: any) => new Date(e.clockIn) <= periodEnd);
+              let totalMinutes = 0;
+              let totalLunchMinutes = 0;
+              const dayLines: string[] = [];
+              const allJobs = await db.getAllJobs(ctx.companyId);
+              for (const entry of periodEntries) {
+                if (!entry.clockOut) continue;
+                const clockIn = new Date(entry.clockIn);
+                const clockOut = new Date(entry.clockOut);
+                const rawMinutes = (clockOut.getTime() - clockIn.getTime()) / 60000;
+                const lunch = entry.lunchMinutes || 0;
+                const netMinutes = Math.max(0, rawMinutes - lunch);
+                totalMinutes += netMinutes;
+                totalLunchMinutes += lunch;
+                const job = allJobs.find((j: any) => j.id === entry.jobId);
+                const dateStr = clockIn.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                const inTime = clockIn.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                const outTime = clockOut.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                dayLines.push(`${dateStr}: ${inTime} - ${outTime} (${Math.floor(netMinutes/60)}h ${Math.round(netMinutes%60)}m${lunch > 0 ? `, ${lunch}m lunch` : ''}) — ${job?.name || 'Unknown job'}`);
+              }
+              const rate = parseFloat(matchedEmp.hourlyRate || '0');
+              const totalPay = (totalMinutes / 60) * rate;
+              const dateRange = `${periodStart.toLocaleDateString('en-US', {month:'short',day:'numeric'})} - ${periodEnd.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'})}`;
+              toolResult = `Hours for ${matchedEmp.name} — ${periodLabel} (${dateRange}):\n`;
+              toolResult += `Total: ${Math.floor(totalMinutes/60)}h ${Math.round(totalMinutes%60)}m`;
+              if (rate > 0) toolResult += ` ($${totalPay.toFixed(2)} @ $${rate}/hr)`;
+              toolResult += `\n`;
+              if (totalLunchMinutes > 0) toolResult += `Total lunch deducted: ${totalLunchMinutes}m\n`;
+              toolResult += `\nDaily breakdown:\n${dayLines.length > 0 ? dayLines.join('\n') : 'No clock entries for this period.'}`;
+              toolResult += `\n\nPresent this information clearly. If the user spoke in Spanish, respond in Spanish.`;
+            }
+          } catch (hoursErr) {
+            toolResult = `Failed to get hours: ${hoursErr instanceof Error ? hoursErr.message : "unknown error"}`;
           }
         }
       } catch (parseErr) {
@@ -3702,7 +4704,7 @@ ${isOwner ? "\n## OWNER_PATTERNS\nDecision-making patterns, recurring concerns, 
     return { language: memory?.preferredLanguage || "en" };
   }),
 
-  setLanguage: publicProcedure.input(z.object({ employeeId: z.number(), language: z.string() })).mutation(async ({ input }) => {
+  setLanguage: publicProcedure.input(z.object({ employeeId: z.number(), language: z.string() })).mutation(async ({ input, ctx }) => {
     await db.updatePivotLanguage(input.employeeId, input.language);
     return { success: true };
   }),
@@ -3725,7 +4727,7 @@ ${isOwner ? "\n## OWNER_PATTERNS\nDecision-making patterns, recurring concerns, 
 
   transcribeVoice: publicProcedure.input(z.object({
     audioUrl: z.string().url(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     try {
       console.log(`[transcribeVoice] Starting transcription for: ${input.audioUrl}`);
       const result = await transcribeAudio({ audioUrl: input.audioUrl, language: "en" });
@@ -3772,7 +4774,7 @@ const messagesRouter = router({
     attachmentName: z.string().optional(),
     isCompanyWide: z.boolean().default(false),
     recipientIds: z.array(z.number()).optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     return db.sendMessage(input);
   }),
   inbox: publicProcedure.input(z.object({ employeeId: z.number() })).query(async ({ input }) => {
@@ -3784,7 +4786,7 @@ const messagesRouter = router({
   markRead: publicProcedure.input(z.object({
     messageId: z.number(),
     employeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     return db.markMessageRead(input.messageId, input.employeeId);
   }),
   unreadCount: publicProcedure.input(z.object({ employeeId: z.number() })).query(async ({ input }) => {
@@ -3806,7 +4808,7 @@ const overheadRouter = router({
     monthlyAmount: z.string(),
     notes: z.string().optional(),
     createdBy: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.createdBy, ["owner", "office_manager"], "manage overhead");
     return db.createOverheadItem(input);
   }),
@@ -3817,11 +4819,11 @@ const overheadRouter = router({
     monthlyAmount: z.string().optional(),
     notes: z.string().optional(),
     isActive: z.boolean().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const { id, ...data } = input;
     return db.updateOverheadItem(id, data);
   }),
-  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "delete overhead items");
     return db.deleteOverheadItem(input.id);
   }),
@@ -3830,7 +4832,7 @@ const overheadRouter = router({
 // ─── Job Schedule Router ──────────────────────────────────────────────────
 const scheduleRouter = router({
   getByJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getJobSchedule(input.jobId)),
-  getAll: publicProcedure.query(() => db.getAllScheduleItems()),
+  getAll: publicProcedure.query(({ ctx }) => db.getAllScheduleItems(ctx.companyId)),
   getByDateRange: publicProcedure.input(z.object({
     startDate: z.string(),
     endDate: z.string(),
@@ -3845,7 +4847,7 @@ const scheduleRouter = router({
     assignedEmployees: z.string().optional(),
     sortOrder: z.number().optional(),
     createdBy: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     return db.createScheduleItem({
       ...input,
       scheduledDate: new Date(input.scheduledDate),
@@ -3862,14 +4864,14 @@ const scheduleRouter = router({
     status: z.enum(["pending", "in_progress", "completed", "skipped"]).optional(),
     assignedEmployees: z.string().optional(),
     sortOrder: z.number().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const { id, ...data } = input;
     const updateData: any = { ...data };
     if (data.scheduledDate) updateData.scheduledDate = new Date(data.scheduledDate);
     if (data.endDate) updateData.endDate = new Date(data.endDate);
     return db.updateScheduleItem(id, updateData);
   }),
-  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+  delete: publicProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "delete schedule items");
     return db.deleteScheduleItem(input.id);
   }),
@@ -3885,7 +4887,7 @@ const scheduleRouter = router({
       sortOrder: z.number().optional(),
       createdBy: z.number(),
     })),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     let created = 0;
     for (const item of input.items) {
       await db.createScheduleItem({
@@ -3897,7 +4899,7 @@ const scheduleRouter = router({
     }
     return { count: created };
   }),
-  deleteByJob: publicProcedure.input(z.object({ jobId: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input }) => {
+  deleteByJob: publicProcedure.input(z.object({ jobId: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "delete job schedules");
     const items = await db.getJobSchedule(input.jobId);
     for (const item of items) {
@@ -3922,7 +4924,7 @@ const taxInfoRouter = router({
     i9Verified: z.boolean().optional(),
     notes: z.string().optional(),
     updatedBy: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.updatedBy, ["owner", "office_manager"], "manage tax info");
     return db.upsertEmployeeTaxInfo(input.employeeId, input);
   }),
@@ -3937,7 +4939,7 @@ const companyRouter = router({
   getBySlug: publicProcedure.input(z.object({ slug: z.string() })).query(({ input }) => db.getCompanyBySlug(input.slug)),
   
   // Lookup company by slug (for mobile app login - returns only name and slug, no sensitive data)
-  lookupBySlug: publicProcedure.input(z.object({ slug: z.string() })).mutation(async ({ input }) => {
+  lookupBySlug: publicProcedure.input(z.object({ slug: z.string() })).mutation(async ({ input, ctx }) => {
     const company = await db.getCompanyBySlug(input.slug);
     if (!company) return null;
     return { name: company.name, slug: company.slug, id: company.id };
@@ -3954,7 +4956,7 @@ const companyRouter = router({
     timezone: z.string().default("America/Denver"),
     trades: z.array(z.string()).min(1, "Select at least one trade").default(["general_contractor"]),
     primaryTrade: z.string().default("general_contractor"),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     // Check if slug is taken
     const existing = await db.getCompanyBySlug(input.slug);
     if (existing) {
@@ -4009,7 +5011,7 @@ const companyRouter = router({
     timezone: z.string().optional(),
     logoUrl: z.string().optional(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner"], "update company settings");
     // If changing slug, check it's not taken
     if (input.slug) {
@@ -4052,7 +5054,7 @@ const companyRouter = router({
     stripeSubscriptionId: z.string().optional(),
     maxEmployees: z.number().optional(),
     maxJobs: z.number().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const { companyId, ...data } = input;
     return db.updateCompany(companyId, data);
   }),
@@ -4075,7 +5077,7 @@ const companyRouter = router({
     deductMinutes: z.number().min(5).max(120),
     minShiftMinutes: z.number().min(60).max(720),
     skipDays: z.array(z.number().min(0).max(6)),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const cId = input.companyId || 1;
     return db.updateCompany(cId, {
       lunchAutoDeduct: input.enabled,
@@ -4090,8 +5092,15 @@ const companyRouter = router({
 const supportRouter = router({
   // ── Tickets ──
   tickets: router({
-    list: publicProcedure.input(z.object({ companyId: z.number().optional() }).optional()).query(({ input }) => db.getSupportTickets(input?.companyId)),
-    listAll: publicProcedure.query(() => db.getSupportTickets()),
+    list: publicProcedure.input(z.object({ companyId: z.number().optional() }).optional()).query(({ input, ctx }) => {
+      // Security: always scope to the caller's company — never return all companies' tickets
+      const cid = input?.companyId || ctx.companyId || 1;
+      return db.getSupportTickets(cid);
+    }),
+    listAll: publicProcedure.query(({ ctx }) => {
+      // Security: scope to caller's company (only Pedro's admin portal should see all)
+      return db.getSupportTickets(ctx.companyId || 1);
+    }),
     getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getSupportTicketById(input.id)),
     getByToken: publicProcedure.input(z.object({ token: z.string().min(1) })).query(async ({ input }) => {
       const ticket = await db.getTicketByTrackingToken(input.token);
@@ -4110,7 +5119,10 @@ const supportRouter = router({
         resolution: ticket.resolution,
       };
     }),
-    byStatus: publicProcedure.input(z.object({ status: z.string() })).query(({ input }) => db.getSupportTicketsByStatus(input.status)),
+    byStatus: publicProcedure.input(z.object({ status: z.string() })).query(({ input, ctx }) => {
+      // Security: scope to caller's company
+      return db.getSupportTicketsByStatus(input.status, ctx.companyId || 1);
+    }),
     create: publicProcedure.input(z.object({
       companyId: z.number(),
       employeeId: z.number().optional(),
@@ -4120,7 +5132,7 @@ const supportRouter = router({
       description: z.string().min(1),
       category: z.enum(["bug", "feature_request", "billing", "how_to", "account", "other"]).default("other"),
       priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       // Generate a unique tracking token for customer-facing status page
       const trackingToken = crypto.randomUUID().replace(/-/g, '').substring(0, 32);
       const ticketId = await db.createSupportTicket({ ...input, trackingToken });
@@ -4155,7 +5167,7 @@ const supportRouter = router({
       assignedTo: z.number().optional(),
       priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
       resolution: z.string().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
       const updateData: any = { ...data };
       if (data.status === "resolved" || data.status === "closed") {
@@ -4204,7 +5216,7 @@ const supportRouter = router({
       authorType: z.enum(["customer", "agent", "pivot_ai"]),
       authorName: z.string().optional(),
       content: z.string().min(1),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const replyId = await db.createTicketReply(input);
       // If agent reply, update ticket status to in_progress
       if (input.authorType === "agent") {
@@ -4248,7 +5260,7 @@ const supportRouter = router({
       content: z.string().min(1),
       tags: z.string().optional(),
       createdBy: z.number().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const id = await db.createKBArticle(input);
       // Also create a learning entry from this KB article
       await db.createSupportLearning({
@@ -4266,7 +5278,7 @@ const supportRouter = router({
       category: z.enum(["getting_started", "features", "troubleshooting", "billing", "faq"]).optional(),
       tags: z.string().optional(),
       isPublished: z.boolean().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
       await db.updateKBArticle(id, data);
       return { success: true };
@@ -4278,7 +5290,7 @@ const supportRouter = router({
     message: z.string().min(1),
     ticketId: z.number().optional(),
     companyId: z.number().optional(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     // Search for relevant learnings and KB articles
     const learnings = await db.searchSupportLearnings(input.message);
     const kbArticles = await db.searchKBArticles(input.message);
@@ -4313,7 +5325,7 @@ const supportRouter = router({
       category: z.string().optional(),
       learnedFrom: z.enum(["ticket_resolution", "manual_entry", "kb_article"]).default("manual_entry"),
     })).mutation(({ input }) => db.createSupportLearning(input)),
-    markHelpful: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    markHelpful: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
       const learnings = await db.getSupportLearnings();
       const learning = learnings.find((l: any) => l.id === input.id);
       if (learning) {
@@ -4346,7 +5358,7 @@ const tradeKnowledgeRouter = router({
     content: z.string().min(1),
     source: z.enum(["system", "aggregated", "admin"]).default("admin"),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner"], "manage trade knowledge");
     const { requestingEmployeeId: _, ...data } = input;
     return db.createTradeKnowledge(data);
@@ -4383,7 +5395,7 @@ const tradeKnowledgeRouter = router({
     trades: z.array(z.string()),
     primaryTrade: z.string(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner"], "manage company trades");
     const company = await db.getCompanyById(input.companyId);
     if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
@@ -4413,7 +5425,7 @@ const tradeKnowledgeRouter = router({
   unlockAllTrades: publicProcedure.input(z.object({
     companyId: z.number(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner"], "unlock all trades");
     // In production, this would process payment via Stripe first
     // For now, mark as unlocked (payment integration comes with Stripe setup)
@@ -4439,7 +5451,7 @@ const brandingRouter = router({
     companyId: z.number(),
     logoUrl: z.string().url(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "update company logo");
     await db.updateCompany(input.companyId, { logoUrl: input.logoUrl });
     return { success: true, logoUrl: input.logoUrl };
@@ -4449,7 +5461,7 @@ const brandingRouter = router({
     companyId: z.number(),
     brandColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color like #C9A84C"),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "update brand color");
     await db.updateCompany(input.companyId, { brandColor: input.brandColor } as any);
     return { success: true, brandColor: input.brandColor };
@@ -4458,7 +5470,7 @@ const brandingRouter = router({
   removeLogo: publicProcedure.input(z.object({
     companyId: z.number(),
     requestingEmployeeId: z.number(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "remove company logo");
     await db.updateCompany(input.companyId, { logoUrl: null });
     return { success: true };

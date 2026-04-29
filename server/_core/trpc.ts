@@ -10,6 +10,14 @@ const t = initTRPC.context<TrpcContext>().create({
 export const router = t.router;
 
 // Global timeout middleware — prevents queries from hanging forever when DB is down
+// Extract companyId from x-company-id header for multi-tenant isolation
+const withCompanyId = t.middleware(async (opts) => {
+  const { ctx, next } = opts;
+  const hdr = ctx.req?.headers?.["x-company-id"];
+  const companyId = hdr ? parseInt(String(hdr), 10) : 1;
+  return next({ ctx: { ...ctx, companyId: isNaN(companyId) ? 1 : companyId } });
+});
+
 const withTimeout = t.middleware(async (opts) => {
   const { next } = opts;
   const TIMEOUT_MS = 15000; // 15 second timeout for all procedures
@@ -33,7 +41,7 @@ const withTimeout = t.middleware(async (opts) => {
   }
 });
 
-export const publicProcedure = t.procedure.use(withTimeout);
+export const publicProcedure = t.procedure.use(withCompanyId).use(withTimeout);
 
 const requireUser = t.middleware(async (opts) => {
   const { ctx, next } = opts;
@@ -50,7 +58,7 @@ const requireUser = t.middleware(async (opts) => {
   });
 });
 
-export const protectedProcedure = t.procedure.use(withTimeout).use(requireUser);
+export const protectedProcedure = t.procedure.use(withCompanyId).use(withTimeout).use(requireUser);
 
 export const adminProcedure = t.procedure.use(withTimeout).use(
   t.middleware(async (opts) => {

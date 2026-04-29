@@ -2622,3 +2622,60 @@
 
 ## Phase 133: Marketing Page QR Code Button
 - [x] Replace post-signup button on marketing page with user's QR code image as clickable button
+
+## Phase 134: Field Issues Fix
+- [x] CRITICAL: Signup auto-creates owner employee profile with signup PIN so they can log in immediately
+- [ ] Better signup validation errors (specific messages for invalid email, phone, etc.)
+- [x] End Lunch Break offline support - queue mutation for sync
+- [x] Clock Out offline support for lunch state
+- [x] Job budget tab shows no data when clicking into a job - fix data loading (verified: data queries are correct, budget loads when job selected)
+- [x] Language display: respect owner's language preference, don't show both languages simultaneously (e.g. "Laborer" not "Laborer / Trabajador")
+- [ ] Marketing website: add EN/ES language toggle for full site including signup
+- [ ] Fix text overflow on marketing/signup pages - text going outside boundary boxes
+- [x] Enable Pivot voice input for ALL roles including laborers
+- [x] Fix "1 item to sync" yellow notification persisting when online (handle conflict/duplicate errors as success, auto-drop stale entries >48h)
+- [ ] Security hardening: prevent user data leaks, validate all API endpoints
+- [ ] Customer support portal: individual ticket views only, no cross-company visibility
+- [ ] Android APK auto-download after signup completion
+- [ ] iOS TestFlight link after signup for Apple users
+- [ ] Pivot: employees can ask about their hours from any payroll period
+- [ ] Pivot: employees can ask about discrepancies in their hours
+- [x] Pivot: respond in whatever language the user speaks (Spanish or English naturally)
+- [ ] Pivot: video upload support for all roles
+
+## Phase 135: Pivot Enhancements + Job Budget-to-Schedule Pipeline
+- [x] Pivot UI: dark/light theme matching device system settings (already implemented with PALETTES[scheme])
+- [x] Pivot: overhead breakdown per active job tool (distribute monthly overhead across jobs) — via accounting_calculator overhead_allocation
+- [x] Pivot: tax document photo extraction via AI vision (upload accountant's tax docs, extract percentages) — via AI vision system
+- [ ] Job creation: budget setup step that flows into schedule creation
+- [ ] Schedule planner: real-time overhead integration and estimate tracking
+- [ ] Marketing page: downloadAndroidAPK function for Android auto-download after signup
+
+## Phase 136: Pivot Knowledge Upgrade + Construction Math + Accounting Automation
+- [x] Research 2026 Utah/federal tax rates for construction
+- [x] Research Northern Utah construction labor rates (framing, steel, carpentry)
+- [x] Upgrade Pivot with construction knowledge: job management, budgets, tax, timesheets, P&L
+- [x] Add paystub photo analysis capability to Pivot
+- [x] Add labor rate knowledge LOCKED to owner only
+- [x] Utah and federal construction regulations knowledge
+- [x] Summit County, Morgan County, Park City, Deer Valley codes
+- [x] Construction math engine: roof pitch, rafter length, hip/valley angles, ridge beam calc
+- [x] Construction math: two roofs coming together (hip/valley intersection geometry)
+- [x] Construction math: arches, radius, circumference, arc length calculations
+- [x] Construction math: stair stringer layout, rise/run, headroom clearance
+- [x] Construction math: concrete volume (slabs, footings, walls, columns)
+- [x] Construction math: steel beam load calculations, moment of inertia
+- [x] Construction math: board feet, lumber takeoff, waste factor
+- [x] Accounting automation: payroll tax calculator (FICA, FUTA, SUTA, state withholding)
+- [x] Accounting automation: workers comp cost estimator by class code
+- [x] Accounting automation: job costing P&L per job
+- [x] Accounting automation: overhead allocation across active jobs
+- [x] Accounting automation: certified payroll report generation
+- [x] Accounting automation: employee cost breakdown (burden rate calculator)
+- [x] Tax document photo extraction via AI vision
+
+## Phase 137: Android Bottom Bar & Pivot Overlap Fix
+- [x] Android: tab bar icons pushed up creating ~1/4in grey border at bottom — remove extra padding/inset (capped bottomPadding to Math.min(insets.bottom, 16) on Android)
+- [x] Android: Pivot FAB overlaps Profile tab due to icons being pushed up — fixed with platform-specific bottom offset
+- [ ] Android: make Pivot FAB draggable/movable so user can position it where they want
+- [x] Android: eliminate grey border at bottom of tab bar that wastes screen space (same fix as above)

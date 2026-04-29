@@ -52,6 +52,7 @@ import { trpc } from "@/lib/trpc";
 import { useAppAuth } from "@/lib/auth-context";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { useColors } from "@/hooks/use-colors";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useLanguage } from "@/lib/language-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -76,15 +77,39 @@ type Role = "owner" | "office_manager" | "logistics" | "foreman" | "laborer";
 const GOLD = "#D4AF37";
 const GOLD_DIM = "#D4AF3766";
 const GOLD_GLOW = "#D4AF3740";
-const DARK_BG = "#0A0A12";
-const DARK_SURFACE = "#12121E";
-const DARK_CARD = "#1A1A2A";
-const DARK_INPUT = "#16162A";
-const DARK_BORDER = "#2A2A3E";
-const TEXT_PRIMARY = "#F0F0F5";
-const TEXT_SECONDARY = "#8888A0";
 const ACCENT_GREEN = "#22C55E";
 const RECORDING_RED = "#EF4444";
+
+// Theme-aware palettes
+const PALETTES = {
+  dark: {
+    BG: "#0A0A12",
+    SURFACE: "#12121E",
+    CARD: "#1A1A2A",
+    INPUT: "#16162A",
+    BORDER: "#2A2A3E",
+    TEXT_PRIMARY: "#F0F0F5",
+    TEXT_SECONDARY: "#8888A0",
+  },
+  light: {
+    BG: "#F5F5F0",
+    SURFACE: "#FFFFFF",
+    CARD: "#F0F0EA",
+    INPUT: "#FFFFFF",
+    BORDER: "#D4D4CC",
+    TEXT_PRIMARY: "#1A1A1A",
+    TEXT_SECONDARY: "#666666",
+  },
+};
+
+// Keep legacy constants for static StyleSheet (overridden at runtime)
+const DARK_BG = PALETTES.dark.BG;
+const DARK_SURFACE = PALETTES.dark.SURFACE;
+const DARK_CARD = PALETTES.dark.CARD;
+const DARK_INPUT = PALETTES.dark.INPUT;
+const DARK_BORDER = PALETTES.dark.BORDER;
+const TEXT_PRIMARY = PALETTES.dark.TEXT_PRIMARY;
+const TEXT_SECONDARY = PALETTES.dark.TEXT_SECONDARY;
 
 // ─── Role access matrix ───────────────────────────────────────────────────────
 
@@ -211,7 +236,7 @@ const ROLE_ACCESS: Record<Role, {
   },
   laborer: {
     canUseChat: true,
-    canUseVoice: false,
+    canUseVoice: true,
     canAttachFiles: true,
     label: "Team Assistant",
     labelEs: "Asistente de Equipo",
@@ -358,6 +383,8 @@ function VoiceWaveform() {
 export function PivotChat() {
   const { employee } = useAppAuth();
   const colors = useColors();
+  const scheme = useColorScheme() ?? "dark";
+  const P = PALETTES[scheme === "light" ? "light" : "dark"];
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -546,6 +573,23 @@ export function PivotChat() {
     }
   };
 
+  const pickVideo = async () => {
+    if (!access.canAttachFiles) return;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["videos"],
+        quality: 0.5,
+        videoMaxDuration: 60,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      const name = asset.fileName || `video_${Date.now()}.mp4`;
+      await uploadAndAddAttachment(asset.uri, name, asset.mimeType || "video/mp4");
+    } catch {
+      Alert.alert("Error", "Could not pick video.");
+    }
+  };
+
   const takePhoto = async () => {
     if (!access.canAttachFiles) return;
     try {
@@ -650,7 +694,7 @@ export function PivotChat() {
 
   const s2 = {
     userText: { color: "#000", fontSize: 15, lineHeight: 21 } as const,
-    aiText: { fontSize: 15, lineHeight: 22, color: TEXT_PRIMARY } as const,
+    aiText: { fontSize: 15, lineHeight: 22, color: P.TEXT_PRIMARY } as const,
   };
 
   const renderStyledLine = (line: string, baseStyle: any, key: number) => {
@@ -664,7 +708,7 @@ export function PivotChat() {
       if (m[2]) {
         parts.push(<Text key={`${key}-${pk++}`} style={[baseStyle, { fontWeight: "800" }]}>{m[2]}</Text>);
       } else if (m[4]) {
-        parts.push(<Text key={`${key}-${pk++}`} style={[baseStyle, { fontFamily: "monospace", backgroundColor: DARK_CARD, paddingHorizontal: 4, borderRadius: 4, fontSize: 13 }]}>{m[4]}</Text>);
+        parts.push(<Text key={`${key}-${pk++}`} style={[baseStyle, { fontFamily: "monospace", backgroundColor: P.CARD, paddingHorizontal: 4, borderRadius: 4, fontSize: 13 }]}>{m[4]}</Text>);
       }
       last = m.index + m[0].length;
     }
@@ -755,7 +799,7 @@ export function PivotChat() {
             placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
             transition={300}
           />
-          {altText ? <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginBottom: 4, textAlign: "center" }}>{altText}</Text> : null}
+          {altText ? <Text style={{ fontSize: 11, color: P.TEXT_SECONDARY, marginBottom: 4, textAlign: "center" }}>{altText}</Text> : null}
         </TouchableOpacity>
       );
       lastIndex = match.index + match[0].length;
@@ -789,7 +833,7 @@ export function PivotChat() {
       ) : (
         <View style={styles.aiBubbleRow}>
           <PivotAvatar size={28} />
-          <View style={styles.aiBubble}>
+          <View style={[styles.aiBubble, { backgroundColor: P.SURFACE, borderColor: P.BORDER }]}>
             {renderMessageContent(item.content, "assistant")}
           </View>
         </View>
@@ -800,19 +844,19 @@ export function PivotChat() {
   // ─── Welcome Screen ─────────────────────────────────────────────────────────
 
   const renderWelcome = () => (
-    <View style={styles.welcomeContainer}>
+    <View style={[styles.welcomeContainer, { backgroundColor: P.BG }]}>
       {/* Quick Action Chips */}
       {activeQuickActions.length > 0 && (
         <View style={styles.quickActionsRow}>
           {activeQuickActions.map((qa, i) => (
             <TouchableOpacity
               key={i}
-              style={styles.quickActionChip}
+              style={[styles.quickActionChip, { backgroundColor: P.SURFACE, borderColor: P.BORDER }]}
               onPress={() => sendMessage(qa.prompt)}
               activeOpacity={0.7}
             >
               <MaterialIcons name={qa.icon as any} size={18} color={GOLD} />
-              <Text style={styles.quickActionLabel}>{qa.label}</Text>
+              <Text style={[styles.quickActionLabel, { color: P.TEXT_SECONDARY }]}>{qa.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -823,12 +867,12 @@ export function PivotChat() {
         {activeSuggestions.map((sug, i) => (
           <TouchableOpacity
             key={i}
-            style={styles.suggestionPill}
+            style={[styles.suggestionPill, { backgroundColor: P.SURFACE, borderColor: P.BORDER }]}
             onPress={() => sendMessage(sug)}
             activeOpacity={0.7}
           >
-            <Text style={styles.suggestionText}>{sug}</Text>
-            <MaterialIcons name="arrow-forward" size={14} color={TEXT_SECONDARY} />
+            <Text style={[styles.suggestionText, { color: P.TEXT_PRIMARY }]}>{sug}</Text>
+            <MaterialIcons name="arrow-forward" size={14} color={P.TEXT_SECONDARY} />
           </TouchableOpacity>
         ))}
       </View>
@@ -842,7 +886,10 @@ export function PivotChat() {
         style={[
           styles.fabOuter,
           {
-            bottom: 56 + Math.max(insets.bottom, 16) + 28,
+            // Android: cap inset to prevent FAB overlapping Profile tab
+            bottom: Platform.OS === "android"
+              ? 56 + Math.min(insets.bottom, 16) + 12
+              : 56 + Math.max(insets.bottom, 16) + 28,
             transform: [{ scale: fabPulse }],
           },
         ]}
@@ -873,12 +920,12 @@ export function PivotChat() {
       >
         <KeyboardAvoidingView
           behavior="padding"
-          style={{ flex: 1, backgroundColor: DARK_BG }}
+          style={{ flex: 1, backgroundColor: P.BG }}
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : StatusBar.currentHeight || 0}
         >
           <View style={{ flex: 1 }}>
             {/* ─── Premium Header ─── */}
-            <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 8 }]}>
+            <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 8, backgroundColor: P.BG, borderBottomColor: P.BORDER }]}>
               <View style={styles.headerLeft}>
                 <View style={styles.headerAvatarRing}>
                   <Image
@@ -888,10 +935,10 @@ export function PivotChat() {
                   />
                 </View>
                 <View>
-                  <Text style={styles.headerTitle}>Pivot</Text>
+                  <Text style={[styles.headerTitle, { color: P.TEXT_PRIMARY }]}>Pivot</Text>
                   <View style={styles.headerStatusRow}>
                     <View style={styles.statusDot} />
-                    <Text style={styles.headerSubtitle}>{activeLabel}</Text>
+                    <Text style={[styles.headerSubtitle, { color: P.TEXT_SECONDARY }]}>{activeLabel}</Text>
                   </View>
                 </View>
               </View>
@@ -904,14 +951,14 @@ export function PivotChat() {
                       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     }}
                   >
-                    <MaterialIcons name="refresh" size={18} color={TEXT_SECONDARY} />
+                    <MaterialIcons name="refresh" size={18} color={P.TEXT_SECONDARY} />
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
                   style={styles.headerCloseBtn}
                   onPress={() => { Keyboard.dismiss(); setOpen(false); }}
                 >
-                  <MaterialIcons name="keyboard-arrow-down" size={22} color={TEXT_SECONDARY} />
+                  <MaterialIcons name="keyboard-arrow-down" size={22} color={P.TEXT_SECONDARY} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -925,7 +972,7 @@ export function PivotChat() {
                 data={messages}
                 keyExtractor={(item) => item.id}
                 renderItem={renderMessage}
-                style={styles.messagesList}
+                style={[styles.messagesList, { backgroundColor: P.BG }]}
                 contentContainerStyle={{ paddingVertical: 16 }}
                 onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
                 onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
@@ -937,7 +984,7 @@ export function PivotChat() {
                     {loading && (
                       <View style={styles.aiBubbleRow}>
                         <PivotAvatar size={28} />
-                        <View style={[styles.aiBubble, { paddingVertical: 14 }]}>
+                        <View style={[styles.aiBubble, { paddingVertical: 14, backgroundColor: P.SURFACE, borderColor: P.BORDER }]}>
                           <TypingDots />
                         </View>
                       </View>
@@ -959,7 +1006,7 @@ export function PivotChat() {
 
             {/* ─── Quick actions when in conversation ─── */}
             {messages.length > 0 && messages.length <= 4 && !keyboardVisible && (
-              <View style={styles.inlineQuickActions}>
+              <View style={[styles.inlineQuickActions, { borderTopColor: P.BORDER, backgroundColor: P.SURFACE }]}>
                 {activeQuickActions.slice(0, 3).map((qa, i) => (
                   <TouchableOpacity
                     key={i}
@@ -985,7 +1032,7 @@ export function PivotChat() {
                   >
                     <MaterialIcons name={getFileIconName(att.type)} size={14} color={GOLD} />
                     <Text style={styles.attachChipText} numberOfLines={1}>{att.name}</Text>
-                    <MaterialIcons name="close" size={12} color={TEXT_SECONDARY} />
+                    <MaterialIcons name="close" size={12} color={P.TEXT_SECONDARY} />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -1030,6 +1077,18 @@ export function PivotChat() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.attachMenuItem}
+                  onPress={() => { setAttachMenuOpen(false); pickVideo(); }}
+                  disabled={uploading}
+                >
+                  <View style={styles.attachMenuIconCircle}>
+                    <MaterialIcons name="videocam" size={22} color={GOLD} />
+                  </View>
+                  <Text style={styles.attachMenuLabel}>
+                    {language === "es" ? "Video" : "Video"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.attachMenuItem}
                   onPress={() => { setAttachMenuOpen(false); pickDocument(); }}
                   disabled={uploading}
                 >
@@ -1044,7 +1103,7 @@ export function PivotChat() {
             )}
 
             {/* ─── Premium Input Bar ─── */}
-            <View style={[styles.inputBar, { paddingBottom: Platform.OS === "ios" ? Math.max(insets.bottom, 12) : 12 }]}>
+            <View style={[styles.inputBar, { paddingBottom: Platform.OS === "ios" ? Math.max(insets.bottom, 12) : 12, borderTopColor: P.BORDER, backgroundColor: P.BG }]}>
               {/* Attach button */}
               {access.canAttachFiles && (
                 <TouchableOpacity
@@ -1061,14 +1120,14 @@ export function PivotChat() {
               )}
 
               {/* Text input */}
-              <View style={styles.inputWrapper}>
+              <View style={[styles.inputWrapper, { backgroundColor: P.INPUT, borderColor: P.BORDER }]}>
                 <TextInput
                   ref={inputRef}
-                  style={styles.textInput}
+                  style={[styles.textInput, { color: P.TEXT_PRIMARY, backgroundColor: P.INPUT }]}
                   value={input}
                   onChangeText={(text) => { setInput(text); if (attachMenuOpen) setAttachMenuOpen(false); }}
                   placeholder={isRecording ? (language === "es" ? "Grabando..." : "Recording...") : activePlaceholder}
-                  placeholderTextColor={TEXT_SECONDARY}
+                  placeholderTextColor={P.TEXT_SECONDARY}
                   multiline
                   editable={!loading && !isRecording && !isTranscribing}
                   returnKeyType="default"
@@ -1110,7 +1169,7 @@ export function PivotChat() {
                 <MaterialIcons
                   name="arrow-upward"
                   size={20}
-                  color={(input.trim() || pendingAttachments.length) && !loading ? "#000" : TEXT_SECONDARY}
+                  color={(input.trim() || pendingAttachments.length) && !loading ? "#000" : P.TEXT_SECONDARY}
                 />
               </TouchableOpacity>
             </View>

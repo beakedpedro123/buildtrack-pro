@@ -6,6 +6,7 @@ export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
   user: User | null;
+  companyId: number;
 };
 
 export async function createContext(opts: CreateExpressContextOptions): Promise<TrpcContext> {
@@ -18,9 +19,13 @@ export async function createContext(opts: CreateExpressContextOptions): Promise<
     user = null;
   }
 
+  const hdr = opts.req.headers["x-company-id"];
+  const companyId = hdr ? parseInt(String(hdr), 10) : 1;
+
   return {
     req: opts.req,
     res: opts.res,
     user,
+    companyId: isNaN(companyId) ? 1 : companyId,
   };
 }

@@ -4,6 +4,7 @@ import superjson from "superjson";
 import type { AppRouter } from "@/server/routers";
 import { getApiBaseUrl } from "@/constants/oauth";
 import * as Auth from "@/lib/_core/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
  * tRPC React client for type-safe API calls.
@@ -27,7 +28,16 @@ export function createTRPCClient() {
         transformer: superjson,
         async headers() {
           const token = await Auth.getSessionToken();
-          return token ? { Authorization: `Bearer ${token}` } : {};
+          const hdrs: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+          // Send companyId header for multi-tenant data isolation
+          try {
+            const empRaw = await AsyncStorage.getItem("buildtrack_employee");
+            if (empRaw) {
+              const emp = JSON.parse(empRaw);
+              if (emp?.companyId) hdrs["x-company-id"] = String(emp.companyId);
+            }
+          } catch {}
+          return hdrs;
         },
         // Custom fetch to include credentials for cookie-based auth
         fetch(url, options) {
