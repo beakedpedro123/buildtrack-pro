@@ -71,6 +71,8 @@ import {
   InsertTradeKnowledge,
   tradeBenchmarks,
   InsertTradeBenchmark,
+  securityAuditLog,
+  adminIpAllowlist,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1254,9 +1256,10 @@ export async function deleteSafetyMeeting(id: number) {
 
 
 // ─── Goals by Employee (for Pivot context) ──────────────────────────────────
-export async function getGoalsForEmployee(employeeId: number) {
+export async function getGoalsForEmployee(employeeId: number, companyId?: number) {
   const dbConn = await getDb();
   if (!dbConn) return [];
+  if (!companyId) return [] as any;
   const now = new Date();
   const weekStart = new Date(now);
   const day = weekStart.getDay();
@@ -1268,6 +1271,7 @@ export async function getGoalsForEmployee(employeeId: number) {
   return dbConn.select().from(weeklyGoals)
     .where(
       and(
+        eq(weeklyGoals.companyId, companyId),
         gte(weeklyGoals.weekOf, weekStart),
         lt(weeklyGoals.weekOf, weekEnd),
         or(
@@ -1372,7 +1376,7 @@ export async function getAllPivotConversations(limit = 200, companyId?: number) 
     .limit(limit);
 }
 
-export async function savePivotConversation(employeeId: number, role: string, content: string, language = "en") {
+export async function savePivotConversation(employeeId: number, role: string, content: string, language = "en", companyId?: number) {
   const dbConn = await getDb();
   if (!dbConn) return;
   await dbConn.insert(pivotConversations).values({
@@ -1380,6 +1384,7 @@ export async function savePivotConversation(employeeId: number, role: string, co
     role,
     content,
     language,
+    ...(companyId ? { companyId } : {}),
   });
 }
 
@@ -1586,6 +1591,7 @@ export async function getAllPunchListItems(companyId?: number) {
 }
 
 export async function createPunchListItem(data: {
+  companyId?: number;
   jobId: number;
   area?: string;
   title: string;
@@ -1598,6 +1604,7 @@ export async function createPunchListItem(data: {
   const dbConn = await getDb();
   if (!dbConn) throw new Error("Database not available");
   const [result] = await dbConn.insert(punchListItems).values({
+    ...(data.companyId ? { companyId: data.companyId } : {}),
     jobId: data.jobId,
     area: data.area || null,
     title: data.title,
@@ -1611,6 +1618,7 @@ export async function createPunchListItem(data: {
 }
 
 export async function createPunchListItemsBulk(items: Array<{
+  companyId?: number;
   jobId: number;
   area?: string;
   title: string;
@@ -1624,6 +1632,7 @@ export async function createPunchListItemsBulk(items: Array<{
   if (!dbConn) throw new Error("Database not available");
   if (items.length === 0) return [];
   const values = items.map((item, idx) => ({
+    ...(item.companyId ? { companyId: item.companyId } : {}),
     jobId: item.jobId,
     area: item.area || null,
     title: item.title,
@@ -1806,6 +1815,7 @@ export async function sendMessage(data: {
   attachmentName?: string;
   isCompanyWide?: boolean;
   recipientIds?: number[];
+  companyId?: number;
 }) {
   const dbConn = await getDb();
   if (!dbConn) return null;
@@ -1820,13 +1830,17 @@ export async function sendMessage(data: {
     attachmentType: data.attachmentType || null,
     attachmentName: data.attachmentName || null,
     isCompanyWide: data.isCompanyWide || false,
+    ...(data.companyId ? { companyId: data.companyId } : {}),
   }).$returningId();
 
   const messageId = msg.id;
 
   if (data.isCompanyWide) {
-    // Send to all active employees
-    const allEmployees = await dbConn.select({ id: employees.id }).from(employees).where(eq(employees.isActive, true));
+    // Send to all active employees IN THIS COMPANY ONLY
+    const companyFilter = data.companyId
+      ? and(eq(employees.isActive, true), eq(employees.companyId, data.companyId))
+      : eq(employees.isActive, true);
+    const allEmployees = await dbConn.select({ id: employees.id }).from(employees).where(companyFilter);
     if (allEmployees.length > 0) {
       await dbConn.insert(messageRecipients).values(
         allEmployees.filter(e => e.id !== data.senderId).map(e => ({
@@ -2881,4 +2895,70 @@ export async function getAllPushTokens(companyId?: number): Promise<Array<{ id: 
     pushToken: employees.pushToken,
   }).from(employees).where(and(...conditions));
   return rows.filter((r): r is { id: number; name: string; pushToken: string } => !!r.pushToken);
+}
+
+
+// ─── Security Audit Logging ──────────────────────────────────────────────────
+export async function logSecurityEvent(data: {
+  companyId?: number | null;
+  employeeId?: number | null;
+  eventType: "login_failed" | "login_success" | "rate_limit_triggered" | "ownership_violation" | "admin_action" | "data_access_denied" | "account_lockout";
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  details?: string | null;
+  severity?: "low" | "medium" | "high" | "critical";
+}) {
+  try {
+    const dbConn = await getDb();
+    if (!dbConn) return null;
+    await dbConn.insert(securityAuditLog).values({
+      companyId: data.companyId || null,
+      employeeId: data.employeeId || null,
+      eventType: data.eventType,
+      ipAddress: data.ipAddress || null,
+      userAgent: data.userAgent || null,
+      details: data.details || null,
+      severity: data.severity || "medium",
+    });
+  } catch (err) {
+    // Never let audit logging break the main flow
+    console.error("[audit] Failed to log security event:", err);
+  }
+}
+
+export async function getSecurityAuditLogs(companyId: number, options?: { limit?: number; eventType?: string }) {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  const conditions: any[] = [eq(securityAuditLog.companyId, companyId)];
+  if (options?.eventType) {
+    conditions.push(eq(securityAuditLog.eventType, options.eventType as any));
+  }
+  return dbConn.select().from(securityAuditLog)
+    .where(and(...conditions))
+    .orderBy(desc(securityAuditLog.createdAt))
+    .limit(options?.limit || 100);
+}
+
+// ─── Admin IP Allowlist ──────────────────────────────────────────────────────
+export async function getAdminIpAllowlist() {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  return dbConn.select().from(adminIpAllowlist).where(eq(adminIpAllowlist.isActive, true));
+}
+
+export async function addAdminIp(data: { ipAddress: string; label?: string; addedBy: number }) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+  const [result] = await dbConn.insert(adminIpAllowlist).values({
+    ipAddress: data.ipAddress,
+    label: data.label || null,
+    addedBy: data.addedBy,
+  }).$returningId();
+  return result.id;
+}
+
+export async function removeAdminIp(id: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return;
+  await dbConn.update(adminIpAllowlist).set({ isActive: false }).where(eq(adminIpAllowlist.id, id));
 }

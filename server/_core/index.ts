@@ -88,11 +88,36 @@ async function startServer() {
     max: 5,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: "Too many PIN attempts. Account locked for 15 minutes. Please try again later." },
     keyGenerator: (req) => {
       const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
       const companyId = req.headers["x-company-id"] || "0";
       return `${ip}-pin-c${companyId}`;
+    },
+    handler: async (req, res) => {
+      const ip = (req.ip || req.headers["x-forwarded-for"] || "unknown") as string;
+      const companyId = parseInt(req.headers["x-company-id"] as string) || 0;
+      // Log rate limit trigger to audit table
+      const { logSecurityEvent } = await import("../db");
+      await logSecurityEvent({
+        companyId: companyId || null,
+        eventType: "rate_limit_triggered",
+        ipAddress: ip,
+        userAgent: req.headers["user-agent"] || null,
+        details: `PIN brute-force rate limit triggered for company ${companyId}`,
+        severity: "critical",
+      });
+      // Send push notification to company owner about suspicious login activity
+      if (companyId > 0) {
+        try {
+          const { sendPushToAll } = await import("../push-notifications");
+          await sendPushToAll(companyId, {
+            title: "\u26a0\ufe0f Security Alert",
+            body: `Multiple failed login attempts detected from IP ${ip}. Account temporarily locked for 15 minutes.`,
+            data: { type: "security_alert" },
+          });
+        } catch (e) { /* push notification is best-effort */ }
+      }
+      res.status(429).json({ error: "Too many PIN attempts. Account locked for 15 minutes. Please try again later." });
     },
     validate: false, // Suppress IPv6 keyGenerator warning — we handle it
   });

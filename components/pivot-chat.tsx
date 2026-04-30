@@ -1029,11 +1029,11 @@ export function PivotChat() {
         statusBarTranslucent
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1, backgroundColor: P.BG }}
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         >
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, backgroundColor: P.BG }}>
             {/* ─── Premium Header ─── */}
             <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 8, backgroundColor: P.BG, borderBottomColor: P.BORDER }]}>
               <View style={styles.headerLeft}>
@@ -1116,7 +1116,7 @@ export function PivotChat() {
 
             {/* ─── Quick actions when in conversation ─── */}
             {messages.length > 0 && messages.length <= 4 && !keyboardVisible && (
-              <View style={[styles.inlineQuickActions, { borderTopColor: P.BORDER, backgroundColor: P.SURFACE }]}>
+              <View style={[styles.inlineQuickActions, { borderTopColor: P.BORDER, backgroundColor: P.BG }]}>
                 {activeQuickActions.slice(0, 3).map((qa, i) => (
                   <TouchableOpacity
                     key={i}
@@ -1213,7 +1213,7 @@ export function PivotChat() {
             )}
 
             {/* ─── Premium Input Bar ─── */}
-            <View style={[styles.inputBar, { paddingBottom: Platform.OS === "ios" ? Math.max(insets.bottom, 12) : 12, borderTopColor: P.BORDER, backgroundColor: P.BG }]}>
+            <View style={[styles.inputBar, { paddingBottom: Platform.OS === "ios" ? Math.max(insets.bottom, 12) : Math.max(insets.bottom, 12), borderTopColor: P.BORDER, backgroundColor: P.BG }]}>
               {/* Attach button */}
               {access.canAttachFiles && (
                 <TouchableOpacity

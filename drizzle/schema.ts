@@ -714,3 +714,39 @@ export type TradeKnowledge = typeof tradeKnowledge.$inferSelect;
 export type InsertTradeKnowledge = typeof tradeKnowledge.$inferInsert;
 export type TradeBenchmark = typeof tradeBenchmarks.$inferSelect;
 export type InsertTradeBenchmark = typeof tradeBenchmarks.$inferInsert;
+
+// ─── Security Audit Log ──────────────────────────────────────────────────────
+export const securityAuditLog = mysqlTable("security_audit_log", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId"),
+  employeeId: int("employeeId"),
+  eventType: mysqlEnum("eventType", [
+    "login_failed",
+    "login_success",
+    "rate_limit_triggered",
+    "ownership_violation",
+    "admin_action",
+    "data_access_denied",
+    "account_lockout",
+  ]).notNull(),
+  ipAddress: varchar("ipAddress", { length: 64 }),
+  userAgent: varchar("userAgent", { length: 512 }),
+  details: text("details"),
+  severity: mysqlEnum("severity", ["low", "medium", "high", "critical"]).default("medium").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Admin IP Allowlist ──────────────────────────────────────────────────────
+export const adminIpAllowlist = mysqlTable("admin_ip_allowlist", {
+  id: int("id").autoincrement().primaryKey(),
+  ipAddress: varchar("ipAddress", { length: 64 }).notNull(),
+  label: varchar("label", { length: 128 }),
+  addedBy: int("addedBy").notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SecurityAuditLogEntry = typeof securityAuditLog.$inferSelect;
+export type InsertSecurityAuditLogEntry = typeof securityAuditLog.$inferInsert;
+export type AdminIpAllowlistEntry = typeof adminIpAllowlist.$inferSelect;
+export type InsertAdminIpAllowlistEntry = typeof adminIpAllowlist.$inferInsert;

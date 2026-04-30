@@ -218,6 +218,13 @@
       "when": 1777436467997,
       "tag": "0030_thankful_weapon_omega",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1777519622801,
+      "tag": "0031_gray_prodigy",
+      "breakpoints": true
     }
   ]
 }

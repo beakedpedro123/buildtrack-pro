@@ -2788,3 +2788,20 @@
 - [x] Add global PIN limiter: 15 attempts per 15 min per IP (prevents company-hopping)
 - [x] Fix rate limiter path from /api/trpc/verifyPin to /api/trpc/employees.verifyPin
 - [x] Add failed PIN attempt logging for security monitoring
+
+## Phase 147: Critical Fixes - Pivot Data Leak, Grey Area, Audit Logging (COMPLETED)
+- [x] Fix grey area at bottom of Pivot chat: KeyboardAvoidingView behavior="padding" on Android, solid bg on input bar
+- [x] Fix chat input area: added solid background color, proper bottom padding
+- [x] Fix Pivot system prompt: replaced all hardcoded "Carranza Custom Construction" with dynamic companyName from DB
+- [x] Fix Pivot system prompt: replaced all hardcoded "Pedro Carranza" with dynamic employee.name
+- [x] Fix goals leaking: getGoalsForEmployee now requires companyId, createWeeklyGoal passes companyId
+- [x] Triple-verified ALL Pivot data queries pass ctx.companyId (goals, expenses, reports, labor, clock, messages)
+- [x] Pivot conversations private: savePivotConversation stores companyId, getAllPivotConversations filters by it
+- [x] BuildEdge Pro files gated by PEDRO_COMPANY_ID check - other companies never see them
+- [x] Implemented securityAuditLog table + logSecurityEvent, getSecurityAuditLogs db functions
+- [x] Account lockout push: rate limit handler calls sendPushToAll to notify company on brute-force
+- [x] IP allowlisting: adminIpAllowlist table + adminProcedure middleware checks IP before allowing access
+- [x] Security admin router: auditLogs, getIpAllowlist, addIp, removeIp endpoints
+- [x] Fixed sendMessage company-wide to only send to same-company employees
+- [x] Fixed createDailyReport, createPunchListItem, clock.in to pass companyId
+- [x] Fixed team invite to use actual company name from branding

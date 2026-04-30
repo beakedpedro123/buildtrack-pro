@@ -69,6 +69,29 @@ export const adminProcedure = t.procedure.use(withTimeout).use(
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 
+    // IP Allowlist check: if allowlist has entries, only allow listed IPs
+    try {
+      const { getAdminIpAllowlist, logSecurityEvent } = await import("../db");
+      const allowlist = await getAdminIpAllowlist();
+      if (allowlist.length > 0) {
+        const requestIp = (ctx.req?.ip || ctx.req?.headers?.["x-forwarded-for"] || "") as string;
+        const isAllowed = allowlist.some((entry: any) => requestIp.includes(entry.ipAddress));
+        if (!isAllowed) {
+          await logSecurityEvent({
+            eventType: "data_access_denied",
+            ipAddress: requestIp,
+            details: `Admin access denied: IP ${requestIp} not in allowlist`,
+            severity: "critical",
+          });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: IP not authorized for admin operations." });
+        }
+      }
+    } catch (e: any) {
+      if (e?.code === "FORBIDDEN") throw e;
+      // If allowlist check fails (db error), allow access but log warning
+      console.warn("[admin] IP allowlist check failed:", e?.message);
+    }
+
     return next({
       ctx: {
         ...ctx,

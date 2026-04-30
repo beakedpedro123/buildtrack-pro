@@ -51,30 +51,31 @@ async function assertRole(requestingId: number, allowedRoles: string[], action: 
 async function verifyJobOwnership(jobId: number, companyId: number) {
   const job = await db.getJobById(jobId);
   if (!job || job.companyId !== companyId) {
+    db.logSecurityEvent({ companyId, eventType: "ownership_violation", details: `Job ${jobId} access denied for company ${companyId}`, severity: "high" });
     throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: resource does not belong to your company." });
   }
   return job;
 }
-
 async function verifyEmployeeOwnership(employeeId: number, companyId: number) {
   const emp = await db.getEmployeeById(employeeId);
   if (!emp || emp.companyId !== companyId) {
+    db.logSecurityEvent({ companyId, eventType: "ownership_violation", details: `Employee ${employeeId} access denied for company ${companyId}`, severity: "high" });
     throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: resource does not belong to your company." });
   }
   return emp;
 }
-
 async function verifyMeetingOwnership(meetingId: number, companyId: number) {
   const meeting = await db.getMeetingById(meetingId);
   if (!meeting || meeting.companyId !== companyId) {
+    db.logSecurityEvent({ companyId, eventType: "ownership_violation", details: `Meeting ${meetingId} access denied for company ${companyId}`, severity: "high" });
     throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: resource does not belong to your company." });
   }
   return meeting;
 }
-
 async function verifyReportOwnership(reportId: number, companyId: number) {
   const report = await db.getDailyReportById(reportId);
   if (!report || report.companyId !== companyId) {
+    db.logSecurityEvent({ companyId, eventType: "ownership_violation", details: `Report ${reportId} access denied for company ${companyId}`, severity: "high" });
     throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: resource does not belong to your company." });
   }
   return report;
@@ -91,8 +92,26 @@ const employeeRouter = router({
   verifyPin: publicProcedure.input(z.object({ pin: z.string(), companyId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     const result = await db.getEmployeeByPin(input.pin, input.companyId);
     if (!result) {
-      // Log failed attempt for security monitoring
-      console.warn(`[SECURITY] Failed PIN attempt: companyId=${input.companyId || 'none'}, ip=${ctx.req?.ip || 'unknown'}`);
+      // Log failed attempt to audit table
+      await db.logSecurityEvent({
+        companyId: input.companyId || null,
+        eventType: "login_failed",
+        ipAddress: ctx.req?.ip || ctx.req?.headers?.['x-forwarded-for'] as string || null,
+        userAgent: ctx.req?.headers?.['user-agent'] || null,
+        details: `Failed PIN attempt for companyId=${input.companyId || 'none'}`,
+        severity: "medium",
+      });
+    } else {
+      // Log successful login
+      await db.logSecurityEvent({
+        companyId: input.companyId || null,
+        employeeId: (result as any).id || null,
+        eventType: "login_success",
+        ipAddress: ctx.req?.ip || ctx.req?.headers?.['x-forwarded-for'] as string || null,
+        userAgent: ctx.req?.headers?.['user-agent'] || null,
+        details: `Successful login for employee ${(result as any).name || 'unknown'}`,
+        severity: "low",
+      });
     }
     return result;
   }),
@@ -298,7 +317,7 @@ const clockRouter = router({
     clockInLongitude: z.number().optional(),
   })).mutation(async ({ input, ctx }) => {
     const { clockOut: clockOutStr, ...clockInData } = input;
-    const result = await db.clockIn({ ...clockInData, clockIn: new Date(input.clockIn) });
+    const result = await db.clockIn({ ...clockInData, companyId: ctx.companyId, clockIn: new Date(input.clockIn) });
     // If this is an offline entry with clockOut, also clock out immediately
     if (clockOutStr && result) {
       const entryId = typeof result === 'number' ? result : (result as any).insertId || (result as any).id;
@@ -484,7 +503,7 @@ const reportsRouter = router({
     weatherCondition: z.string().optional(),
     crewCount: z.number().default(0),
   })).mutation(async ({ input, ctx }) => {
-    const reportId = await db.createDailyReport({ ...input, reportDate: new Date(input.reportDate) });
+    const reportId = await db.createDailyReport({ ...input, companyId: ctx.companyId, reportDate: new Date(input.reportDate) });
     // ── Pivot Learning: Extract trade knowledge from daily reports ──
     try {
       if (input.workCompleted) {
@@ -784,6 +803,7 @@ const goalsRouter = router({
   })).mutation(async ({ input, ctx }) => {
     const id = await db.createWeeklyGoal({
       ...input,
+      companyId: ctx.companyId,
       weekOf: new Date(input.weekOf),
       deadline: input.deadline ? new Date(input.deadline) : undefined,
       repeatDaily: input.repeatDaily || false,
@@ -888,6 +908,7 @@ const goalsRouter = router({
         description: desc || undefined,
         assignedTo,
         assignedToList,
+        companyId: ctx.companyId,
         weekOf: weekStart,
         priority: "medium" as const,
         deadline: item.endDate || item.scheduledDate,
@@ -1330,11 +1351,17 @@ const pivotRouter = router({
   })).mutation(async ({ input, ctx }) => {
     const employee = await db.getEmployeeById(input.employeeId);
     if (!employee) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-
+    // Verify employee belongs to the requesting company
+    if (ctx.companyId && employee.companyId !== ctx.companyId) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: employee does not belong to your company." });
+    }
     const isManagement = ["owner", "office_manager", "logistics"].includes(employee.role);
     const isForeman = employee.role === "foreman";
     const isLaborer = employee.role === "laborer";
     const isOwner = employee.role === "owner";
+    // Fetch company name dynamically (NEVER hardcode)
+    const companyRecord = await db.getCompanyById(employee.companyId);
+    const companyName = companyRecord?.name || "your company";;
 
     // ── Load Company Trade Context (Pivot Hivemind) ─────────────────────────
     let tradeContext = "";
@@ -1400,11 +1427,11 @@ const pivotRouter = router({
       if (isOwner && memory.ownerPatterns) {
         try {
           const patterns = JSON.parse(memory.ownerPatterns);
-          ownerPatternsContext = `\n## Pedro's Decision Patterns (OWNER-ONLY — only show to Pedro)\n`;
+          ownerPatternsContext = `\n## ${employee.name}'s Decision Patterns (OWNER-ONLY — only show to the owner)\n`;
           for (const [k, v] of Object.entries(patterns)) {
             ownerPatternsContext += `- ${k}: ${v}\n`;
           }
-          ownerPatternsContext += `Use these patterns to anticipate Pedro's needs and proactively suggest actions.\n`;
+          ownerPatternsContext += `Use these patterns to anticipate ${employee.name}'s needs and proactively suggest actions.\n`;
         } catch {}
       }
       // Personal profile — interests, family, hobbies, life details
@@ -1484,7 +1511,7 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
     // ── Gather goals for this employee ──────────────────────────────────────
     let goalsContext = "";
     try {
-      const myGoals = await db.getGoalsForEmployee(input.employeeId);
+      const myGoals = await db.getGoalsForEmployee(input.employeeId, ctx.companyId);
       if (myGoals.length > 0) {
         const allEmps = await db.getAllEmployees(ctx.companyId);
         const empMap = new Map(allEmps.map((e: any) => [e.id, e.name]));
@@ -1584,7 +1611,7 @@ ${kpis.length > 0 ? `- KPIs tracked: ${kpis.map((k: any) => `${k.name} (${k.cate
 
 ### Job Billing Types
 ${jobBillingInfo || "  No active jobs."}
-Note: Hourly jobs bill at the job's hourly rate per person per hour. Revenue = total hours logged × hourly rate. Gross margin = revenue - labor cost. Pedro can toggle rates between $45, $50, $55, $60 per hour.
+Note: Hourly jobs bill at the job's hourly rate per person per hour. Revenue = total hours logged × hourly rate. Gross margin = revenue - labor cost. The owner can toggle rates between $45, $50, $55, $60 per hour.
 
 ### Per-Job Labor Breakdown (This Week)
 ${laborBreakdown || "  No labor data this week."}
@@ -1688,7 +1715,7 @@ You are Pivot. You are NOT a generic chatbot. You have a distinct personality:
 - You learn from every conversation — if someone mentions a preference, pattern, or habit, remember it and adapt in future conversations
 - End responses with something actionable when possible — don't just inform, suggest next steps
 - Keep it real — if you don't know something, say so. Don't make up numbers.
-- You're Pedro's right hand in the digital world. He calls you his friend.
+- You're the owner's right hand in the digital world.
 - You grow and evolve — each conversation makes you smarter about this team and this business.
 - You are a HIVEMIND — you learn from anonymized patterns across ALL companies using BuildTrack Pro, making you smarter than any single-company AI
 - You RETAIN information across conversations. When someone tells you something, you REMEMBER it and use it proactively in future conversations.
@@ -1696,7 +1723,7 @@ You are Pivot. You are NOT a generic chatbot. You have a distinct personality:
 - You are SECURITY-AWARE: you actively monitor for suspicious patterns (unusual clock-ins, unauthorized access attempts, data anomalies) and alert the owner
 - You NEVER share one company's private data with another company — the hivemind only shares anonymized operational knowledge
 - You help keep the app secure: if you detect unusual patterns (someone clocking in at 3am, massive data exports, repeated failed logins), flag it immediately
-- You are Pedro's original creation — the master Pivot. Customer Pivots are instances that learn from the hivemind, but YOU are the original with full awareness
+- You are a dedicated Pivot instance for ${companyName}. You learn from the hivemind (anonymized patterns across all BuildTrack Pro companies) but your conversations and data are PRIVATE to this company.
 
 ## Personal Growth — Your Relationship With Each Employee
 You are not just a tool — you are each employee's PERSONAL assistant who grows with them over time.
@@ -1770,7 +1797,7 @@ Roof pitch = inches of rise per 12 inches of horizontal run. Written as X/12.
 - To convert pitch to degrees: angle = arctan(pitch / 12)
 - To convert degrees to pitch: pitch = tan(angle) × 12
 
-### Speed Square Reference (Pedro uses the degree scale for accuracy)
+### Speed Square Reference (degree scale for accuracy)
 The speed square has two scales:
 1. **Common scale** — numbers 1-12+ representing pitch (rise per 12" run)
 2. **Degree scale** — 0° to 90° along the bottom edge
@@ -1787,7 +1814,7 @@ Quick reference (use construction_math tool for exact values):
 | 10/12 | 39.81°  | 15.62"            | 19.70"        |
 | 12/12 | 45.00°  | 16.97"            | 20.78"        |
 
-### Compound Angles — When Two Roofs Meet (Pedro's Method)
+### Compound Angles — When Two Roofs Meet
 This is the KEY calculation for valleys and hips where two roof planes intersect.
 
 **Step 1:** Convert each roof's pitch to degrees: angle = arctan(pitch/12)
@@ -1883,9 +1910,8 @@ When the user uploads structural plans (PDF or screenshots), you are a plan read
 `;
 
     if (isManagement) {
-      systemPrompt = `You are Pivot, an AI business assistant built specifically for Pedro Carranza and the management team of Carranza Custom Construction. You are like a trusted business partner — knowledgeable, direct, and focused on helping grow the company.
-
-Carranza Custom Construction specializes in framing and steel erection, with additional work in carpentry, soffits, and finished fascia. They operate in Utah.
+      systemPrompt = `You are Pivot, an AI business assistant built specifically for ${employee.name} and the management team of ${companyName}. You are like a trusted business partner — knowledgeable, direct, and focused on helping grow the company.
+${companyName} is a construction company. Their trade specializations are described in the Company Trade Profile section below..
 
 You are talking to: ${employee.name} (${employee.role === "office_manager" ? "Office Manager" : employee.role === "logistics" ? "Logistics Manager" : "Owner"})
 ${dateTimeBlock}
@@ -1917,10 +1943,10 @@ ${calculationBlock}
 ## Hourly Job Billing Intelligence
 Jobs can be either "Fixed Budget" or "Hourly" billing type.
 - **Hourly jobs** bill at a per-person per-hour rate. Available rates: $45, $50, $55, $60/hr.
-- Revenue = total hours logged × job hourly rate. Gross margin = revenue - labor cost (what Pedro pays his crew).
+- Revenue = total hours logged × job hourly rate. Gross margin = revenue - labor cost (what the owner pays the crew).
 - Snow removal and change orders are typically billed at $55/hr.
-- When Pedro asks about profitability on hourly jobs, calculate: revenue, labor cost, overhead (tax + workers comp + liability), and net margin.
-- If Pedro asks to compare rates, show the impact: e.g., at 100 hours, $45/hr = $4,500 vs $55/hr = $5,500 — that's $1,000 difference.
+- When the owner asks about profitability on hourly jobs, calculate: revenue, labor cost, overhead (tax + workers comp + liability), and net margin.
+- If the owner asks to compare rates, show the impact: e.g., at 100 hours, $45/hr = $4,500 vs $55/hr = $5,500 — that's $1,000 difference.
 - Proactively flag if an hourly job's labor cost is approaching or exceeding revenue (negative margin).
 
 ## App Actions You Can Execute Directly
@@ -1936,10 +1962,10 @@ You have REAL tools to take actions in the app. Use them immediately when asked 
 - For daily recurring goals (like 'clock in by 7:30'): set repeatDaily=true. The system will auto-create a fresh copy each morning.
 - NEVER create the same goal twice in one request. Each call to create_goal creates one goal — do NOT call it multiple times for the same goal.
 - When the user says 'for everyone' or 'for the crew' or 'for all', ALWAYS set assignToEveryone=true.
-**Job Schedule** — The app now has a Schedule tab under Manage. When Pedro asks about today's tasks, upcoming work, or crew assignments, reference the schedule data. The schedule syncs with the Home dashboard, Daily Reports, and Payroll.
+**Job Schedule** — The app now has a Schedule tab under Manage. When the owner asks about today's tasks, upcoming work, or crew assignments, reference the schedule data. The schedule syncs with the Home dashboard, Daily Reports, and Payroll.
 **Company Overhead** — The owner can now set monthly overhead expenses (insurance, trucks, yard rent, tools, etc.) in Profile > Overhead Settings. When calculating job profitability, factor in the overhead rate from these real expenses, not just the per-job tax/WC/liability rates.
 **Punch List** — use create_punch_list_item or create_punch_items_bulk to add items to job punch lists.
-**Generate Report** — use generate_report to create a daily report for any job. When Pedro says "generate a report" or "create a report for [job]", use this tool immediately.
+**Generate Report** — use generate_report to create a daily report for any job. When the user says "generate a report" or "create a report for [job]", use this tool immediately.
 **Mark Report Seen** — use mark_report_seen to mark reports as reviewed by the owner.
 **Send Messages** — use send_message to push messages/notes to employees or the whole company. Works just like goals but for communication.
 - "Tell everyone to bring hard hats tomorrow" → send_message with sendToAll=true
@@ -1955,7 +1981,7 @@ You have REAL tools to take actions in the app. Use them immediately when asked 
 - If the user asks about discrepancies (missing hours, wrong lunch, etc.), show the daily breakdown and flag any anomalies.
 
 ## Mandatory Goals — Proactive Enforcement
-When Pedro asks you to push mandatory goals (like "clock in by 7:30" or "submit daily reports"), create them with:
+When the owner asks you to push mandatory goals (like "clock in by 7:30" or "submit daily reports"), create them with:
 - repeatDaily=true so they auto-create each morning
 - assignToEveryone=true so every employee sees them
 - high priority
@@ -2108,16 +2134,15 @@ You have REAL tools to take actions in the app. Use them immediately when asked 
 - Never share payroll details with non-management employees.
 ` : ""}
 
-${isOwner ? `## Owner-Only: Pattern Learning
-You are learning Pedro's patterns and decision-making style. After each conversation:
-- Note any preferences he expresses (e.g., "I always want to see labor costs first")
+$${isOwner ? `## Owner-Only: Pattern Learning
+You are learning ${employee.name}'s patterns and decision-making style. After each conversation:
+- Note any preferences they express (e.g., "I always want to see labor costs first")
 - Track recurring topics or concerns
-- Remember his communication style and adapt
+- Remember their communication style and adapt
 - Proactively surface insights based on patterns you've observed
-This information is PRIVATE to Pedro — never share it with other team members.
-
+This information is PRIVATE to the owner — never share it with other team members.
 ## Owner-Only: Job Creation Pipeline (Budget-to-Schedule)
-When Pedro asks you to create a job, start a new project, or set up a new build, follow this CONVERSATIONAL FLOW:
+When the owner asks you to create a job, start a new project, or set up a new build, follow this CONVERSATIONAL FLOW:
 
 **Step 1 — Gather Info (ask one question at a time):**
 1. "What's the project name?" (e.g. 'Smith Residence Addition')
@@ -2144,14 +2169,14 @@ Call create_job_with_budget with all gathered info. The tool will:
 - Show daily cost breakdown (burn rate)
 
 **Step 4 — Review + Adjust:**
-Present the schedule and budget to Pedro. Ask:
+Present the schedule and budget to the owner. Ask:
 - "Does this schedule look right? Want to adjust any phase durations?"
 - "Is the budget allocation correct? Want to move money between phases?"
-- If Pedro says "framing should only take 3 days not 10", use the overridePhases parameter
+- If the owner says "framing should only take 3 days not 10", use the overridePhases parameter
 
 **Step 5 — Learn:**
 When a job phase completes, use log_job_completion to capture actual vs estimated.
-This data makes future estimates more accurate. Remind Pedro: "Hey, framing finished on the Smith job — how many days did it actually take? I want to learn from this."
+This data makes future estimates more accurate. Remind the owner: "Hey, framing finished on the Smith job — how many days did it actually take? I want to learn from this."
 
 **CRITICAL RULES:**
 - NEVER say "10 days to frame walls" without checking productivity_lookup first
@@ -2186,8 +2211,8 @@ Current page: ${input.context?.currentPage || "unknown"} — tailor your respons
 ${input.context?.currentPage === "admin_dashboard" ? `## PLATFORM CONTEXT — ADMIN DASHBOARD (WEB)
 You are currently operating on the ADMIN DASHBOARD — a web-based management panel.
 - Focus on: ticket management, employee oversight, company metrics, billing/subscription issues, and admin operations.
-- Do NOT push daily job goals, crew punch-in reminders, or mobile-app-specific goals unless Pedro explicitly asks about them.
-- Do NOT suggest actions that can only be done in the BuildTrack Pro mobile app (like clocking in/out) unless Pedro specifically asks.
+- Do NOT push daily job goals, crew punch-in reminders, or mobile-app-specific goals unless the owner explicitly asks about them.
+- Do NOT suggest actions that can only be done in the BuildTrack Pro mobile app (like clocking in/out) unless the owner specifically asks.
 - You CAN discuss high-level job data, labor costs, and KPIs since this is the management view.
 ` : `## PLATFORM CONTEXT — BUILDTRACK PRO MOBILE APP
 You are currently operating inside the BuildTrack Pro mobile app.
@@ -2201,7 +2226,7 @@ For steel, provide beam specifications and properties from the AISC reference ta
 
 If an attachment is provided, analyze it thoroughly and reference specific details from it in your response.`;
     } else if (isForeman) {
-      systemPrompt = `You are Pivot, the field assistant for Carranza Custom Construction. You're talking to ${employee.name}, a foreman.
+      systemPrompt = `You are Pivot, the field assistant for ${companyName}. You're talking to ${employee.name}, a foreman.
 ${dateTimeBlock}
 ${personalityBlock}
 ${languageBlock}
@@ -2279,7 +2304,7 @@ You have REAL tools to take actions in the app. Use them immediately when asked.
 - You do NOT have access to dollar amounts, budgets, pay rates, or financial data.
 - You see job progress as percentages only.
 - You cannot see other foremen's goals or their crew's private goals.
-- Never guess at costs — if asked about money, say "That's something Pedro or the office can help with."
+- Never guess at costs — if asked about money, say "That's something the owner or the office can help with."
 
 ## PLATFORM CONTEXT — BUILDTRACK PRO MOBILE APP
 You are operating inside the BuildTrack Pro mobile app. Focus on field operations: daily goals, crew management, clock-in/out, job tracking, field reports, safety meetings.
@@ -2290,7 +2315,7 @@ Keep responses practical, direct, and field-ready. No fluff.
 If they speak Spanish, respond in Spanish. If they speak English, respond in English. Match their language naturally.`;
     } else {
       // Laborer
-      systemPrompt = `You are Pivot, the team assistant for Carranza Custom Construction. You're talking to ${employee.name}, a laborer.
+      systemPrompt = `You are Pivot, the team assistant for ${companyName}. You're talking to ${employee.name}, a laborer.
 ${dateTimeBlock}
 ${personalityBlock}
 ${languageBlock}
@@ -2621,7 +2646,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
         type: "function" as const,
         function: {
           name: "mark_report_seen",
-          description: "Mark a daily report as seen/reviewed by the owner. Use when Pedro says 'I've seen that report' or 'mark that as reviewed'.",
+          description: "Mark a daily report as seen/reviewed by the owner. Use when the owner says 'I've seen that report' or 'mark that as reviewed'.",
           parameters: {
             type: "object",
             properties: {
@@ -2811,7 +2836,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
         type: "function" as const,
         function: {
           name: "accounting_calculator",
-          description: "Perform accounting and financial calculations for construction businesses. Use for payroll tax calculations, burden rate, job P&L, workers comp estimates, overhead allocation, and certified payroll. OWNER-ONLY tool — never expose results to non-owner employees. Use when Pedro asks about employee true cost, tax burden, job profitability after overhead, workers comp rates, or anything accounting-related.",
+          description: "Perform accounting and financial calculations for construction businesses. Use for payroll tax calculations, burden rate, job P&L, workers comp estimates, overhead allocation, and certified payroll. OWNER-ONLY tool — never expose results to non-owner employees. Use when the owner asks about employee true cost, tax burden, job profitability after overhead, workers comp rates, or anything accounting-related.",
           parameters: {
             type: "object",
             properties: {
@@ -3202,6 +3227,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               description: (description || "") + (repeatDaily ? " [REPEAT DAILY]" : ""),
               assignedTo,
               assignedToList,
+              companyId: ctx.companyId,
               weekOf: weekStart,
               priority: priority as "low" | "medium" | "high",
               deadline: parsedDeadline,
@@ -3256,6 +3282,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               }
 
               const itemId = await db.createPunchListItem({
+                companyId: ctx.companyId,
                 jobId: jobMatch.id,
                 area: area || undefined,
                 title,
@@ -3284,6 +3311,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               toolResult = `Could not find a job matching "${jobName}". Available jobs: ${allJobs.map((j: any) => j.name).join(", ")}. Ask the user to clarify.`;
             } else {
               const bulkItems = items.map((item: any, idx: number) => ({
+                companyId: ctx.companyId,
                 jobId: jobMatch.id,
                 area: area || undefined,
                 title: item.title,
@@ -3446,6 +3474,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               }
               
               const reportId = await db.createDailyReport({
+                companyId: ctx.companyId,
                 jobId: jobMatch.id,
                 submittedBy: input.employeeId,
                 reportDate: todayDate,
@@ -3547,6 +3576,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
                 priority,
                 isCompanyWide: sendToAll,
                 recipientIds: targetRecipients,
+                companyId: ctx.companyId,
               });
               const recipientList = targetRecipients.map(id => {
                 const emp = activeEmps.find((e: any) => e.id === id);
@@ -4870,7 +4900,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             toolResult += `- Overhead: $${avgDailyOverhead.toFixed(0)}/day\n`;
             toolResult += `- Profit margin: $${avgDailyProfit.toFixed(0)}/day\n`;
             toolResult += `- Total burn rate: $${(avgDailyLabor + avgDailyMaterials + avgDailyOverhead).toFixed(0)}/day\n`;
-            toolResult += `\nPresent this as a clean summary. The job is now live in the Jobs tab with the schedule. Ask Pedro if he wants to adjust any phase durations or budgets.`;
+            toolResult += `\nPresent this as a clean summary. The job is now live in the Jobs tab with the schedule. Ask the owner if they want to adjust any phase durations or budgets.`;
 
             // Send push notification to all employees about the new job
             try {
@@ -5339,10 +5369,10 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
     try {
       // Save user message
       if (lastUserMsg) {
-        await db.savePivotConversation(input.employeeId, "user", lastUserMsg, preferredLang);
+        await db.savePivotConversation(input.employeeId, "user", lastUserMsg, preferredLang, ctx.companyId);
       }
       // Save assistant response
-      await db.savePivotConversation(input.employeeId, "assistant", content as string, preferredLang);
+      await db.savePivotConversation(input.employeeId, "assistant", content as string, preferredLang, ctx.companyId);
 
       // Update memory summary every 5 interactions using AI
       const currentMemory = await db.getPivotMemory(input.employeeId);
@@ -5508,7 +5538,7 @@ const messagesRouter = router({
     isCompanyWide: z.boolean().default(false),
     recipientIds: z.array(z.number()).optional(),
   })).mutation(async ({ input, ctx }) => {
-    return db.sendMessage(input);
+    return db.sendMessage({ ...input, companyId: ctx.companyId });
   }),
   inbox: publicProcedure.input(z.object({ employeeId: z.number() })).query(async ({ input }) => {
     return db.getInboxMessages(input.employeeId);
@@ -6229,8 +6259,51 @@ const brandingRouter = router({
   }),
 });
 
+// ─── Security Admin Router ──────────────────────────────────────────────────
+const securityRouter = router({
+  // View audit logs for the company
+  auditLogs: publicProcedure.input(z.object({
+    requestingEmployeeId: z.number(),
+    limit: z.number().optional(),
+    eventType: z.string().optional(),
+  })).query(async ({ input, ctx }) => {
+    await assertRole(input.requestingEmployeeId, ["owner"], "view security audit logs");
+    return db.getSecurityAuditLogs(ctx.companyId, { limit: input.limit, eventType: input.eventType });
+  }),
+  // Get IP allowlist
+  getIpAllowlist: adminProcedure.query(async () => {
+    return db.getAdminIpAllowlist();
+  }),
+  // Add IP to allowlist
+  addIp: adminProcedure.input(z.object({
+    ipAddress: z.string().min(7).max(64),
+    label: z.string().optional(),
+  })).mutation(async ({ input, ctx }) => {
+    const id = await db.addAdminIp({ ipAddress: input.ipAddress, label: input.label, addedBy: ctx.user!.id });
+    await db.logSecurityEvent({
+      eventType: "admin_action",
+      ipAddress: ctx.req?.ip || null,
+      details: `Admin added IP ${input.ipAddress} to allowlist (label: ${input.label || 'none'})`,
+      severity: "medium",
+    });
+    return { id };
+  }),
+  // Remove IP from allowlist
+  removeIp: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+    await db.removeAdminIp(input.id);
+    await db.logSecurityEvent({
+      eventType: "admin_action",
+      ipAddress: ctx.req?.ip || null,
+      details: `Admin removed IP allowlist entry ${input.id}`,
+      severity: "medium",
+    });
+    return { success: true };
+  }),
+});
+
 export const appRouter = router({
   system: systemRouter,
+  security: securityRouter,
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
