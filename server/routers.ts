@@ -3,7 +3,7 @@ import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { TRPCError } from "@trpc/server";
-import { publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, adminProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { storagePut } from "./storage";
 import { invokeLLM } from "./_core/llm";
@@ -88,7 +88,14 @@ const employeeRouter = router({
     if (!emp || emp.companyId !== ctx.companyId) return undefined;
     return emp;
   }),
-  verifyPin: publicProcedure.input(z.object({ pin: z.string(), companyId: z.number().optional() })).mutation(({ input }) => db.getEmployeeByPin(input.pin, input.companyId)),
+  verifyPin: publicProcedure.input(z.object({ pin: z.string(), companyId: z.number().optional() })).mutation(async ({ input, ctx }) => {
+    const result = await db.getEmployeeByPin(input.pin, input.companyId);
+    if (!result) {
+      // Log failed attempt for security monitoring
+      console.warn(`[SECURITY] Failed PIN attempt: companyId=${input.companyId || 'none'}, ip=${ctx.req?.ip || 'unknown'}`);
+    }
+    return result;
+  }),
   create: publicProcedure.input(z.object({
     name: z.string().min(1).max(128),
     role: z.enum(["owner", "office_manager", "logistics", "foreman", "laborer"]),
@@ -541,8 +548,8 @@ Rules:
     unitCost: z.string().optional(),
     totalCost: z.string().optional(),
     supplier: z.string().optional(),
-  })).mutation(({ input }) => db.addMaterialEntry(input)),
-  getMaterials: publicProcedure.input(z.object({ reportId: z.number() })).query(({ input }) => db.getMaterialsForReport(input.reportId)),
+  })).mutation(async ({ input, ctx }) => { await verifyReportOwnership(input.reportId, ctx.companyId); return db.addMaterialEntry(input); }),
+  getMaterials: publicProcedure.input(z.object({ reportId: z.number() })).query(async ({ input, ctx }) => { await verifyReportOwnership(input.reportId, ctx.companyId); return db.getMaterialsForReport(input.reportId); }),
   getMaterialsForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getMaterialsForJob(input.jobId); }),
   uploadPhoto: publicProcedure.input(z.object({
     reportId: z.number(),
@@ -553,6 +560,7 @@ Rules:
     caption: z.string().optional(),
     url: z.string().optional(),
   })).mutation(async ({ input, ctx }) => {
+    await verifyJobOwnership(input.jobId, ctx.companyId);
     let photoUrl: string;
     if (input.url) {
       // Photo was already uploaded via /api/upload — just save the record
@@ -567,7 +575,7 @@ Rules:
     const photoId = await db.addReportPhoto({ reportId: input.reportId, jobId: input.jobId, uploadedBy: input.uploadedBy, url: photoUrl, caption: input.caption });
     return { id: photoId, url: photoUrl };
   }),
-  getPhotos: publicProcedure.input(z.object({ reportId: z.number() })).query(({ input }) => db.getPhotosForReport(input.reportId)),
+  getPhotos: publicProcedure.input(z.object({ reportId: z.number() })).query(async ({ input, ctx }) => { await verifyReportOwnership(input.reportId, ctx.companyId); return db.getPhotosForReport(input.reportId); }),
   getPhotosForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getPhotosForJob(input.jobId); }),
   markSeen: publicProcedure.input(z.object({
     reportId: z.number(),
@@ -5657,8 +5665,14 @@ const taxInfoRouter = router({
 
 // ─── Company (Multi-Tenant) ──────────────────────────────────────────────
 const companyRouter = router({
-  // Get current company info
-  getCurrent: publicProcedure.input(z.object({ companyId: z.number() })).query(({ input }) => db.getCompanyById(input.companyId)),
+  // Get current company info (scoped to caller's company)
+  getCurrent: publicProcedure.input(z.object({ companyId: z.number() })).query(({ input, ctx }) => {
+    // Security: only allow fetching your own company's info
+    if (ctx.companyId && input.companyId !== ctx.companyId) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: cannot view other company info." });
+    }
+    return db.getCompanyById(input.companyId);
+  }),
   
   // Get company by slug (for login/signup)
   getBySlug: publicProcedure.input(z.object({ slug: z.string() })).query(({ input }) => db.getCompanyBySlug(input.slug)),
@@ -5749,11 +5763,14 @@ const companyRouter = router({
     return db.updateCompany(companyId, data);
   }),
   
-  // List all companies (admin only)
-  listAll: publicProcedure.query(() => db.getAllCompanies()),
+  // List all companies (admin only — requires authenticated admin user)
+  listAll: adminProcedure.query(() => db.getAllCompanies()),
   
-  // Check subscription status
-  checkSubscription: publicProcedure.input(z.object({ companyId: z.number() })).query(async ({ input }) => {
+  // Check subscription status (scoped to caller's company)
+  checkSubscription: publicProcedure.input(z.object({ companyId: z.number() })).query(async ({ input, ctx }) => {
+    if (ctx.companyId && input.companyId !== ctx.companyId) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: cannot view other company subscription." });
+    }
     const company = await db.getCompanyById(input.companyId);
     if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
     const now = new Date();
@@ -5819,14 +5836,19 @@ const supportRouter = router({
   tickets: router({
     list: publicProcedure.input(z.object({ companyId: z.number().optional() }).optional()).query(({ input, ctx }) => {
       // Security: always scope to the caller's company — never return all companies' tickets
-      const cid = input?.companyId || ctx.companyId || 1;
+      const cid = ctx.companyId || 0;
+      if (!cid) return [];
       return db.getSupportTickets(cid);
     }),
-    listAll: publicProcedure.query(({ ctx }) => {
-      // Security: scope to caller's company (only Pedro's admin portal should see all)
-      return db.getSupportTickets(ctx.companyId || 1);
+    listAll: adminProcedure.query(() => {
+      // Admin only: returns all companies' tickets (pass 0 to get all)
+      return db.getSupportTickets(0);
     }),
-    getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getSupportTicketById(input.id)),
+    getById: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+      const ticket = await db.getSupportTicketById(input.id);
+      if (!ticket || (ctx.companyId && ticket.companyId !== ctx.companyId)) return null;
+      return ticket;
+    }),
     getByToken: publicProcedure.input(z.object({ token: z.string().min(1) })).query(async ({ input }) => {
       const ticket = await db.getTicketByTrackingToken(input.token);
       if (!ticket) return null;

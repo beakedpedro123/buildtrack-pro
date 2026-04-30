@@ -2772,3 +2772,19 @@
 - [x] Fix branding mutations: updateLogo, updateBrandColor, removeLogo all use ctx.companyId
 - [x] Fix team invite: uses actual company name from branding instead of hardcoded name
 - [x] Fix charts export: PDF/share uses company name from branding instead of "BuildTrack Pro"
+
+## Phase 146: Security Hardening — Admin Guard, Ownership Checks, Rate Limiting
+- [x] Lock down company.listAll endpoint with adminProcedure (requires authenticated admin user)
+- [x] Add ownership checks to getMaterials (verifyReportOwnership before returning data)
+- [x] Add ownership checks to getPhotos (verifyReportOwnership before returning data)
+- [x] Add ownership checks to addMaterial mutation (verifyReportOwnership)
+- [x] Add ownership checks to uploadPhoto mutation (verifyJobOwnership)
+- [x] Lock down support.tickets.listAll with adminProcedure
+- [x] Fix support.tickets.list to use ctx.companyId (removed fallback to 1)
+- [x] Add ownership check to support.tickets.getById
+- [x] Add cross-company guard to company.getCurrent
+- [x] Add cross-company guard to company.checkSubscription
+- [x] Implement rate-limiting on PIN login: 5 attempts per 15 min per IP+company
+- [x] Add global PIN limiter: 15 attempts per 15 min per IP (prevents company-hopping)
+- [x] Fix rate limiter path from /api/trpc/verifyPin to /api/trpc/employees.verifyPin
+- [x] Add failed PIN attempt logging for security monitoring

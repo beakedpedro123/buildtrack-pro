@@ -81,17 +81,34 @@ async function startServer() {
   });
   app.use("/api/trpc", globalLimiter);
 
-  // Strict rate limit on PIN verification: 5 attempts per 15 minutes per IP
+  // Strict rate limit on PIN verification: 5 attempts per 15 minutes per IP + company
+  // Keys by IP + x-company-id header to prevent cross-company brute-force
   const pinLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: "Too many PIN attempts. Account locked for 15 minutes." },
-    keyGenerator: (req) => (req.ip || "unknown") + "-pin",
+    message: { error: "Too many PIN attempts. Account locked for 15 minutes. Please try again later." },
+    keyGenerator: (req) => {
+      const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+      const companyId = req.headers["x-company-id"] || "0";
+      return `${ip}-pin-c${companyId}`;
+    },
     validate: false, // Suppress IPv6 keyGenerator warning — we handle it
   });
-  app.use("/api/trpc/verifyPin", pinLimiter);
+  app.use("/api/trpc/employees.verifyPin", pinLimiter);
+
+  // Global PIN limiter per IP: max 15 across ALL companies in 15 min (prevents company-hopping attacks)
+  const globalPinLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 15,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many login attempts from this device. Please wait 15 minutes." },
+    keyGenerator: (req) => `${req.ip || req.headers["x-forwarded-for"] || "unknown"}-pin-global`,
+    validate: false,
+  });
+  app.use("/api/trpc/employees.verifyPin", globalPinLimiter);
 
   // Strict rate limit on signup: 5 per hour per IP
   const signupLimiter = rateLimit({
