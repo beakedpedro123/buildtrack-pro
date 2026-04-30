@@ -3,6 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { AppState, Platform } from "react-native";
 import { trpc } from "./trpc";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { getCacheCompanyId } from "@/lib/data-cache";
 
 /* ───────── Clock-specific offline entry ───────── */
 export interface OfflineClockEntry {
@@ -67,9 +68,10 @@ const OfflineQueueContext = createContext<OfflineQueueContextType>({
   lastSyncTime: null,
 });
 
-const CLOCK_QUEUE_KEY = "buildtrack_offline_queue";
-const MUTATION_QUEUE_KEY = "buildtrack_mutation_queue";
-const LAST_SYNC_KEY = "buildtrack_last_sync";
+// Company-scoped queue keys to prevent cross-company data leaks
+function getClockQueueKey() { return `buildtrack_offline_queue_c${getCacheCompanyId() || 0}`; }
+function getMutationQueueKey() { return `buildtrack_mutation_queue_c${getCacheCompanyId() || 0}`; }
+function getLastSyncKey() { return `buildtrack_last_sync_c${getCacheCompanyId() || 0}`; }
 const PING_INTERVAL = 15_000;
 const MAX_RETRIES = 5;
 
@@ -119,7 +121,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
 
   // Load queues from storage on mount
   useEffect(() => {
-    AsyncStorage.getItem(CLOCK_QUEUE_KEY).then((raw) => {
+    AsyncStorage.getItem(getClockQueueKey()).then((raw) => {
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
@@ -128,7 +130,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
         } catch {}
       }
     });
-    AsyncStorage.getItem(MUTATION_QUEUE_KEY).then((raw) => {
+    AsyncStorage.getItem(getMutationQueueKey()).then((raw) => {
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
@@ -137,7 +139,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
         } catch {}
       }
     });
-    AsyncStorage.getItem(LAST_SYNC_KEY).then((raw) => {
+    AsyncStorage.getItem(getLastSyncKey()).then((raw) => {
       if (raw) setLastSyncTime(parseInt(raw, 10));
     });
   }, []);
@@ -145,13 +147,13 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
   const saveClockQueue = useCallback(async (entries: OfflineClockEntry[]) => {
     setClockQueue(entries);
     clockQueueRef.current = entries;
-    await AsyncStorage.setItem(CLOCK_QUEUE_KEY, JSON.stringify(entries));
+    await AsyncStorage.setItem(getClockQueueKey(), JSON.stringify(entries));
   }, []);
 
   const saveMutationQueue = useCallback(async (entries: OfflineMutation[]) => {
     setMutationQueue(entries);
     mutationQueueRef.current = entries;
-    await AsyncStorage.setItem(MUTATION_QUEUE_KEY, JSON.stringify(entries));
+    await AsyncStorage.setItem(getMutationQueueKey(), JSON.stringify(entries));
   }, []);
 
   const addClockEntry = useCallback(async (entry: Omit<OfflineClockEntry, "localId" | "createdAt">) => {
@@ -305,7 +307,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     // Record sync time
     const now = Date.now();
     setLastSyncTime(now);
-    await AsyncStorage.setItem(LAST_SYNC_KEY, String(now));
+    await AsyncStorage.setItem(getLastSyncKey(), String(now));
 
     // After sync, invalidate queries to refresh UI
     const synced = (currentClock.length - remainingClock.length) + (currentMutations.length - remainingMutations.length);

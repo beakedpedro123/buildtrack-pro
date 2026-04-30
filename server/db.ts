@@ -302,7 +302,7 @@ export async function getUserByOpenId(openId: string) {
 export async function getAllEmployees(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(employees).where(and(eq(employees.isActive, true), eq(employees.companyId, cid))).orderBy(employees.name);
 }
 
@@ -346,14 +346,14 @@ export async function deactivateEmployee(id: number) {
 export async function getAllJobs(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(jobs).where(eq(jobs.companyId, cid)).orderBy(desc(jobs.createdAt));
 }
 
 export async function getActiveJobs(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(jobs).where(and(eq(jobs.status, "active"), eq(jobs.companyId, cid))).orderBy(jobs.name);
 }
 
@@ -495,7 +495,7 @@ export async function getClockEntriesForJob(jobId: number, date?: Date) {
 export async function getClockedInEmployees(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   // Join with employees and jobs so the client has name/job info without extra queries
   const rows = await db
     .select({
@@ -564,7 +564,7 @@ export async function getDailyReportById(id: number) {
 export async function getRecentReports(limit = 10, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(dailyReports).where(eq(dailyReports.companyId, cid)).orderBy(desc(dailyReports.reportDate)).limit(limit);
 }
 
@@ -658,7 +658,7 @@ export async function getExpensesForJob(jobId: number) {
 export async function getUnsyncedExpenses(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(expenses).where(and(eq(expenses.qbSynced, false), eq(expenses.companyId, cid)));
 }
 
@@ -685,7 +685,7 @@ export async function updateSyncLog(id: number, data: Partial<typeof qbSyncLog.$
 export async function getRecentSyncLogs(limit = 10, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(qbSyncLog).where(eq(qbSyncLog.companyId, cid)).orderBy(desc(qbSyncLog.createdAt)).limit(limit);
 }
 // ─── Meetings ─────────────────────────────────────────────────────────────────
@@ -699,7 +699,7 @@ export async function createMeeting(data: Omit<InsertMeeting, "id" | "createdAt"
 export async function getMeetings(limit = 20, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(meetings).where(eq(meetings.companyId, cid)).orderBy(desc(meetings.createdAt)).limit(limit);
 }
 
@@ -728,7 +728,7 @@ export async function createWeeklyGoal(data: Omit<InsertWeeklyGoal, "id" | "crea
 export async function getWeeklyGoals(weekOf?: Date, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   if (weekOf) {
     // Get goals for the week containing weekOf
     const start = new Date(weekOf);
@@ -772,21 +772,21 @@ export async function deleteWeeklyGoal(id: number) {
 export async function getAllClockEntries(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(clockEntries).where(eq(clockEntries.companyId, cid));
 }
 
 export async function getAllExpenses(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(expenses).where(eq(expenses.companyId, cid));
 }
 
 export async function getClockEntriesForPayroll(startDate: Date, endDate: Date, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(clockEntries)
     .where(and(gte(clockEntries.clockIn, startDate), lte(clockEntries.clockIn, endDate), eq(clockEntries.companyId, cid)))
     .orderBy(clockEntries.employeeId, clockEntries.clockIn);
@@ -832,7 +832,7 @@ export async function deleteQbEstimate(id: number) {
 export async function getAllKpis(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(kpiMetrics).where(and(eq(kpiMetrics.isActive, true), eq(kpiMetrics.companyId, cid))).orderBy(kpiMetrics.category, kpiMetrics.name);
 }
 export async function getKpiById(id: number) {
@@ -928,7 +928,7 @@ export async function getLaborCostForJob(jobId: number) {
 export async function getLaborCostByJob(startDate: Date, endDate: Date, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   const entries = await db.select().from(clockEntries)
     .where(and(gte(clockEntries.clockIn, startDate), lte(clockEntries.clockIn, endDate), eq(clockEntries.companyId, cid)));
   const allEmployees = await db.select().from(employees).where(eq(employees.companyId, cid));
@@ -985,7 +985,7 @@ export async function getLaborCostByJob(startDate: Date, endDate: Date, companyI
 export async function getWeeklyLaborCostTrend(weeks: number = 8, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   const now = new Date();
   // Go back to the start of the current week (Monday)
   const dayOfWeek = now.getDay();
@@ -1050,7 +1050,7 @@ export async function getWeeklyLaborCostTrend(weeks: number = 8, companyId?: num
 export async function getLaborCostByEmployee(startDate: Date, endDate: Date, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   const entries = await db.select().from(clockEntries)
     .where(and(gte(clockEntries.clockIn, startDate), lte(clockEntries.clockIn, endDate), eq(clockEntries.companyId, cid)));
   const allEmployees = await db.select().from(employees).where(eq(employees.companyId, cid));
@@ -1090,7 +1090,7 @@ export async function getLaborCostByEmployee(startDate: Date, endDate: Date, com
 export async function getBudgetAlerts(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
 
   const activeJobsList = await db.select().from(jobs).where(and(eq(jobs.status, "active"), eq(jobs.companyId, cid)));
   const allClockEntries = await db.select().from(clockEntries).where(eq(clockEntries.companyId, cid));
@@ -1163,7 +1163,7 @@ export async function getBudgetAlerts(companyId?: number) {
 export async function getSafetyTopics(activeOnly = true, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   if (activeOnly) {
     return db.select().from(safetyTopics).where(and(eq(safetyTopics.isActive, true), eq(safetyTopics.companyId, cid))).orderBy(desc(safetyTopics.createdAt));
   }
@@ -1198,7 +1198,7 @@ export async function deleteSafetyTopic(id: number) {
 export async function getSafetyMeetings(limit = 50, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(safetyMeetings).where(eq(safetyMeetings.companyId, cid)).orderBy(desc(safetyMeetings.conductedAt)).limit(limit);
 }
 
@@ -1208,11 +1208,12 @@ export async function getSafetyMeetingsForJob(jobId: number) {
   return db.select().from(safetyMeetings).where(eq(safetyMeetings.jobId, jobId)).orderBy(desc(safetyMeetings.conductedAt));
 }
 
-export async function getSafetyMeetingsForWeek(startDate: Date, endDate: Date) {
+export async function getSafetyMeetingsForWeek(startDate: Date, endDate: Date, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(safetyMeetings)
-    .where(and(gte(safetyMeetings.conductedAt, startDate), lte(safetyMeetings.conductedAt, endDate)))
+    .where(and(gte(safetyMeetings.conductedAt, startDate), lte(safetyMeetings.conductedAt, endDate), eq(safetyMeetings.companyId, cid)))
     .orderBy(desc(safetyMeetings.conductedAt));
 }
 
@@ -1281,7 +1282,7 @@ export async function getGoalsForEmployee(employeeId: number) {
 export async function getAllCurrentWeekGoals(companyId?: number) {
   const dbConn = await getDb();
   if (!dbConn) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   const now = new Date();
   const weekStart = new Date(now);
   const day = weekStart.getDay();
@@ -1354,9 +1355,10 @@ export async function getRecentPivotConversations(employeeId: number, limit = 20
     .limit(limit);
 }
 
-export async function getAllPivotConversations(limit = 200) {
+export async function getAllPivotConversations(limit = 200, companyId?: number) {
   const dbConn = await getDb();
   if (!dbConn) return [];
+  if (!companyId) return [] as any; const cid = companyId;
   return dbConn.select({
     id: pivotConversations.id,
     employeeId: pivotConversations.employeeId,
@@ -1365,6 +1367,7 @@ export async function getAllPivotConversations(limit = 200) {
     language: pivotConversations.language,
     createdAt: pivotConversations.createdAt,
   }).from(pivotConversations)
+    .where(eq(pivotConversations.companyId, cid))
     .orderBy(desc(pivotConversations.createdAt))
     .limit(limit);
 }
@@ -1576,7 +1579,7 @@ export async function getPunchListItems(jobId: number) {
 export async function getAllPunchListItems(companyId?: number) {
   const dbConn = await getDb();
   if (!dbConn) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return dbConn.select().from(punchListItems)
     .where(eq(punchListItems.companyId, cid))
     .orderBy(desc(punchListItems.createdAt));
@@ -2012,7 +2015,7 @@ export async function getChangeOrderTotal(jobId: number) {
 export async function getJobProfitability(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
 
   const allJobs = await db.select().from(jobs).where(eq(jobs.companyId, cid));
   const allEntries = await db.select().from(clockEntries).where(eq(clockEntries.companyId, cid));
@@ -2092,7 +2095,7 @@ export async function getJobProfitability(companyId?: number) {
 export async function getTaxBreakdown(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
 
   const allJobs = await db.select().from(jobs).where(and(eq(jobs.status, "active"), eq(jobs.companyId, cid)));
   const allEntries = await db.select().from(clockEntries).where(eq(clockEntries.companyId, cid));
@@ -2257,7 +2260,7 @@ export async function getBudgetBurnDown(jobId: number, weeks: number = 12) {
 export async function getMonthlyLaborTrend(months: number = 6, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
 
   const now = new Date();
   const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
@@ -2341,31 +2344,28 @@ export async function getBudgetAuditLog(jobId: number) {
 
 // ─── Date-Filtered Analytics ──────────────────────────────────────────────
 
-export async function getJobProfitabilityFiltered(startDate?: string, endDate?: string) {
+export async function getJobProfitabilityFiltered(startDate?: string, endDate?: string, companyId?: number) {
   const dbConn = await getDb();
   if (!dbConn) return [];
+  if (!companyId) return [] as any; const cid = companyId;
 
-  const allJobs = await dbConn.select().from(jobs).where(eq(jobs.status, "active"));
+  const allJobs = await dbConn.select().from(jobs).where(and(eq(jobs.status, "active"), eq(jobs.companyId, cid)));
   const allBudgets = await dbConn.select().from(budgetCategories);
   const allChangeOrderRows = await dbConn.select().from(changeOrders);
 
   // Build date filter for clock entries
-  let clockConditions: any[] = [];
+  let clockConditions: any[] = [eq(clockEntries.companyId, cid)];
   if (startDate) clockConditions.push(gte(clockEntries.clockIn, new Date(startDate)));
   if (endDate) clockConditions.push(lte(clockEntries.clockIn, new Date(endDate)));
 
-  const clockRows = clockConditions.length > 0
-    ? await dbConn.select().from(clockEntries).where(and(...clockConditions))
-    : await dbConn.select().from(clockEntries);
+  const clockRows = await dbConn.select().from(clockEntries).where(and(...clockConditions));
 
   // Build date filter for expenses
-  let expConditions: any[] = [];
+  let expConditions: any[] = [eq(expenses.companyId, cid)];
   if (startDate) expConditions.push(gte(expenses.expenseDate, new Date(startDate)));
   if (endDate) expConditions.push(lte(expenses.expenseDate, new Date(endDate)));
 
-  const expenseRows = expConditions.length > 0
-    ? await dbConn.select().from(expenses).where(and(...expConditions))
-    : await dbConn.select().from(expenses);
+  const expenseRows = await dbConn.select().from(expenses).where(and(...expConditions));
 
   return allJobs.map(j => {
     const jobBudgets = allBudgets.filter(b => b.jobId === j.id);
@@ -2401,19 +2401,18 @@ export async function getJobProfitabilityFiltered(startDate?: string, endDate?: 
   });
 }
 
-export async function getMonthlyLaborTrendFiltered(startDate?: string, endDate?: string) {
+export async function getMonthlyLaborTrendFiltered(startDate?: string, endDate?: string, companyId?: number) {
   const dbConn = await getDb();
   if (!dbConn) return [];
+  if (!companyId) return [] as any; const cid = companyId;
 
-  let conditions: any[] = [];
+  let conditions: any[] = [eq(clockEntries.companyId, cid)];
   if (startDate) conditions.push(gte(clockEntries.clockIn, new Date(startDate)));
   if (endDate) conditions.push(lte(clockEntries.clockIn, new Date(endDate)));
 
-  const clockRows = conditions.length > 0
-    ? await dbConn.select().from(clockEntries).where(and(...conditions))
-    : await dbConn.select().from(clockEntries);
+  const clockRows = await dbConn.select().from(clockEntries).where(and(...conditions));
 
-  const allEmployees = await dbConn.select().from(employees);
+  const allEmployees = await dbConn.select().from(employees).where(eq(employees.companyId, cid));
   const rateMap = new Map(allEmployees.map(e => [e.id, Number(e.hourlyRate || 35)]));
 
   // Group by month
@@ -2457,14 +2456,14 @@ export async function getMonthlyLaborTrendFiltered(startDate?: string, endDate?:
 export async function getCompanyOverhead(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(companyOverhead).where(and(eq(companyOverhead.isActive, true), eq(companyOverhead.companyId, cid)));
 }
 
 export async function getAllCompanyOverhead(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(companyOverhead).where(eq(companyOverhead.companyId, cid));
 }
 
@@ -2489,7 +2488,7 @@ export async function deleteOverheadItem(id: number) {
 
 export async function getMonthlyOverheadTotal(companyId?: number) {
   const items = await getCompanyOverhead(companyId);
-  return items.reduce((sum, item) => sum + parseFloat((item.monthlyAmount as string) || "0"), 0);
+  return items.reduce((sum: number, item: any) => sum + parseFloat((item.monthlyAmount as string) || "0"), 0);
 }
 
 // ─── Job Schedule / Calendar ──────────────────────────────────────────────
@@ -2502,7 +2501,7 @@ export async function getJobSchedule(jobId: number) {
 export async function getAllScheduleItems(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select({
     id: jobSchedule.id,
     jobId: jobSchedule.jobId,
@@ -2520,13 +2519,15 @@ export async function getAllScheduleItems(companyId?: number) {
   }).from(jobSchedule).leftJoin(jobs, eq(jobSchedule.jobId, jobs.id)).where(eq(jobSchedule.companyId, cid));
 }
 
-export async function getScheduleByDateRange(startDate: Date, endDate: Date) {
+export async function getScheduleByDateRange(startDate: Date, endDate: Date, companyId?: number) {
   const db = await getDb();
   if (!db) return [];
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(jobSchedule)
     .where(and(
       gte(jobSchedule.scheduledDate, startDate),
       lte(jobSchedule.scheduledDate, endDate),
+      eq(jobSchedule.companyId, cid),
     ));
 }
 
@@ -2560,7 +2561,7 @@ export async function getEmployeeTaxInfo(employeeId: number) {
 export async function getAllEmployeeTaxInfo(companyId?: number) {
   const db = await getDb();
   if (!db) return [];
-  const cid = companyId || 1;
+  if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(employeeTaxInfo).where(eq(employeeTaxInfo.companyId, cid));
 }
 

@@ -31,6 +31,7 @@ import { EmployeeTaxInfoModal } from "@/components/employee-tax-info";
 import { useGpsTracking } from "@/hooks/use-gps-tracking";
 import { CrewMap } from "@/components/crew-map";
 import { useLanguage } from "@/lib/language-context";
+import { useBranding } from "@/lib/branding-context";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "#1E3A5F",
@@ -64,6 +65,8 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
   const insets = useSafeAreaInsets();
   const { employee } = useAppAuth();
   const { t } = useLanguage();
+  const { branding } = useBranding();
+  const companyDisplayName = branding?.companyName || "Your Company";
   const ROLE_LABELS: Record<string, string> = Object.fromEntries(
     Object.entries(ROLE_LABEL_KEYS).map(([k, v]) => [k, t(v)])
   );
@@ -311,7 +314,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
     if (!inviteResult) return;
     try {
       await Share.share({
-        message: `You've been invited to join Carranza Custom Construction on BuildTrack Pro!\n\nYour invite code: ${inviteResult.code}\n\nDownload the app and enter this code when you first open it to set up your account.`,
+        message: `You've been invited to join ${companyDisplayName} on BuildTrack Pro!\n\nYour invite code: ${inviteResult.code}\n\nDownload the app and enter this code when you first open it to set up your account.`,
         title: "BuildTrack Pro Invite" });
     } catch (e) {
       // user cancelled

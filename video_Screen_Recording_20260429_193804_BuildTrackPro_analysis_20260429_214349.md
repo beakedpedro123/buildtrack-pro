@@ -1,0 +1,7 @@
+Based on the video, the logged-in user is "Pancho," and the company appears to be very small or a test account. The "Team" tab (00:55) shows only two employees: Pancho and a "Test Worker." Additionally, the "Jobs" tab (00:19, 01:15) indicates there are "No active jobs" and "No jobs" in total.
+
+However, several screens display data that clearly belongs to a different, much larger, and active company:
+
+1.  **Field Reports (Recent):** Starting at 00:23, the list of recent field reports shows multiple active jobs (e.g., "Job #300001", "Job #330001", "Job #2", "Job #4") and lists crew sizes ranging from 3 to 7 people. This data contradicts the 2-person team shown on the user's Team page.
+2.  **Labor Trends:** At 00:40, the charts for "Monthly Labor Costs" and "Monthly Labor Hours" show significant activity, with costs peaking over $70K and hours over 2.7K. This volume of labor is impossible for a 2-person company with no active jobs.
+3.  **AI Business Partner (Pivot):** At 01:52, the AI assistant's response includes the statement, "we've racked up $18,306.88 in labor costs across 7 jobs this week." This data directly conflicts with the user's empty job list and small team size, indicating it is pulling information from another account.

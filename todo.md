@@ -2754,3 +2754,21 @@
 - [x] Fix signup flow: new signups must create a proper owner profile so the owner can then create employees
 - [x] Fix multi-tenant data isolation: all 12 critical endpoints now use ctx.companyId instead of defaulting to company 1
 - [x] Verified: employees.list, clock.allClockedIn, meetings.list, goals.list, budgetAlerts, laborDashboard, financialCharts, payroll, safetyTopics, safetyMeetings, overhead, taxInfo all now filter by company
+
+## Phase 145 (continued): Complete Multi-Tenant Security Hardening
+- [x] Fix Pivot AI: getClockedInEmployees now passes ctx.companyId, all Pivot data queries scoped by company
+- [x] Fix employee picker on login: cache scoped by companyId, setCacheCompanyId called before reading/writing cache
+- [x] Fix company branding: branding.get uses ctx.companyId, charts/team use companyName from branding context
+- [x] Fix reports screen: forJob uses verifyJobOwnership, getById checks companyId, recent passes ctx.companyId
+- [x] Fix expenses/budget: getExpenses uses verifyJobOwnership, syncToQB passes ctx.companyId
+- [x] Add authorization checks: verifyJobOwnership, verifyEmployeeOwnership, verifyMeetingOwnership, verifyReportOwnership
+- [x] Prevent ID-guessing attacks: getDetailedTimecard now verifies employee ownership before returning data
+- [x] Fix all endpoints that accept jobId without verifying company ownership
+- [x] Fix all endpoints that accept employeeId without verifying company ownership
+- [x] Scope all cached/offline data by companyId (data-cache + offline-queue)
+- [x] Fix trpc middleware: default companyId changed from 1 to 0 (prevents accidental data leak)
+- [x] Fix payroll PDF: buildReportData now accepts and uses companyId for all db queries
+- [x] Fix payroll PDF: lunch auto-deduction uses correct company settings (not hardcoded company 1)
+- [x] Fix branding mutations: updateLogo, updateBrandColor, removeLogo all use ctx.companyId
+- [x] Fix team invite: uses actual company name from branding instead of hardcoded name
+- [x] Fix charts export: PDF/share uses company name from branding instead of "BuildTrack Pro"

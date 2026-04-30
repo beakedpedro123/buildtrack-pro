@@ -46,10 +46,48 @@ async function assertRole(requestingId: number, allowedRoles: string[], action: 
   return requester;
 }
 
+// ─── Multi-Tenant Security: Ownership Verification Helpers ─────────────────────
+// These helpers prevent cross-company data access by verifying resources belong to the requesting company
+async function verifyJobOwnership(jobId: number, companyId: number) {
+  const job = await db.getJobById(jobId);
+  if (!job || job.companyId !== companyId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: resource does not belong to your company." });
+  }
+  return job;
+}
+
+async function verifyEmployeeOwnership(employeeId: number, companyId: number) {
+  const emp = await db.getEmployeeById(employeeId);
+  if (!emp || emp.companyId !== companyId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: resource does not belong to your company." });
+  }
+  return emp;
+}
+
+async function verifyMeetingOwnership(meetingId: number, companyId: number) {
+  const meeting = await db.getMeetingById(meetingId);
+  if (!meeting || meeting.companyId !== companyId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: resource does not belong to your company." });
+  }
+  return meeting;
+}
+
+async function verifyReportOwnership(reportId: number, companyId: number) {
+  const report = await db.getDailyReportById(reportId);
+  if (!report || report.companyId !== companyId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: resource does not belong to your company." });
+  }
+  return report;
+}
+
 const employeeRouter = router({
   list: publicProcedure.input(z.object({ companyId: z.number().optional() }).optional()).query(({ input, ctx }) => db.getAllEmployees(input?.companyId || ctx.companyId)),
   listByCompany: publicProcedure.input(z.object({ companyId: z.number() })).query(({ input }) => db.getAllEmployees(input.companyId)),
-  getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getEmployeeById(input.id)),
+  getById: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+    const emp = await db.getEmployeeById(input.id);
+    if (!emp || emp.companyId !== ctx.companyId) return undefined;
+    return emp;
+  }),
   verifyPin: publicProcedure.input(z.object({ pin: z.string(), companyId: z.number().optional() })).mutation(({ input }) => db.getEmployeeByPin(input.pin, input.companyId)),
   create: publicProcedure.input(z.object({
     name: z.string().min(1).max(128),
@@ -183,7 +221,11 @@ const jobsRouter = router({
       laborHours: hoursByJob[job.id] || 0,
     }));
   }),
-  getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getJobById(input.id)),
+  getById: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+    const job = await db.getJobById(input.id);
+    if (!job || job.companyId !== ctx.companyId) return undefined;
+    return job;
+  }),
   forEmployee: publicProcedure.input(z.object({ employeeId: z.number() })).query(({ input }) => db.getJobsForEmployee(input.employeeId)),
   create: publicProcedure.input(z.object({
     name: z.string().min(1).max(255),
@@ -233,7 +275,7 @@ const jobsRouter = router({
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "unassign employees from jobs");
     return db.removeJobAssignment(input.jobId, input.employeeId);
   }),
-  getAssignments: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getJobAssignments(input.jobId)),
+  getAssignments: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getJobAssignments(input.jobId); }),
 });
 
 const clockRouter = router({
@@ -275,9 +317,9 @@ const clockRouter = router({
   }),
   activeEntry: publicProcedure.input(z.object({ employeeId: z.number() })).query(({ input }) => db.getActiveClockEntry(input.employeeId)),
   history: publicProcedure.input(z.object({ employeeId: z.number(), since: z.string().optional() })).query(({ input }) => db.getClockEntriesForEmployee(input.employeeId, input.since ? new Date(input.since) : undefined)),
-  forJob: publicProcedure.input(z.object({ jobId: z.number(), date: z.string().optional() })).query(({ input }) => db.getClockEntriesForJob(input.jobId, input.date ? new Date(input.date) : undefined)),
+  forJob: publicProcedure.input(z.object({ jobId: z.number(), date: z.string().optional() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getClockEntriesForJob(input.jobId, input.date ? new Date(input.date) : undefined); }),
   allClockedIn: publicProcedure.query(({ ctx }) => db.getClockedInEmployees(ctx.companyId)),
-  laborCostForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getLaborCostForJob(input.jobId)),
+  laborCostForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getLaborCostForJob(input.jobId); }),
   updateEntry: publicProcedure.input(z.object({
     entryId: z.number(),
     clockIn: z.string().optional(),
@@ -327,11 +369,14 @@ const clockRouter = router({
     employeeId: z.number(),
     startDate: z.string(),
     endDate: z.string(),
-  })).query(({ input }) => db.getDetailedTimecard(
-    input.employeeId,
-    new Date(input.startDate),
-    new Date(input.endDate)
-  )),
+  })).query(async ({ input, ctx }) => {
+    await verifyEmployeeOwnership(input.employeeId, ctx.companyId);
+    return db.getDetailedTimecard(
+      input.employeeId,
+      new Date(input.startDate),
+      new Date(input.endDate)
+    );
+  }),
   getAdjustments: publicProcedure.input(z.object({
     clockEntryId: z.number(),
   })).query(({ input }) => db.getAdjustmentsForEntry(input.clockEntryId)),
@@ -484,9 +529,9 @@ Rules:
     }
     return reportId;
   }),
-  forJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getDailyReportsForJob(input.jobId)),
-  getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getDailyReportById(input.id)),
-  recent: publicProcedure.input(z.object({ limit: z.number().default(10) })).query(({ input }) => db.getRecentReports(input.limit)),
+  forJob: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getDailyReportsForJob(input.jobId); }),
+  getById: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => { const r = await db.getDailyReportById(input.id); if (!r || r.companyId !== ctx.companyId) return undefined; return r; }),
+  recent: publicProcedure.input(z.object({ limit: z.number().default(10) })).query(({ input, ctx }) => db.getRecentReports(input.limit, ctx.companyId)),
   addMaterial: publicProcedure.input(z.object({
     reportId: z.number(),
     jobId: z.number(),
@@ -498,7 +543,7 @@ Rules:
     supplier: z.string().optional(),
   })).mutation(({ input }) => db.addMaterialEntry(input)),
   getMaterials: publicProcedure.input(z.object({ reportId: z.number() })).query(({ input }) => db.getMaterialsForReport(input.reportId)),
-  getMaterialsForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getMaterialsForJob(input.jobId)),
+  getMaterialsForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getMaterialsForJob(input.jobId); }),
   uploadPhoto: publicProcedure.input(z.object({
     reportId: z.number(),
     jobId: z.number(),
@@ -523,7 +568,7 @@ Rules:
     return { id: photoId, url: photoUrl };
   }),
   getPhotos: publicProcedure.input(z.object({ reportId: z.number() })).query(({ input }) => db.getPhotosForReport(input.reportId)),
-  getPhotosForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getPhotosForJob(input.jobId)),
+  getPhotosForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getPhotosForJob(input.jobId); }),
   markSeen: publicProcedure.input(z.object({
     reportId: z.number(),
     seen: z.boolean(),
@@ -539,7 +584,7 @@ const budgetRouter = router({
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "create budget categories");
     return db.createBudgetCategory(input);
   }),
-  getCategories: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getBudgetCategoriesForJob(input.jobId)),
+  getCategories: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getBudgetCategoriesForJob(input.jobId); }),
   updateCategory: publicProcedure.input(z.object({ id: z.number(), name: z.string().optional(), budgetedAmount: z.string().optional(), spentAmount: z.string().optional(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update budget categories");
     const { id, requestingEmployeeId, ...data } = input; return db.updateBudgetCategory(id, data);
@@ -552,12 +597,12 @@ const budgetRouter = router({
     expenseDate: z.string(),
     submittedBy: z.number(),
   })).mutation(({ input }) => db.createExpense({ ...input, expenseDate: new Date(input.expenseDate) })),
-  getExpenses: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getExpensesForJob(input.jobId)),
+  getExpenses: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getExpensesForJob(input.jobId); }),
   syncToQB: publicProcedure.input(z.object({ triggeredBy: z.number(), syncType: z.enum(["expenses", "labor", "full"]).default("full") })).mutation(async ({ input, ctx }) => {
     await assertRole(input.triggeredBy, ["owner", "office_manager"], "sync to QuickBooks");
     const logId = await db.createSyncLog({ syncType: input.syncType, status: "pending", triggeredBy: input.triggeredBy, itemsSynced: 0 });
     try {
-      const unsyncedExpenses = await db.getUnsyncedExpenses();
+      const unsyncedExpenses = await db.getUnsyncedExpenses(ctx.companyId);
       for (const expense of unsyncedExpenses) { await db.markExpenseSynced(expense.id); }
       await db.updateSyncLog(logId, { status: "success", itemsSynced: unsyncedExpenses.length, completedAt: new Date() });
       return { success: true, itemsSynced: unsyncedExpenses.length, logId };
@@ -566,11 +611,11 @@ const budgetRouter = router({
       throw error;
     }
   }),
-  getSyncLogs: publicProcedure.input(z.object({ limit: z.number().default(10) })).query(({ input }) => db.getRecentSyncLogs(input.limit)),
+  getSyncLogs: publicProcedure.input(z.object({ limit: z.number().default(10) })).query(({ input, ctx }) => db.getRecentSyncLogs(input.limit, ctx.companyId)),
 });
 
 const changeOrdersRouter = router({
-  list: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getChangeOrdersForJob(input.jobId)),
+  list: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getChangeOrdersForJob(input.jobId); }),
   create: publicProcedure.input(z.object({
     jobId: z.number(),
     description: z.string().min(1).max(500),
@@ -597,7 +642,7 @@ const changeOrdersRouter = router({
 
 const meetingsRouter = router({
   list: publicProcedure.query(({ ctx }) => db.getMeetings(30, ctx.companyId)),
-  getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getMeetingById(input.id)),
+  getById: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => { const m = await db.getMeetingById(input.id); if (!m || m.companyId !== ctx.companyId) return undefined; return m; }),
   create: publicProcedure.input(z.object({
     title: z.string().min(1).max(255),
     scheduledFor: z.string().optional(),
@@ -809,10 +854,10 @@ const goalsRouter = router({
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
     // Get all schedule items for this week
-    const scheduleItems = await db.getScheduleByDateRange(weekStart, weekEnd);
+    const scheduleItems = await db.getScheduleByDateRange(weekStart, weekEnd, ctx.companyId);
     if (!scheduleItems || scheduleItems.length === 0) return { created: 0, message: "No schedule tasks found for this week." };
     // Get existing goals for this week to avoid duplicates
-    const existingGoals = await db.getWeeklyGoals(weekStart);
+    const existingGoals = await db.getWeeklyGoals(weekStart, ctx.companyId);
     const existingTitles = new Set(existingGoals.map((g: any) => g.title.toLowerCase()));
     // Get all jobs for name lookup
     const allJobs = await db.getAllJobs(ctx.companyId);
@@ -850,7 +895,8 @@ const goalsRouter = router({
 
 // ── Punch List Router ──────────────────────────────────────────────────────
 const punchListRouter = router({
-  listForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input }) => {
+  listForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => {
+    await verifyJobOwnership(input.jobId, ctx.companyId);
     return db.getPunchListItems(input.jobId);
   }),
   listAll: publicProcedure.query(async ({ ctx }) => {
@@ -1110,20 +1156,20 @@ const financialChartsRouter = router({
   })).query(({ input }) => db.getBudgetBurnDown(input.jobId, input.weeks)),
   monthlyLaborTrend: publicProcedure.input(z.object({
     months: z.number().default(6),
-  })).query(({ input }) => db.getMonthlyLaborTrend(input.months)),
+  })).query(({ input, ctx }) => db.getMonthlyLaborTrend(input.months, ctx.companyId)),
   // Date-filtered endpoints
   jobProfitabilityFiltered: publicProcedure.input(z.object({
     startDate: z.string().optional(),
     endDate: z.string().optional(),
-  })).query(({ input }) => db.getJobProfitabilityFiltered(input.startDate, input.endDate)),
+  })).query(({ input, ctx }) => db.getJobProfitabilityFiltered(input.startDate, input.endDate, ctx.companyId)),
   monthlyLaborTrendFiltered: publicProcedure.input(z.object({
     startDate: z.string().optional(),
     endDate: z.string().optional(),
-  })).query(({ input }) => db.getMonthlyLaborTrendFiltered(input.startDate, input.endDate)),
+  })).query(({ input, ctx }) => db.getMonthlyLaborTrendFiltered(input.startDate, input.endDate, ctx.companyId)),
   // Budget Audit Log
   auditLog: publicProcedure.input(z.object({
     jobId: z.number(),
-  })).query(({ input }) => db.getBudgetAuditLog(input.jobId)),
+  })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getBudgetAuditLog(input.jobId); }),
   createAuditEntry: publicProcedure.input(z.object({
     jobId: z.number(),
     employeeId: z.number(),
@@ -1140,7 +1186,7 @@ const financialChartsRouter = router({
 
 const kpiRouter = router({
   list: publicProcedure.query(({ ctx }) => db.getAllKpis(ctx.companyId)),
-  getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getKpiById(input.id)),
+  getById: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => { const k = await db.getKpiById(input.id); if (!k || k.companyId !== ctx.companyId) return undefined; return k; }),
   create: publicProcedure.input(z.object({
     name: z.string().min(1).max(128),
     category: z.enum(["revenue", "labor", "jobs", "safety", "schedule", "custom"]).default("custom"),
@@ -1219,9 +1265,9 @@ const safetyTopicsRouter = router({
 
 const safetyMeetingsRouter = router({
   list: publicProcedure.input(z.object({ limit: z.number().default(50) })).query(({ input, ctx }) => db.getSafetyMeetings(input.limit, ctx.companyId)),
-  forJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getSafetyMeetingsForJob(input.jobId)),
-  forWeek: publicProcedure.input(z.object({ startDate: z.string(), endDate: z.string() })).query(({ input }) => 
-    db.getSafetyMeetingsForWeek(new Date(input.startDate), new Date(input.endDate))
+  forJob: publicProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getSafetyMeetingsForJob(input.jobId); }),
+  forWeek: publicProcedure.input(z.object({ startDate: z.string(), endDate: z.string() })).query(({ input, ctx }) => 
+    db.getSafetyMeetingsForWeek(new Date(input.startDate), new Date(input.endDate), ctx.companyId)
   ),
   create: publicProcedure.input(z.object({
     topicId: z.number().optional(),
@@ -1491,12 +1537,12 @@ This user communicates in English. If they write in Spanish, switch to Mexican S
         const activeEmployees = allEmployees.filter((e: any) => e.isActive);
         const now = new Date();
         const weekStart = new Date(now); weekStart.setDate(now.getDate() - 7); weekStart.setHours(0,0,0,0);
-        const laborByJob = await db.getLaborCostByJob(weekStart, now);
+        const laborByJob = await db.getLaborCostByJob(weekStart, now, ctx.companyId);
         const totalWeekCost = laborByJob.reduce((s: number, j: any) => s + (j.totalCost || 0), 0);
         const kpis = await db.getAllKpis(ctx.companyId);
 
         // Fetch recent daily reports for richer context
-        const recentReports = await db.getRecentReports(15);
+        const recentReports = await db.getRecentReports(15, ctx.companyId);
 
         // Build per-job labor breakdown
         const laborBreakdown = laborByJob.slice(0, 10).map((j: any) =>
@@ -3306,7 +3352,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
           }
         } else if (toolName === "get_clocked_in_status") {
           try {
-            const clockedIn = await db.getClockedInEmployees();
+            const clockedIn = await db.getClockedInEmployees(ctx.companyId);
             if (!clockedIn || clockedIn.length === 0) {
               toolResult = "No employees are currently clocked in. Tell the user the site is empty right now.";
             } else {
@@ -3381,7 +3427,7 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               
               if (!workCompleted || !crewCount) {
                 try {
-                  const clockedIn = await db.getClockedInEmployees();
+                  const clockedIn = await db.getClockedInEmployees(ctx.companyId);
                   const jobCrew = clockedIn.filter((c: any) => c.jobId === jobMatch.id);
                   if (!crewCount) crewCount = jobCrew.length;
                   if (!workCompleted && jobCrew.length > 0) {
@@ -5432,12 +5478,12 @@ ${isOwner ? "\n## OWNER_PATTERNS\nDecision-making patterns, recurring concerns, 
   chatHistory: publicProcedure.input(z.object({
     employeeId: z.number().optional(),
     limit: z.number().min(1).max(200).default(100),
-  })).query(async ({ input }) => {
+  })).query(async ({ input, ctx }) => {
     if (input.employeeId) {
       return await db.getRecentPivotConversations(input.employeeId, input.limit);
     }
-    // Get all conversations (admin view)
-    return await db.getAllPivotConversations(input.limit);
+    // Get all conversations (admin view) - scoped to company
+    return await db.getAllPivotConversations(input.limit, ctx.companyId);
   }),
 });
 
@@ -5512,10 +5558,10 @@ const overheadRouter = router({
 const scheduleRouter = router({
   getByJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getJobSchedule(input.jobId)),
   getAll: publicProcedure.query(({ ctx }) => db.getAllScheduleItems(ctx.companyId)),
-  getByDateRange: publicProcedure.input(z.object({
+    getByDateRange: publicProcedure.input(z.object({
     startDate: z.string(),
     endDate: z.string(),
-  })).query(({ input }) => db.getScheduleByDateRange(new Date(input.startDate), new Date(input.endDate))),
+  })).query(({ input, ctx }) => db.getScheduleByDateRange(new Date(input.startDate), new Date(input.endDate), ctx.companyId)),
   create: publicProcedure.input(z.object({
     jobId: z.number(),
     title: z.string(),
@@ -6115,9 +6161,11 @@ const tradeKnowledgeRouter = router({
 
 // ─── Company Branding Router ─────────────────────────────────────────────────
 const brandingRouter = router({
-  // Get company branding (logo + color)
-  get: publicProcedure.input(z.object({ companyId: z.number() })).query(async ({ input }) => {
-    const company = await db.getCompanyById(input.companyId);
+  // Get company branding (logo + color) — uses ctx.companyId for multi-tenant security
+  get: publicProcedure.input(z.object({ companyId: z.number() })).query(async ({ input, ctx }) => {
+    // Always use ctx.companyId (from authenticated header) to prevent cross-company access
+    const cid = ctx.companyId || input.companyId;
+    const company = await db.getCompanyById(cid);
     if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
     return {
       logoUrl: company.logoUrl || null,
@@ -6132,7 +6180,8 @@ const brandingRouter = router({
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "update company logo");
-    await db.updateCompany(input.companyId, { logoUrl: input.logoUrl });
+    const cid = ctx.companyId || input.companyId;
+    await db.updateCompany(cid, { logoUrl: input.logoUrl });
     return { success: true, logoUrl: input.logoUrl };
   }),
   // Update brand color
@@ -6142,7 +6191,8 @@ const brandingRouter = router({
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "update brand color");
-    await db.updateCompany(input.companyId, { brandColor: input.brandColor } as any);
+    const cid = ctx.companyId || input.companyId;
+    await db.updateCompany(cid, { brandColor: input.brandColor } as any);
     return { success: true, brandColor: input.brandColor };
   }),
   // Remove logo
@@ -6151,7 +6201,8 @@ const brandingRouter = router({
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "remove company logo");
-    await db.updateCompany(input.companyId, { logoUrl: null });
+    const cid = ctx.companyId || input.companyId;
+    await db.updateCompany(cid, { logoUrl: null });
     return { success: true };
   }),
 });

@@ -22,6 +22,7 @@ import {
   View,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
+import { useBranding } from "@/lib/branding-context";
 import { captureRef } from "react-native-view-shot";
 import Svg, { Rect, Line, Text as SvgText, G, Circle, Path, Defs, LinearGradient, Stop } from "react-native-svg";
 
@@ -385,6 +386,8 @@ function BurndownChart({
 export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) {
   const colors = useColors();
   const { employee } = useAppAuth();
+  const { branding } = useBranding();
+  const companyDisplayName = branding?.companyName || "BuildTrack Pro";
   const utils = trpc.useUtils();
   const [activeSection, setActiveSection] = useState<ChartSection>("profitability");
   const [refreshing, setRefreshing] = useState(false);
@@ -661,9 +664,9 @@ export default function ChartsScreen({ embedded }: { embedded?: boolean } = {}) 
         .footer { margin-top: 30px; text-align: center; color: #999; font-size: 10px; border-top: 1px solid #eee; padding-top: 10px; }
       </style></head><body>
         <h1>${title}</h1>
-        <div class="meta">Generated: ${today} · BuildTrack Pro</div>
+        <div class="meta">Generated: ${today} · ${companyDisplayName}</div>
         ${tableRows}
-        <div class="footer">BuildTrack Pro · ${title} · ${today}</div>
+        <div class="footer">${companyDisplayName} · ${title} · ${today}</div>
       </body></html>`;
 
       const { uri } = await Print.printToFileAsync({ html });

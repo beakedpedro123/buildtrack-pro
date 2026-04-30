@@ -11,11 +11,12 @@ export const router = t.router;
 
 // Global timeout middleware — prevents queries from hanging forever when DB is down
 // Extract companyId from x-company-id header for multi-tenant isolation
+// SECURITY: Default to 0 (not 1) when no header — db functions return [] for companyId=0
 const withCompanyId = t.middleware(async (opts) => {
   const { ctx, next } = opts;
   const hdr = ctx.req?.headers?.["x-company-id"];
-  const companyId = hdr ? parseInt(String(hdr), 10) : 1;
-  return next({ ctx: { ...ctx, companyId: isNaN(companyId) ? 1 : companyId } });
+  const companyId = hdr ? parseInt(String(hdr), 10) : 0;
+  return next({ ctx: { ...ctx, companyId: isNaN(companyId) ? 0 : companyId } });
 });
 
 const withTimeout = t.middleware(async (opts) => {

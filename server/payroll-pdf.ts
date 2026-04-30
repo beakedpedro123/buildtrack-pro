@@ -99,13 +99,13 @@ function getLogoBuffer(): Buffer | null {
 }
 
 // ─── Shared data builder ─────────────────────────────────────────────────
-async function buildReportData(startDate: Date, endDate: Date, filterJobId?: number) {
-  const allEmployees = await db.getAllEmployees();
+async function buildReportData(startDate: Date, endDate: Date, filterJobId?: number, companyId?: number) {
+  const allEmployees = await db.getAllEmployees(companyId);
   const activeEmployees = allEmployees.filter(e => e.isActive !== false);
-  const allJobs = await db.getAllJobs();
+  const allJobs = await db.getAllJobs(companyId);
   const activeJobs = allJobs.filter(j => j.status === "active");
   const jobMap = new Map(allJobs.map(j => [j.id, j]));
-  const entries = await db.getClockEntriesForPayroll(startDate, endDate);
+  const entries = await db.getClockEntriesForPayroll(startDate, endDate, companyId);
   const employeeMap = new Map(activeEmployees.map(e => [e.id, e]));
 
   // Group entries by employee
@@ -168,7 +168,7 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
     }
     // Also apply company-level auto-deduction if no per-entry lunch
     if (totalLunchMinutes === 0) {
-      const company = await db.getCompanyById(1);
+      const company = companyId ? await db.getCompanyById(companyId) : null;
       if (company?.lunchAutoDeduct) {
         const skipDays = company.lunchSkipDays ? company.lunchSkipDays.split(",").map(Number) : [5];
         for (const day of days) {
@@ -724,12 +724,11 @@ export async function generateDetailedPayrollPDF(
   filterJobId?: number,
   companyId?: number
 ): Promise<Buffer> {
-  const { timecards, jobCosts, totalPayroll, totalHours, activeJobs, activeJobCount, isFiltered } = await buildReportData(startDate, endDate, filterJobId);
-
+  const { timecards, jobCosts, totalPayroll, totalHours, activeJobs, activeJobCount, isFiltered } = await buildReportData(startDate, endDate, filterJobId, companyId);
   // If filtering by job, get the job name
-  let filterJobName: string | undefined;
+  let filterJobName: string | undefined;;
   if (filterJobId) {
-    const allJobs = await db.getAllJobs();
+    const allJobs = await db.getAllJobs(companyId);
     const job = allJobs.find(j => j.id === filterJobId);
     filterJobName = job?.name;
   }
@@ -812,12 +811,12 @@ export async function generateEmployeeTimecardPDF(
   endDate: Date,
   companyId?: number
 ): Promise<Buffer> {
-  const { timecards, activeJobs } = await buildReportData(startDate, endDate);
+  const { timecards, activeJobs } = await buildReportData(startDate, endDate, undefined, companyId);
   const tc = timecards.find(t => t.employeeId === employeeId);
   
   if (!tc) {
     // Generate empty timecard
-    const emp = (await db.getAllEmployees()).find(e => e.id === employeeId);
+    const emp = (await db.getAllEmployees(companyId)).find(e => e.id === employeeId);
     const doc = new PDFDocument({ size: "LETTER", margins: { top: 40, bottom: 40, left: 40, right: 40 } });
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));

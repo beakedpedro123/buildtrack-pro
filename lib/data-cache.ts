@@ -1,23 +1,45 @@
 /**
- * Data Cache — Offline Support
+ * Data Cache — Offline Support (Multi-Tenant Safe)
  *
  * Caches critical data (jobs, employees) to AsyncStorage so the app
  * can show data even when offline. Data is refreshed whenever a
  * successful server response is received.
  *
- * v4: Aggressive validation — checks EVERY item in job arrays, not just first.
- *     Force clears all old caches on version bump.
+ * v5: Company-scoped cache keys — prevents cross-company data leaks.
+ *     Each company's data is stored under a unique prefix.
+ *     Caches are cleared on logout/company switch.
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const CACHE_PREFIX = "buildtrack_cache_";
-const CACHE_VERSION = 4; // v4: validate ALL items, force clear
+const CACHE_VERSION = 5; // v5: company-scoped keys, force clear all old caches
 const CACHE_VERSION_KEY = "buildtrack_cache_version";
+const ACTIVE_COMPANY_KEY = "buildtrack_active_company";
+
+// Current company ID for scoping cache keys
+let _activeCompanyId: number | null = null;
+
+/** Set the active company for cache scoping — call on login */
+export function setCacheCompanyId(companyId: number): void {
+  _activeCompanyId = companyId;
+}
+
+/** Get the active company ID */
+export function getCacheCompanyId(): number | null {
+  return _activeCompanyId;
+}
+
+/** Build a company-scoped cache key */
+function scopedKey(key: string): string {
+  const cid = _activeCompanyId || 0;
+  return `${CACHE_PREFIX}c${cid}_${key}`;
+}
 
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
   version: number;
+  companyId: number;
 }
 
 /** Clear all old caches when version changes */
@@ -26,6 +48,7 @@ async function ensureCacheVersion(): Promise<void> {
     const stored = await AsyncStorage.getItem(CACHE_VERSION_KEY);
     const storedVersion = stored ? parseInt(stored, 10) : 0;
     if (storedVersion < CACHE_VERSION) {
+      // Clear ALL caches from all companies on version bump
       const allKeys = await AsyncStorage.getAllKeys();
       const cacheKeys = allKeys.filter((k) => k.startsWith(CACHE_PREFIX));
       if (cacheKeys.length > 0) {
@@ -57,17 +80,23 @@ function isValidJobArray(data: any[]): boolean {
 export async function getCached<T>(key: string): Promise<T | null> {
   try {
     if (!versionChecked) await versionCheckPromise;
-    const raw = await AsyncStorage.getItem(CACHE_PREFIX + key);
+    const fullKey = scopedKey(key);
+    const raw = await AsyncStorage.getItem(fullKey);
     if (!raw) return null;
     const entry: CacheEntry<T> = JSON.parse(raw);
     // Reject entries from old cache versions
     if (!entry.version || entry.version < CACHE_VERSION) return null;
+    // Reject entries from a different company (extra safety)
+    if (entry.companyId && _activeCompanyId && entry.companyId !== _activeCompanyId) {
+      await AsyncStorage.removeItem(fullKey);
+      return null;
+    }
     if (entry.data === null || entry.data === undefined) return null;
     // Validate job arrays on read
     if (Array.isArray(entry.data) && (key === CACHE_KEYS.ACTIVE_JOBS || key === CACHE_KEYS.MY_JOBS)) {
       if (!isValidJobArray(entry.data)) {
         // Corrupted — remove it
-        await AsyncStorage.removeItem(CACHE_PREFIX + key);
+        await AsyncStorage.removeItem(fullKey);
         return null;
       }
     }
@@ -89,8 +118,13 @@ export async function setCache<T>(key: string, data: T): Promise<void> {
         return;
       }
     }
-    const entry: CacheEntry<T> = { data, timestamp: Date.now(), version: CACHE_VERSION };
-    await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
+    const entry: CacheEntry<T> = {
+      data,
+      timestamp: Date.now(),
+      version: CACHE_VERSION,
+      companyId: _activeCompanyId || 0,
+    };
+    await AsyncStorage.setItem(scopedKey(key), JSON.stringify(entry));
   } catch {
     // Silently fail
   }
@@ -98,21 +132,34 @@ export async function setCache<T>(key: string, data: T): Promise<void> {
 
 export async function isCacheFresh(key: string, ttlMs = 24 * 60 * 60 * 1000): Promise<boolean> {
   try {
-    const raw = await AsyncStorage.getItem(CACHE_PREFIX + key);
+    const raw = await AsyncStorage.getItem(scopedKey(key));
     if (!raw) return false;
     const entry = JSON.parse(raw);
     if (!entry.version || entry.version < CACHE_VERSION) return false;
+    if (entry.companyId && _activeCompanyId && entry.companyId !== _activeCompanyId) return false;
     return Date.now() - entry.timestamp < ttlMs;
   } catch {
     return false;
   }
 }
 
-/** Force clear all caches — use when data is known to be corrupted */
+/** Force clear all caches for ALL companies — use on logout or data corruption */
 export async function clearAllCaches(): Promise<void> {
   try {
     const allKeys = await AsyncStorage.getAllKeys();
     const cacheKeys = allKeys.filter((k) => k.startsWith(CACHE_PREFIX));
+    if (cacheKeys.length > 0) {
+      await AsyncStorage.multiRemove(cacheKeys);
+    }
+  } catch {}
+}
+
+/** Clear caches only for the current company */
+export async function clearCompanyCaches(): Promise<void> {
+  try {
+    const prefix = `${CACHE_PREFIX}c${_activeCompanyId || 0}_`;
+    const allKeys = await AsyncStorage.getAllKeys();
+    const cacheKeys = allKeys.filter((k) => k.startsWith(prefix));
     if (cacheKeys.length > 0) {
       await AsyncStorage.multiRemove(cacheKeys);
     }

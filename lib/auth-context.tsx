@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState, use
 import { Platform } from "react-native";
 import { trpc } from "./trpc";
 import { scheduleFridayMeetingReminder, cancelFridayMeetingReminder, registerPushTokenDirect, clearPushTokenDirect } from "./notifications";
+import { setCacheCompanyId, clearAllCaches } from "@/lib/data-cache";
 
 export type EmployeeRole = "owner" | "office_manager" | "logistics" | "foreman" | "laborer";
 
@@ -62,6 +63,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (raw) {
           try {
             const parsed = JSON.parse(raw);
+            // Set company scope for cache isolation on app startup
+            if (parsed.companyId) setCacheCompanyId(parsed.companyId);
             setEmployee(parsed);
           } catch {}
         }
@@ -119,6 +122,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (emp: AuthEmployee) => {
     refreshedRef.current = true; // No need to refresh right after login
+    // Set company scope for cache isolation BEFORE any data loads
+    setCacheCompanyId(emp.companyId);
     setEmployee(emp);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(emp));
     // Schedule Friday meeting reminder for management roles
@@ -134,6 +139,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshedRef.current = false; // Reset for next login
     setEmployee(null);
     await AsyncStorage.removeItem(STORAGE_KEY);
+    // Clear ALL cached data to prevent cross-company data leaks
+    await clearAllCaches();
     // Clear all React Query cache so next login gets fresh data
     const qc = getGlobalQueryClient();
     if (qc) {

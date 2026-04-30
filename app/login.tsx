@@ -3,7 +3,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { useOfflineQueue } from "@/lib/offline-queue";
 import { useLanguage } from "@/lib/language-context";
-import { getCached, setCache, CACHE_KEYS } from "@/lib/data-cache";
+import { getCached, setCache, CACHE_KEYS, setCacheCompanyId } from "@/lib/data-cache";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
@@ -95,20 +95,26 @@ export default function LoginScreen() {
     });
   }, []);
 
-  // Load cached employees on mount for offline use
+  // Load cached employees when companyId is known (scoped by company)
   useEffect(() => {
-    getCached<any[]>(CACHE_KEYS.LOGIN_EMPLOYEES).then((d) => {
-      if (d) setCachedEmployees(d);
-    });
-  }, []);
+    if (companyId) {
+      setCacheCompanyId(companyId);
+      getCached<any[]>(CACHE_KEYS.LOGIN_EMPLOYEES).then((d) => {
+        if (d) setCachedEmployees(d);
+      });
+    } else {
+      setCachedEmployees(null);
+    }
+  }, [companyId]);
 
-  // Cache employees when fetched from server
+  // Cache employees when fetched from server (scoped by company)
   useEffect(() => {
-    if (employees && employees.length > 0) {
+    if (employees && employees.length > 0 && companyId) {
+      setCacheCompanyId(companyId);
       setCache(CACHE_KEYS.LOGIN_EMPLOYEES, employees);
       setCachedEmployees(employees);
     }
-  }, [employees]);
+  }, [employees, companyId]);
 
   const effectiveEmployees = employees || cachedEmployees || [];
 
@@ -144,6 +150,8 @@ export default function LoginScreen() {
     await AsyncStorage.removeItem(COMPANY_CODE_KEY);
     setCompanyCode("");
     setCompanyName("");
+    setCompanyId(null);
+    setCachedEmployees(null);
     setStep("company");
   };
 
