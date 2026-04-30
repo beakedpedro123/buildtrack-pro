@@ -47,7 +47,7 @@ async function assertRole(requestingId: number, allowedRoles: string[], action: 
 }
 
 const employeeRouter = router({
-  list: publicProcedure.input(z.object({ companyId: z.number().optional() }).optional()).query(({ input }) => db.getAllEmployees(input?.companyId)),
+  list: publicProcedure.input(z.object({ companyId: z.number().optional() }).optional()).query(({ input, ctx }) => db.getAllEmployees(input?.companyId || ctx.companyId)),
   listByCompany: publicProcedure.input(z.object({ companyId: z.number() })).query(({ input }) => db.getAllEmployees(input.companyId)),
   getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getEmployeeById(input.id)),
   verifyPin: publicProcedure.input(z.object({ pin: z.string(), companyId: z.number().optional() })).mutation(({ input }) => db.getEmployeeByPin(input.pin, input.companyId)),
@@ -276,7 +276,7 @@ const clockRouter = router({
   activeEntry: publicProcedure.input(z.object({ employeeId: z.number() })).query(({ input }) => db.getActiveClockEntry(input.employeeId)),
   history: publicProcedure.input(z.object({ employeeId: z.number(), since: z.string().optional() })).query(({ input }) => db.getClockEntriesForEmployee(input.employeeId, input.since ? new Date(input.since) : undefined)),
   forJob: publicProcedure.input(z.object({ jobId: z.number(), date: z.string().optional() })).query(({ input }) => db.getClockEntriesForJob(input.jobId, input.date ? new Date(input.date) : undefined)),
-  allClockedIn: publicProcedure.query(() => db.getClockedInEmployees()),
+  allClockedIn: publicProcedure.query(({ ctx }) => db.getClockedInEmployees(ctx.companyId)),
   laborCostForJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getLaborCostForJob(input.jobId)),
   updateEntry: publicProcedure.input(z.object({
     entryId: z.number(),
@@ -596,7 +596,7 @@ const changeOrdersRouter = router({
 });
 
 const meetingsRouter = router({
-  list: publicProcedure.query(() => db.getMeetings(30)),
+  list: publicProcedure.query(({ ctx }) => db.getMeetings(30, ctx.companyId)),
   getById: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getMeetingById(input.id)),
   create: publicProcedure.input(z.object({
     title: z.string().min(1).max(255),
@@ -687,8 +687,8 @@ const meetingsRouter = router({
 });
 
 const goalsRouter = router({
-  list: publicProcedure.input(z.object({ weekOf: z.string().optional(), employeeId: z.number().optional(), employeeRole: z.string().optional() })).query(async ({ input }) => {
-    const allGoals = await db.getWeeklyGoals(input.weekOf ? new Date(input.weekOf) : undefined);
+  list: publicProcedure.input(z.object({ weekOf: z.string().optional(), employeeId: z.number().optional(), employeeRole: z.string().optional() })).query(async ({ input, ctx }) => {
+    const allGoals = await db.getWeeklyGoals(input.weekOf ? new Date(input.weekOf) : undefined, ctx.companyId);
     const MANAGEMENT_ROLES = ["owner", "office_manager", "logistics"];
     const isManagement = MANAGEMENT_ROLES.includes(input.employeeRole || "");
     // Management (owner, office_manager, logistics) sees ALL goals
@@ -919,7 +919,7 @@ const payrollRouter = router({
   })).query(async ({ input, ctx }) => {
     const start = new Date(input.startDate);
     const end = new Date(input.endDate);
-    const entries = await db.getClockEntriesForPayroll(start, end);
+    const entries = await db.getClockEntriesForPayroll(start, end, ctx.companyId);
     const allEmployees = await db.getAllEmployees(ctx.companyId);
     const employeeMap = new Map(allEmployees.map((e) => [e.id, e]));
     type SummaryRow = {
@@ -1078,32 +1078,32 @@ const qbEstimatesRouter = router({
 });
 
 const budgetAlertsRouter = router({
-  getAlerts: publicProcedure.query(() => db.getBudgetAlerts()),
+  getAlerts: publicProcedure.query(({ ctx }) => db.getBudgetAlerts(ctx.companyId)),
 });
 
 const laborDashboardRouter = router({
   byJob: publicProcedure.input(z.object({
     startDate: z.string(),
     endDate: z.string(),
-  })).query(async ({ input }) => {
-    return db.getLaborCostByJob(new Date(input.startDate), new Date(input.endDate));
+  })).query(async ({ input, ctx }) => {
+    return db.getLaborCostByJob(new Date(input.startDate), new Date(input.endDate), ctx.companyId);
   }),
   weeklyTrend: publicProcedure.input(z.object({
     weeks: z.number().default(8),
-  })).query(async ({ input }) => {
-    return db.getWeeklyLaborCostTrend(input.weeks);
+  })).query(async ({ input, ctx }) => {
+    return db.getWeeklyLaborCostTrend(input.weeks, ctx.companyId);
   }),
   byEmployee: publicProcedure.input(z.object({
     startDate: z.string(),
     endDate: z.string(),
-  })).query(async ({ input }) => {
-    return db.getLaborCostByEmployee(new Date(input.startDate), new Date(input.endDate));
+  })).query(async ({ input, ctx }) => {
+    return db.getLaborCostByEmployee(new Date(input.startDate), new Date(input.endDate), ctx.companyId);
   }),
 });
 
 const financialChartsRouter = router({
-  jobProfitability: publicProcedure.query(() => db.getJobProfitability()),
-  taxBreakdown: publicProcedure.query(() => db.getTaxBreakdown()),
+  jobProfitability: publicProcedure.query(({ ctx }) => db.getJobProfitability(ctx.companyId)),
+  taxBreakdown: publicProcedure.query(({ ctx }) => db.getTaxBreakdown(ctx.companyId)),
   budgetBurnDown: publicProcedure.input(z.object({
     jobId: z.number(),
     weeks: z.number().default(12),
@@ -1186,7 +1186,7 @@ const kpiRouter = router({
 });
 
 const safetyTopicsRouter = router({
-  list: publicProcedure.input(z.object({ activeOnly: z.boolean().default(true) })).query(({ input }) => db.getSafetyTopics(input.activeOnly)),
+  list: publicProcedure.input(z.object({ activeOnly: z.boolean().default(true) })).query(({ input, ctx }) => db.getSafetyTopics(input.activeOnly, ctx.companyId)),
   create: publicProcedure.input(z.object({
     title: z.string().min(1).max(255),
     content: z.string().optional(),
@@ -1218,7 +1218,7 @@ const safetyTopicsRouter = router({
 });
 
 const safetyMeetingsRouter = router({
-  list: publicProcedure.input(z.object({ limit: z.number().default(50) })).query(({ input }) => db.getSafetyMeetings(input.limit)),
+  list: publicProcedure.input(z.object({ limit: z.number().default(50) })).query(({ input, ctx }) => db.getSafetyMeetings(input.limit, ctx.companyId)),
   forJob: publicProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getSafetyMeetingsForJob(input.jobId)),
   forWeek: publicProcedure.input(z.object({ startDate: z.string(), endDate: z.string() })).query(({ input }) => 
     db.getSafetyMeetingsForWeek(new Date(input.startDate), new Date(input.endDate))
@@ -5478,9 +5478,9 @@ const messagesRouter = router({
 
 // ─── Company Overhead Router ──────────────────────────────────────────────
 const overheadRouter = router({
-  list: publicProcedure.query(() => db.getCompanyOverhead()),
-  listAll: publicProcedure.query(() => db.getAllCompanyOverhead()),
-  getTotal: publicProcedure.query(() => db.getMonthlyOverheadTotal()),
+  list: publicProcedure.query(({ ctx }) => db.getCompanyOverhead(ctx.companyId)),
+  listAll: publicProcedure.query(({ ctx }) => db.getAllCompanyOverhead(ctx.companyId)),
+  getTotal: publicProcedure.query(({ ctx }) => db.getMonthlyOverheadTotal(ctx.companyId)),
   create: publicProcedure.input(z.object({
     category: z.string(),
     label: z.string(),
@@ -5591,7 +5591,7 @@ const scheduleRouter = router({
 // ─── Employee Tax Info Router ─────────────────────────────────────────────
 const taxInfoRouter = router({
   get: publicProcedure.input(z.object({ employeeId: z.number() })).query(({ input }) => db.getEmployeeTaxInfo(input.employeeId)),
-  getAll: publicProcedure.query(() => db.getAllEmployeeTaxInfo()),
+  getAll: publicProcedure.query(({ ctx }) => db.getAllEmployeeTaxInfo(ctx.companyId)),
   upsert: publicProcedure.input(z.object({
     employeeId: z.number(),
     ssn: z.string().optional(),

@@ -2487,8 +2487,8 @@ export async function deleteOverheadItem(id: number) {
   await db.update(companyOverhead).set({ isActive: false }).where(eq(companyOverhead.id, id));
 }
 
-export async function getMonthlyOverheadTotal() {
-  const items = await getCompanyOverhead();
+export async function getMonthlyOverheadTotal(companyId?: number) {
+  const items = await getCompanyOverhead(companyId);
   return items.reduce((sum, item) => sum + parseFloat((item.monthlyAmount as string) || "0"), 0);
 }
 

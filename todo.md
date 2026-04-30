@@ -2749,3 +2749,8 @@
 
 ## Phase 144: Pivot FAB Tap Fix
 - [x] Fix Pivot FAB: tapping should open chat, dragging should move it (currently only drag works)
+
+## Phase 145: Fix Multi-Tenant Data Isolation
+- [x] Fix signup flow: new signups must create a proper owner profile so the owner can then create employees
+- [x] Fix multi-tenant data isolation: all 12 critical endpoints now use ctx.companyId instead of defaulting to company 1
+- [x] Verified: employees.list, clock.allClockedIn, meetings.list, goals.list, budgetAlerts, laborDashboard, financialCharts, payroll, safetyTopics, safetyMeetings, overhead, taxInfo all now filter by company
