@@ -64,7 +64,7 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
   const dailyLabor = new Map<string, { totalMinutes: number; workers: Set<number>; cost: number }>();
   for (const entry of clockEntries) {
     if (!entry.clockOut) continue;
-    const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+    const mins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
     const lunchMins = (entry as any).lunchMinutes || 0;
     const netMins = Math.max(0, mins - lunchMins);
     const emp = empMap.get(entry.employeeId);
@@ -80,7 +80,7 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
 
   const totalLaborMinutes = clockEntries.reduce((sum, e) => {
     if (!e.clockOut) return sum;
-    const mins = Math.max(0, Math.floor((new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / 60000));
+    const mins = Math.max(0, Math.round((new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / 60000));
     return sum + Math.max(0, mins - ((e as any).lunchMinutes || 0));
   }, 0);
 

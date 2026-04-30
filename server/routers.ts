@@ -197,14 +197,14 @@ const jobsRouter = router({
     // Fetch labor costs for all jobs in one pass
     const allEntries = await db.getAllClockEntries(cid);
     const allEmployees = await db.getAllEmployees(cid);
-    const empMap = new Map(allEmployees.map((e: any) => [e.id, e]));
+    const empMap = new Map<number, any>(allEmployees.map((e: any) => [e.id, e]));
     const allExpenses = await db.getAllExpenses(cid);
     // Aggregate labor + expenses per job
     const laborByJob: Record<number, number> = {};
     const hoursByJob: Record<number, number> = {};
     for (const entry of allEntries) {
       if (!entry.clockOut) continue;
-      const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+      const mins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
       const emp = empMap.get(entry.employeeId);
       const cost = emp?.hourlyRate ? (mins / 60) * parseFloat(emp.hourlyRate) : 0;
       laborByJob[entry.jobId] = (laborByJob[entry.jobId] || 0) + cost;
@@ -225,13 +225,13 @@ const jobsRouter = router({
     const activeJobs = await db.getActiveJobs(cid);
     const allEntries = await db.getAllClockEntries(cid);
     const allEmployees = await db.getAllEmployees(cid);
-    const empMap = new Map(allEmployees.map((e: any) => [e.id, e]));
+    const empMap = new Map<number, any>(allEmployees.map((e: any) => [e.id, e]));
     const allExpenses = await db.getAllExpenses(cid);
     const laborByJob: Record<number, number> = {};
     const hoursByJob: Record<number, number> = {};
     for (const entry of allEntries) {
       if (!entry.clockOut) continue;
-      const mins = Math.max(0, Math.floor((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+      const mins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
       const emp = empMap.get(entry.employeeId);
       const cost = emp?.hourlyRate ? (mins / 60) * parseFloat(emp.hourlyRate) : 0;
       laborByJob[entry.jobId] = (laborByJob[entry.jobId] || 0) + cost;
@@ -269,9 +269,10 @@ const jobsRouter = router({
     taxRate: z.string().optional(),
     workersCompRate: z.string().optional(),
     liabilityInsRate: z.string().optional(),
+    assignedCrew: z.string().optional(), // JSON array of employee IDs assigned to this job
     createdBy: z.number(),
-  })).mutation(({ input }) => {
-    const data = { ...input, startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined };
+  })).mutation(({ input, ctx }) => {
+    const data = { ...input, companyId: ctx.companyId, startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined };
     return db.createJob(data);
   }),
   update: publicProcedure.input(z.object({
@@ -288,7 +289,9 @@ const jobsRouter = router({
     taxRate: z.string().optional(),
     workersCompRate: z.string().optional(),
     liabilityInsRate: z.string().optional(),
-  })).mutation(({ input }) => {
+    assignedCrew: z.string().optional(),
+  })).mutation(async ({ input, ctx }) => {
+    await verifyJobOwnership(input.id, ctx.companyId);
     const { id, ...rest } = input;
     const data = { ...rest, endDate: rest.endDate ? new Date(rest.endDate) : undefined };
     return db.updateJob(id, data);
@@ -703,7 +706,7 @@ const meetingsRouter = router({
     if (!meeting || !meeting.audioUrl) throw new Error("Meeting or audio not found");
     // Get employee list for name matching in goals
     const employees = await db.getAllEmployees(ctx.companyId);
-    const employeeNames = employees.map(e => e.name).join(", ");
+    const employeeNames = employees.map((e: any) => e.name).join(", ");
     let transcript = "";
     try {
       console.log(`[transcribeAndSummarize] Starting transcription for meeting ${input.id}, audioUrl: ${meeting.audioUrl}`);
@@ -742,7 +745,7 @@ const meetingsRouter = router({
     }
     // Build employee name-to-id map for matching
     const nameToId: Record<string, number> = {};
-    employees.forEach(e => { nameToId[e.name.toLowerCase()] = e.id; });
+    employees.forEach((e: any) => { nameToId[e.name.toLowerCase()] = e.id; });
     const goalsWithIds = suggestedGoals.map(g => ({
       title: g.title,
       assignee: g.assignee || null,
@@ -996,7 +999,7 @@ const payrollRouter = router({
     const end = new Date(input.endDate);
     const entries = await db.getClockEntriesForPayroll(start, end, ctx.companyId);
     const allEmployees = await db.getAllEmployees(ctx.companyId);
-    const employeeMap = new Map(allEmployees.map((e) => [e.id, e]));
+    const employeeMap = new Map<number, any>(allEmployees.map((e: any) => [e.id, e]));
     type SummaryRow = {
       employeeId: number; name: string; role: string; hourlyRate: string | null;
       payType: string; salaryAmount: string | null; salaryProjects: number[];
@@ -1022,7 +1025,7 @@ const payrollRouter = router({
     for (const entry of entries) {
       if (!entry.clockOut) continue;
       const durationMs = new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime();
-      const minutes = Math.floor(durationMs / 60000);
+      const minutes = Math.round(durationMs / 60000);
       if (!summary[entry.employeeId]) {
         const emp = employeeMap.get(entry.employeeId);
         let salaryProjects: number[] = [];
@@ -1053,7 +1056,7 @@ const payrollRouter = router({
     let totalMinutes = 0;
     const rows = entries.map((e) => {
       const durationMs = e.clockOut ? new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime() : 0;
-      const minutes = Math.floor(durationMs / 60000);
+      const minutes = Math.round(durationMs / 60000);
       totalMinutes += minutes;
       return { ...e, durationMinutes: minutes };
     });
@@ -2149,10 +2152,11 @@ When the owner asks you to create a job, start a new project, or set up a new bu
 2. "What type of project?" (new home, addition, remodel, commercial, steel building)
 3. "What's the approximate square footage?"
 4. "What's the total budget?" (or ask if they want you to estimate based on $/SF)
-5. "How many crew members will you have on this job?"
+5. "Which crew members do you want on this job?" — Use get_employees to show the roster. Let the owner pick SPECIFIC employees by name. Store their IDs as assignedCrew.
 6. "Any special conditions?" (multi-story, complex roof, tight access, steep site, etc.)
 7. "When do you want to start?" (default to next Monday)
 8. "What's the address and client name?"
+9. "Is this hourly or budget?" — If hourly, track by time & materials. If budget, calculate profit timeline.
 
 **Step 2 — Use productivity_lookup FIRST:**
 Before estimating ANY duration, ALWAYS call productivity_lookup to get real production rates.
@@ -2162,17 +2166,22 @@ NEVER guess how long something takes. Example:
 - Use those rates to calculate realistic durations
 
 **Step 3 — Generate Budget + Schedule:**
-Call create_job_with_budget with all gathered info. The tool will:
+Call create_job_with_budget with all gathered info INCLUDING assignedCrewIds (the employee IDs the owner selected). The tool will:
 - Generate phase-by-phase schedule with realistic durations
-- Allocate budget across phases (labor 45%, materials 35%, overhead 15%, profit 5%)
-- Create the job in the database with schedule tasks
-- Show daily cost breakdown (burn rate)
+- Calculate REAL daily labor cost from selected employees' actual hourly rates (not estimates)
+- Apply overhead rates (tax, workers comp, liability) from company settings
+- Calculate profit timeline: "You have X work days before this job stops being profitable"
+- Create the job in the database with schedule tasks and assigned crew
+- Show daily cost breakdown using REAL crew costs
 
-**Step 4 — Review + Adjust:**
-Present the schedule and budget to the owner. Ask:
+**Step 4 — Review + Adjust (HEAVY OWNER INPUT):**
+Present the schedule, profit timeline, and daily crew cost to the owner. Ask:
 - "Does this schedule look right? Want to adjust any phase durations?"
 - "Is the budget allocation correct? Want to move money between phases?"
+- "Your crew costs $X/day with overhead. At this rate you have Y profitable work days. Does that feel right?"
 - If the owner says "framing should only take 3 days not 10", use the overridePhases parameter
+- The owner's input ALWAYS overrides your suggestions — you are an ASSIST tool, not the decision maker
+- After finalizing, push daily tasks as goals to the foreman so they know what to complete each day
 
 **Step 5 — Learn:**
 When a job phase completes, use log_job_completion to capture actual vs estimated.
@@ -2917,6 +2926,8 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               billingType: { type: "string", enum: ["fixed", "time_materials", "cost_plus"], description: "Billing type for the job. Default 'fixed'." },
               specialConditions: { type: "string", description: "Any special conditions: multi-story, complex roof, tight access, steep site, etc." },
               startDate: { type: "string", description: "Planned start date (ISO format). Default to next Monday if not specified." },
+              assignedCrewIds: { type: "array", items: { type: "number" }, description: "Array of employee IDs to assign to this job. Get these from get_employees. The tool will calculate real daily labor cost from their actual hourly rates." },
+              isHourly: { type: "boolean", description: "If true, this is an hourly/T&M job. If false (default), it's a budget/fixed-price job with profit timeline." },
               overridePhases: {
                 type: "array",
                 items: {
@@ -4787,6 +4798,25 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
             const clientName = args.clientName || "";
             const startDateStr = args.startDate || "";
             const specialConditions = args.specialConditions || "";
+            const assignedCrewIds: number[] = args.assignedCrewIds || [];
+            const isHourly = args.isHourly || false;
+
+            // Fetch real employee data for assigned crew
+            let crewMembers: any[] = [];
+            let realDailyLaborCost = 0;
+            let realDailyOverhead = 0;
+            if (assignedCrewIds.length > 0) {
+              const allEmps = await db.getAllEmployees(ctx.companyId);
+              crewMembers = allEmps.filter((e: any) => assignedCrewIds.includes(e.id));
+              const HOURS_PER_DAY = 8;
+              realDailyLaborCost = crewMembers.reduce((sum: number, e: any) => sum + (parseFloat(e.hourlyRate || "0") * HOURS_PER_DAY), 0);
+              // Get company overhead rates from the job or defaults
+              const taxR = 0.0765; // Default FICA
+              const wcR = 0.10;   // Default WC
+              const liabR = 0.03; // Default liability
+              realDailyOverhead = realDailyLaborCost * (taxR + wcR + liabR);
+            }
+            const realDailyTotalCost = realDailyLaborCost + realDailyOverhead;
 
             // Generate schedule from productivity knowledge
             const phases = getPhasesForProjectType(projectType);
@@ -4833,8 +4863,9 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               address: address || null,
               status: "active",
               totalBudget: totalBudget.toString(),
-              billingType,
+              billingType: isHourly ? "time_materials" : billingType,
               startDate: startDate,
+              assignedCrew: assignedCrewIds.length > 0 ? JSON.stringify(assignedCrewIds) : null,
             });
 
             // Create schedule tasks for each phase
@@ -4878,29 +4909,41 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
               totalDays += adjustedDuration;
             }
 
-            // Calculate daily cost breakdown
-            const avgDailyLabor = (totalBudget * 0.45) / totalDays; // 45% labor
-            const avgDailyMaterials = (totalBudget * 0.35) / totalDays; // 35% materials
-            const avgDailyOverhead = (totalBudget * 0.15) / totalDays; // 15% overhead
-            const avgDailyProfit = (totalBudget * 0.05) / totalDays; // 5% profit margin
+            // Calculate daily cost breakdown — use REAL crew costs if available
+            const useRealCosts = realDailyTotalCost > 0;
+            const avgDailyLabor = useRealCosts ? realDailyLaborCost : (totalBudget * 0.45) / totalDays;
+            const avgDailyOverheadCost = useRealCosts ? realDailyOverhead : (totalBudget * 0.15) / totalDays;
+            const avgDailyMaterials = (totalBudget * 0.35) / totalDays;
+            const dailyBurnRate = avgDailyLabor + avgDailyOverheadCost + avgDailyMaterials;
+            const profitableDays = dailyBurnRate > 0 ? Math.floor(totalBudget / dailyBurnRate) : 0;
+            const bufferDays = Math.max(0, profitableDays - totalDays);
+            const estimatedProfit = totalBudget - (dailyBurnRate * totalDays);
 
             toolResult = `✅ Job "${jobName}" created successfully!\n\n`;
             toolResult += `📋 **Project Summary:**\n`;
             toolResult += `- Type: ${projectType.replace('_', ' ')}\n`;
             toolResult += `- Size: ${totalSqft.toLocaleString()} SF\n`;
             toolResult += `- Budget: $${totalBudget.toLocaleString()}\n`;
-            toolResult += `- Crew: ${crewSize} workers\n`;
+            if (crewMembers.length > 0) {
+              toolResult += `- Assigned Crew: ${crewMembers.map((e: any) => e.name).join(', ')} (${crewMembers.length} workers)\n`;
+            } else {
+              toolResult += `- Crew: ${crewSize} workers\n`;
+            }
             toolResult += `- Start: ${startDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}\n`;
             toolResult += `- Duration: ~${totalDays} work days (${Math.ceil(totalDays / 5)} weeks)\n`;
             if (complexityFactor > 1.0) toolResult += `- Complexity factor: ${((complexityFactor - 1) * 100).toFixed(0)}% added for: ${specialConditions}\n`;
             toolResult += `\n📅 **Phase Schedule:**\n${scheduleTasks.join('\n')}\n`;
-            toolResult += `\n💰 **Daily Cost Breakdown (average):**\n`;
+            toolResult += `\n💰 **Daily Cost Breakdown${useRealCosts ? ' (from actual crew rates)' : ' (estimated)'}:**\n`;
             toolResult += `- Labor: $${avgDailyLabor.toFixed(0)}/day\n`;
-            toolResult += `- Materials: $${avgDailyMaterials.toFixed(0)}/day\n`;
-            toolResult += `- Overhead: $${avgDailyOverhead.toFixed(0)}/day\n`;
-            toolResult += `- Profit margin: $${avgDailyProfit.toFixed(0)}/day\n`;
-            toolResult += `- Total burn rate: $${(avgDailyLabor + avgDailyMaterials + avgDailyOverhead).toFixed(0)}/day\n`;
-            toolResult += `\nPresent this as a clean summary. The job is now live in the Jobs tab with the schedule. Ask the owner if they want to adjust any phase durations or budgets.`;
+            toolResult += `- Overhead: $${avgDailyOverheadCost.toFixed(0)}/day\n`;
+            toolResult += `- Materials (est): $${avgDailyMaterials.toFixed(0)}/day\n`;
+            toolResult += `- Total burn rate: $${dailyBurnRate.toFixed(0)}/day\n`;
+            toolResult += `\n📈 **Profit Timeline:**\n`;
+            toolResult += `- Max profitable work days: ${profitableDays}\n`;
+            toolResult += `- Scheduled work days: ${totalDays}\n`;
+            toolResult += `- Buffer days: ${bufferDays}${bufferDays <= 3 ? ' ⚠️ TIGHT' : ''}\n`;
+            toolResult += `- Estimated profit: $${estimatedProfit.toFixed(0)}${estimatedProfit < 0 ? ' ❌ OVER BUDGET' : ''}\n`;
+            toolResult += `\nPresent this as a clean summary with the profit timeline prominently displayed. The job is now live in the Jobs tab with the schedule. The Planner tab in Schedule shows the full budget breakdown. Ask the owner if they want to adjust any phase durations or budgets. Remind them their input ALWAYS overrides your suggestions.`;
 
             // Send push notification to all employees about the new job
             try {
@@ -5817,8 +5860,8 @@ const companyRouter = router({
     };
   }),
   
-  // Update subscription (called by Stripe webhook or admin)
-  updateSubscription: publicProcedure.input(z.object({
+  // Update subscription (called by Stripe webhook or admin) — MUST be admin-only (Gemini audit fix)
+  updateSubscription: adminProcedure.input(z.object({
     companyId: z.number(),
     plan: z.enum(["trial", "starter", "professional", "enterprise"]),
     subscriptionStatus: z.enum(["trialing", "active", "past_due", "cancelled", "expired"]),
@@ -5832,8 +5875,8 @@ const companyRouter = router({
   }),
 
   // ── Lunch Settings (company-level) ──
-  getLunchSettings: publicProcedure.input(z.object({ companyId: z.number().optional() })).query(async ({ input }) => {
-    const cId = input.companyId || 1;
+  getLunchSettings: publicProcedure.input(z.object({ companyId: z.number().optional() })).query(async ({ input, ctx }) => {
+    const cId = input.companyId || ctx.companyId || 0;
     const company = await db.getCompanyById(cId);
     if (!company) return { enabled: false, deductMinutes: 30, minShiftMinutes: 360, skipDays: [5] };
     return {
@@ -5850,7 +5893,7 @@ const companyRouter = router({
     minShiftMinutes: z.number().min(60).max(720),
     skipDays: z.array(z.number().min(0).max(6)),
   })).mutation(async ({ input, ctx }) => {
-    const cId = input.companyId || 1;
+    const cId = input.companyId || ctx.companyId || 0;
     return db.updateCompany(cId, {
       lunchAutoDeduct: input.enabled,
       lunchDeductMinutes: input.deductMinutes,
@@ -5898,7 +5941,7 @@ const supportRouter = router({
     }),
     byStatus: publicProcedure.input(z.object({ status: z.string() })).query(({ input, ctx }) => {
       // Security: scope to caller's company
-      return db.getSupportTicketsByStatus(input.status, ctx.companyId || 1);
+      return db.getSupportTicketsByStatus(input.status, ctx.companyId || 0);
     }),
     create: publicProcedure.input(z.object({
       companyId: z.number(),

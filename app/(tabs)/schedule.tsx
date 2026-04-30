@@ -84,7 +84,7 @@ const CONSTRUCTION_PHASES = [
   "Exterior Finish", "Landscaping", "Punch List", "Final Inspection",
 ];
 
-type ViewMode = "overview" | "calendar" | "tasks";
+type ViewMode = "overview" | "calendar" | "tasks" | "planner";
 
 export default function ScheduleScreen() {
   const colors = useColors();
@@ -126,6 +126,7 @@ export default function ScheduleScreen() {
   const offlineScheduleUpdate = useOfflineMutation("schedule.update", updateMutation, { silent: true });
   const offlineScheduleDelete = useOfflineMutation("schedule.delete", deleteMutation, { silent: true });
   const deleteByJobMutation = trpc.schedule.deleteByJob.useMutation({ onSuccess: () => { refetch(); utils.schedule.getAll.invalidate(); } });
+  const syncGoalsMutation = trpc.goals.syncFromSchedule.useMutation();
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -619,9 +620,9 @@ Generate 25-50 tasks spanning the appropriate duration for a typical ${tradeLabe
         {/* View Mode Tabs (only when a job is selected) */}
         {selectedJobId && (
           <View style={{ flexDirection: "row", paddingHorizontal: 20, marginBottom: 4, gap: 0 }}>
-            {(["tasks", "calendar", "overview"] as ViewMode[]).map((mode) => {
+            {(["tasks", "calendar", "planner", "overview"] as ViewMode[]).map((mode) => {
               const isActive = viewMode === mode;
-              const label = mode === "tasks" ? "Phases" : mode === "calendar" ? "Calendar" : "Progress";
+              const label = mode === "tasks" ? "Phases" : mode === "calendar" ? "Calendar" : mode === "planner" ? "Planner" : "Progress";
               return (
                 <TouchableOpacity
                   key={mode}
@@ -817,7 +818,43 @@ Generate 25-50 tasks spanning the appropriate duration for a typical ${tradeLabe
               }
             />
           </>
-        ) : (
+        ) : viewMode === "planner" ? (
+          /* ═══ BUDGET PLANNER VIEW ═══ */
+          <BudgetPlannerView
+            job={activeJobs.find((j: any) => j.id === selectedJobId)}
+            scheduleItems={jobScheduleItems}
+            allEmployees={allEmployees || []}
+            colors={colors}
+            isManagement={isManagement}
+            onPushGoals={(tasks: any[]) => {
+              Alert.alert(
+                "Push as Goals",
+                `Push ${tasks.length} schedule tasks as daily goals for the foreman? This will create goals for each assigned employee based on the schedule.`,
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Push Goals",
+                    onPress: () => {
+                      syncGoalsMutation.mutate(
+                        { weekOf: new Date().toISOString(), createdBy: empId },
+                        {
+                          onSuccess: (data: any) => {
+                            if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            Alert.alert("Goals Pushed", data?.message || `Schedule tasks synced as daily goals.`);
+                            utils.goals.list.invalidate();
+                          },
+                          onError: () => {
+                            Alert.alert("Error", "Failed to push goals. Try again.");
+                          },
+                        }
+                      );
+                    },
+                  },
+                ]
+              );
+            }}
+          />
+        ) : viewMode === "tasks" ? (
           /* ═══ PHASES / TASKS VIEW ═══ */
           <FlatList
             data={Object.entries(phaseGroups)}
@@ -861,7 +898,7 @@ Generate 25-50 tasks spanning the appropriate duration for a typical ${tradeLabe
               );
             }}
           />
-        )}
+        ) : null}
 
         {/* Add/Edit Task Modal */}
         <Modal visible={showAddModal} animationType="slide" transparent>
@@ -970,6 +1007,222 @@ Generate 25-50 tasks spanning the appropriate duration for a typical ${tradeLabe
         </Modal>
       </ImageBackground>
     </ScreenContainer>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BUDGET PLANNER VIEW — Shows crew cost, overhead, profit timeline, manual task entry
+// ═══════════════════════════════════════════════════════════════════════════════
+function BudgetPlannerView({ job, scheduleItems, allEmployees, colors, isManagement, onPushGoals }: {
+  job: any;
+  scheduleItems: any[];
+  allEmployees: any[];
+  colors: any;
+  isManagement: boolean;
+  onPushGoals: (tasks: any[]) => void;
+}) {
+  if (!job) return (
+    <View style={{ alignItems: "center", paddingTop: 60 }}>
+      <Text style={{ fontSize: 16, color: colors.muted }}>Select a job to view the planner.</Text>
+    </View>
+  );
+
+  // Parse assigned crew from job
+  const crewIds: number[] = (() => {
+    try { return job.assignedCrew ? JSON.parse(job.assignedCrew) : []; } catch { return []; }
+  })();
+  const crewMembers = allEmployees.filter((e: any) => crewIds.includes(e.id));
+  const hasAssignedCrew = crewMembers.length > 0;
+
+  // Calculate daily labor cost (8hr day)
+  const HOURS_PER_DAY = 8;
+  const dailyLaborCost = crewMembers.reduce((sum: number, e: any) => sum + (parseFloat(e.hourlyRate || "0") * HOURS_PER_DAY), 0);
+
+  // Overhead rates from job
+  const taxRate = parseFloat(job.taxRate || "0") / 100;
+  const wcRate = parseFloat(job.workersCompRate || "0") / 100;
+  const liabRate = parseFloat(job.liabilityInsRate || "0") / 100;
+  const totalOverheadRate = taxRate + wcRate + liabRate;
+  const dailyOverhead = dailyLaborCost * totalOverheadRate;
+  const dailyTotalCost = dailyLaborCost + dailyOverhead;
+
+  // Budget and profit timeline
+  const totalBudget = parseFloat(job.totalBudget || "0");
+  const profitDays = dailyTotalCost > 0 ? Math.floor(totalBudget / dailyTotalCost) : 0;
+  const profitMarginDays = profitDays > 0 ? Math.max(0, profitDays - (scheduleItems?.length || 0)) : 0;
+
+  // Scheduled tasks count
+  const scheduledCount = scheduleItems?.length || 0;
+  const completedCount = (scheduleItems || []).filter((t: any) => t.status === "completed").length;
+
+  // Group tasks by date for the daily breakdown
+  const tasksByDate: Record<string, any[]> = {};
+  for (const item of (scheduleItems || [])) {
+    const dateKey = new Date(item.scheduledDate).toISOString().split("T")[0];
+    if (!tasksByDate[dateKey]) tasksByDate[dateKey] = [];
+    tasksByDate[dateKey].push(item);
+  }
+  const sortedDates = Object.keys(tasksByDate).sort();
+
+  // Budget burn calculation
+  const daysWorked = sortedDates.length;
+  const burnedBudget = daysWorked * dailyTotalCost;
+  const remainingBudget = totalBudget - burnedBudget;
+  const burnPct = totalBudget > 0 ? Math.min(100, Math.round((burnedBudget / totalBudget) * 100)) : 0;
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+      {/* ─── Crew & Cost Summary ─── */}
+      <View style={{ marginHorizontal: 20, marginTop: 12, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}>
+        <Text style={{ fontSize: 16, fontWeight: "800", color: colors.foreground, marginBottom: 12 }}>Crew & Daily Cost</Text>
+        {!hasAssignedCrew ? (
+          <View style={{ alignItems: "center", paddingVertical: 16 }}>
+            <MaterialIcons name="group-add" size={28} color={colors.muted} />
+            <Text style={{ fontSize: 13, color: colors.muted, marginTop: 8, textAlign: "center" }}>No crew assigned yet. Edit this job to select crew members.</Text>
+          </View>
+        ) : (
+          <>
+            {crewMembers.map((emp: any) => (
+              <View key={emp.id} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: colors.border + "40" }}>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{emp.name}</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted }}>{emp.role}</Text>
+                </View>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>${(parseFloat(emp.hourlyRate || "0") * HOURS_PER_DAY).toFixed(2)}/day</Text>
+              </View>
+            ))}
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                <Text style={{ fontSize: 13, color: colors.muted }}>Daily Labor</Text>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>${dailyLaborCost.toFixed(2)}</Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                <Text style={{ fontSize: 13, color: colors.muted }}>Daily Overhead ({(totalOverheadRate * 100).toFixed(1)}%)</Text>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.warning }}>${dailyOverhead.toFixed(2)}</Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <Text style={{ fontSize: 15, fontWeight: "800", color: colors.foreground }}>Daily Total</Text>
+                <Text style={{ fontSize: 15, fontWeight: "800", color: colors.error }}>${dailyTotalCost.toFixed(2)}</Text>
+              </View>
+            </View>
+          </>
+        )}
+      </View>
+
+      {/* ─── Profit Timeline ─── */}
+      {totalBudget > 0 && dailyTotalCost > 0 && (
+        <View style={{ marginHorizontal: 20, marginTop: 12, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}>
+          <Text style={{ fontSize: 16, fontWeight: "800", color: colors.foreground, marginBottom: 12 }}>Profit Timeline</Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
+            <View style={{ alignItems: "center", flex: 1 }}>
+              <Text style={{ fontSize: 28, fontWeight: "800", color: colors.primary }}>{profitDays}</Text>
+              <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "600" }}>Max Work Days</Text>
+            </View>
+            <View style={{ width: 1, backgroundColor: colors.border }} />
+            <View style={{ alignItems: "center", flex: 1 }}>
+              <Text style={{ fontSize: 28, fontWeight: "800", color: scheduledCount > profitDays ? colors.error : colors.success }}>{scheduledCount}</Text>
+              <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "600" }}>Scheduled Days</Text>
+            </View>
+            <View style={{ width: 1, backgroundColor: colors.border }} />
+            <View style={{ alignItems: "center", flex: 1 }}>
+              <Text style={{ fontSize: 28, fontWeight: "800", color: profitMarginDays <= 2 ? colors.error : profitMarginDays <= 5 ? colors.warning : colors.success }}>{profitMarginDays}</Text>
+              <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "600" }}>Buffer Days</Text>
+            </View>
+          </View>
+          {/* Budget burn bar */}
+          <View style={{ marginBottom: 8 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+              <Text style={{ fontSize: 12, color: colors.muted }}>Budget: ${totalBudget.toLocaleString()}</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: burnPct >= 90 ? colors.error : burnPct >= 70 ? colors.warning : colors.success }}>{burnPct}% allocated</Text>
+            </View>
+            <View style={{ height: 8, backgroundColor: colors.border + "40", borderRadius: 4 }}>
+              <View style={{ height: 8, borderRadius: 4, backgroundColor: burnPct >= 90 ? colors.error : burnPct >= 70 ? colors.warning : colors.primary, width: `${Math.min(burnPct, 100)}%` }} />
+            </View>
+          </View>
+          {remainingBudget > 0 ? (
+            <Text style={{ fontSize: 13, color: colors.success, fontWeight: "600" }}>Estimated profit: ${remainingBudget.toFixed(2)}</Text>
+          ) : (
+            <Text style={{ fontSize: 13, color: colors.error, fontWeight: "600" }}>Over budget by ${Math.abs(remainingBudget).toFixed(2)}</Text>
+          )}
+        </View>
+      )}
+
+      {/* ─── Daily Task Breakdown ─── */}
+      <View style={{ marginHorizontal: 20, marginTop: 12 }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <Text style={{ fontSize: 16, fontWeight: "800", color: colors.foreground }}>Daily Breakdown</Text>
+          {isManagement && scheduledCount > 0 && (
+            <TouchableOpacity
+              onPress={() => onPushGoals(scheduleItems || [])}
+              style={{ backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}>Push as Goals</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {sortedDates.length === 0 ? (
+          <View style={{ alignItems: "center", paddingVertical: 30, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border }}>
+            <MaterialIcons name="calendar-today" size={28} color={colors.muted} />
+            <Text style={{ fontSize: 13, color: colors.muted, marginTop: 8 }}>No tasks scheduled yet. Add tasks from the Calendar or Phases tab.</Text>
+          </View>
+        ) : (
+          sortedDates.map((dateKey, di) => {
+            const tasks = tasksByDate[dateKey];
+            const d = new Date(dateKey + "T12:00:00");
+            const dayLabel = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+            const allDone = tasks.every((t: any) => t.status === "completed");
+            return (
+              <View key={dateKey} style={{ marginBottom: 10, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: allDone ? colors.success + "40" : colors.border, overflow: "hidden" }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 14, paddingVertical: 10, backgroundColor: allDone ? colors.success + "10" : "transparent" }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>{dayLabel}</Text>
+                    <View style={{ backgroundColor: colors.primary + "18", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "700", color: colors.primary }}>{tasks.length} task{tasks.length !== 1 ? "s" : ""}</Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted }}>Day {di + 1}</Text>
+                </View>
+                {tasks.map((task: any) => (
+                  <View key={task.id} style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 0.5, borderTopColor: colors.border + "40" }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: task.status === "completed" ? colors.success : task.status === "in_progress" ? colors.warning : colors.muted, marginRight: 10 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{task.title}</Text>
+                      {task.phase && <Text style={{ fontSize: 10, color: colors.muted }}>{task.phase}</Text>}
+                    </View>
+                    <Text style={{ fontSize: 10, fontWeight: "600", color: task.status === "completed" ? colors.success : colors.muted, textTransform: "uppercase" }}>
+                      {task.status === "completed" ? "Done" : task.status === "in_progress" ? "Active" : "Pending"}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })
+        )}
+      </View>
+
+      {/* ─── Cost Summary Footer ─── */}
+      {totalBudget > 0 && dailyTotalCost > 0 && sortedDates.length > 0 && (
+        <View style={{ marginHorizontal: 20, marginTop: 12, backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}>
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>Cost Summary</Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+            <Text style={{ fontSize: 13, color: colors.muted }}>Total Budget</Text>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>${totalBudget.toLocaleString()}</Text>
+          </View>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+            <Text style={{ fontSize: 13, color: colors.muted }}>Estimated Labor ({sortedDates.length} days)</Text>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>${(dailyLaborCost * sortedDates.length).toFixed(2)}</Text>
+          </View>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+            <Text style={{ fontSize: 13, color: colors.muted }}>Estimated Overhead</Text>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.warning }}>${(dailyOverhead * sortedDates.length).toFixed(2)}</Text>
+          </View>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+            <Text style={{ fontSize: 14, fontWeight: "800", color: colors.foreground }}>Estimated Profit</Text>
+            <Text style={{ fontSize: 14, fontWeight: "800", color: remainingBudget >= 0 ? colors.success : colors.error }}>${remainingBudget.toFixed(2)}</Text>
+          </View>
+        </View>
+      )}
+    </ScrollView>
   );
 }
 

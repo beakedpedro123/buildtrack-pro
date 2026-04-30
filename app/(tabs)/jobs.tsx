@@ -84,6 +84,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const [jobLiabilityIns, setJobLiabilityIns] = useState("");
   const [jobBillingType, setJobBillingType] = useState<"fixed" | "hourly">("fixed");
   const [jobHourlyRate, setJobHourlyRate] = useState("55");
+  const [jobCrewIds, setJobCrewIds] = useState<number[]>([]);
 
   // Expense form
   const [expDesc, setExpDesc] = useState("");
@@ -164,6 +165,8 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     { enabled: !!selectedJob && canSeeBudget && showAuditLog }
   );
 
+  const { data: allEmployeesForCrew } = trpc.employees.list.useQuery(undefined, { staleTime: 30_000 });
+  const activeEmployeesForCrew = (allEmployeesForCrew || []).filter((e: any) => e.isActive);
   const createJob = trpc.jobs.create.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); utils.jobs.listActive.invalidate(); setShowNewJob(false); resetJobForm(); } });
   const updateJob = trpc.jobs.update.useMutation({ onSuccess: () => { utils.jobs.list.invalidate(); utils.jobs.listActive.invalidate(); } });
   const addExpense = trpc.budget.addExpense.useMutation({ onSuccess: () => { utils.budget.getExpenses.invalidate(); utils.budget.getCategories.invalidate(); setShowAddExpense(false); resetExpForm(); } });
@@ -180,7 +183,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const offlineCreateCO = useOfflineMutation("changeOrders.create", createCO, { offlineMessage: "Change order will be created when back online." });
   const offlineDeleteCO = useOfflineMutation("changeOrders.delete", deleteCO, { silent: true });
 
-  const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); setJobTaxRate(""); setJobWorkersComp(""); setJobLiabilityIns(""); setJobBillingType("fixed"); setJobHourlyRate("55"); };
+  const resetJobForm = () => { setJobName(""); setJobAddress(""); setJobClient(""); setJobBudget(""); setJobNotes(""); setJobTaxRate(""); setJobWorkersComp(""); setJobLiabilityIns(""); setJobBillingType("fixed"); setJobHourlyRate("55"); setJobCrewIds([]); };
   const resetExpForm = () => { setExpDesc(""); setExpAmount(""); setExpCategoryId(null); };
 
   const effectiveJobs = allJobs || cachedJobs || [];
@@ -230,6 +233,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
         taxRate: jobTaxRate || undefined,
         workersCompRate: jobWorkersComp || undefined,
         liabilityInsRate: jobLiabilityIns || undefined,
+        assignedCrew: jobCrewIds.length > 0 ? JSON.stringify(jobCrewIds) : undefined,
         createdBy: employee.id });
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
@@ -1356,6 +1360,44 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                 <TextInput style={styles.input} placeholder="e.g. 12.5" placeholderTextColor={colors.muted} value={jobWorkersComp} onChangeText={setJobWorkersComp} keyboardType="decimal-pad" />
                 <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 4 }}>Liability Insurance Rate (%)</Text>
                 <TextInput style={styles.input} placeholder="e.g. 3.0" placeholderTextColor={colors.muted} value={jobLiabilityIns} onChangeText={setJobLiabilityIns} keyboardType="decimal-pad" />
+              </View>
+
+              {/* ─── Crew Selection ─── */}
+              <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 6 }}>Assign Crew</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10 }}>Select employees for this job. Their hourly rates will be used to calculate daily labor cost and profit timeline.</Text>
+                {activeEmployeesForCrew.length === 0 ? (
+                  <Text style={{ fontSize: 13, color: colors.muted, fontStyle: "italic" }}>No active employees found.</Text>
+                ) : (
+                  activeEmployeesForCrew.map((emp: any) => {
+                    const selected = jobCrewIds.includes(emp.id);
+                    return (
+                      <TouchableOpacity
+                        key={emp.id}
+                        style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 6, borderRadius: 8, backgroundColor: selected ? colors.primary + "18" : "transparent", marginBottom: 4 }}
+                        onPress={() => {
+                          if (selected) setJobCrewIds(prev => prev.filter(id => id !== emp.id));
+                          else setJobCrewIds(prev => [...prev, emp.id]);
+                        }}
+                      >
+                        <View style={{ width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary : "transparent", alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+                          {selected && <MaterialIcons name="check" size={14} color="#fff" />}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{emp.name}</Text>
+                          <Text style={{ fontSize: 11, color: colors.muted }}>{emp.role} {emp.hourlyRate ? `• $${emp.hourlyRate}/hr` : ""}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+                {jobCrewIds.length > 0 && (
+                  <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: colors.primary }}>
+                      {jobCrewIds.length} selected • Daily labor: ${activeEmployeesForCrew.filter((e: any) => jobCrewIds.includes(e.id)).reduce((sum: number, e: any) => sum + (parseFloat(e.hourlyRate || "0") * 8), 0).toFixed(2)}/day (8hr)
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <TouchableOpacity

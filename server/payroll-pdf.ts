@@ -132,7 +132,7 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
       const dayKey = new Date(entry.clockIn).toLocaleDateString("en-CA", { timeZone: TZ });
       const list = dayMap.get(dayKey) || [];
       const durationMs = new Date(entry.clockOut!).getTime() - new Date(entry.clockIn).getTime();
-      const minutes = Math.floor(durationMs / 60000);
+      const minutes = Math.round(durationMs / 60000);
       const entryLunch = (entry as any).lunchMinutes || 0;
       totalMinutes += minutes;
       const job = jobMap.get(entry.jobId);

@@ -1,5 +1,5 @@
 import {
-   ScreenContainer } from "@/components/screen-container";
+  ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
@@ -36,10 +36,10 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   high: "#EF4444" };
 
 const STATUS_ICONS: Record<GoalStatus, string> = {
-  pending: "○",
-  in_progress: "◑",
-  completed: "●",
-  cancelled: "×" };
+  pending: "radio-button-unchecked",
+  in_progress: "timelapse",
+  completed: "check-circle",
+  cancelled: "cancel" };
 
 const STATUS_COLORS: Record<GoalStatus, string> = {
   pending: "#9CA3AF",
@@ -78,46 +78,38 @@ function DateTimePicker({
   colors: any;
 }) {
   const parsed = value ? new Date(value) : null;
-  const [month, setMonth] = useState(parsed ? parsed.getMonth() : new Date().getMonth());
-  const [year, setYear] = useState(parsed ? parsed.getFullYear() : new Date().getFullYear());
-  const [selectedDay, setSelectedDay] = useState(parsed ? parsed.getDate() : 0);
-  const [hour, setHour] = useState(parsed ? parsed.getHours() % 12 || 12 : 5);
+  const now = new Date();
+  const [month, setMonth] = useState(parsed?.getMonth() ?? now.getMonth());
+  const [year, setYear] = useState(parsed?.getFullYear() ?? now.getFullYear());
+  const [selectedDay, setSelectedDay] = useState(parsed?.getDate() ?? 0);
+  const [hour, setHour] = useState(parsed ? (parsed.getHours() % 12 || 12) : 5);
   const [minute, setMinute] = useState(parsed ? parsed.getMinutes() : 0);
-  const [ampm, setAmpm] = useState(parsed ? (parsed.getHours() >= 12 ? "PM" : "AM") : "PM");
+  const [ampm, setAmpm] = useState<"AM" | "PM">(parsed ? (parsed.getHours() >= 12 ? "PM" : "AM") : "PM");
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfWeek = new Date(year, month, 1).getDay();
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const dayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const dayNames = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
   const handleDayPress = (day: number) => {
     setSelectedDay(day);
-    const h24 = ampm === "PM" ? (hour === 12 ? 12 : hour + 12) : (hour === 12 ? 0 : hour);
-    const d = new Date(year, month, day, h24, minute, 0, 0);
+    emitDate(day, hour, minute, ampm);
+  };
+
+  const handleTimeChange = (h: number, m: number, ap: "AM" | "PM") => {
+    setHour(h); setMinute(m); setAmpm(ap);
+    if (selectedDay > 0) emitDate(selectedDay, h, m, ap);
+  };
+
+  const emitDate = (day: number, h: number, m: number, ap: "AM" | "PM") => {
+    let hours24 = h % 12;
+    if (ap === "PM") hours24 += 12;
+    const d = new Date(year, month, day, hours24, m, 0);
     onChange(d.toISOString());
   };
 
-  const handleTimeChange = (newHour: number, newMinute: number, newAmpm: string) => {
-    setHour(newHour);
-    setMinute(newMinute);
-    setAmpm(newAmpm);
-    if (selectedDay > 0) {
-      const h24 = newAmpm === "PM" ? (newHour === 12 ? 12 : newHour + 12) : (newHour === 12 ? 0 : newHour);
-      const d = new Date(year, month, selectedDay, h24, newMinute, 0, 0);
-      onChange(d.toISOString());
-    }
-  };
-
-  const prevMonth = () => {
-    if (month === 0) { setMonth(11); setYear(y => y - 1); }
-    else setMonth(m => m - 1);
-    setSelectedDay(0);
-  };
-  const nextMonth = () => {
-    if (month === 11) { setMonth(0); setYear(y => y + 1); }
-    else setMonth(m => m + 1);
-    setSelectedDay(0);
-  };
+  const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); setSelectedDay(0); };
+  const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); setSelectedDay(0); };
 
   const today = new Date();
   const isToday = (day: number) => day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
@@ -284,16 +276,19 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
 
   const handleAddBulk = () => {
     if (!bulkText.trim() || !selectedJobId) return;
-    const lines = bulkText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+    const lines = bulkText.split("\n").map(l => l.trim()).filter(Boolean);
     if (lines.length === 0) return;
-    const items = lines.map((line, idx) => ({
+    offlineCreateItem.mutate({
       jobId: selectedJobId,
-      title: line,
+      title: lines[0],
       area: singleArea.trim() || undefined,
       createdBy: employee?.id || 0,
-      sortOrder: idx,
-    }));
-    createBulk.mutate({ items });
+    });
+    if (lines.length > 1) {
+      createBulk.mutate({
+        items: lines.slice(1).map(title => ({ jobId: selectedJobId!, title, area: singleArea.trim() || undefined, createdBy: employee?.id || 0 })),
+      });
+    }
   };
 
   const handleDeleteItem = (id: number) => {
@@ -303,239 +298,165 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
     ]);
   };
 
-  // ─── No job selected ─────────────────────────────────────────────────────────
-  if (!selectedJobId) {
-    return (
-      <View style={{ flex: 1, paddingTop: 8 }}>
-        <Text style={{ fontSize: 14, color: colors.muted, paddingHorizontal: 16, marginBottom: 12, fontWeight: "500" }}>
-          Select a job to view its punch list:
-        </Text>
-        <FlatList
-          data={jobs || []}
-          keyExtractor={(item: any) => item.id.toString()}
-          renderItem={({ item }: { item: any }) => (
-            <TouchableOpacity
-              onPress={() => setSelectedJobId(item.id)}
-              style={{
-                marginHorizontal: 20,
-                marginBottom: 10,
-                backgroundColor: colors.surface,
-                borderRadius: 14,
-                padding: 16,
-                flexDirection: "row",
-                alignItems: "center",
-                ...(Platform.OS === "ios" ? {
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.04,
-                  shadowRadius: 4,
-                } : { elevation: 1 }),
-              }}
-            >
-              <View style={{
-                width: 40, height: 40, borderRadius: 10,
-                backgroundColor: colors.primary + "18",
-                alignItems: "center", justifyContent: "center", marginRight: 14,
-              }}>
-                <MaterialIcons name="edit" size={18} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>{item.name}</Text>
-                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{item.address || "No address"}</Text>
-              </View>
-              <Text style={{ fontSize: 18, color: colors.muted }}>›</Text>
-            </TouchableOpacity>
-          )}
-          ListEmptyComponent={
-            <View style={{ alignItems: "center", padding: 40 }}>
-              <MaterialIcons name="flag" size={40} color={colors.muted} />
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginTop: 12 }}>No Active Jobs</Text>
-              <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>Create a job first to add punch list items.</Text>
-            </View>
-          }
-          contentContainerStyle={{ paddingBottom: 32 }}
-        />
-      </View>
-    );
-  }
-
-  // ─── Job selected — show punch list ───────────────────────────────────────────
-  const selectedJob = (jobs || []).find((j: any) => j.id === selectedJobId);
-
   return (
     <View style={{ flex: 1 }}>
-      {/* Job header with back button */}
-      <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
-        <TouchableOpacity
-          onPress={() => setSelectedJobId(null)}
-          style={{ marginRight: 12, padding: 4 }}
-        >
-          <Text style={{ fontSize: 22, color: colors.primary, fontWeight: "700" }}>‹</Text>
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
-            {selectedJob?.name || "Job"}
-          </Text>
-          {totalItems > 0 && (
-            <Text style={{ fontSize: 12, color: colors.muted }}>
-              {completedItems}/{totalItems} completed
-            </Text>
-          )}
-        </View>
-        {canManage && (
+      {/* Job selector */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, paddingTop: 12, flexGrow: 0 }} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+        {(jobs || []).map((job: any) => (
           <TouchableOpacity
-            onPress={() => { setAddMode("single"); setShowAddModal(true); }}
+            key={job.id}
+            onPress={() => setSelectedJobId(job.id === selectedJobId ? null : job.id)}
             style={{
-              backgroundColor: colors.primary,
-              borderRadius: 10,
-              paddingHorizontal: 14,
-              paddingVertical: 8,
+              paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+              backgroundColor: selectedJobId === job.id ? colors.primary + "22" : colors.surface,
+              borderWidth: 1,
+              borderColor: selectedJobId === job.id ? colors.primary : colors.border,
             }}
           >
-            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>+ Add</Text>
+            <Text style={{ fontSize: 13, fontWeight: "700", color: selectedJobId === job.id ? colors.primary : colors.foreground }}>{job.name}</Text>
           </TouchableOpacity>
-        )}
-      </View>
+        ))}
+      </ScrollView>
 
-      {/* Progress bar */}
-      {totalItems > 0 && (
-        <View style={{ paddingHorizontal: 16, marginBottom: 8, marginTop: 4 }}>
-          <View style={{ height: 4, backgroundColor: colors.surface, borderRadius: 2 }}>
-            <View style={{
-              height: 4, borderRadius: 2,
-              backgroundColor: colors.success,
-              width: `${(completedItems / totalItems) * 100}%`,
-            }} />
-          </View>
-        </View>
-      )}
-
-      {/* Quick add inline (always visible for managers) */}
-      {canManage && (
-        <View style={{ flexDirection: "row", paddingHorizontal: 16, marginBottom: 8, gap: 8 }}>
-          <TextInput
-            style={{
-              flex: 1,
-              backgroundColor: colors.surface,
-              borderRadius: 10,
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              fontSize: 14,
-              color: colors.foreground,
-            }}
-            placeholder="Quick add item..."
-            placeholderTextColor={colors.muted}
-            value={singleTitle}
-            onChangeText={setSingleTitle}
-            returnKeyType="done"
-            onSubmitEditing={handleAddSingle}
-          />
-          <TouchableOpacity
-            onPress={handleAddSingle}
-            disabled={!singleTitle.trim() || createItem.isPending}
-            style={{
-              backgroundColor: singleTitle.trim() ? colors.primary : colors.surface,
-              borderRadius: 10,
-              paddingHorizontal: 14,
-              justifyContent: "center",
-              opacity: singleTitle.trim() ? 1 : 0.5,
-            }}
-          >
-            {createItem.isPending ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={{ color: singleTitle.trim() ? "#fff" : colors.muted, fontWeight: "700", fontSize: 14 }}>+</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Punch list items grouped by area */}
-      {loadingItems ? (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="large" color={colors.primary} />
+      {!selectedJobId ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
+          <MaterialIcons name="assignment" size={40} color={colors.muted} />
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginTop: 12 }}>Select a Job</Text>
+          <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>Choose a job above to view its punch list.</Text>
         </View>
       ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
-          {groupedItems.length === 0 ? (
-            <View style={{ alignItems: "center", padding: 40 }}>
-              <MaterialIcons name="flag" size={40} color={colors.muted} />
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginTop: 12 }}>
-                No punch list items yet
-              </Text>
-              <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>
-                {canManage ? "Add items using the quick add bar above, or tap + Add for bulk paste." : "Your foreman or manager will add items here."}
-              </Text>
+        <>
+          {/* Progress + Quick Add */}
+          <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+            {totalItems > 0 && (
+              <View style={{ marginBottom: 10 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>{completedItems}/{totalItems}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.success }}>{Math.round((completedItems / totalItems) * 100)}%</Text>
+                </View>
+                <View style={{ height: 3, backgroundColor: colors.surface, borderRadius: 2 }}>
+                  <View style={{ height: 3, borderRadius: 2, backgroundColor: colors.success, width: `${(completedItems / totalItems) * 100}%` }} />
+                </View>
+              </View>
+            )}
+            {canManage && (
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+                <TextInput
+                  style={{
+                    flex: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
+                    fontSize: 14, color: colors.foreground, backgroundColor: colors.surface,
+                  }}
+                  placeholder="Quick add item..."
+                  placeholderTextColor={colors.muted}
+                  value={singleTitle}
+                  onChangeText={setSingleTitle}
+                  returnKeyType="done"
+                  onSubmitEditing={handleAddSingle}
+                />
+                <TouchableOpacity
+                  onPress={handleAddSingle}
+                  style={{ backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 14, justifyContent: "center" }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Add</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setShowAddModal(true)}
+                  style={{ backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 12, justifyContent: "center", borderWidth: 1, borderColor: colors.border }}
+                >
+                  <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 16 }}>+</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* Punch list items grouped by area */}
+          {loadingItems ? (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+              <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : (
-            groupedItems.map(([area, items]) => (
-              <View key={area} style={{ marginBottom: 16 }}>
-                {/* Area header */}
-                <View style={{ paddingHorizontal: 16, paddingVertical: 6 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "800", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.8 }}>
-                    {area}
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
+              {groupedItems.length === 0 ? (
+                <View style={{ alignItems: "center", padding: 40 }}>
+                  <MaterialIcons name="flag" size={40} color={colors.muted} />
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginTop: 12 }}>
+                    No punch list items yet
+                  </Text>
+                  <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>
+                    {canManage ? "Add items using the quick add bar above, or tap + Add for bulk paste." : "Your foreman or manager will add items here."}
                   </Text>
                 </View>
-                {/* Items */}
-                {items.map((item: any) => {
-                  const isCompleted = item.status === "completed";
-                  return (
-                    <TouchableOpacity
-                      key={item.id}
-                      onPress={() => offlineToggleItem.mutate({ id: item.id, completedBy: employee?.id || 0 })}
-                      onLongPress={() => canManage && handleDeleteItem(item.id)}
-                      activeOpacity={0.7}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "flex-start",
-                        paddingHorizontal: 16,
-                        paddingVertical: 10,
-                        borderBottomWidth: 0.5,
-                        borderBottomColor: colors.border + "44",
-                      }}
-                    >
-                      {/* Checkbox circle */}
-                      <View style={{
-                        width: 24, height: 24, borderRadius: 12,
-                        borderWidth: 2,
-                        borderColor: isCompleted ? colors.success : colors.muted + "66",
-                        backgroundColor: isCompleted ? colors.success : "transparent",
-                        alignItems: "center", justifyContent: "center",
-                        marginRight: 12, marginTop: 1,
-                      }}>
-                        {isCompleted && (
-                          <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>✓</Text>
-                        )}
-                      </View>
-                      {/* Item text */}
-                      <View style={{ flex: 1 }}>
-                        <Text style={{
-                          fontSize: 15, lineHeight: 20,
-                          color: isCompleted ? colors.muted : colors.foreground,
-                          textDecorationLine: isCompleted ? "line-through" : "none",
-                          fontWeight: "500",
-                        }}>
-                          {item.title}
-                        </Text>
-                        {isCompleted && item.completedBy && (
-                          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
-                            Completed by {employeeMap[item.completedBy] || "Unknown"}
-                          </Text>
-                        )}
-                      </View>
-                      {/* Priority dot */}
-                      <View style={{
-                        width: 8, height: 8, borderRadius: 4,
-                        backgroundColor: PRIORITY_COLORS[item.priority as Priority] || PRIORITY_COLORS.medium,
-                        marginTop: 7, marginLeft: 8,
-                      }} />
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ))
+              ) : (
+                groupedItems.map(([area, items]) => (
+                  <View key={area} style={{ marginBottom: 16 }}>
+                    {/* Area header */}
+                    <View style={{ paddingHorizontal: 16, paddingVertical: 6 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "800", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                        {area}
+                      </Text>
+                    </View>
+                    {/* Items */}
+                    {items.map((item: any) => {
+                      const isCompleted = item.status === "completed";
+                      return (
+                        <TouchableOpacity
+                          key={item.id}
+                          onPress={() => offlineToggleItem.mutate({ id: item.id, completedBy: employee?.id || 0 })}
+                          onLongPress={() => canManage && handleDeleteItem(item.id)}
+                          activeOpacity={0.7}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "flex-start",
+                            paddingHorizontal: 16,
+                            paddingVertical: 10,
+                            borderBottomWidth: 0.5,
+                            borderBottomColor: colors.border + "44",
+                          }}
+                        >
+                          {/* Checkbox circle */}
+                          <View style={{
+                            width: 24, height: 24, borderRadius: 12,
+                            borderWidth: 2,
+                            borderColor: isCompleted ? colors.success : colors.muted + "66",
+                            backgroundColor: isCompleted ? colors.success : "transparent",
+                            alignItems: "center", justifyContent: "center",
+                            marginRight: 12, marginTop: 1,
+                          }}>
+                            {isCompleted && (
+                              <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>✓</Text>
+                            )}
+                          </View>
+                          {/* Item text */}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{
+                              fontSize: 15, lineHeight: 20,
+                              color: isCompleted ? colors.muted : colors.foreground,
+                              textDecorationLine: isCompleted ? "line-through" : "none",
+                              fontWeight: "500",
+                            }}>
+                              {item.title}
+                            </Text>
+                            {isCompleted && item.completedBy && (
+                              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                                Completed by {employeeMap[item.completedBy] || "Unknown"}
+                              </Text>
+                            )}
+                          </View>
+                          {/* Priority dot */}
+                          <View style={{
+                            width: 8, height: 8, borderRadius: 4,
+                            backgroundColor: PRIORITY_COLORS[item.priority as Priority] || PRIORITY_COLORS.medium,
+                            marginTop: 7, marginLeft: 8,
+                          }} />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ))
+              )}
+            </ScrollView>
           )}
-        </ScrollView>
+        </>
       )}
 
       {/* Add Items Modal (bulk paste) */}
@@ -599,10 +520,7 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
                   autoFocus
                 />
                 <TouchableOpacity
-                  onPress={() => {
-                    handleAddSingle();
-                    // Don't close modal so they can add more
-                  }}
+                  onPress={handleAddSingle}
                   disabled={!singleTitle.trim() || createItem.isPending}
                   style={{
                     backgroundColor: singleTitle.trim() ? colors.primary : colors.surface,
@@ -613,36 +531,28 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
                   {createItem.isPending ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={{ color: singleTitle.trim() ? "#fff" : colors.muted, fontWeight: "800", fontSize: 15 }}>Add Item</Text>
+                    <Text style={{ color: singleTitle.trim() ? "#fff" : colors.muted, fontWeight: "800", fontSize: 15 }}>
+                      Add Item
+                    </Text>
                   )}
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6, fontWeight: "500" }}>
-                  Paste or type items (one per line)
-                </Text>
-                <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 10 }}>
-                  Copy your list from Notes and paste it here. Each line becomes a separate item.
-                </Text>
+                <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6, fontWeight: "500" }}>Paste Items (one per line)</Text>
                 <TextInput
                   style={{
                     borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
-                    fontSize: 14, color: colors.foreground, backgroundColor: colors.surface,
-                    marginBottom: 16, minHeight: 200, textAlignVertical: "top",
+                    fontSize: 15, color: colors.foreground, backgroundColor: colors.surface,
+                    marginBottom: 16, minHeight: 160, textAlignVertical: "top",
                   }}
-                  placeholder={"Back patio roof\nMove steel column\nFraming back of garage\nCut door thresholds\n..."}
-                  placeholderTextColor={colors.muted + "88"}
+                  placeholder={"Touch up paint in hallway\nFix cabinet door alignment\nReplace cracked tile in bathroom"}
+                  placeholderTextColor={colors.muted}
                   value={bulkText}
                   onChangeText={setBulkText}
                   multiline
                   autoFocus
                 />
-                {bulkText.trim() && (
-                  <Text style={{ fontSize: 12, color: colors.primary, marginBottom: 12, fontWeight: "600" }}>
-                    {bulkText.split("\n").filter(l => l.trim()).length} items will be added
-                  </Text>
-                )}
                 <TouchableOpacity
                   onPress={handleAddBulk}
                   disabled={!bulkText.trim() || createBulk.isPending}
@@ -670,6 +580,189 @@ function PunchListSubTab({ colors, employee, canManage }: { colors: any; employe
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ─── COLLAPSIBLE EMPLOYEE SECTION ────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function EmployeeGoalSection({
+  employeeName,
+  goals,
+  isExpanded,
+  onToggle,
+  colors,
+  onStatusChange,
+  onEdit,
+  onDelete,
+  canUpdateStatus,
+  canManage,
+}: {
+  employeeName: string;
+  goals: any[];
+  isExpanded: boolean;
+  onToggle: () => void;
+  colors: any;
+  onStatusChange: (goalId: number, status: GoalStatus) => void;
+  onEdit: (goal: any) => void;
+  onDelete: (goalId: number) => void;
+  canUpdateStatus: boolean;
+  canManage: boolean;
+}) {
+  const completed = goals.filter((g: any) => g.status === "completed").length;
+  const total = goals.filter((g: any) => g.status !== "cancelled").length;
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return (
+    <View style={{ marginBottom: 2 }}>
+      {/* Employee header row — tap to expand/collapse */}
+      <TouchableOpacity
+        onPress={onToggle}
+        activeOpacity={0.7}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: 16,
+          paddingVertical: 14,
+          backgroundColor: isExpanded ? colors.surface : "transparent",
+          borderBottomWidth: isExpanded ? 0 : 0.5,
+          borderBottomColor: colors.border + "30",
+        }}
+      >
+        {/* Chevron */}
+        <MaterialIcons
+          name={isExpanded ? "expand-more" : "chevron-right"}
+          size={20}
+          color={colors.muted}
+          style={{ marginRight: 10 }}
+        />
+        {/* Name + count */}
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, letterSpacing: -0.2 }}>
+            {employeeName}
+          </Text>
+        </View>
+        {/* Progress pill */}
+        <View style={{
+          flexDirection: "row", alignItems: "center", gap: 6,
+        }}>
+          <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "500" }}>
+            {completed}/{total}
+          </Text>
+          <View style={{
+            width: 40, height: 4, borderRadius: 2,
+            backgroundColor: colors.border + "40",
+          }}>
+            <View style={{
+              width: `${pct}%`, height: 4, borderRadius: 2,
+              backgroundColor: pct === 100 ? colors.success : colors.primary,
+            }} />
+          </View>
+        </View>
+      </TouchableOpacity>
+
+      {/* Expanded goal rows */}
+      {isExpanded && (
+        <View style={{ backgroundColor: colors.surface, paddingBottom: 8 }}>
+          {goals.map((goal: any) => {
+            const status = goal.status as GoalStatus;
+            const priority = goal.priority as Priority;
+            const isCompleted = status === "completed";
+            const isCancelled = status === "cancelled";
+            const dl = goal.deadline ? new Date(goal.deadline) : null;
+            const now = new Date();
+            const isOverdue = dl && dl < now && !isCompleted && !isCancelled;
+
+            return (
+              <TouchableOpacity
+                key={goal.id}
+                onPress={() => {
+                  if (canManage) {
+                    onEdit(goal);
+                  } else if (canUpdateStatus) {
+                    // Cycle status
+                    const cycle: GoalStatus[] = ["pending", "in_progress", "completed"];
+                    const nextIdx = (cycle.indexOf(status) + 1) % cycle.length;
+                    onStatusChange(goal.id, cycle[nextIdx]);
+                  }
+                }}
+                onLongPress={() => canManage && onDelete(goal.id)}
+                activeOpacity={0.7}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  marginHorizontal: 12,
+                  marginTop: 2,
+                  borderRadius: 10,
+                  backgroundColor: colors.background,
+                }}
+              >
+                {/* Priority strip */}
+                <View style={{
+                  width: 3, height: 28, borderRadius: 2,
+                  backgroundColor: isCompleted ? colors.muted + "44" : PRIORITY_STRIP[priority],
+                  marginRight: 10,
+                }} />
+
+                {/* Status icon — tap to cycle */}
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!canUpdateStatus) return;
+                    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    const cycle: GoalStatus[] = ["pending", "in_progress", "completed"];
+                    const nextIdx = (cycle.indexOf(status) + 1) % cycle.length;
+                    onStatusChange(goal.id, cycle[nextIdx]);
+                  }}
+                  style={{ marginRight: 10 }}
+                >
+                  <MaterialIcons
+                    name={STATUS_ICONS[status] as any}
+                    size={20}
+                    color={STATUS_COLORS[status]}
+                  />
+                </TouchableOpacity>
+
+                {/* Title + deadline */}
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 14, fontWeight: "600",
+                      color: isCompleted ? colors.muted : colors.foreground,
+                      textDecorationLine: isCompleted ? "line-through" : "none",
+                      lineHeight: 18,
+                    }}
+                    numberOfLines={2}
+                  >
+                    {goal.title}
+                  </Text>
+                  {dl && (
+                    <Text style={{
+                      fontSize: 11, marginTop: 2,
+                      color: isOverdue ? colors.error : colors.muted,
+                      fontWeight: isOverdue ? "700" : "400",
+                    }}>
+                      {isOverdue ? "OVERDUE" : dl.toLocaleDateString([], { month: "short", day: "numeric" })}
+                    </Text>
+                  )}
+                </View>
+
+                {/* Priority badge */}
+                <View style={{
+                  paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+                  backgroundColor: PRIORITY_COLORS[priority] + "14",
+                }}>
+                  <Text style={{ fontSize: 9, fontWeight: "800", color: PRIORITY_COLORS[priority], textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    {priority}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function GoalsScreen() {
@@ -688,6 +781,7 @@ export default function GoalsScreen() {
   const [newGoalDeadline, setNewGoalDeadline] = useState<string>("");
   const [newGoalRepeatDaily, setNewGoalRepeatDaily] = useState(false);
   const [filterAssignee, setFilterAssignee] = useState<number | "all">("all");
+  const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set(["all"]));
 
   const weekDate = new Date();
   weekDate.setDate(weekDate.getDate() + weekOffset * 7);
@@ -791,8 +885,6 @@ export default function GoalsScreen() {
         });
       }
     } else if (isOwnerOrManager) {
-      // office_manager and logistics also see all goals (already filtered by server)
-      // just apply assignee filter if set
       if (filterAssignee !== "all") {
         filtered = filtered.filter((g: any) => {
           if (g.assignedToList) {
@@ -811,6 +903,36 @@ export default function GoalsScreen() {
     return filtered;
   }, [goals, filterAssignee, isOwner, isForeman, isLaborer, employee?.id]);
 
+  // Group goals by employee for collapsible view
+  const goalsByEmployee = useMemo(() => {
+    const groups: Record<string, { name: string; goals: any[] }> = {};
+    for (const goal of filteredGoals) {
+      const assigneeIds = goal.assignedToList
+        ? String(goal.assignedToList).split(",").map(Number)
+        : goal.assignedTo ? [goal.assignedTo] : [];
+
+      if (assigneeIds.length === 0) {
+        // Unassigned goals go to "Team" group
+        const key = "team";
+        if (!groups[key]) groups[key] = { name: "Team Goals", goals: [] };
+        groups[key].goals.push(goal);
+      } else {
+        for (const id of assigneeIds) {
+          const key = String(id);
+          const name = employeeMap[id] || "Unknown";
+          if (!groups[key]) groups[key] = { name, goals: [] };
+          groups[key].goals.push(goal);
+        }
+      }
+    }
+    // Sort by name, but "Team Goals" first
+    return Object.entries(groups).sort(([keyA, a], [keyB, b]) => {
+      if (keyA === "team") return -1;
+      if (keyB === "team") return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [filteredGoals, employeeMap]);
+
   const completedCount = filteredGoals.filter((g: any) => g.status === "completed").length;
   const totalCount = filteredGoals.filter((g: any) => g.status !== "cancelled").length;
 
@@ -821,18 +943,13 @@ export default function GoalsScreen() {
     );
   }, [isForeman, allEmployees, assignableEmployees, employee?.id]);
 
-  const handleStatusCycle = (goal: any) => {
-    if (!isOwnerOrManager && !isForeman && goal.assignedTo !== employee?.id) return;
+  const handleStatusChange = useCallback((goalId: number, newStatus: GoalStatus) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const cycle: GoalStatus[] = ["pending", "in_progress", "completed"];
-    const current = goal.status as GoalStatus;
-    const nextIdx = (cycle.indexOf(current) + 1) % cycle.length;
-    const nextStatus = cycle[nextIdx];
     offlineUpdateGoal.mutate({
-      id: goal.id,
-      status: nextStatus,
-      completedAt: nextStatus === "completed" ? new Date().toISOString() : undefined });
-  };
+      id: goalId,
+      status: newStatus,
+      completedAt: newStatus === "completed" ? new Date().toISOString() : undefined });
+  }, [updateGoal]);
 
   const handleDelete = (goalId: number) => {
     Alert.alert("Delete Goal", "Remove this goal?", [
@@ -888,6 +1005,18 @@ export default function GoalsScreen() {
       assignedToList: newGoalAssignees.length > 0 ? newGoalAssignees.join(",") : undefined,
       deadline: newGoalDeadline || undefined,
       repeatDaily: newGoalRepeatDaily });
+  };
+
+  const toggleEmployeeSection = (key: string) => {
+    setExpandedEmployees(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
   };
 
   const PRIORITIES: Priority[] = ["low", "medium", "high"];
@@ -1079,164 +1208,6 @@ export default function GoalsScreen() {
     </ScrollView>
   );
 
-  // ─── Goal Card ────────────────────────────────────────────────────────────────
-  const setGoalStatus = useCallback((goalId: number, newStatus: GoalStatus) => {
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    offlineUpdateGoal.mutate({
-      id: goalId,
-      status: newStatus,
-      completedAt: newStatus === "completed" ? new Date().toISOString() : undefined });
-  }, [updateGoal]);
-
-  const renderGoalCard = ({ item }: { item: any }) => {
-    const status = item.status as GoalStatus;
-    const priority = item.priority as Priority;
-    const assigneeName = getAssigneeNames(item);
-    const assigneeIds = item.assignedToList ? String(item.assignedToList).split(",").map(Number) : (item.assignedTo ? [item.assignedTo] : []);
-    const isAssignedToMe = assigneeIds.includes(employee?.id || 0) || (!item.assignedTo && !item.assignedToList);
-    const canUpdateStatus = isOwnerOrManager || isForeman || isAssignedToMe;
-    const canEdit = isOwnerOrManager || (isForeman && item.createdBy === employee?.id) || isAssignedToMe;
-    const isCompleted = status === "completed";
-    const isCancelled = status === "cancelled";
-    const dl = item.deadline ? new Date(item.deadline) : null;
-    const now = new Date();
-    const isOverdue = dl && dl < now && !isCompleted && !isCancelled;
-    const isDueSoon = dl && !isOverdue && dl.getTime() - now.getTime() < 24 * 60 * 60 * 1000 && !isCompleted && !isCancelled;
-
-    const statusOptions: { key: GoalStatus; label: string }[] = [
-      { key: "pending", label: "Not Started" },
-      { key: "in_progress", label: "In Progress" },
-      { key: "completed", label: "Complete" },
-    ];
-
-    return (
-      <View
-        style={{
-          marginHorizontal: 20, marginBottom: 12, borderRadius: 16,
-          backgroundColor: colors.surface, overflow: "hidden",
-          ...(Platform.OS === "ios" ? {
-            shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.06, shadowRadius: 8,
-          } : { elevation: 2 }),
-        }}
-      >
-        <View style={{ flexDirection: "row" }}>
-          <View style={{
-            width: 4,
-            backgroundColor: isCompleted ? colors.muted + "44" : PRIORITY_STRIP[priority],
-            borderTopLeftRadius: 16, borderBottomLeftRadius: 16,
-          }} />
-          <View style={{ flex: 1, padding: 16 }}>
-            {/* Title row — tap to edit */}
-            <TouchableOpacity
-              onPress={() => canEdit && openEditModal(item)}
-              activeOpacity={canEdit ? 0.7 : 1}
-              style={{ flexDirection: "row", alignItems: "flex-start" }}
-            >
-              <View style={{
-                width: 28, height: 28, borderRadius: 14,
-                backgroundColor: STATUS_COLORS[status] + "18",
-                alignItems: "center", justifyContent: "center",
-                marginRight: 12, marginTop: 1,
-              }}>
-                <Text style={{ fontSize: 16, color: STATUS_COLORS[status], fontWeight: "700" }}>
-                  {STATUS_ICONS[status]}
-                </Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{
-                  fontSize: 15, fontWeight: "700",
-                  color: isCompleted ? colors.muted : colors.foreground,
-                  textDecorationLine: isCompleted ? "line-through" : "none",
-                  lineHeight: 20,
-                }}>
-                  {item.title}
-                </Text>
-                {item.description ? (
-                  <Text style={{ fontSize: 13, color: colors.muted, marginTop: 4, lineHeight: 18 }} numberOfLines={2}>
-                    {item.description}
-                  </Text>
-                ) : null}
-                {canEdit && (
-                  <Text style={{ fontSize: 11, color: colors.primary, marginTop: 4, fontWeight: "600" }}>
-                    Tap to edit
-                  </Text>
-                )}
-              </View>
-              {canManage && (
-                <TouchableOpacity
-                  onPress={() => handleDelete(item.id)}
-                  style={{
-                    width: 28, height: 28, borderRadius: 14,
-                    backgroundColor: colors.error + "0D",
-                    alignItems: "center", justifyContent: "center", marginLeft: 8,
-                  }}
-                >
-                  <Text style={{ fontSize: 13, color: colors.muted }}>×</Text>
-                </TouchableOpacity>
-              )}
-            </TouchableOpacity>
-
-            {/* Info badges */}
-            <View style={{ flexDirection: "row", gap: 6, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <View style={{ backgroundColor: PRIORITY_COLORS[priority] + "14", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 10, fontWeight: "700", color: PRIORITY_COLORS[priority], textTransform: "uppercase", letterSpacing: 0.5 }}>{priority}</Text>
-              </View>
-              <View style={{ backgroundColor: (item.assignedTo || item.assignedToList) ? colors.primary + "14" : colors.muted + "14", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, maxWidth: "60%" }}>
-                <Text style={{ fontSize: 10, fontWeight: "600", color: (item.assignedTo || item.assignedToList) ? colors.primary : colors.muted }} numberOfLines={1}>{assigneeName}</Text>
-              </View>
-              {dl && (() => {
-                const deadlineColor = isOverdue ? colors.error : isDueSoon ? colors.warning : colors.muted;
-                return (
-                  <View style={{ backgroundColor: deadlineColor + "14", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, flexDirection: "row", alignItems: "center", gap: 3 }}>
-                    <Text style={{ fontSize: 9 }}>{isOverdue ? "\u23F0" : "\uD83D\uDCC5"}</Text>
-                    <Text style={{ fontSize: 10, fontWeight: "700", color: deadlineColor }}>
-                      {isOverdue ? "OVERDUE" : isDueSoon ? "Due Soon" : `${dl.toLocaleDateString([], { month: "short", day: "numeric" })}`}
-                    </Text>
-                  </View>
-                );
-              })()}
-            </View>
-
-            {/* Status action buttons — always visible, clearly separated */}
-            {canUpdateStatus && !isCancelled && (
-              <View style={{
-                flexDirection: "row", gap: 8, marginTop: 12,
-                paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border + "40",
-              }}>
-                {statusOptions.map((opt) => {
-                  const isActive = status === opt.key;
-                  return (
-                    <TouchableOpacity
-                      key={opt.key}
-                      onPress={() => !isActive && setGoalStatus(item.id, opt.key)}
-                      activeOpacity={isActive ? 1 : 0.7}
-                      style={{
-                        flex: 1, paddingVertical: 8, borderRadius: 10,
-                        backgroundColor: isActive ? STATUS_COLORS[opt.key] + "22" : colors.background,
-                        borderWidth: isActive ? 1.5 : 1,
-                        borderColor: isActive ? STATUS_COLORS[opt.key] : colors.border + "60",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text style={{
-                        fontSize: 11, fontWeight: isActive ? "800" : "600",
-                        color: isActive ? STATUS_COLORS[opt.key] : colors.muted,
-                        letterSpacing: 0.3,
-                      }}>
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </View>
-        </View>
-      </View>
-    );
-  };
-
   // ═══════════════════════════════════════════════════════════════════════════════
   // ─── RENDER ────────────────────────────────────────────────────────────────────
   // ═══════════════════════════════════════════════════════════════════════════════
@@ -1344,48 +1315,38 @@ export default function GoalsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Filter by Assignee (owner only) */}
-            {isOwner && assignableEmployees.length > 0 && (
-              <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <TouchableOpacity
-                    style={{
-                      paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, marginRight: 6,
-                      backgroundColor: filterAssignee === "all" ? colors.primary + "22" : colors.surface,
-                    }}
-                    onPress={() => setFilterAssignee("all")}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: filterAssignee === "all" ? colors.primary : colors.muted }}>All</Text>
-                  </TouchableOpacity>
-                  {assignableEmployees.map((emp: any) => (
-                    <TouchableOpacity
-                      key={emp.id}
-                      style={{
-                        paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, marginRight: 6,
-                        backgroundColor: filterAssignee === emp.id ? colors.primary + "22" : colors.surface,
-                      }}
-                      onPress={() => setFilterAssignee(filterAssignee === emp.id ? "all" : emp.id)}
-                    >
-                      <Text style={{ fontSize: 12, fontWeight: "600", color: filterAssignee === emp.id ? colors.primary : colors.muted }}>{emp.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            {/* Progress Bar */}
+            {/* Overall Progress Bar */}
             {totalCount > 0 && (
-              <View style={{ paddingHorizontal: 16, marginBottom: 14 }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+              <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
                   <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "500" }}>{completedCount}/{totalCount} completed</Text>
                   <Text style={{ fontSize: 12, fontWeight: "700", color: colors.success }}>{Math.round((completedCount / totalCount) * 100)}%</Text>
                 </View>
-                <View style={{ height: 4, backgroundColor: colors.surface, borderRadius: 2 }}>
+                <View style={{ height: 3, backgroundColor: colors.surface, borderRadius: 2 }}>
                   <View style={{
-                    height: 4, borderRadius: 2, backgroundColor: colors.success,
+                    height: 3, borderRadius: 2, backgroundColor: colors.success,
                     width: `${(completedCount / totalCount) * 100}%`,
                   }} />
                 </View>
+              </View>
+            )}
+
+            {/* Expand/Collapse All toggle */}
+            {(isOwner || isOwnerOrManager) && goalsByEmployee.length > 1 && (
+              <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, marginBottom: 4 }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (expandedEmployees.size >= goalsByEmployee.length) {
+                      setExpandedEmployees(new Set());
+                    } else {
+                      setExpandedEmployees(new Set(goalsByEmployee.map(([key]) => key)));
+                    }
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
+                    {expandedEmployees.size >= goalsByEmployee.length ? "Collapse All" : "Expand All"}
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -1417,39 +1378,50 @@ export default function GoalsScreen() {
               </KeyboardAvoidingView>
             </Modal>
 
-            {/* Goals List */}
+            {/* Goals List — Collapsible by Employee */}
             {isLoading && !goals ? (
               <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
                 <ActivityIndicator size="large" color={colors.primary} />
               </View>
+            ) : goalsByEmployee.length === 0 ? (
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40 }}>
+                <MaterialIcons name="flag" size={40} color={colors.muted} />
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginTop: 12 }}>
+                  {isLaborer ? "No goals assigned to you this week" : "No goals this week"}
+                </Text>
+                {canManage && (
+                  <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>
+                    Tap "+ Goal" to add a weekly goal, or sync from the schedule.
+                  </Text>
+                )}
+                {isLaborer && (
+                  <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>
+                    Your foreman or manager will assign goals to you here.
+                  </Text>
+                )}
+              </View>
             ) : (
-              <FlatList
-                data={filteredGoals}
-                keyExtractor={(item: any) => item.id.toString()}
-                keyboardShouldPersistTaps="handled"
-                renderItem={renderGoalCard}
-                ListEmptyComponent={
-                  <View style={{ alignItems: "center", padding: 40 }}>
-                    <MaterialIcons name="flag" size={40} color={colors.muted} />
-                    <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginTop: 12 }}>
-                      {isLaborer ? "No goals assigned to you this week" : "No goals this week"}
-                    </Text>
-                    {canManage && (
-                      <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>
-                        Tap "+ Goal" to add a weekly goal, or generate goals from a meeting summary.
-                      </Text>
-                    )}
-                    {isLaborer && (
-                      <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4, textAlign: "center" }}>
-                        Your foreman or manager will assign goals to you here.
-                      </Text>
-                    )}
-                  </View>
-                }
-                contentContainerStyle={{ paddingBottom: 32, paddingTop: 4 }}
-                onRefresh={refetch}
-                refreshing={isLoading}
-              />
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 32 }}
+                onScrollBeginDrag={() => {}}
+              >
+                {goalsByEmployee.map(([key, group]) => (
+                  <EmployeeGoalSection
+                    key={key}
+                    employeeName={group.name}
+                    goals={group.goals}
+                    isExpanded={expandedEmployees.has(key)}
+                    onToggle={() => toggleEmployeeSection(key)}
+                    colors={colors}
+                    onStatusChange={handleStatusChange}
+                    onEdit={openEditModal}
+                    onDelete={handleDelete}
+                    canUpdateStatus={isOwnerOrManager || isForeman}
+                    canManage={canManage}
+                  />
+                ))}
+              </ScrollView>
             )}
           </View>
         )}
@@ -1460,7 +1432,7 @@ export default function GoalsScreen() {
             goals={filteredGoals}
             colors={colors}
             employeeMap={employeeMap}
-            onGoalPress={(goal) => canManage ? openEditModal(goal) : handleStatusCycle(goal)}
+            onGoalPress={(goal) => canManage ? openEditModal(goal) : handleStatusChange(goal.id, goal.status === "completed" ? "pending" : goal.status === "in_progress" ? "completed" : "in_progress")}
             onStatusChange={(goalId, newStatus) => {
               if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               offlineUpdateGoal.mutate({

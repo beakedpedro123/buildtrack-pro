@@ -103,6 +103,7 @@ export const jobs = mysqlTable("jobs", {
   taxRate: decimal("taxRate", { precision: 5, scale: 2 }).default("0"),
   workersCompRate: decimal("workersCompRate", { precision: 5, scale: 2 }).default("0"),
   liabilityInsRate: decimal("liabilityInsRate", { precision: 5, scale: 2 }).default("0"),
+  assignedCrew: text("assignedCrew"), // JSON array of employee IDs assigned to this job
   createdBy: int("createdBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

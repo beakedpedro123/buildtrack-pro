@@ -2805,3 +2805,46 @@
 - [x] Fixed sendMessage company-wide to only send to same-company employees
 - [x] Fixed createDailyReport, createPunchListItem, clock.in to pass companyId
 - [x] Fixed team invite to use actual company name from branding
+
+## Phase 148: Gemini Audit Security Fixes + Pivot Job Scheduling Enhancement
+
+### Gemini Audit Security Fixes
+- [x] Move `updateSubscription` from `publicProcedure` to `adminProcedure` (critical security)
+- [x] Switch `Math.floor` to `Math.round` in payroll calculations (wage-theft protection)
+- [x] Fix `companyId: 0` falsy check in `savePivotConversation` in db.ts (data integrity)
+
+### Pivot Job Scheduling Enhancement
+- [ ] Enhance Pivot schedule_job tool: crew selection → labor cost calc → overhead → profit days → calendar
+- [ ] Pivot calculates daily labor cost + overhead for selected crew
+- [ ] Pivot calculates max work days to stay profitable (budget - overhead - labor = profit margin)
+- [ ] Pivot generates calendar schedule with daily tasks per crew member
+- [ ] Owner can manually override any Pivot suggestion (Pivot is an assist tool)
+- [ ] Push daily goals from generated schedule to foreman view
+- [ ] Pivot learns from actual job durations to improve future estimates
+
+### Manual Job Creation with Budgeted Schedule Calendar
+- [ ] Manual job creation screen: name, type (hourly/budget), client, address, budget, billing rate
+- [ ] Crew selection step: pick employees from roster for this job
+- [ ] Budget setup step: enter budget categories, labor %, materials %, overhead %, profit target
+- [ ] Schedule calendar view: visual calendar showing work days with task slots
+- [ ] Task-per-day input: owner manually enters what needs to be done each day on the calendar
+- [ ] Daily labor cost display: show selected crew's daily cost (sum of hourly rates x hours)
+- [ ] Daily overhead display: show overhead allocation per day
+- [ ] Profit timeline: show how many work days crew has before profit margin is eaten
+- [ ] Manual "Push as Goals" button: convert calendar tasks into daily goals for foreman
+- [ ] Both manual AND Pivot paths push daily goals to foreman view
+
+### Goals Tab Complete Redesign
+- [x] Replace horizontal employee name pills with collapsible accordion-style employee list
+- [x] Redesign goal cards — compact, not big stacked blocks
+- [x] Better visual hierarchy — clean, not cluttered, high-end construction feel
+- [x] Match the curvy high-end aesthetic of the rest of the app
+- [x] Sync goals with new job creation/schedule planner flow
+- [x] Keep punch list as-is but ensure it syncs with schedule/goals
+- [x] Integrate new schedule planner goals push into redesigned goals screen
+
+### CompanyId Guard — All Mutations/Queries
+- [x] Ensure syncFromSchedule includes companyId
+- [x] Ensure all new goals.create calls pass companyId
+- [x] Ensure schedule planner push-to-goals includes companyId
+- [x] Audit all new mutations added this session for companyId guard
