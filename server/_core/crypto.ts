@@ -37,14 +37,19 @@ const TAG_LENGTH = 16; // GCM auth tag length
 
 /**
  * Get the encryption key from environment. Must be 32 bytes (64 hex chars).
- * Falls back to a derived key from JWT_SECRET if SSN_ENCRYPTION_KEY is not set.
+ * SECURITY FIX (R1-4): In production, SSN_ENCRYPTION_KEY is REQUIRED.
+ * No fallback to JWT_SECRET — SSN encryption uses a dedicated key.
  */
 function getEncryptionKey(): Buffer {
   const envKey = process.env.SSN_ENCRYPTION_KEY;
   if (envKey && envKey.length === 64) {
     return Buffer.from(envKey, "hex");
   }
-  // Derive a key from JWT_SECRET as fallback (not ideal but better than plaintext)
+  // In production, require the dedicated key — no fallback
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("[FATAL] SSN_ENCRYPTION_KEY must be set in production (64 hex chars).");
+  }
+  // Development only: derive from JWT_SECRET for local testing convenience
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     throw new Error("SSN_ENCRYPTION_KEY or JWT_SECRET must be set for SSN encryption");

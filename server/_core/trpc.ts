@@ -55,9 +55,12 @@ const requireUserAndBindCompany = t.middleware(async (opts) => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
 
-  // Bind companyId from the authenticated user's company membership
-  // The user object should have companyId from the OAuth/session lookup
-  const userCompanyId = (ctx.user as any).companyId || ctx.companyId;
+  // SECURITY FIX (R1-2): Bind companyId ONLY from the authenticated user's DB record.
+  // No fallback to header — if user has no companyId, deny access.
+  const userCompanyId = (ctx.user as any).companyId;
+  if (!userCompanyId || typeof userCompanyId !== "number" || userCompanyId <= 0) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "User has no valid company association." });
+  }
 
   return next({
     ctx: {

@@ -13,6 +13,48 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { sdk } from "./sdk";
+import { ENV } from "./env";
+
+// SECURITY FIX (NEW-2): Express auth middleware for non-tRPC routes
+// Verifies session cookie/bearer token before allowing access
+async function requireAuth(req: Request, res: Response, next: () => void) {
+  try {
+    const user = await sdk.authenticateRequest(req);
+    if (!user) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    (req as any).user = user;
+    next();
+  } catch (err) {
+    res.status(401).json({ error: "Authentication required" });
+  }
+}
+
+// SECURITY FIX (NEW-2): URL allowlist for download proxy to prevent SSRF
+// Only allow fetching from our own storage domain
+function isAllowedDownloadUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    // Allow our own storage proxy domain
+    const forgeUrl = ENV.forgeApiUrl;
+    if (forgeUrl) {
+      const forgeDomain = new URL(forgeUrl).hostname;
+      if (parsed.hostname === forgeDomain) return true;
+    }
+    // Allow common S3-compatible domains
+    if (parsed.hostname.endsWith(".amazonaws.com")) return true;
+    if (parsed.hostname.endsWith(".r2.cloudflarestorage.com")) return true;
+    if (parsed.hostname.endsWith(".digitaloceanspaces.com")) return true;
+    if (parsed.hostname.endsWith(".manus.storage")) return true;
+    if (parsed.hostname.endsWith(".manus.computer")) return true;
+    // Block everything else (prevents SSRF to internal services, metadata endpoints, etc.)
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 // ESM compatibility: derive __dirname from import.meta.url
 // Works in both tsx (dev) and esbuild ESM output (production)
@@ -82,9 +124,15 @@ async function startServer() {
   const server = createServer(app);
 
   // SECURITY FIX (Low #15): Security headers with Helmet
+  // SECURITY FIX: HSTS header tells browsers to always use HTTPS
   app.use(helmet({
     contentSecurityPolicy: false, // CSP handled by individual pages
     crossOriginEmbedderPolicy: false, // Allow cross-origin resources
+    hsts: {
+      maxAge: 31536000, // 1 year in seconds
+      includeSubDomains: true,
+      preload: true,
+    },
   }));
 
   // SECURITY FIX (High #7): CORS allowlist instead of reflect-origin
@@ -136,6 +184,29 @@ async function startServer() {
 
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ limit: "1mb", extended: true }));
+
+  // SECURITY FIX: Request logging middleware for forensic analysis
+  // Logs all API calls with timestamps, user IDs, and response codes
+  app.use("/api", (req, res, next) => {
+    const startTime = Date.now();
+    const originalEnd = res.end;
+    const ip = (req.ip || req.headers["x-forwarded-for"] || "unknown") as string;
+    const userId = (req as any).user?.id || "anon";
+    const companyId = req.headers["x-company-id"] || "0";
+
+    (res as any).end = function (this: any, ...args: any[]) {
+      const duration = Date.now() - startTime;
+      const logEntry = `[${new Date().toISOString()}] ${req.method} ${req.path} | status=${res.statusCode} | ip=${ip} | user=${userId} | company=${companyId} | ${duration}ms`;
+      // Log to stdout (captured by process manager for forensic review)
+      if (res.statusCode >= 400) {
+        console.warn(`[audit] ${logEntry}`);
+      } else if (req.path !== "/api/health") {
+        console.log(`[audit] ${logEntry}`);
+      }
+      return (originalEnd as any).apply(this, args);
+    };
+    next();
+  });
 
   // ═══ RATE LIMITING ═══
   // Global API rate limit: 100 requests per minute per IP
@@ -237,8 +308,9 @@ async function startServer() {
   registerOAuthRoutes(app);
 
   // File upload endpoint for audio recordings, photos, and PDFs
+  // SECURITY FIX (NEW-2): Requires authentication
   // Uses multer for reliable multipart parsing (handles iOS/Android FormData correctly)
-  app.post("/api/upload", upload.single("file"), async (req, res) => {
+  app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => {
     try {
       const { storagePut } = await import("../storage");
 
@@ -262,6 +334,11 @@ async function startServer() {
               return;
             }
             const contentType = req.headers["content-type"] || "application/octet-stream";
+            // SECURITY FIX (NEW-3): Apply MIME allowlist to raw body uploads too
+            if (!ALLOWED_MIME_TYPES.has(contentType)) {
+              res.status(400).json({ error: `File type ${contentType} not allowed` });
+              return;
+            }
             const ext = contentType.includes("audio") ? "m4a" : contentType.includes("pdf") ? "pdf" : contentType.includes("image") ? "jpg" : contentType.includes("video") ? "mp4" : "bin";
             const key = `uploads/${Date.now()}.${ext}`;
             const { url } = await storagePut(key, body, contentType);
@@ -292,12 +369,18 @@ async function startServer() {
   });
 
   // File download proxy — fetches from S3 storage and streams to client with proper Content-Disposition
-  app.get("/api/download", async (req: Request, res: Response) => {
+  // SECURITY FIX (NEW-2): Requires authentication + URL allowlist to prevent SSRF
+  app.get("/api/download", requireAuth, async (req: Request, res: Response) => {
     try {
       const fileUrl = req.query.url as string;
       const fileName = (req.query.name as string) || "attachment";
       if (!fileUrl) {
         res.status(400).json({ error: "url query param required" });
+        return;
+      }
+      // SECURITY FIX (NEW-2): Validate URL against allowlist to prevent SSRF
+      if (!isAllowedDownloadUrl(fileUrl)) {
+        res.status(403).json({ error: "Download URL not allowed" });
         return;
       }
       // Fetch the file from S3

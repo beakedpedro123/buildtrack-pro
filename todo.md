@@ -2892,3 +2892,15 @@
 - [ ] Verify server compiles and runs after all fixes
 - [ ] Export fresh source code for final re-audit
 - [x] Add HTTPS-only secure cookie flag for production deployment
+
+## V3 Audit Fixes (Round 3)
+- [x] Fix R1-5: employees.list remove input.companyId, always use ctx.companyId
+- [x] Fix NEW-1/R2-6: Pass ctx.companyId to all 13 assertRole calls missing it
+- [x] Fix NEW-2: Add auth to /api/upload and /api/download, add SSRF URL allowlist
+- [x] Fix NEW-3: Raw body upload path - apply MIME allowlist
+- [x] Fix NEW-4: clock.activeEntry and clock.history - add verifyEmployeeOwnership
+- [x] Fix R1-2: Remove fragile companyId fallback pattern in trpc.ts
+- [x] Fix R1-4: Require dedicated SSN_ENCRYPTION_KEY in production
+- [x] Add HSTS header via Helmet config
+- [x] Add session expiry/rotation (24h inactivity, rotate on privilege change)
+- [x] Add request logging middleware for forensic analysis

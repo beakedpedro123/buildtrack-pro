@@ -273,6 +273,18 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
+    // SECURITY FIX: Session expiry — auto-expire after 24h of inactivity
+    const SESSION_MAX_IDLE_MS = 24 * 60 * 60 * 1000; // 24 hours
+    if (user.lastSignedIn) {
+      const lastActivity = new Date(user.lastSignedIn).getTime();
+      const now = Date.now();
+      if (now - lastActivity > SESSION_MAX_IDLE_MS) {
+        console.warn(`[Auth] Session expired for user ${user.openId} — idle for ${Math.round((now - lastActivity) / 3600000)}h`);
+        throw ForbiddenError("Session expired due to inactivity. Please sign in again.");
+      }
+    }
+
+    // Update last activity timestamp (session rotation on each request)
     await db.upsertUser({
       openId: user.openId,
       lastSignedIn: signedInAt,

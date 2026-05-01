@@ -38,7 +38,7 @@ const AVAILABLE_TRADES = [
 ];
 
 // Helper: assert that the requesting employee has one of the allowed roles
-async function assertRole(requestingId: number, allowedRoles: string[], action: string, companyId?: number) {
+async function assertRole(requestingId: number, allowedRoles: string[], action: string, companyId: number) {
   const requester = await db.getEmployeeById(requestingId);
   if (!requester || !allowedRoles.includes(requester.role)) {
     throw new TRPCError({ code: "FORBIDDEN", message: `Only ${allowedRoles.join("/")} can ${action}.` });
@@ -86,7 +86,7 @@ async function verifyReportOwnership(reportId: number, companyId: number) {
 }
 
 const employeeRouter = router({
-  list: protectedProcedure.input(z.object({ companyId: z.number().optional() }).optional()).query(({ input, ctx }) => db.getAllEmployees(input?.companyId || ctx.companyId)),
+  list: protectedProcedure.query(({ ctx }) => db.getAllEmployees(ctx.companyId)),
   listByCompany: protectedProcedure.query(({ ctx }) => db.getAllEmployees(ctx.companyId)),
   getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
     const emp = await db.getEmployeeById(input.id);
@@ -346,8 +346,16 @@ const clockRouter = router({
       });
     }
   }),
-  activeEntry: protectedProcedure.input(z.object({ employeeId: z.number() })).query(({ input }) => db.getActiveClockEntry(input.employeeId)),
-  history: protectedProcedure.input(z.object({ employeeId: z.number(), since: z.string().optional() })).query(({ input }) => db.getClockEntriesForEmployee(input.employeeId, input.since ? new Date(input.since) : undefined)),
+  activeEntry: protectedProcedure.input(z.object({ employeeId: z.number() })).query(async ({ input, ctx }) => {
+    // SECURITY FIX (NEW-4): Verify employee belongs to caller's company
+    await verifyEmployeeOwnership(input.employeeId, ctx.companyId);
+    return db.getActiveClockEntry(input.employeeId);
+  }),
+  history: protectedProcedure.input(z.object({ employeeId: z.number(), since: z.string().optional() })).query(async ({ input, ctx }) => {
+    // SECURITY FIX (NEW-4): Verify employee belongs to caller's company
+    await verifyEmployeeOwnership(input.employeeId, ctx.companyId);
+    return db.getClockEntriesForEmployee(input.employeeId, input.since ? new Date(input.since) : undefined);
+  }),
   forJob: protectedProcedure.input(z.object({ jobId: z.number(), date: z.string().optional() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getClockEntriesForJob(input.jobId, input.date ? new Date(input.date) : undefined); }),
   allClockedIn: protectedProcedure.query(({ ctx }) => db.getClockedInEmployees(ctx.companyId)),
   laborCostForJob: protectedProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getLaborCostForJob(input.jobId); }),
@@ -370,7 +378,7 @@ const clockRouter = router({
     reason: z.string().min(1),
     timezoneOffset: z.number().optional(), // Client's timezone offset in minutes
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.adjustedBy, ["owner", "office_manager", "logistics", "foreman"], "adjust time entries");
+    await assertRole(input.adjustedBy, ["owner", "office_manager", "logistics", "foreman"], "adjust time entries", ctx.companyId);
     let clockIn = input.clockIn ? new Date(input.clockIn) : undefined;
     let clockOut = input.clockOut ? new Date(input.clockOut) : undefined;
     // Apply same timezone correction as addManualEntry
@@ -420,7 +428,7 @@ const clockRouter = router({
     reason: z.string().min(1),
     timezoneOffset: z.number().optional(), // Client's timezone offset in minutes (e.g., 360 for MDT)
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.addedBy, ["owner", "office_manager", "logistics"], "add manual time entries");
+    await assertRole(input.addedBy, ["owner", "office_manager", "logistics"], "add manual time entries", ctx.companyId);
     let clockIn = new Date(input.clockIn);
     let clockOut = new Date(input.clockOut);
     // Server-side timezone correction: if the client sends a timezone offset,
@@ -460,7 +468,7 @@ const clockRouter = router({
     deletedBy: z.number(),
     reason: z.string().min(1),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.deletedBy, ["owner", "office_manager", "logistics"], "delete time entries");
+    await assertRole(input.deletedBy, ["owner", "office_manager", "logistics"], "delete time entries", ctx.companyId);
     return db.deleteClockEntry(input.entryId, input.deletedBy, input.reason);
   }),
   // Set lunch minutes on a clock entry (does NOT adjust clock-in time)
@@ -606,7 +614,7 @@ Rules:
     seen: z.boolean(),
     requestingId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingId, ["owner"], "mark reports as seen");
+    await assertRole(input.requestingId, ["owner"], "mark reports as seen", ctx.companyId);
     return db.markReportSeen(input.reportId, input.seen);
   }),
 });
@@ -631,7 +639,7 @@ const budgetRouter = router({
   })).mutation(({ input }) => db.createExpense({ ...input, expenseDate: new Date(input.expenseDate) })),
   getExpenses: protectedProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getExpensesForJob(input.jobId); }),
   syncToQB: protectedProcedure.input(z.object({ triggeredBy: z.number(), syncType: z.enum(["expenses", "labor", "full"]).default("full") })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.triggeredBy, ["owner", "office_manager"], "sync to QuickBooks");
+    await assertRole(input.triggeredBy, ["owner", "office_manager"], "sync to QuickBooks", ctx.companyId);
     const logId = await db.createSyncLog({ syncType: input.syncType, status: "pending", triggeredBy: input.triggeredBy, itemsSynced: 0 });
     try {
       const unsyncedExpenses = await db.getUnsyncedExpenses(ctx.companyId);
@@ -657,7 +665,7 @@ const changeOrdersRouter = router({
     createdBy: z.number(),
     notes: z.string().optional(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.createdBy, ["owner", "office_manager"], "create change orders");
+    await assertRole(input.createdBy, ["owner", "office_manager"], "create change orders", ctx.companyId);
     return db.createChangeOrder(input);
   }),
   updateStatus: protectedProcedure.input(z.object({
@@ -666,7 +674,7 @@ const changeOrdersRouter = router({
     approvedBy: z.number().optional(),
   })).mutation(({ input }) => db.updateChangeOrderStatus(input.id, input.status, input.approvedBy)),
   delete: protectedProcedure.input(z.object({ id: z.number(), requestingId: z.number() })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingId, ["owner", "office_manager"], "delete change orders");
+    await assertRole(input.requestingId, ["owner", "office_manager"], "delete change orders", ctx.companyId);
     return db.deleteChangeOrder(input.id);
   }),
   total: protectedProcedure.input(z.object({ jobId: z.number() })).query(({ input }) => db.getChangeOrderTotal(input.jobId)),
@@ -1213,7 +1221,7 @@ const financialChartsRouter = router({
     description: z.string().optional(),
     changeOrderId: z.number().optional(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.employeeId, ["owner", "office_manager"], "create audit entries");
+    await assertRole(input.employeeId, ["owner", "office_manager"], "create audit entries", ctx.companyId);
     return db.createBudgetAuditEntry(input);
   }),
 });
@@ -1231,7 +1239,7 @@ const kpiRouter = router({
     period: z.enum(["weekly", "monthly", "quarterly", "yearly"]).default("monthly"),
     createdBy: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.createdBy, ["owner", "office_manager"], "create KPIs");
+    await assertRole(input.createdBy, ["owner", "office_manager"], "create KPIs", ctx.companyId);
     return db.createKpi(input);
   }),
   update: protectedProcedure.input(z.object({
@@ -1258,7 +1266,7 @@ const kpiRouter = router({
     notes: z.string().optional(),
     recordedBy: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.recordedBy, ["owner", "office_manager"], "record KPI values");
+    await assertRole(input.recordedBy, ["owner", "office_manager"], "record KPI values", ctx.companyId);
     await db.addKpiHistoryEntry(input);
     return { success: true };
   }),
@@ -1315,7 +1323,7 @@ const safetyMeetingsRouter = router({
     conductedBy: z.number(),
     conductedAt: z.string(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.conductedBy, ["owner", "office_manager", "logistics", "foreman"], "create safety meetings");
+    await assertRole(input.conductedBy, ["owner", "office_manager", "logistics", "foreman"], "create safety meetings", ctx.companyId);
     const id = await db.createSafetyMeeting({
       ...input,
       conductedAt: new Date(input.conductedAt),
@@ -5622,7 +5630,7 @@ const overheadRouter = router({
     notes: z.string().optional(),
     createdBy: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.createdBy, ["owner", "office_manager"], "manage overhead");
+    await assertRole(input.createdBy, ["owner", "office_manager"], "manage overhead", ctx.companyId);
     return db.createOverheadItem(input);
   }),
   update: protectedProcedure.input(z.object({
@@ -5738,7 +5746,7 @@ const taxInfoRouter = router({
     notes: z.string().optional(),
     updatedBy: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.updatedBy, ["owner", "office_manager"], "manage tax info");
+    await assertRole(input.updatedBy, ["owner", "office_manager"], "manage tax info", ctx.companyId);
     return db.upsertEmployeeTaxInfo(input.employeeId, input);
   }),
 });
