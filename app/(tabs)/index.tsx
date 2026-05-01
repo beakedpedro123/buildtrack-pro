@@ -306,9 +306,9 @@ export default function DashboardScreen() {
     }
   }, [allEmployees]);
 
-  // Clocked-in with cache fallback
-  const clockedInQ = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 0, refetchInterval: 15000, refetchOnMount: "always", refetchOnWindowFocus: "always" });
-  const { data: clockedIn } = useOfflineCache(CACHE_KEYS.CLOCKED_IN, clockedInQ.data, clockedInQ.isLoading);
+  // Clocked-in — real-time only, NO offline cache (stale cache causes wrong count on dashboard)
+  const clockedInQ = trpc.clock.allClockedIn.useQuery(undefined, { enabled: isManagement, staleTime: 0, refetchInterval: 10000, refetchOnMount: "always", refetchOnWindowFocus: "always" });
+  const clockedIn = clockedInQ.data;
   const refetchClockedIn = clockedInQ.refetch;
 
   const [showVoiceGoals, setShowVoiceGoals] = useState(false);

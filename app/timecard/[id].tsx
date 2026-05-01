@@ -108,7 +108,7 @@ export default function TimecardScreen() {
   const utils = trpc.useUtils();
   const { data, isLoading, refetch } = trpc.clock.getDetailedTimecard.useQuery(
     { employeeId, startDate: range.startDate, endDate: range.endDate },
-    { enabled: employeeId > 0 }
+    { enabled: employeeId > 0, staleTime: 0, refetchOnMount: "always" }
   );
 
   const jobsQuery = trpc.jobs.list.useQuery();

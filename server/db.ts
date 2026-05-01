@@ -452,7 +452,7 @@ export async function clockIn(data: InsertClockEntry) {
     console.warn(`[clockIn] Rejected ghost employeeId=${data.employeeId} — not in employees table`);
     throw new Error(`Employee ID ${data.employeeId} does not exist`);
   }
-  // 3. Dedup by time proximity — reject if same employee+job within 5 minutes
+  // 3. Dedup by time proximity — reject if same employee+job within 5 minutes AND still active (no clockOut)
   const clockInTime = data.clockIn instanceof Date ? data.clockIn : new Date(data.clockIn as any);
   const fiveMinBefore = new Date(clockInTime.getTime() - 5 * 60000);
   const fiveMinAfter = new Date(clockInTime.getTime() + 5 * 60000);
@@ -460,11 +460,12 @@ export async function clockIn(data: InsertClockEntry) {
     .where(and(
       eq(clockEntries.employeeId, data.employeeId),
       eq(clockEntries.jobId, data.jobId),
+      isNull(clockEntries.clockOut), // Only dedup against ACTIVE entries — not already clocked-out ones
       gte(clockEntries.clockIn, fiveMinBefore),
       lte(clockEntries.clockIn, fiveMinAfter)
     )).limit(1);
   if (dupe.length > 0) {
-    console.warn(`[clockIn] Rejected duplicate: emp=${data.employeeId} job=${data.jobId} within 5min of entry ${dupe[0].id}`);
+    console.warn(`[clockIn] Rejected duplicate: emp=${data.employeeId} job=${data.jobId} within 5min of active entry ${dupe[0].id}`);
     return dupe[0].id; // Return existing entry ID instead of creating duplicate
   }
   const result = await db.insert(clockEntries).values(data);
