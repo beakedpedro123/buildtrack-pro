@@ -2935,3 +2935,7 @@
 - [x] Fix profile.tsx tRPC input errors (companyId not needed)
 - [x] Fix remaining frontend implicit any errors (clock, index, labor-costs, kpis, team, safety, meetings, reports)
 - [x] Create security ecosystem architecture map (visual diagram of all security layers)
+
+- [x] BUG: Login screen shows "No employees found" after selecting company — employee list not loading
+- [x] BUG: Persistent bottom border/wave element overlapping device navigation bar
+- [x] BUG: getLaborCostForJob() in db.ts doesn't subtract lunch minutes — dashboard labor cost and Pivot P&L show higher numbers than payroll report

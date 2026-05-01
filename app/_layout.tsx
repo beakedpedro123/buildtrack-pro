@@ -189,7 +189,7 @@ export default function RootLayout() {
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="timecard/[id]" options={{ presentation: "card" }} />
-                  <Stack.Screen name="login" options={{ presentation: "fullScreenModal" }} />
+                  <Stack.Screen name="login" options={{ presentation: "fullScreenModal", contentStyle: { backgroundColor: "#0D0D0D" } }} />
                   <Stack.Screen name="oauth/callback" />
                 </Stack>
                 <StatusBar style="auto" />

@@ -67,12 +67,12 @@ export default function LoginScreen() {
   const [verifying, setVerifying] = useState(false);
   const [cachedEmployees, setCachedEmployees] = useState<any[] | null>(null);
 
-  const { data: employees, isLoading } = trpc.employees.listByCompany.useQuery(
-    undefined,
+  const { data: employees, isLoading } = trpc.employees.listForLogin.useQuery(
+    { companyId: companyId || 0 },
     {
       retry: 1,
       staleTime: 30000,
-      enabled: step !== "company" && !!companyId,
+      enabled: step !== "company" && !!companyId && companyId > 0,
     }
   );
   const verifyPin = trpc.employees.verifyPin.useMutation();
@@ -341,6 +341,7 @@ export default function LoginScreen() {
   // ── STEP 1: Company Code ──────────────────────────────────────────────
   if (step === "company") {
     return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.logo}>BuildTrack <Text style={styles.logoAccent}>Pro</Text></Text>
@@ -387,6 +388,7 @@ export default function LoginScreen() {
           </Text>
         </View>
       </SafeAreaView>
+      </View>
     );
   }
 
@@ -394,6 +396,7 @@ export default function LoginScreen() {
   if (step === "pin" && selectedEmployee) {
     const roleColor = ROLE_COLORS[selectedEmployee.role] || colors.primary;
     return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.logo}>BuildTrack <Text style={styles.logoAccent}>Pro</Text></Text>
@@ -442,19 +445,23 @@ export default function LoginScreen() {
           {verifying && <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />}
         </View>
       </SafeAreaView>
+      </View>
     );
   }
 
   // ── STEP 2: Employee Selection ────────────────────────────────────────
   if (isLoading && !cachedEmployees) {
     return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaView style={[styles.container, { alignItems: "center", justifyContent: "center" }]}>
         <ActivityIndicator color={colors.primary} size="large" />
       </SafeAreaView>
+      </View>
     );
   }
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.logo}>BuildTrack <Text style={styles.logoAccent}>Pro</Text></Text>
@@ -512,5 +519,6 @@ export default function LoginScreen() {
         />
       </View>
     </SafeAreaView>
+    </View>
   );
 }

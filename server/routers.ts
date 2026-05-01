@@ -88,6 +88,12 @@ async function verifyReportOwnership(reportId: number, companyId: number) {
 const employeeRouter = router({
   list: protectedProcedure.query(({ ctx }) => db.getAllEmployees(ctx.companyId)),
   listByCompany: protectedProcedure.query(({ ctx }) => db.getAllEmployees(ctx.companyId)),
+  // Public endpoint for login screen — returns only safe fields (id, name, role)
+  listForLogin: publicProcedure.input(z.object({ companyId: z.number() })).query(async ({ input }) => {
+    const emps = await db.getAllEmployees(input.companyId);
+    // Strip sensitive fields — only return what the login screen needs
+    return (emps || []).map((e: any) => ({ id: e.id, name: e.name, role: e.role }));
+  }),
   getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
     const emp = await db.getEmployeeById(input.id);
     if (!emp || emp.companyId !== ctx.companyId) return undefined;

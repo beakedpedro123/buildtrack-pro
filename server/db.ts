@@ -918,6 +918,32 @@ export async function acceptInvite(token: string, name: string, pin: string) {
   return emp.id;
 }
 
+// ─── Shared lunch deduction helper ───────────────────────────────────────────
+/**
+ * Calculates net working minutes for a clock entry after subtracting lunch.
+ * Uses per-entry lunchMinutes first; falls back to company auto-deduction settings.
+ */
+function deductLunch(
+  rawMinutes: number,
+  entryLunchMinutes: number,
+  companySettings: { lunchAutoDeduct: boolean; lunchDeductMinutes: number; lunchMinShiftMinutes: number; lunchSkipDays: string | null } | null,
+  clockInDate: Date,
+): number {
+  // Per-entry lunch takes priority (set during voice clock-out or manual entry)
+  if (entryLunchMinutes > 0) {
+    return Math.max(0, rawMinutes - entryLunchMinutes);
+  }
+  // Company-level auto-deduction fallback
+  if (companySettings?.lunchAutoDeduct && rawMinutes >= companySettings.lunchMinShiftMinutes) {
+    const skipDays = companySettings.lunchSkipDays ? companySettings.lunchSkipDays.split(",").map(Number) : [5];
+    const dow = clockInDate.getDay();
+    if (!skipDays.includes(dow)) {
+      return Math.max(0, rawMinutes - companySettings.lunchDeductMinutes);
+    }
+  }
+  return rawMinutes;
+}
+
 // ─── Labor Cost for Job ──────────────────────────────────────────────────
 export async function getLaborCostForJob(jobId: number) {
   const db = await getDb();
@@ -927,11 +953,26 @@ export async function getLaborCostForJob(jobId: number) {
   const allEmployees = await db.select().from(employees);
   const empMap = new Map(allEmployees.map(e => [e.id, e]));
 
+  // Get company settings for auto-deduction (use first entry's companyId)
+  let companySettings: { lunchAutoDeduct: boolean; lunchDeductMinutes: number; lunchMinShiftMinutes: number; lunchSkipDays: string | null } | null = null;
+  if (entries.length > 0 && entries[0].companyId) {
+    const company = await getCompanyById(entries[0].companyId);
+    if (company) {
+      companySettings = {
+        lunchAutoDeduct: company.lunchAutoDeduct,
+        lunchDeductMinutes: company.lunchDeductMinutes,
+        lunchMinShiftMinutes: company.lunchMinShiftMinutes,
+        lunchSkipDays: company.lunchSkipDays,
+      };
+    }
+  }
+
   let totalMinutes = 0;
   let totalCost = 0;
   for (const entry of entries) {
     if (!entry.clockOut) continue;
-    const mins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+    const rawMins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+    const mins = deductLunch(rawMins, entry.lunchMinutes || 0, companySettings, new Date(entry.clockIn));
     totalMinutes += mins;
     const emp = empMap.get(entry.employeeId);
     if (emp?.hourlyRate) {
@@ -958,10 +999,20 @@ export async function getLaborCostByJob(startDate: Date, endDate: Date, companyI
   const empMap = new Map(allEmployees.map(e => [e.id, e]));
   const jobMap = new Map(allJobs.map(j => [j.id, j]));
 
+  // Load company lunch settings for deduction
+  const company = await getCompanyById(cid);
+  const companySettings = company ? {
+    lunchAutoDeduct: company.lunchAutoDeduct,
+    lunchDeductMinutes: company.lunchDeductMinutes,
+    lunchMinShiftMinutes: company.lunchMinShiftMinutes,
+    lunchSkipDays: company.lunchSkipDays,
+  } : null;
+
   const jobAgg: Record<number, { jobId: number; jobName: string; totalMinutes: number; totalCost: number; employeeIds: Set<number> }> = {};
   for (const entry of entries) {
     if (!entry.clockOut) continue;
-    const mins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+    const rawMins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+    const mins = deductLunch(rawMins, entry.lunchMinutes || 0, companySettings, new Date(entry.clockIn));
     if (!jobAgg[entry.jobId]) {
       const job = jobMap.get(entry.jobId);
       jobAgg[entry.jobId] = { jobId: entry.jobId, jobName: job?.name || `Job #${entry.jobId}`, totalMinutes: 0, totalCost: 0, employeeIds: new Set() };
@@ -1040,6 +1091,15 @@ export async function getWeeklyLaborCostTrend(weeks: number = 8, companyId?: num
     });
   }
 
+  // Load company lunch settings for deduction
+  const company = await getCompanyById(cid);
+  const companyLunch = company ? {
+    lunchAutoDeduct: company.lunchAutoDeduct,
+    lunchDeductMinutes: company.lunchDeductMinutes,
+    lunchMinShiftMinutes: company.lunchMinShiftMinutes,
+    lunchSkipDays: company.lunchSkipDays,
+  } : null;
+
   for (const entry of entries) {
     if (!entry.clockOut) continue;
     const clockInDate = new Date(entry.clockIn);
@@ -1047,7 +1107,8 @@ export async function getWeeklyLaborCostTrend(weeks: number = 8, companyId?: num
     const bucketIdx = Math.floor(diffDays / 7);
     if (bucketIdx < 0 || bucketIdx >= weeks) continue;
 
-    const mins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - clockInDate.getTime()) / 60000));
+    const rawMins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - clockInDate.getTime()) / 60000));
+    const mins = deductLunch(rawMins, entry.lunchMinutes || 0, companyLunch, clockInDate);
     weekBuckets[bucketIdx].totalMinutes += mins;
     weekBuckets[bucketIdx].jobIds.add(entry.jobId);
     const emp = empMap.get(entry.employeeId);
@@ -1078,10 +1139,20 @@ export async function getLaborCostByEmployee(startDate: Date, endDate: Date, com
   const allEmployees = await db.select().from(employees).where(eq(employees.companyId, cid));
   const empMap = new Map(allEmployees.map(e => [e.id, e]));
 
+  // Load company lunch settings for deduction
+  const company = await getCompanyById(cid);
+  const companyLunch = company ? {
+    lunchAutoDeduct: company.lunchAutoDeduct,
+    lunchDeductMinutes: company.lunchDeductMinutes,
+    lunchMinShiftMinutes: company.lunchMinShiftMinutes,
+    lunchSkipDays: company.lunchSkipDays,
+  } : null;
+
   const empAgg: Record<number, { employeeId: number; employeeName: string; role: string; hourlyRate: string | null; totalMinutes: number; totalCost: number }> = {};
   for (const entry of entries) {
     if (!entry.clockOut) continue;
-    const mins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+    const rawMins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+    const mins = deductLunch(rawMins, entry.lunchMinutes || 0, companyLunch, new Date(entry.clockIn));
     if (!empAgg[entry.employeeId]) {
       const emp = empMap.get(entry.employeeId);
       empAgg[entry.employeeId] = {

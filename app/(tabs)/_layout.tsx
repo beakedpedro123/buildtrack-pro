@@ -54,7 +54,7 @@ export default function TabLayout() {
           height: tabBarHeight,
           backgroundColor: colors.background,
           borderTopColor: colors.border,
-          borderTopWidth: 0.5,
+          borderTopWidth: Platform.OS === "android" ? 0 : 0.5,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
       }}
