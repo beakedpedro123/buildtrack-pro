@@ -231,6 +231,29 @@ class SDKServer {
     } as GetUserInfoWithJwtResponse;
   }
 
+  /**
+   * Create a PIN session token for mobile app users who authenticate via employee PIN.
+   * This token is a JWT signed with the same secret, containing employeeId and companyId.
+   * It allows PIN-authenticated users to access protected procedures without OAuth.
+   */
+  async createPinSessionToken(employeeId: number, companyId: number, employeeName: string): Promise<string> {
+    const secretKey = this.getSessionSecret();
+    const expiresInMs = 30 * 24 * 60 * 60 * 1000; // 30 days
+    const expirationSeconds = Math.floor((Date.now() + expiresInMs) / 1000);
+
+    return new SignJWT({
+      openId: `pin_emp_${employeeId}`,
+      appId: ENV.appId,
+      name: employeeName || "PIN User",
+      pinSession: true,
+      employeeId,
+      companyId,
+    })
+      .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+      .setExpirationTime(expirationSeconds)
+      .sign(secretKey);
+  }
+
   async authenticateRequest(req: Request): Promise<User> {
     // Regular authentication flow
     const authHeader = req.headers.authorization || req.headers.Authorization;
@@ -248,6 +271,41 @@ class SDKServer {
     }
 
     const sessionUserId = session.openId;
+
+    // ─── PIN Session Path ───────────────────────────────────────────────────
+    // If the openId starts with "pin_emp_", this is a PIN-authenticated mobile user.
+    // We verify the token payload and create a synthetic User object with the correct companyId.
+    if (sessionUserId.startsWith("pin_emp_")) {
+      // Re-verify the full token to extract employeeId and companyId
+      const secretKey = this.getSessionSecret();
+      try {
+        const { payload } = await jwtVerify(sessionCookie!, secretKey, { algorithms: ["HS256"] });
+        const { employeeId, companyId, name, pinSession } = payload as any;
+        if (!pinSession || !employeeId || !companyId) {
+          throw ForbiddenError("Invalid PIN session token");
+        }
+        // Return a synthetic User object that satisfies the protectedProcedure middleware
+        return {
+          id: 0, // Not a real users table row
+          companyId: companyId as number,
+          openId: sessionUserId,
+          name: (name as string) || null,
+          email: null,
+          loginMethod: "pin",
+          role: "user",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastSignedIn: new Date(),
+        } as User;
+      } catch (e: any) {
+        if (e?.code === "ERR_JWT_EXPIRED") {
+          throw ForbiddenError("PIN session expired. Please log in again.");
+        }
+        throw ForbiddenError("Invalid PIN session");
+      }
+    }
+
+    // ─── OAuth Session Path ──────────────────────────────────────────────────
     const signedInAt = new Date();
     let user = await db.getUserByOpenId(sessionUserId);
 

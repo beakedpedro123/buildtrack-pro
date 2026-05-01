@@ -1,0 +1,296 @@
+title: BuildTrack Pro — Unified System Ecosystem {
+  near: top-center
+  shape: text
+  style.font-size: 28
+  style.bold: true
+}
+
+# ═══════════════════════════════════════════════════════════════
+# LAYER 1: CLIENT PLATFORMS
+# ═══════════════════════════════════════════════════════════════
+
+clients: Client Platforms {
+  style.fill: "#1a1a2e"
+  style.stroke: "#D4AF37"
+  style.font-color: "#ffffff"
+
+  ios: iOS (Expo Go) {
+    style.fill: "#2d2d44"
+    style.font-color: "#ffffff"
+  }
+  android: Android (APK) {
+    style.fill: "#2d2d44"
+    style.font-color: "#ffffff"
+  }
+  web: Web (Metro Bundler) {
+    style.fill: "#2d2d44"
+    style.font-color: "#ffffff"
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════
+# LAYER 2: APP MODULES (10 Tabs + Pivot AI)
+# ═══════════════════════════════════════════════════════════════
+
+modules: Application Modules {
+  style.fill: "#0f3460"
+  style.stroke: "#D4AF37"
+  style.font-color: "#ffffff"
+
+  home: Home Dashboard {
+    style.fill: "#16213e"
+    style.font-color: "#ffffff"
+  }
+  clock: Time Clock {
+    style.fill: "#16213e"
+    style.font-color: "#ffffff"
+  }
+  team: Team Management {
+    style.fill: "#16213e"
+    style.font-color: "#ffffff"
+  }
+  labor: Labor Costs {
+    style.fill: "#16213e"
+    style.font-color: "#ffffff"
+  }
+  kpis: KPI Tracking {
+    style.fill: "#16213e"
+    style.font-color: "#ffffff"
+  }
+  safety: Safety Meetings {
+    style.fill: "#16213e"
+    style.font-color: "#ffffff"
+  }
+  meetings: Meetings & Goals {
+    style.fill: "#16213e"
+    style.font-color: "#ffffff"
+  }
+  reports: Daily Reports {
+    style.fill: "#16213e"
+    style.font-color: "#ffffff"
+  }
+  profile: Profile & Settings {
+    style.fill: "#16213e"
+    style.font-color: "#ffffff"
+  }
+  pivot: Pivot AI Assistant {
+    style.fill: "#D4AF37"
+    style.font-color: "#000000"
+    style.bold: true
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════
+# LAYER 3: SECURITY GATEWAY (28 Controls)
+# ═══════════════════════════════════════════════════════════════
+
+security: Security Gateway {
+  style.fill: "#4a0000"
+  style.stroke: "#ff4444"
+  style.font-color: "#ffffff"
+
+  helmet: Helmet CSP + Nonce {
+    style.fill: "#660000"
+    style.font-color: "#ffffff"
+  }
+  cors: CORS Whitelist {
+    style.fill: "#660000"
+    style.font-color: "#ffffff"
+  }
+  ratelimit: Per-User Rate Limiting {
+    style.fill: "#660000"
+    style.font-color: "#ffffff"
+  }
+  auth: Session Auth (JOSE JWT) {
+    style.fill: "#660000"
+    style.font-color: "#ffffff"
+  }
+  rbac: Role-Based Access (5 Roles) {
+    style.fill: "#660000"
+    style.font-color: "#ffffff"
+  }
+  inputval: Input Validation (Zod) {
+    style.fill: "#660000"
+    style.font-color: "#ffffff"
+  }
+  encryption: AES-256 Encryption (SSN/PIN) {
+    style.fill: "#660000"
+    style.font-color: "#ffffff"
+  }
+  cspreport: CSP Violation Reporting {
+    style.fill: "#660000"
+    style.font-color: "#ffffff"
+  }
+  auditlog: Security Audit Logging {
+    style.fill: "#660000"
+    style.font-color: "#ffffff"
+  }
+  dataaudit: Data Write Audit Trail {
+    style.fill: "#660000"
+    style.font-color: "#ffffff"
+  }
+  iprestrict: Admin IP Allowlist {
+    style.fill: "#660000"
+    style.font-color: "#ffffff"
+  }
+  idempotency: Webhook Idempotency {
+    style.fill: "#660000"
+    style.font-color: "#ffffff"
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════
+# LAYER 4: API SERVER & SERVICES
+# ═══════════════════════════════════════════════════════════════
+
+server: API Server (Express + tRPC) {
+  style.fill: "#1b4332"
+  style.stroke: "#D4AF37"
+  style.font-color: "#ffffff"
+
+  trpc: tRPC Router (40+ procedures) {
+    style.fill: "#2d6a4f"
+    style.font-color: "#ffffff"
+  }
+  pdf: PDF Generation (6 reports) {
+    style.fill: "#2d6a4f"
+    style.font-color: "#ffffff"
+  }
+  email: Email Service {
+    style.fill: "#2d6a4f"
+    style.font-color: "#ffffff"
+  }
+  push: Push Notifications {
+    style.fill: "#2d6a4f"
+    style.font-color: "#ffffff"
+  }
+  storage: File Storage (S3) {
+    style.fill: "#2d6a4f"
+    style.font-color: "#ffffff"
+  }
+  billing: Stripe Billing {
+    style.fill: "#2d6a4f"
+    style.font-color: "#ffffff"
+  }
+  lunch: Lunch Deduction Engine {
+    style.fill: "#2d6a4f"
+    style.font-color: "#ffffff"
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════
+# LAYER 5: DATA LAYER
+# ═══════════════════════════════════════════════════════════════
+
+data: Data Layer (MySQL + Drizzle ORM) {
+  style.fill: "#3d0066"
+  style.stroke: "#D4AF37"
+  style.font-color: "#ffffff"
+
+  core: Core Tables {
+    style.fill: "#4a0080"
+    style.font-color: "#ffffff"
+    label: "companies | employees | jobs\nclockEntries | expenses | budgets"
+  }
+  reports_db: Report Tables {
+    style.fill: "#4a0080"
+    style.font-color: "#ffffff"
+    label: "dailyReports | reportPhotos\nmeetings | weeklyGoals | safetyMeetings"
+  }
+  ai_db: AI & Memory Tables {
+    style.fill: "#4a0080"
+    style.font-color: "#ffffff"
+    label: "pivotMemory | pivotConversations\ntradeKnowledge | tradeBenchmarks"
+  }
+  audit_db: Audit & Security Tables {
+    style.fill: "#4a0080"
+    style.font-color: "#ffffff"
+    label: "securityAuditLog | dataAuditLog\nwebhookEvents | adminIpAllowlist"
+  }
+  billing_db: Billing Tables {
+    style.fill: "#4a0080"
+    style.font-color: "#ffffff"
+    label: "subscriptions | webhook_events\nsupportTickets"
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════
+# LAYER 6: EXTERNAL INTEGRATIONS
+# ═══════════════════════════════════════════════════════════════
+
+external: External Integrations {
+  style.fill: "#1a1a1a"
+  style.stroke: "#D4AF37"
+  style.font-color: "#ffffff"
+
+  stripe: Stripe (Payments) {
+    style.fill: "#333333"
+    style.font-color: "#ffffff"
+  }
+  ai_provider: AI Provider (LLM) {
+    style.fill: "#333333"
+    style.font-color: "#ffffff"
+  }
+  weather: Weather API {
+    style.fill: "#333333"
+    style.font-color: "#ffffff"
+  }
+  expo_push: Expo Push Service {
+    style.fill: "#333333"
+    style.font-color: "#ffffff"
+  }
+  s3: S3 Object Storage {
+    style.fill: "#333333"
+    style.font-color: "#ffffff"
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════
+# CONNECTIONS
+# ═══════════════════════════════════════════════════════════════
+
+# Client → Modules
+clients.ios -> modules: Expo Router
+clients.android -> modules: Expo Router
+clients.web -> modules: Metro Web
+
+# Modules → Security Gateway
+modules.home -> security: All requests
+modules.clock -> security: Clock in/out
+modules.team -> security: CRUD employees
+modules.labor -> security: Cost queries
+modules.kpis -> security: Metrics
+modules.safety -> security: Safety data
+modules.meetings -> security: Meeting CRUD
+modules.reports -> security: Report CRUD
+modules.profile -> security: Settings
+modules.pivot -> security: AI queries
+
+# Security → Server
+security.auth -> server.trpc: Authenticated requests
+security.ratelimit -> server.trpc: Throttled
+security.inputval -> server.trpc: Validated
+security.rbac -> server.trpc: Role-checked
+security.idempotency -> server.billing: Deduplicated webhooks
+security.dataaudit -> data.audit_db: Write operations logged
+security.auditlog -> data.audit_db: Security events
+security.cspreport -> data.audit_db: CSP violations
+
+# Server → Data
+server.trpc -> data.core: CRUD operations
+server.trpc -> data.reports_db: Report queries
+server.trpc -> data.ai_db: Pivot memory
+server.billing -> data.billing_db: Subscription state
+server.pdf -> data.core: Report data
+server.lunch -> data.core: Clock entries + company settings
+
+# Server → External
+server.billing -> external.stripe: Payments & webhooks
+server.trpc -> external.ai_provider: Pivot completions
+server.trpc -> external.weather: Daily forecasts
+server.push -> external.expo_push: Notifications
+server.storage -> external.s3: File uploads
+
+# Security cross-links
+security.encryption -> data.core: SSN/PIN encrypted at rest
+security.iprestrict -> server.trpc: Admin-only endpoints

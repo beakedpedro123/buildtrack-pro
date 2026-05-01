@@ -4,6 +4,7 @@ import { useColors } from "@/hooks/use-colors";
 import { useOfflineQueue } from "@/lib/offline-queue";
 import { useLanguage } from "@/lib/language-context";
 import { getCached, setCache, CACHE_KEYS, setCacheCompanyId } from "@/lib/data-cache";
+import * as Auth from "@/lib/_core/auth";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
@@ -188,8 +189,13 @@ export default function LoginScreen() {
     if (isOnline) {
       try {
         const result = await verifyPin.mutateAsync({ pin, companyId: companyId || undefined });
-        if (result && result.id === selectedEmployee.id) {
+        if (result && (result as any).id === selectedEmployee.id) {
           if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          // Store the PIN session JWT so subsequent API calls are authenticated
+          const pinToken = (result as any).pinSessionToken;
+          if (pinToken) {
+            await Auth.setSessionToken(pinToken);
+          }
           await login(result as any);
           router.replace("/(tabs)");
           return;

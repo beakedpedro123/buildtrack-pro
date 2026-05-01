@@ -111,19 +111,26 @@ const employeeRouter = router({
         details: `Failed PIN attempt for companyId=${input.companyId || 'none'}`,
         severity: "medium",
       });
-    } else {
-      // Log successful login
-      await db.logSecurityEvent({
-        companyId: input.companyId || null,
-        employeeId: (result as any).id || null,
-        eventType: "login_success",
-        ipAddress: ctx.req?.ip || ctx.req?.headers?.['x-forwarded-for'] as string || null,
-        userAgent: ctx.req?.headers?.['user-agent'] || null,
-        details: `Successful login for employee ${(result as any).name || 'unknown'}`,
-        severity: "low",
-      });
+      return null;
     }
-    return result;
+    // Log successful login
+    await db.logSecurityEvent({
+      companyId: input.companyId || null,
+      employeeId: (result as any).id || null,
+      eventType: "login_success",
+      ipAddress: ctx.req?.ip || ctx.req?.headers?.['x-forwarded-for'] as string || null,
+      userAgent: ctx.req?.headers?.['user-agent'] || null,
+      details: `Successful login for employee ${(result as any).name || 'unknown'}`,
+      severity: "low",
+    });
+    // Issue a PIN session JWT so the mobile app can authenticate subsequent requests
+    const { sdk } = await import("./_core/sdk");
+    const pinToken = await sdk.createPinSessionToken(
+      (result as any).id,
+      (result as any).companyId,
+      (result as any).name || "PIN User"
+    );
+    return { ...(result as any), pinSessionToken: pinToken };
   }),
   create: protectedProcedure.input(z.object({
     name: z.string().min(1).max(128),
