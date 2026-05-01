@@ -668,6 +668,8 @@ function EmployeeGoalSection({
             const dl = goal.deadline ? new Date(goal.deadline) : null;
             const now = new Date();
             const isOverdue = dl && dl < now && !isCompleted && !isCancelled;
+            const isDueSoon = dl && !isOverdue && !isCompleted && !isCancelled && (dl.getTime() - now.getTime()) < 3 * 24 * 60 * 60 * 1000; // within 3 days
+            const deadlineColor = isOverdue ? colors.error : isDueSoon ? colors.warning : colors.muted;
 
             return (
               <TouchableOpacity
@@ -736,10 +738,10 @@ function EmployeeGoalSection({
                   {dl && (
                     <Text style={{
                       fontSize: 11, marginTop: 2,
-                      color: isOverdue ? colors.error : colors.muted,
-                      fontWeight: isOverdue ? "700" : "400",
+                      color: deadlineColor,
+                      fontWeight: (isOverdue || isDueSoon) ? "700" : "400",
                     }}>
-                      {isOverdue ? "OVERDUE" : dl.toLocaleDateString([], { month: "short", day: "numeric" })}
+                      {isOverdue ? "OVERDUE" : isDueSoon ? `Due Soon · ${dl.toLocaleDateString([], { month: "short", day: "numeric" })}` : dl.toLocaleDateString([], { month: "short", day: "numeric" })}
                     </Text>
                   )}
                 </View>

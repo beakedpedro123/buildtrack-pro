@@ -74,21 +74,22 @@ describe("Gemini Audit Fix #3: companyId falsy check in savePivotConversation", 
 describe("CompanyId Guards on Job Mutations", () => {
   it("jobs.create should include ctx.companyId", () => {
     const content = fs.readFileSync(routersPath, "utf-8");
-    // Find the jobs create mutation and check it uses ctx.companyId
-    const createSection = content.match(/create:\s*publicProcedure[\s\S]*?\.mutation\(\s*(?:async\s*)?\(\s*\{\s*input\s*,\s*ctx\s*\}/);
+    // Find the jobs create mutation — uses protectedProcedure (more secure than publicProcedure)
+    // protectedProcedure binds companyId from the authenticated user's DB record, not from headers
+    const createSection = content.match(/create:\s*protectedProcedure[\s\S]*?\.mutation\(\s*(?:async\s*)?\(\s*\{\s*input\s*,\s*ctx\s*\}/);
     expect(createSection).not.toBeNull();
-    // Also check that companyId is passed to createJob
-    const createJobCall = content.match(/return db\.createJob\(data\)/);
-    expect(createJobCall).not.toBeNull();
-    // The data object should include companyId: ctx.companyId
+    // Check that companyId from ctx is included in the data spread
     const dataLine = content.match(/const data = \{.*companyId:\s*ctx\.companyId/);
     expect(dataLine).not.toBeNull();
+    // Check that createJob is called with the data (may be via result variable)
+    const createJobCall = content.match(/db\.createJob\(data\)/);
+    expect(createJobCall).not.toBeNull();
   });
 
   it("jobs.update should verify job ownership via companyId", () => {
     const content = fs.readFileSync(routersPath, "utf-8");
-    // Find the update mutation section
-    const updateSection = content.match(/update:\s*publicProcedure[\s\S]*?verifyJobOwnership\(input\.id,\s*ctx\.companyId\)/);
+    // Find the update mutation section — uses protectedProcedure with verifyJobOwnership
+    const updateSection = content.match(/update:\s*protectedProcedure[\s\S]*?verifyJobOwnership\(input\.id,\s*ctx\.companyId\)/);
     expect(updateSection).not.toBeNull();
   });
 });
@@ -101,13 +102,15 @@ describe("Crew Assignment Feature", () => {
 
   it("should accept assignedCrew in jobs.create mutation", () => {
     const content = fs.readFileSync(routersPath, "utf-8");
-    const createSection = content.match(/create:\s*publicProcedure\.input\(z\.object\(\{[\s\S]*?assignedCrew/);
+    // Uses protectedProcedure (secure) — check that assignedCrew is in the jobs create input schema
+    const createSection = content.match(/create:\s*protectedProcedure\.input\(z\.object\(\{[\s\S]*?assignedCrew/);
     expect(createSection).not.toBeNull();
   });
 
   it("should accept assignedCrew in jobs.update mutation", () => {
     const content = fs.readFileSync(routersPath, "utf-8");
-    const updateSection = content.match(/update:\s*publicProcedure\.input\(z\.object\(\{[\s\S]*?assignedCrew/);
+    // Uses protectedProcedure (secure) — check that assignedCrew is in the jobs update input schema
+    const updateSection = content.match(/update:\s*protectedProcedure\.input\(z\.object\(\{[\s\S]*?assignedCrew/);
     expect(updateSection).not.toBeNull();
   });
 
