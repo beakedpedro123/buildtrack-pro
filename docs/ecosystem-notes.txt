@@ -1,0 +1,9 @@
+Ecosystem diagram rendered successfully. Shows full flow:
+- Client Platforms (Mobile, Web, APK) at top
+- App Modules (10 tabs) in horizontal row
+- Pivot AI Assistant layer with Knowledge, LLM, Voice, Scheduling
+- Security Layer (28 Controls) with Edge, Auth, RBAC, Validation, Monitoring
+- API Server (Express + tRPC) with Router, PDF Gen, Email, Push
+- Data Layer with PostgreSQL, Core Tables, Audit Tables, S3
+- External Services (Stripe, Weather, Expo Push, AI Provider)
+All connections visible with labeled data flows.
