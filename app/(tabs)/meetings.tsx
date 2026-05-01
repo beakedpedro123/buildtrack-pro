@@ -18,6 +18,7 @@ import {
 import * as Haptics from "expo-haptics";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
+import { compressImageForUpload } from "@/lib/compress-image";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator,
@@ -374,14 +375,16 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
   // ─── Safety meeting handlers ─────────────────────────────────────────────
   const uploadPhotoFile = async (uri: string): Promise<string | null> => {
     try {
+      // Compress before upload: resize to max 1920px, JPEG 75%
+      const compressedUri = await compressImageForUpload(uri);
       const apiBase = getApiBaseUrl();
       const formData = new FormData();
       if (Platform.OS === "web") {
-        const response = await fetch(uri);
+        const response = await fetch(compressedUri);
         const blob = await response.blob();
         formData.append("file", blob, `safety_${Date.now()}.jpg`);
       } else {
-        formData.append("file", { uri, type: "image/jpeg", name: `safety_${Date.now()}.jpg` } as any);
+        formData.append("file", { uri: compressedUri, type: "image/jpeg", name: `safety_${Date.now()}.jpg` } as any);
       }
       const pToken = await Auth.getSessionToken();
       const pHeaders: Record<string, string> = {};

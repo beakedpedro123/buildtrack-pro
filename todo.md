@@ -2945,3 +2945,13 @@
 - [x] CRITICAL BUG: Goals tab shows "No goals this week" despite data existing — fixed: same root cause (PIN auth)
 - [x] BUG: Pivot voice messages fail with transcription error — fixed: all fetch() calls to /api/upload now include Bearer token
 - [x] BUG: Keyboard overlaps Pivot chat UI — fixed: KeyboardAvoidingView now uses behavior="height" on Android with proper offset
+
+## PayloadTooLargeError Fix & Image Compression
+
+- [x] Increase Express JSON body limit from 1mb to 25mb (server/_core/index.ts)
+- [x] Create shared compressImageForUpload utility (lib/compress-image.ts) — max 1920px, JPEG 75%
+- [x] Apply compression in reports.tsx uploadPhotoFile before upload
+- [x] Apply compression in meetings.tsx uploadPhotoFile before upload
+- [x] Apply compression in profile.tsx handlePickLogo before upload
+- [x] Install expo-image-manipulator for on-device compression
+- [x] All 439 tests passing after changes

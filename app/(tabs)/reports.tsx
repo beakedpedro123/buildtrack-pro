@@ -8,6 +8,7 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import * as Haptics from "expo-haptics";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
+import { compressImageForUpload } from "@/lib/compress-image";
 import { router } from "expo-router";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -314,6 +315,9 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
   // Upload a single photo file to /api/upload using FormData
   const uploadPhotoFile = async (uri: string): Promise<string | null> => {
     try {
+      // Compress before upload: resize to max 1920px, JPEG 75% — reduces 8mb iPhone photos to ~300-600kb
+      // Reassign uri so downstream code (and tests) still reference `uri` consistently
+      uri = await compressImageForUpload(uri);
       const apiBase = getApiBaseUrl();
       const uploadUrl = `${apiBase}/api/upload`;
 

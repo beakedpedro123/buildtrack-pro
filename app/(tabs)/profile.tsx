@@ -29,6 +29,7 @@ import { useLunchSettings } from "@/hooks/use-lunch-settings";
 import { useCompanyTrade, TRADE_OPTIONS } from "@/hooks/use-company-trade";
 import { Switch, Image as RNImage } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { compressImageForUpload } from "@/lib/compress-image";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { useBranding } from "@/lib/branding-context";
 // Crew clock-in uses trpc queries directly, no extra cache imports needed
@@ -179,7 +180,9 @@ export default function ProfileScreen() {
       });
       if (result.canceled || !result.assets?.length) return;
       setUploadingLogo(true);
-      const uri = result.assets[0].uri;
+      const rawUri = result.assets[0].uri;
+      // Compress before upload: resize to max 1920px, JPEG 75%
+      const uri = await compressImageForUpload(rawUri);
       const apiBase = getApiBaseUrl();
       const formData = new FormData();
       if (Platform.OS === "web") {

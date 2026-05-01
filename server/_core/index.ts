@@ -221,8 +221,10 @@ async function startServer() {
     next();
   });
 
-  app.use(express.json({ limit: "1mb" }));
-  app.use(express.urlencoded({ limit: "1mb", extended: true }));
+  // Increased from 1mb to 25mb: supports large tRPC payloads (field report transcripts, multi-photo base64 batches)
+  // Binary file uploads use /api/upload (multer, 200mb limit) and bypass this middleware entirely
+  app.use(express.json({ limit: "25mb" }));
+  app.use(express.urlencoded({ limit: "25mb", extended: true }));
 
   // SECURITY FIX: Request logging middleware for forensic analysis
   // Logs all API calls with timestamps, user IDs, and response codes
