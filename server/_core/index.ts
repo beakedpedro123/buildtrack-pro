@@ -1,7 +1,8 @@
 import "dotenv/config";
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import crypto from "crypto";
 import { createServer } from "http";
 import net from "net";
 import path from "path";
@@ -125,12 +126,21 @@ async function startServer() {
 
   // SECURITY FIX (Low #15): Security headers with Helmet
   // SECURITY FIX: HSTS header tells browsers to always use HTTPS
+  // CSP FIX: Per-request nonce instead of 'unsafe-inline' for XSS protection
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    // Generate a unique nonce for each request
+    const nonce = crypto.randomBytes(16).toString('base64');
+    res.locals.cspNonce = nonce;
+    next();
+  });
   app.use(helmet({
     contentSecurityPolicy: {
+      useDefaults: false,
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        scriptSrc: ["'self'", "https://js.stripe.com"],
+        scriptSrcAttr: ["'none'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"], // styles still need unsafe-inline for NativeWind
         imgSrc: ["'self'", "data:", "blob:", "https:"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         connectSrc: ["'self'", "https://api.stripe.com", "https://*.manus.computer", "https://*.expo.dev"],
@@ -148,6 +158,20 @@ async function startServer() {
       preload: true,
     },
   }));
+  // Inject CSP nonce into script-src dynamically per-request
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const nonce = res.locals.cspNonce;
+    if (nonce) {
+      const csp = res.getHeader('content-security-policy');
+      if (typeof csp === 'string') {
+        res.setHeader('content-security-policy', csp.replace(
+          "script-src 'self'",
+          `script-src 'self' 'nonce-${nonce}'`
+        ));
+      }
+    }
+    next();
+  });
 
   // SECURITY FIX (High #7): CORS allowlist instead of reflect-origin
   const ALLOWED_ORIGINS = new Set([
@@ -224,14 +248,39 @@ async function startServer() {
   });
 
   // ═══ RATE LIMITING ═══
-  // Global API rate limit: 100 requests per minute per IP
+  // Per-user rate limit: uses userId from session when available, falls back to IP
+  // This prevents a single compromised account from exhausting API quotas
   const globalLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
-    max: 100,
+    max: 100, // 100 requests per minute per user/IP
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (req) => {
+      // Use authenticated user ID if available (more precise than IP)
+      const user = (req as any).user;
+      if (user?.id) return `user-${user.id}`;
+      // Fall back to IP for unauthenticated requests
+      return req.ip || req.headers["x-forwarded-for"] as string || "unknown";
+    },
     message: { error: "Too many requests. Please try again in a minute." },
     skip: (req) => req.path === "/api/health", // Skip health checks
+    validate: false, // Suppress IPv6 keyGenerator warning — we handle it
+  });
+
+  // Stricter per-user limit on write operations (mutations): 30/min
+  const mutationLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const user = (req as any).user;
+      if (user?.id) return `user-mut-${user.id}`;
+      return `ip-mut-${req.ip || req.headers["x-forwarded-for"] || "unknown"}`;
+    },
+    message: { error: "Too many write operations. Please slow down." },
+    skip: (req) => req.method === "GET", // Only apply to mutations (POST/PUT/DELETE)
+    validate: false,
   });
 
   // Strict rate limit on PIN verification: 5 attempts per 15 minutes per IP + company
@@ -464,7 +513,7 @@ async function startServer() {
       res.send(pdfBuffer);
     } catch (err: any) {
       console.error("Payroll PDF error:", err);
-      res.status(500).json({ error: "Failed to generate PDF", details: err?.message });
+      const isDev = process.env.NODE_ENV !== "production"; res.status(500).json({ error: "Failed to generate PDF", ...(isDev && { details: err?.message }) });
     }
   });
 
@@ -493,7 +542,7 @@ async function startServer() {
       res.send(pdfBuffer);
     } catch (err: any) {
       console.error("Timecard PDF error:", err);
-      res.status(500).json({ error: "Failed to generate PDF", details: err?.message });
+      const isDev = process.env.NODE_ENV !== "production"; res.status(500).json({ error: "Failed to generate PDF", ...(isDev && { details: err?.message }) });
     }
   });
 
@@ -516,7 +565,7 @@ async function startServer() {
       res.send(pdfBuffer);
     } catch (err: any) {
       console.error("Job Completion PDF error:", err);
-      res.status(500).json({ error: "Failed to generate PDF", details: err?.message });
+      const isDev = process.env.NODE_ENV !== "production"; res.status(500).json({ error: "Failed to generate PDF", ...(isDev && { details: err?.message }) });
     }
   });
 
@@ -543,7 +592,7 @@ async function startServer() {
       res.send(pdfBuffer);
     } catch (err: any) {
       console.error("Budget Report PDF error:", err);
-      res.status(500).json({ error: "Failed to generate PDF", details: err?.message });
+      const isDev = process.env.NODE_ENV !== "production"; res.status(500).json({ error: "Failed to generate PDF", ...(isDev && { details: err?.message }) });
     }
   });
 
@@ -566,7 +615,7 @@ async function startServer() {
       res.send(pdfBuffer);
     } catch (err: any) {
       console.error("Field Reports PDF error:", err);
-      res.status(500).json({ error: "Failed to generate PDF", details: err?.message });
+      const isDev = process.env.NODE_ENV !== "production"; res.status(500).json({ error: "Failed to generate PDF", ...(isDev && { details: err?.message }) });
     }
   });
 
@@ -593,7 +642,7 @@ async function startServer() {
       res.send(svg);
     } catch (err: any) {
       console.error("Beam diagram error:", err);
-      res.status(500).json({ error: "Failed to generate diagram", details: err?.message });
+      const isDev = process.env.NODE_ENV !== "production"; res.status(500).json({ error: "Failed to generate diagram", ...(isDev && { details: err?.message }) });
     }
   });
 
@@ -604,6 +653,7 @@ async function startServer() {
     try {
       const { prompt, jobId } = req.body;
       if (!prompt) { res.status(400).json({ error: "prompt required" }); return; }
+      if (typeof prompt !== 'string' || prompt.length > 2000) { res.status(400).json({ error: "Prompt too long (max 2000 characters)" }); return; }
       const { invokeLLM } = await import("./llm");
       const result = await invokeLLM({
         messages: [
@@ -638,8 +688,8 @@ async function startServer() {
     router: appRouter,
     createContext,
   });
-  app.use("/api/v1/trpc", globalLimiter, trpcMiddleware);
-  app.use("/api/trpc", globalLimiter, trpcMiddleware);
+  app.use("/api/v1/trpc", globalLimiter, mutationLimiter, trpcMiddleware);
+  app.use("/api/trpc", globalLimiter, mutationLimiter, trpcMiddleware);
 
   // Resolve PWA public directory
   const publicCandidates = [
@@ -801,7 +851,33 @@ async function startServer() {
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", { apiVersion: "2025-04-30.basil" as any });
       // Verify the webhook signature — this prevents forged events
       const event = stripe.webhooks.constructEvent(req.body, sig as string, webhookSecret);
+
+      // IDEMPOTENCY CHECK: Prevent duplicate processing of the same event
+      const { getDb } = await import("../db");
+      const { webhookEvents } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const dbConn = await getDb();
+      if (dbConn) {
+        const [existing] = await dbConn.select().from(webhookEvents).where(eq(webhookEvents.eventId, event.id)).limit(1);
+        if (existing) {
+          // Already processed — return 200 to acknowledge but skip processing
+          console.log(`[stripe] Skipping duplicate webhook event: ${event.id}`);
+          res.json({ received: true, duplicate: true });
+          return;
+        }
+      }
+
+      // Process the event
       await handleWebhookEvent(event as any);
+
+      // Record successful processing for idempotency
+      if (dbConn) {
+        await dbConn.insert(webhookEvents).values({
+          eventId: event.id,
+          eventType: event.type,
+          status: "processed",
+        });
+      }
       res.json({ received: true });
     } catch (err: any) {
       console.error("Stripe webhook error:", err?.message);

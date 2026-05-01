@@ -2914,3 +2914,11 @@
 - [x] Add Content Security Policy (CSP) to Helmet
 - [x] Add API versioning (/api/v1/trpc)
 - [x] Write automated security regression tests (vitest)
+
+## v5 Audit Final Fixes + Hardening (Round 6)
+- [ ] Fix CSP: Replace 'unsafe-inline' with per-request nonce
+- [ ] Fix PDF error responses: mask err.message in production
+- [ ] Fix Pivot prompt: add 2000 char length cap
+- [x] Add IP-based per-user rate limiting
+- [ ] Add Stripe webhook idempotency keys
+- [ ] Add database write audit logging (INSERT/UPDATE/DELETE)

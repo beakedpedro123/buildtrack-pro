@@ -232,6 +232,13 @@
       "when": 1777564598632,
       "tag": "0032_gray_lucky_pierre",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1777603351280,
+      "tag": "0033_puzzling_invaders",
+      "breakpoints": true
     }
   ]
 }

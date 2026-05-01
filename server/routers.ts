@@ -133,7 +133,10 @@ const employeeRouter = router({
     const { requestingEmployeeId: _, ...data } = input;
     // Use requester's companyId if not explicitly provided
     if (!data.companyId) data.companyId = requester.companyId;
-    return db.createEmployee(data);
+    const result = await db.createEmployee(data);
+    // Audit log: employee created
+    db.logDataAudit({ companyId: ctx.companyId, employeeId: input.requestingEmployeeId, operation: "INSERT", tableName: "employees", recordId: typeof result === 'number' ? result : (result as any)?.id, newData: { name: data.name, role: data.role } });
+    return result;
   }),
   update: protectedProcedure.input(z.object({
     id: z.number(),
@@ -151,11 +154,17 @@ const employeeRouter = router({
   })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "update employee records", ctx.companyId);
     const { id, requestingEmployeeId: _, ...data } = input;
-    return db.updateEmployee(id, data);
+    const result = await db.updateEmployee(id, data);
+    // Audit log: employee updated
+    db.logDataAudit({ companyId: ctx.companyId, employeeId: input.requestingEmployeeId, operation: "UPDATE", tableName: "employees", recordId: id, newData: data });
+    return result;
   }),
   deactivate: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "deactivate employees", ctx.companyId);
-    return db.deactivateEmployee(input.id);
+    const result = await db.deactivateEmployee(input.id);
+    // Audit log: employee deactivated
+    db.logDataAudit({ companyId: ctx.companyId, employeeId: input.requestingEmployeeId, operation: "UPDATE", tableName: "employees", recordId: input.id, newData: { isActive: false } });
+    return result;
   }),
   createWithInvite: protectedProcedure.input(z.object({
     name: z.string().min(1).max(128),
@@ -273,9 +282,11 @@ const jobsRouter = router({
     liabilityInsRate: z.string().optional(),
     assignedCrew: z.string().optional(), // JSON array of employee IDs assigned to this job
     createdBy: z.number(),
-  })).mutation(({ input, ctx }) => {
+  })).mutation(async ({ input, ctx }) => {
     const data = { ...input, companyId: ctx.companyId, startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined };
-    return db.createJob(data);
+    const result = await db.createJob(data);
+    db.logDataAudit({ companyId: ctx.companyId, employeeId: input.createdBy, operation: "INSERT", tableName: "jobs", recordId: typeof result === 'number' ? result : (result as any)?.id, newData: { name: input.name, address: input.address } });
+    return result;
   }),
   update: protectedProcedure.input(z.object({
     id: z.number(),
@@ -296,7 +307,9 @@ const jobsRouter = router({
     await verifyJobOwnership(input.id, ctx.companyId);
     const { id, ...rest } = input;
     const data = { ...rest, endDate: rest.endDate ? new Date(rest.endDate) : undefined };
-    return db.updateJob(id, data);
+    const result = await db.updateJob(id, data);
+    db.logDataAudit({ companyId: ctx.companyId, operation: "UPDATE", tableName: "jobs", recordId: id, newData: data });
+    return result;
   }),
   assign: protectedProcedure.input(z.object({ jobId: z.number(), employeeId: z.number(), role: z.enum(["foreman", "laborer"]).default("laborer"), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
     await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics", "foreman"], "assign employees to jobs", ctx.companyId);
@@ -323,6 +336,7 @@ const clockRouter = router({
   })).mutation(async ({ input, ctx }) => {
     const { clockOut: clockOutStr, ...clockInData } = input;
     const result = await db.clockIn({ ...clockInData, companyId: ctx.companyId, clockIn: new Date(input.clockIn) });
+    db.logDataAudit({ companyId: ctx.companyId, employeeId: input.employeeId, operation: "INSERT", tableName: "clock_entries", recordId: typeof result === 'number' ? result : (result as any)?.id, newData: { jobId: input.jobId, clockIn: input.clockIn } });
     // If this is an offline entry with clockOut, also clock out immediately
     if (clockOutStr && result) {
       const entryId = typeof result === 'number' ? result : (result as any).insertId || (result as any).id;
@@ -339,6 +353,7 @@ const clockRouter = router({
     clockOutLongitude: z.number().optional(),
   })).mutation(async ({ input, ctx }) => {
     await db.clockOut(input.entryId, new Date(input.clockOut));
+    db.logDataAudit({ companyId: ctx.companyId, operation: "UPDATE", tableName: "clock_entries", recordId: input.entryId, newData: { clockOut: input.clockOut } });
     if (input.clockOutLatitude != null && input.clockOutLongitude != null) {
       await db.updateClockEntryGps(input.entryId, {
         clockOutLatitude: input.clockOutLatitude,

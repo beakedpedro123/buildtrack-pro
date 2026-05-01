@@ -8,6 +8,8 @@ import {
   timestamp,
   varchar,
   float,
+  json,
+  bigint,
 } from "drizzle-orm/mysql-core";
 
 // ─── Companies (Multi-Tenant Root) ────────────────────────────────────────
@@ -751,3 +753,33 @@ export type SecurityAuditLogEntry = typeof securityAuditLog.$inferSelect;
 export type InsertSecurityAuditLogEntry = typeof securityAuditLog.$inferInsert;
 export type AdminIpAllowlistEntry = typeof adminIpAllowlist.$inferSelect;
 export type InsertAdminIpAllowlistEntry = typeof adminIpAllowlist.$inferInsert;
+
+// ─── Webhook Idempotency (Stripe) ────────────────────────────────────────────
+export const webhookEvents = mysqlTable("webhook_events", {
+  id: int("id").autoincrement().primaryKey(),
+  eventId: varchar("eventId", { length: 255 }).notNull(), // Stripe event ID (evt_xxx)
+  eventType: varchar("eventType", { length: 128 }).notNull(),
+  processedAt: timestamp("processedAt").defaultNow().notNull(),
+  status: mysqlEnum("status", ["processed", "failed", "skipped"]).default("processed").notNull(),
+  details: text("details"),
+});
+export type WebhookEvent = typeof webhookEvents.$inferSelect;
+export type InsertWebhookEvent = typeof webhookEvents.$inferInsert;
+
+// ─── Data Audit Log (all write operations) ───────────────────────────────────
+export const dataAuditLog = mysqlTable("data_audit_log", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId"),
+  employeeId: int("employeeId"),
+  userId: int("userId"),
+  operation: mysqlEnum("operation", ["INSERT", "UPDATE", "DELETE"]).notNull(),
+  tableName: varchar("tableName", { length: 128 }).notNull(),
+  recordId: int("recordId"),
+  previousData: json("previousData"),
+  newData: json("newData"),
+  ipAddress: varchar("ipAddress", { length: 64 }),
+  userAgent: varchar("userAgent", { length: 512 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type DataAuditLogEntry = typeof dataAuditLog.$inferSelect;
+export type InsertDataAuditLogEntry = typeof dataAuditLog.$inferInsert;

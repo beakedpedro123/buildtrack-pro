@@ -2996,3 +2996,39 @@ export async function removeAdminIp(id: number) {
   if (!dbConn) return;
   await dbConn.update(adminIpAllowlist).set({ isActive: false }).where(eq(adminIpAllowlist.id, id));
 }
+
+// ═══ DATA AUDIT LOGGING ═══
+// Logs all write operations (INSERT/UPDATE/DELETE) for forensic traceability
+export async function logDataAudit(params: {
+  companyId?: number | null;
+  employeeId?: number | null;
+  userId?: number | null;
+  operation: "INSERT" | "UPDATE" | "DELETE";
+  tableName: string;
+  recordId?: number | null;
+  previousData?: any;
+  newData?: any;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}) {
+  try {
+    const dbConn = await getDb();
+    if (!dbConn) return;
+    const { dataAuditLog } = await import("../drizzle/schema");
+    await dbConn.insert(dataAuditLog).values({
+      companyId: params.companyId ?? null,
+      employeeId: params.employeeId ?? null,
+      userId: params.userId ?? null,
+      operation: params.operation,
+      tableName: params.tableName,
+      recordId: params.recordId ?? null,
+      previousData: params.previousData ? JSON.parse(JSON.stringify(params.previousData)) : null,
+      newData: params.newData ? JSON.parse(JSON.stringify(params.newData)) : null,
+      ipAddress: params.ipAddress ?? null,
+      userAgent: params.userAgent ?? null,
+    });
+  } catch (err) {
+    // Audit logging should never crash the main operation
+    console.error("[audit] Failed to log data audit:", err);
+  }
+}
