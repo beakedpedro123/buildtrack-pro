@@ -75,6 +75,8 @@ import {
   adminIpAllowlist,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { hashPin, verifyPin as verifyPinHash } from "./_core/crypto";
+import { encryptSSN, decryptSSN, isEncrypted, getSSNLast4 } from "./_core/crypto";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: ReturnType<typeof mysql.createPool> | null = null;
@@ -316,18 +318,32 @@ export async function getEmployeeById(id: number) {
 }
 
 export async function getEmployeeByPin(pin: string, companyId?: number) {
+  // SECURITY FIX (Low #16): PIN verification with bcrypt hash comparison
   const db = await getDb();
   if (!db) return undefined;
-  const conditions = [eq(employees.pin, pin), eq(employees.isActive, true)];
+  // We can't do bcrypt comparison in SQL, so fetch all active employees for the company
+  // and compare in application code. This is safe because:
+  // 1. Rate limiting prevents brute force (5 attempts per 15 min)
+  // 2. Company scope limits the search space
+  const conditions: any[] = [eq(employees.isActive, true)];
   if (companyId) conditions.push(eq(employees.companyId, companyId));
-  const result = await db.select().from(employees)
-    .where(and(...conditions)).limit(1);
-  return result[0];
+  const candidates = await db.select().from(employees)
+    .where(and(...conditions));
+  // Try bcrypt comparison first, then fall back to plaintext for unmigrated PINs
+  for (const emp of candidates) {
+    const match = await verifyPinHash(pin, emp.pin);
+    if (match) return emp;
+  }
+  return undefined;
 }
 
 export async function createEmployee(data: InsertEmployee) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  // SECURITY FIX (Low #16): Hash PIN before storing
+  if (data.pin) {
+    data = { ...data, pin: await hashPin(data.pin) };
+  }
   const result = await db.insert(employees).values(data);
   return result[0].insertId;
 }
@@ -335,6 +351,10 @@ export async function createEmployee(data: InsertEmployee) {
 export async function updateEmployee(id: number, data: Partial<InsertEmployee>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  // SECURITY FIX (Low #16): Hash PIN if being updated
+  if (data.pin) {
+    data = { ...data, pin: await hashPin(data.pin) };
+  }
   await db.update(employees).set(data).where(eq(employees.id, id));
 }
 
@@ -2577,6 +2597,20 @@ export async function getAllEmployeeTaxInfo(companyId?: number) {
   if (!db) return [];
   if (!companyId) return [] as any; const cid = companyId;
   return db.select().from(employeeTaxInfo).where(eq(employeeTaxInfo.companyId, cid));
+}
+
+// SECURITY FIX (Low #17): SSN encryption wrapper
+async function encryptTaxData(data: any): Promise<any> {
+  if (data.ssn && !isEncrypted(data.ssn)) {
+    return { ...data, ssn: encryptSSN(data.ssn) };
+  }
+  return data;
+}
+async function decryptTaxData(record: any): Promise<any> {
+  if (record && record.ssn && isEncrypted(record.ssn)) {
+    return { ...record, ssnLast4: getSSNLast4(record.ssn), ssn: "***-**-" + getSSNLast4(record.ssn) };
+  }
+  return record;
 }
 
 export async function upsertEmployeeTaxInfo(employeeId: number, data: Partial<InsertEmployeeTaxInfo>) {

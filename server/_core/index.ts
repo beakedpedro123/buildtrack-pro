@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express, { Request, Response } from "express";
+import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import net from "net";
@@ -18,7 +19,42 @@ import { createContext } from "./context";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
+// SECURITY FIX (High #8): File upload with MIME validation and size limits
+const ALLOWED_MIME_TYPES = new Set([
+  // Images
+  "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml", "image/heic", "image/heif",
+  // Audio
+  "audio/mpeg", "audio/mp4", "audio/m4a", "audio/x-m4a", "audio/wav", "audio/webm", "audio/ogg", "audio/aac",
+  // Video
+  "video/mp4", "video/quicktime", "video/webm", "video/x-msvideo",
+  // Documents
+  "application/pdf", "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  // Generic
+  "application/octet-stream",
+]);
+const sanitizeFilename = (name: string): string => {
+  // Remove path traversal, null bytes, and dangerous characters
+  return name
+    .replace(/[\0]/g, "")
+    .replace(/\.\./g, "")
+    .replace(/[\\/]/g, "")
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(0, 255);
+};
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 200 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`File type ${file.mimetype} not allowed`));
+    }
+  },
+});
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -45,16 +81,39 @@ async function startServer() {
   app.set('trust proxy', 1);
   const server = createServer(app);
 
-  // Enable CORS for all routes - reflect the request origin to support credentials
+  // SECURITY FIX (Low #15): Security headers with Helmet
+  app.use(helmet({
+    contentSecurityPolicy: false, // CSP handled by individual pages
+    crossOriginEmbedderPolicy: false, // Allow cross-origin resources
+  }));
+
+  // SECURITY FIX (High #7): CORS allowlist instead of reflect-origin
+  const ALLOWED_ORIGINS = new Set([
+    // Production domains
+    "https://buildtrackpro.app",
+    "https://www.buildtrackpro.app",
+    "https://app.buildtrackpro.app",
+    // Development
+    "http://localhost:8081",
+    "http://localhost:3000",
+    "http://localhost:19006",
+  ]);
+  // Also allow Manus sandbox domains dynamically
+  const isDynamicOriginAllowed = (origin: string) => {
+    return origin.includes("manus.computer") || 
+           origin.includes("exp.host") ||
+           origin.includes("expo.dev") ||
+           ALLOWED_ORIGINS.has(origin);
+  };
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin) {
+    if (origin && isDynamicOriginAllowed(origin)) {
       res.header("Access-Control-Allow-Origin", origin);
     }
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header(
       "Access-Control-Allow-Headers",
-      "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+      "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-company-id",
     );
     res.header("Access-Control-Allow-Credentials", "true");
 
@@ -176,7 +235,7 @@ async function startServer() {
 
       if (req.file) {
         // Multer parsed the multipart form successfully
-        const fileName = req.file.originalname || `upload_${Date.now()}`;
+        const fileName = sanitizeFilename(req.file.originalname || `upload_${Date.now()}`);
         const mime = req.file.mimetype || "application/octet-stream";
         const key = `uploads/${Date.now()}-${fileName}`;
         const { url } = await storagePut(key, req.file.buffer, mime);
@@ -603,17 +662,31 @@ async function startServer() {
     }
   });
 
-  // Stripe Webhook (raw body required)
+  // SECURITY FIX (High #10): Stripe Webhook with signature verification
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req: Request, res: Response) => {
     try {
-      const { handleWebhookEvent } = await import("../stripe-billing");
+      const { handleWebhookEvent, isStripeConfigured } = await import("../stripe-billing");
+      if (!isStripeConfigured()) {
+        res.status(503).json({ error: "Stripe not configured" });
+        return;
+      }
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      const sig = req.headers["stripe-signature"];
+      if (!webhookSecret || !sig) {
+        console.error("[stripe] Missing webhook secret or signature header");
+        res.status(400).json({ error: "Missing signature" });
+        return;
+      }
       const Stripe = (await import("stripe")).default;
-      const event = JSON.parse(req.body.toString()) as any;
-      await handleWebhookEvent(event);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", { apiVersion: "2025-04-30.basil" as any });
+      // Verify the webhook signature — this prevents forged events
+      const event = stripe.webhooks.constructEvent(req.body, sig as string, webhookSecret);
+      await handleWebhookEvent(event as any);
       res.json({ received: true });
     } catch (err: any) {
-      console.error("Stripe webhook error:", err);
-      res.status(400).json({ error: err?.message });
+      console.error("Stripe webhook error:", err?.message);
+      // SECURITY FIX (High #9): Generic error messages — don't leak internals
+      res.status(400).json({ error: "Webhook verification failed" });
     }
   });
 
@@ -662,12 +735,16 @@ async function startServer() {
   });
 
   // ── Daily Repeating Goals Cron ──────────────────────────────────────────────
+  // SECURITY FIX (Critical #3): Replaced raw SQL with Drizzle ORM
   // Every day at 6:00 AM Mountain Time, clone goals marked [REPEAT DAILY]
   async function cloneRepeatingGoals() {
     try {
       const { getDb } = await import("../db");
       const dbConn = await getDb();
       if (!dbConn) return;
+
+      const { weeklyGoals } = await import("../../drizzle/schema");
+      const { and, eq, ne, like, gte, lte, desc } = await import("drizzle-orm");
 
       // Get Mountain Time date
       const mtnFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Denver', year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
@@ -680,42 +757,52 @@ async function startServer() {
       const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
       const weekStart = new Date(Date.UTC(mtnYr, mtnMo, mtnDy + mondayOffset, 12, 0, 0));
 
-      // Find the most recent version of each repeating goal (by title)
-      const mysql = await import("mysql2/promise");
-      const conn = await (mysql as any).createConnection(process.env.DATABASE_URL);
-      // Get distinct repeating goal titles, then fetch the latest one for each
-      const [repeatTitles] = await conn.query(
-        'SELECT DISTINCT title FROM weeklyGoals WHERE description LIKE "%[REPEAT DAILY]%" AND status != "cancelled"'
-      );
-      const repeatGoals: any[] = [];
-      for (const row of (repeatTitles as any[])) {
-        const [latest] = await conn.query(
-          'SELECT * FROM weeklyGoals WHERE title = ? AND description LIKE "%[REPEAT DAILY]%" ORDER BY createdAt DESC LIMIT 1',
-          [row.title]
-        );
-        if ((latest as any[]).length > 0) repeatGoals.push((latest as any[])[0]);
+      // Find repeating goals using Drizzle ORM (no raw SQL)
+      const allRepeating = await dbConn.select().from(weeklyGoals)
+        .where(and(
+          like(weeklyGoals.description, "%[REPEAT DAILY]%"),
+          ne(weeklyGoals.status, "cancelled")
+        ))
+        .orderBy(desc(weeklyGoals.createdAt));
+
+      // Group by title, take the latest for each
+      const latestByTitle = new Map<string, typeof allRepeating[0]>();
+      for (const goal of allRepeating) {
+        if (!latestByTitle.has(goal.title)) {
+          latestByTitle.set(goal.title, goal);
+        }
       }
 
       let cloned = 0;
-      for (const goal of (repeatGoals as any[])) {
-        // Check if we already created this goal today
-        const todayStart = new Date(Date.UTC(mtnYr, mtnMo, mtnDy, 0, 0, 0));
-        const todayEnd = new Date(Date.UTC(mtnYr, mtnMo, mtnDy, 23, 59, 59));
-        const [existing] = await conn.query(
-          'SELECT id FROM weeklyGoals WHERE title = ? AND createdAt BETWEEN ? AND ? LIMIT 1',
-          [goal.title, todayStart, todayEnd]
-        );
-        if ((existing as any[]).length > 0) continue; // Already created today
+      const todayStart = new Date(Date.UTC(mtnYr, mtnMo, mtnDy, 0, 0, 0));
+      const todayEnd = new Date(Date.UTC(mtnYr, mtnMo, mtnDy, 23, 59, 59));
 
-        // Clone the goal for today
-        await conn.query(
-          'INSERT INTO weeklyGoals (title, description, assignedTo, assignedToList, weekOf, status, priority, deadline, createdBy) VALUES (?, ?, ?, ?, ?, "pending", ?, NULL, ?)',
-          [goal.title, goal.description, goal.assignedTo, goal.assignedToList, weekStart, goal.priority, goal.createdBy]
-        );
+      for (const [title, goal] of latestByTitle) {
+        // Check if we already created this goal today using Drizzle
+        const existing = await dbConn.select({ id: weeklyGoals.id }).from(weeklyGoals)
+          .where(and(
+            eq(weeklyGoals.title, title),
+            gte(weeklyGoals.createdAt, todayStart),
+            lte(weeklyGoals.createdAt, todayEnd)
+          ))
+          .limit(1);
+        if (existing.length > 0) continue; // Already created today
+
+        // Clone the goal for today using Drizzle insert
+        await dbConn.insert(weeklyGoals).values({
+          companyId: goal.companyId,
+          title: goal.title,
+          description: goal.description,
+          assignedTo: goal.assignedTo,
+          assignedToList: goal.assignedToList,
+          weekOf: weekStart,
+          status: "pending",
+          priority: goal.priority,
+          createdBy: goal.createdBy,
+        });
         cloned++;
       }
 
-      await conn.end();
       if (cloned > 0) console.log(`[cron] Cloned ${cloned} repeating goals for ${mtnYr}-${mtnMo + 1}-${mtnDy}`);
     } catch (err) {
       console.error('[cron] Failed to clone repeating goals:', err);

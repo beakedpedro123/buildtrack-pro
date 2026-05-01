@@ -19,13 +19,15 @@ export async function createContext(opts: CreateExpressContextOptions): Promise<
     user = null;
   }
 
+  // SECURITY FIX: Default companyId to 0 (not 1) when no header present.
+  // For authenticated users, the trpc middleware will override this with the user's actual companyId.
   const hdr = opts.req.headers["x-company-id"];
-  const companyId = hdr ? parseInt(String(hdr), 10) : 1;
+  const companyId = hdr ? parseInt(String(hdr), 10) : 0;
 
   return {
     req: opts.req,
     res: opts.res,
     user,
-    companyId: isNaN(companyId) ? 1 : companyId,
+    companyId: isNaN(companyId) ? 0 : companyId,
   };
 }

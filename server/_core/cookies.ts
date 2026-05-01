@@ -49,12 +49,21 @@ export function getSessionCookieOptions(
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
   const hostname = req.hostname;
   const domain = getParentDomain(hostname);
+  const secure = isSecureRequest(req);
+
+  // SECURITY FIX (Medium #10): Use "lax" sameSite for CSRF protection.
+  // "none" allows cross-site cookie sending which enables CSRF attacks.
+  // "lax" sends cookies on top-level navigations but blocks cross-site POST requests.
+  // Exception: In development with cross-origin setup (e.g., Manus sandbox), use "none" + secure
+  // because the API and Metro run on different subdomains.
+  const isDevCrossOrigin = !!(domain && domain.includes("manus"));
+  const sameSite: "lax" | "none" = isDevCrossOrigin ? "none" : "lax";
 
   return {
     domain,
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req),
+    sameSite,
+    secure,
   };
 }

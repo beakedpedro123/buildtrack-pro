@@ -2848,3 +2848,36 @@
 - [x] Ensure all new goals.create calls pass companyId
 - [x] Ensure schedule planner push-to-goals includes companyId
 - [x] Audit all new mutations added this session for companyId guard
+
+## Security Audit Fixes (Kimi K2.6 + Second Audit — April 30, 2026)
+
+### Critical Severity
+- [ ] Critical #1: Replace publicProcedure with protectedProcedure on ALL mutations
+- [ ] Critical #2: Bind companyId to authenticated user, never trust x-company-id header
+- [ ] Critical #3: Remove raw SQL in cloneRepeatingGoals, replace with Drizzle ORM
+- [ ] Critical #4: Remove hardcoded JWT secret fallback
+
+### High Severity
+- [ ] High #5: Remove companyId from all input schemas, always use ctx.companyId
+- [ ] High #6: Fix rate limiting key generator (combine IP + UA + companyId hash)
+- [ ] High #7: Fix CORS to use origin allowlist
+- [ ] High #8: Sanitize file upload filenames and validate MIME types
+- [ ] High #9: Replace detailed error messages with generic responses
+- [ ] High #10: Add Stripe webhook signature verification
+
+### Medium Severity
+- [ ] Medium #11: Fix CSRF — change sameSite to "lax"
+- [ ] Medium #12: Fix admin IP allowlist to fail-closed
+- [ ] Medium #13: Add push token format validation
+- [ ] Medium #14: Fix meeting transcription URL exposure
+- [ ] Medium #15: Simplify goal visibility logic
+
+### Low Severity / Best Practices
+- [ ] Low #16: Add Helmet security headers
+- [ ] Low #17: Hash PINs with bcrypt
+- [ ] Low #18: Encrypt SSN fields with AES-256-GCM
+- [ ] Low #19: Remove as any casts, improve type safety
+
+### Additional Fixes
+- [x] BuildEdge knowledge scoping (remove hardcoded companyId === 1)
+- [x] Deployment hardening (env validation, process crash recovery)
