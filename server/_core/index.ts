@@ -126,7 +126,21 @@ async function startServer() {
   // SECURITY FIX (Low #15): Security headers with Helmet
   // SECURITY FIX: HSTS header tells browsers to always use HTTPS
   app.use(helmet({
-    contentSecurityPolicy: false, // CSP handled by individual pages
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        connectSrc: ["'self'", "https://api.stripe.com", "https://*.manus.computer", "https://*.expo.dev"],
+        frameSrc: ["'self'", "https://js.stripe.com"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        upgradeInsecureRequests: [],
+      },
+    },
     crossOriginEmbedderPolicy: false, // Allow cross-origin resources
     hsts: {
       maxAge: 31536000, // 1 year in seconds
@@ -192,7 +206,8 @@ async function startServer() {
     const originalEnd = res.end;
     const ip = (req.ip || req.headers["x-forwarded-for"] || "unknown") as string;
     const userId = (req as any).user?.id || "anon";
-    const companyId = req.headers["x-company-id"] || "0";
+    // SECURITY FIX (v4 LOW-2): Prefer verified session companyId over spoofable header
+    const companyId = (req as any).user?.companyId || req.headers["x-company-id"] || "0";
 
     (res as any).end = function (this: any, ...args: any[]) {
       const duration = Date.now() - startTime;
@@ -218,7 +233,6 @@ async function startServer() {
     message: { error: "Too many requests. Please try again in a minute." },
     skip: (req) => req.path === "/api/health", // Skip health checks
   });
-  app.use("/api/trpc", globalLimiter);
 
   // Strict rate limit on PIN verification: 5 attempts per 15 minutes per IP + company
   // Keys by IP + x-company-id header to prevent cross-company brute-force
@@ -418,9 +432,11 @@ async function startServer() {
   });
 
   // Detailed payroll PDF download endpoint
-  app.get("/api/payroll-pdf", async (req: Request, res: Response) => {
+  // SECURITY FIX (v4 CRIT-1): Requires auth, derives companyId from session
+  app.get("/api/payroll-pdf", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { startDate, endDate, reportType, billingRate, jobId, companyId } = req.query;
+      const { startDate, endDate, reportType, billingRate, jobId } = req.query;
+      const companyId = String((req as any).user?.companyId || "");
       if (!startDate || !endDate) {
         res.status(400).json({ error: "startDate and endDate query params required" });
         return;
@@ -453,9 +469,11 @@ async function startServer() {
   });
 
   // Individual employee timecard PDF
-  app.get("/api/timecard-pdf", async (req: Request, res: Response) => {
+  // SECURITY FIX (v4 CRIT-1): Requires auth, derives companyId from session
+  app.get("/api/timecard-pdf", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { employeeId, startDate, endDate, companyId } = req.query;
+      const { employeeId, startDate, endDate } = req.query;
+      const companyId = String((req as any).user?.companyId || "");
       if (!employeeId || !startDate || !endDate) {
         res.status(400).json({ error: "employeeId, startDate, and endDate query params required" });
         return;
@@ -480,16 +498,17 @@ async function startServer() {
   });
 
   // Job Completion PDF — comprehensive report for completed jobs
-  app.get("/api/job-completion-pdf", async (req: Request, res: Response) => {
+  // SECURITY FIX (v4 CRIT-1): Requires auth, derives companyId from session
+  app.get("/api/job-completion-pdf", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { jobId, companyId: cmpId } = req.query;
+      const { jobId } = req.query;
+      const cmpId = (req as any).user?.companyId;
       if (!jobId) {
         res.status(400).json({ error: "jobId query param required" });
         return;
       }
       const { generateJobCompletionPDF } = await import("../job-completion-pdf");
-      const compId = cmpId ? parseInt(cmpId as string) : undefined;
-      const pdfBuffer = await generateJobCompletionPDF(parseInt(jobId as string), compId);
+      const pdfBuffer = await generateJobCompletionPDF(parseInt(jobId as string), cmpId);
       const filename = `job_completion_${jobId}_${new Date().toISOString().slice(0, 10)}.pdf`;
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -502,20 +521,21 @@ async function startServer() {
   });
 
   // Budget Report PDF — comprehensive budget report for any job
-  app.get("/api/budget-report-pdf", async (req: Request, res: Response) => {
+  // SECURITY FIX (v4 CRIT-1): Requires auth, derives companyId from session
+  app.get("/api/budget-report-pdf", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { jobId, companyId: cmpId, startDate, endDate, billingRate } = req.query;
+      const { jobId, startDate, endDate, billingRate } = req.query;
+      const cmpId = (req as any).user?.companyId;
       if (!jobId) {
         res.status(400).json({ error: "jobId query param required" });
         return;
       }
       const { generateBudgetReportPDF } = await import("../budget-report-pdf");
-      const compId = cmpId ? parseInt(cmpId as string) : undefined;
       const opts: any = {};
       if (startDate) opts.startDate = startDate as string;
       if (endDate) opts.endDate = endDate as string;
       if (billingRate) opts.billingRate = parseFloat(billingRate as string);
-      const pdfBuffer = await generateBudgetReportPDF(parseInt(jobId as string), compId, opts);
+      const pdfBuffer = await generateBudgetReportPDF(parseInt(jobId as string), cmpId, opts);
       const filename = `budget_report_${jobId}_${new Date().toISOString().slice(0, 10)}.pdf`;
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -528,16 +548,17 @@ async function startServer() {
   });
 
   // Field Reports PDF (server-side, comprehensive)
-  app.get("/api/field-reports-pdf", async (req: Request, res: Response) => {
+  // SECURITY FIX (v4 CRIT-1): Requires auth, derives companyId from session
+  app.get("/api/field-reports-pdf", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { jobId, companyId: cmpId } = req.query;
+      const { jobId } = req.query;
+      const cmpId = (req as any).user?.companyId;
       if (!jobId) {
         res.status(400).json({ error: "jobId query param required" });
         return;
       }
       const { generateFieldReportsPDF } = await import("../field-reports-pdf");
-      const compId = cmpId ? parseInt(cmpId as string) : undefined;
-      const pdfBuffer = await generateFieldReportsPDF(parseInt(jobId as string), compId);
+      const pdfBuffer = await generateFieldReportsPDF(parseInt(jobId as string), cmpId);
       const filename = `field_reports_${jobId}_${new Date().toISOString().slice(0, 10)}.pdf`;
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -577,7 +598,9 @@ async function startServer() {
   });
 
   // ─── Pivot AI Schedule Generation ─────────────────────────────────────
-  app.post("/api/pivot-generate-schedule", async (req: Request, res: Response) => {
+  // SECURITY FIX (v4 CRIT-1): Requires auth + rate limit to prevent LLM billing abuse
+  const scheduleLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: "Rate limit exceeded for schedule generation" } });
+  app.post("/api/pivot-generate-schedule", requireAuth, scheduleLimiter, async (req: Request, res: Response) => {
     try {
       const { prompt, jobId } = req.body;
       if (!prompt) { res.status(400).json({ error: "prompt required" }); return; }
@@ -610,13 +633,13 @@ async function startServer() {
     }
   });
 
-  app.use(
-    "/api/trpc",
-    createExpressMiddleware({
-      router: appRouter,
-      createContext,
-    }),
-  );
+  // API versioning: mount at /api/v1/trpc (versioned) and /api/trpc (legacy backward-compat)
+  const trpcMiddleware = createExpressMiddleware({
+    router: appRouter,
+    createContext,
+  });
+  app.use("/api/v1/trpc", globalLimiter, trpcMiddleware);
+  app.use("/api/trpc", globalLimiter, trpcMiddleware);
 
   // Resolve PWA public directory
   const publicCandidates = [
@@ -686,11 +709,13 @@ async function startServer() {
   });
 
   // ─── Stripe Billing Endpoints ─────────────────────────────────────────
-  app.post("/api/stripe/create-checkout", async (req: Request, res: Response) => {
+  // SECURITY FIX (v4 CRIT-1): Requires auth, derives companyId from session
+  app.post("/api/stripe/create-checkout", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { companyId, priceType, successUrl, cancelUrl } = req.body;
+      const { priceType, successUrl, cancelUrl } = req.body;
+      const companyId = (req as any).user?.companyId;
       if (!companyId || !priceType) {
-        res.status(400).json({ error: "companyId and priceType required" });
+        res.status(400).json({ error: "priceType required" });
         return;
       }
       const { createCheckoutSession, isStripeConfigured } = await import("../stripe-billing");
@@ -711,11 +736,13 @@ async function startServer() {
     }
   });
 
-  app.post("/api/stripe/portal", async (req: Request, res: Response) => {
+  // SECURITY FIX (v4 CRIT-1): Requires auth, derives companyId from session
+  app.post("/api/stripe/portal", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { companyId, returnUrl } = req.body;
+      const { returnUrl } = req.body;
+      const companyId = (req as any).user?.companyId;
       if (!companyId) {
-        res.status(400).json({ error: "companyId required" });
+        res.status(401).json({ error: "Authentication required" });
         return;
       }
       const { createPortalSession, isStripeConfigured } = await import("../stripe-billing");
@@ -734,11 +761,12 @@ async function startServer() {
     }
   });
 
-  app.get("/api/stripe/status", async (req: Request, res: Response) => {
+  // SECURITY FIX (v4 CRIT-1): Requires auth, derives companyId from session
+  app.get("/api/stripe/status", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { companyId } = req.query;
+      const companyId = (req as any).user?.companyId;
       if (!companyId) {
-        res.status(400).json({ error: "companyId required" });
+        res.status(401).json({ error: "Authentication required" });
         return;
       }
       const { getSubscriptionStatus, isStripeConfigured } = await import("../stripe-billing");
@@ -746,7 +774,7 @@ async function startServer() {
         res.status(503).json({ error: "Stripe not configured" });
         return;
       }
-      const result = await getSubscriptionStatus(parseInt(companyId as string));
+      const result = await getSubscriptionStatus(companyId);
       res.json(result);
     } catch (err: any) {
       console.error("Stripe status error:", err);

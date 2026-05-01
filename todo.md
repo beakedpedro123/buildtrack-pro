@@ -2904,3 +2904,13 @@
 - [x] Add HSTS header via Helmet config
 - [x] Add session expiry/rotation (24h inactivity, rotate on privilege change)
 - [x] Add request logging middleware for forensic analysis
+
+## V4 Audit Fixes + Hardening (Round 5)
+- [ ] CRITICAL: Add requireAuth to /api/payroll-pdf, /api/timecard-pdf, /api/job-completion-pdf, /api/budget-report-pdf, /api/field-reports-pdf
+- [ ] CRITICAL: Add requireAuth to /api/pivot-generate-schedule + rate limit
+- [ ] CRITICAL: Add requireAuth to /api/stripe/status
+- [ ] CRITICAL: Derive companyId from session on all 7 routes (not query params)
+- [ ] LOW: Fix request logging to use session companyId over header
+- [x] Add Content Security Policy (CSP) to Helmet
+- [x] Add API versioning (/api/v1/trpc)
+- [x] Write automated security regression tests (vitest)
