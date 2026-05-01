@@ -9,7 +9,7 @@
  * Other companies' Pivot instances MUST NEVER see this data.
  */
 
-export const PEDRO_COMPANY_ID = 1;
+export const PEDRO_COMPANY_ID = parseInt(process.env.BUILDEDGE_OWNER_COMPANY_ID || "0", 10);
 
 export function getBuildEdgeKnowledgeBase(): string {
   return `

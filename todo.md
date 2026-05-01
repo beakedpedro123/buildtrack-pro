@@ -2881,3 +2881,13 @@
 ### Additional Fixes
 - [x] BuildEdge knowledge scoping (remove hardcoded companyId === 1)
 - [x] Deployment hardening (env validation, process crash recovery)
+
+## Security Re-Audit Fixes (Round 2 - Kimi K2.6 Re-verification)
+- [ ] CRITICAL: Fix employees.listByCompany using client companyId instead of ctx.companyId
+- [ ] Fix CORS: Replace .includes() with .endsWith() for proper domain suffix matching
+- [ ] Fix BuildEdge: Replace hardcoded PEDRO_COMPANY_ID=1 with env var in buildedge-knowledge.ts
+- [ ] Fix invite token: Replace Math.random() with crypto.randomBytes()
+- [ ] Fix JSON body limit: Drop from 200MB to 1MB for API routes, keep large only for file upload
+- [ ] Audit all other procedures that take companyId from input instead of ctx
+- [ ] Verify server compiles and runs after all fixes
+- [ ] Export fresh source code for final re-audit

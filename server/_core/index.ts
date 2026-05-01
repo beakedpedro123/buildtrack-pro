@@ -100,10 +100,19 @@ async function startServer() {
   ]);
   // Also allow Manus sandbox domains dynamically
   const isDynamicOriginAllowed = (origin: string) => {
-    return origin.includes("manus.computer") || 
-           origin.includes("exp.host") ||
-           origin.includes("expo.dev") ||
-           ALLOWED_ORIGINS.has(origin);
+    if (ALLOWED_ORIGINS.has(origin)) return true;
+    // Strict suffix matching to prevent subdomain spoofing (e.g. evil-manus.computer)
+    try {
+      const url = new URL(origin);
+      const host = url.hostname;
+      return host.endsWith(".manus.computer") ||
+             host.endsWith(".manus.space") ||
+             host.endsWith(".exp.host") ||
+             host.endsWith(".expo.dev");
+    } catch {
+      return false;
+    }
+
   };
   app.use((req, res, next) => {
     const origin = req.headers.origin;
@@ -125,8 +134,8 @@ async function startServer() {
     next();
   });
 
-  app.use(express.json({ limit: "200mb" }));
-  app.use(express.urlencoded({ limit: "200mb", extended: true }));
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ limit: "1mb", extended: true }));
 
   // ═══ RATE LIMITING ═══
   // Global API rate limit: 100 requests per minute per IP

@@ -38,10 +38,14 @@ const AVAILABLE_TRADES = [
 ];
 
 // Helper: assert that the requesting employee has one of the allowed roles
-async function assertRole(requestingId: number, allowedRoles: string[], action: string) {
+async function assertRole(requestingId: number, allowedRoles: string[], action: string, companyId?: number) {
   const requester = await db.getEmployeeById(requestingId);
   if (!requester || !allowedRoles.includes(requester.role)) {
     throw new TRPCError({ code: "FORBIDDEN", message: `Only ${allowedRoles.join("/")} can ${action}.` });
+  }
+  // SECURITY: Verify the requesting employee belongs to the caller's company
+  if (companyId && requester.companyId !== companyId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Access denied." });
   }
   return requester;
 }
@@ -83,7 +87,7 @@ async function verifyReportOwnership(reportId: number, companyId: number) {
 
 const employeeRouter = router({
   list: protectedProcedure.input(z.object({ companyId: z.number().optional() }).optional()).query(({ input, ctx }) => db.getAllEmployees(input?.companyId || ctx.companyId)),
-  listByCompany: protectedProcedure.input(z.object({ companyId: z.number() })).query(({ input }) => db.getAllEmployees(input.companyId)),
+  listByCompany: protectedProcedure.query(({ ctx }) => db.getAllEmployees(ctx.companyId)),
   getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
     const emp = await db.getEmployeeById(input.id);
     if (!emp || emp.companyId !== ctx.companyId) return undefined;
@@ -125,7 +129,7 @@ const employeeRouter = router({
     companyId: z.number().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    const requester = await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "add employees");
+    const requester = await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "add employees", ctx.companyId);
     const { requestingEmployeeId: _, ...data } = input;
     // Use requester's companyId if not explicitly provided
     if (!data.companyId) data.companyId = requester.companyId;
@@ -145,14 +149,12 @@ const employeeRouter = router({
     isActive: z.boolean().optional(),
     requestingEmployeeId: z.number().optional(),
   })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) {
-      await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update employee records");
-    }
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "update employee records", ctx.companyId);
     const { id, requestingEmployeeId: _, ...data } = input;
     return db.updateEmployee(id, data);
   }),
   deactivate: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "deactivate employees");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "deactivate employees", ctx.companyId);
     return db.deactivateEmployee(input.id);
   }),
   createWithInvite: protectedProcedure.input(z.object({
@@ -163,8 +165,8 @@ const employeeRouter = router({
     hourlyRate: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "add employees");
-    const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "add employees", ctx.companyId);
+    const token = require("crypto").randomBytes(32).toString("hex");
     const { requestingEmployeeId: _, ...data } = input;
     const id = await db.createEmployee({ ...data, pin: "0000", inviteToken: token, inviteStatus: "pending" });
     return { id, inviteToken: token };
@@ -177,7 +179,7 @@ const employeeRouter = router({
   })).mutation(({ input }) => db.acceptInvite(input.token, input.name, input.pin)),
   registerPushToken: protectedProcedure.input(z.object({
     employeeId: z.number(),
-    pushToken: z.string().regex(/^ExponentPushToken[.+]$|^[A-Za-z0-9_-]+$/, "Invalid push token format"),
+    pushToken: z.string().regex(/^ExponentPushToken\[.+\]$|^[A-Za-z0-9_-]+$/, "Invalid push token format"),
   })).mutation(async ({ input }) => {
     await db.updatePushToken(input.employeeId, input.pushToken);
     return { success: true };
@@ -297,11 +299,11 @@ const jobsRouter = router({
     return db.updateJob(id, data);
   }),
   assign: protectedProcedure.input(z.object({ jobId: z.number(), employeeId: z.number(), role: z.enum(["foreman", "laborer"]).default("laborer"), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "assign employees to jobs");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics", "foreman"], "assign employees to jobs", ctx.companyId);
     return db.assignEmployeeToJob(input);
   }),
   unassign: protectedProcedure.input(z.object({ jobId: z.number(), employeeId: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "unassign employees from jobs");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics", "foreman"], "unassign employees from jobs", ctx.companyId);
     return db.removeJobAssignment(input.jobId, input.employeeId);
   }),
   getAssignments: protectedProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getJobAssignments(input.jobId); }),
@@ -590,7 +592,7 @@ Rules:
     } else {
       // Legacy: upload from base64
       const buffer = Buffer.from(input.base64, "base64");
-      const key = `reports/${input.jobId}/${input.reportId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+      const key = `reports/${input.jobId}/${input.reportId}/${Date.now()}-${require("crypto").randomBytes(8).toString("hex")}.jpg`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       photoUrl = url;
     }
@@ -611,12 +613,12 @@ Rules:
 
 const budgetRouter = router({
   createCategory: protectedProcedure.input(z.object({ jobId: z.number(), name: z.string().min(1).max(128), budgetedAmount: z.string(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "create budget categories");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "create budget categories", ctx.companyId);
     return db.createBudgetCategory(input);
   }),
   getCategories: protectedProcedure.input(z.object({ jobId: z.number() })).query(async ({ input, ctx }) => { await verifyJobOwnership(input.jobId, ctx.companyId); return db.getBudgetCategoriesForJob(input.jobId); }),
   updateCategory: protectedProcedure.input(z.object({ id: z.number(), name: z.string().optional(), budgetedAmount: z.string().optional(), spentAmount: z.string().optional(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update budget categories");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "update budget categories", ctx.companyId);
     const { id, requestingEmployeeId, ...data } = input; return db.updateBudgetCategory(id, data);
   }),
   addExpense: protectedProcedure.input(z.object({
@@ -689,7 +691,7 @@ const meetingsRouter = router({
     return { id };
   }),
   startRecording: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "start meeting recording");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics", "foreman"], "start meeting recording", ctx.companyId);
     await db.updateMeeting(input.id, { status: "recording", startedAt: new Date() });
     return { success: true };
   }),
@@ -701,7 +703,7 @@ const meetingsRouter = router({
     return { success: true };
   }),
   transcribeAndSummarize: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "transcribe meetings");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics", "foreman"], "transcribe meetings", ctx.companyId);
     const meeting = await db.getMeetingById(input.id);
     if (!meeting || !meeting.audioUrl) throw new Error("Meeting or audio not found");
     // Get employee list for name matching in goals
@@ -755,7 +757,7 @@ const meetingsRouter = router({
     return { transcript, summary, suggestedGoals: goalsWithIds };
   }),
   cancel: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "cancel meetings");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics", "foreman"], "cancel meetings", ctx.companyId);
     await db.updateMeeting(input.id, { status: "cancelled" });
     return { success: true };
   }),
@@ -872,7 +874,7 @@ const goalsRouter = router({
     return { success: true };
   }),
   delete: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "delete goals");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics", "foreman"], "delete goals", ctx.companyId);
     await db.deleteWeeklyGoal(input.id);
     return { success: true };
   }),
@@ -984,7 +986,7 @@ const punchListRouter = router({
     return { success: true };
   }),
   delete: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "delete punch list items");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics", "foreman"], "delete punch list items", ctx.companyId);
     await db.deletePunchListItem(input.id);
     return { success: true };
   }),
@@ -1079,7 +1081,7 @@ const qbEstimatesRouter = router({
     notes: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "create QB estimates");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "create QB estimates", ctx.companyId);
     const { requestingEmployeeId, ...data } = input;
     return db.createQbEstimate({
       ...data,
@@ -1095,13 +1097,13 @@ const qbEstimatesRouter = router({
     notes: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update QB estimates");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "update QB estimates", ctx.companyId);
     const { id, requestingEmployeeId, ...data } = input;
     await db.updateQbEstimate(id, data);
     return { success: true };
   }),
   delete: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "delete QB estimates");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "delete QB estimates", ctx.companyId);
     await db.deleteQbEstimate(input.id);
     return { success: true };
   }),
@@ -1110,7 +1112,7 @@ const qbEstimatesRouter = router({
     jobId: z.number(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "extract estimates");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "extract estimates", ctx.companyId);
     // Use LLM with the PDF URL to extract line items
     const llmResult = await invokeLLM({
       messages: [
@@ -1240,13 +1242,13 @@ const kpiRouter = router({
     description: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "update KPIs");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager"], "update KPIs", ctx.companyId);
     const { id, requestingEmployeeId, ...data } = input;
     await db.updateKpi(id, data);
     return { success: true };
   }),
   delete: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "delete KPIs");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager"], "delete KPIs", ctx.companyId);
     await db.deleteKpi(input.id);
     return { success: true };
   }),
@@ -1271,7 +1273,7 @@ const safetyTopicsRouter = router({
     category: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "create safety topics");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "create safety topics", ctx.companyId);
     const id = await db.createSafetyTopic({ title: input.title, content: input.content, category: input.category, createdBy: input.requestingEmployeeId });
     return { id };
   }),
@@ -1283,13 +1285,13 @@ const safetyTopicsRouter = router({
     isActive: z.boolean().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "update safety topics");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "update safety topics", ctx.companyId);
     const { id, requestingEmployeeId, ...data } = input;
     await db.updateSafetyTopic(id, data);
     return { success: true };
   }),
   delete: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "delete safety topics");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "delete safety topics", ctx.companyId);
     await db.deleteSafetyTopic(input.id);
     return { success: true };
   }),
@@ -1321,7 +1323,7 @@ const safetyMeetingsRouter = router({
     return { id };
   }),
   delete: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number() })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "delete safety meetings");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics", "foreman"], "delete safety meetings", ctx.companyId);
     await db.deleteSafetyMeeting(input.id);
     return { success: true };
   }),
@@ -5635,7 +5637,7 @@ const overheadRouter = router({
     return db.updateOverheadItem(id, data);
   }),
   delete: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "delete overhead items");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager"], "delete overhead items", ctx.companyId);
     return db.deleteOverheadItem(input.id);
   }),
 });
@@ -5683,7 +5685,7 @@ const scheduleRouter = router({
     return db.updateScheduleItem(id, updateData);
   }),
   delete: protectedProcedure.input(z.object({ id: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics", "foreman"], "delete schedule items");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics", "foreman"], "delete schedule items", ctx.companyId);
     return db.deleteScheduleItem(input.id);
   }),
   bulkCreate: protectedProcedure.input(z.object({
@@ -5711,7 +5713,7 @@ const scheduleRouter = router({
     return { count: created };
   }),
   deleteByJob: protectedProcedure.input(z.object({ jobId: z.number(), requestingEmployeeId: z.number().optional() })).mutation(async ({ input, ctx }) => {
-    if (input.requestingEmployeeId) await assertRole(input.requestingEmployeeId, ["owner", "office_manager", "logistics"], "delete job schedules");
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager", "logistics"], "delete job schedules", ctx.companyId);
     const items = await db.getJobSchedule(input.jobId);
     for (const item of items) {
       await db.deleteScheduleItem(item.id);
@@ -5744,12 +5746,8 @@ const taxInfoRouter = router({
 // ─── Company (Multi-Tenant) ──────────────────────────────────────────────
 const companyRouter = router({
   // Get current company info (scoped to caller's company)
-  getCurrent: protectedProcedure.input(z.object({ companyId: z.number() })).query(({ input, ctx }) => {
-    // Security: only allow fetching your own company's info
-    if (ctx.companyId && input.companyId !== ctx.companyId) {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: cannot view other company info." });
-    }
-    return db.getCompanyById(input.companyId);
+  getCurrent: protectedProcedure.query(({ ctx }) => {
+    return db.getCompanyById(ctx.companyId);
   }),
   
   // Get company by slug (for login/signup)
@@ -5829,27 +5827,24 @@ const companyRouter = router({
     logoUrl: z.string().optional(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner"], "update company settings");
+    await assertRole(input.requestingEmployeeId!, ["owner"], "update company settings", ctx.companyId);
     // If changing slug, check it's not taken
     if (input.slug) {
       const existing = await db.getCompanyBySlug(input.slug);
-      if (existing && existing.id !== input.companyId) {
+      if (existing && existing.id !== ctx.companyId) {
         throw new TRPCError({ code: "CONFLICT", message: "Company code is already taken." });
       }
     }
-    const { companyId, requestingEmployeeId: _, ...data } = input;
-    return db.updateCompany(companyId, data);
+    const { requestingEmployeeId: _, ...data } = input;
+    return db.updateCompany(ctx.companyId, data);
   }),
   
   // List all companies (admin only — requires authenticated admin user)
   listAll: adminProcedure.query(() => db.getAllCompanies()),
   
   // Check subscription status (scoped to caller's company)
-  checkSubscription: protectedProcedure.input(z.object({ companyId: z.number() })).query(async ({ input, ctx }) => {
-    if (ctx.companyId && input.companyId !== ctx.companyId) {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: cannot view other company subscription." });
-    }
-    const company = await db.getCompanyById(input.companyId);
+  checkSubscription: protectedProcedure.query(async ({ ctx }) => {
+    const company = await db.getCompanyById(ctx.companyId);
     if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
     const now = new Date();
     const trialEnd = company.trialEndDate ? new Date(company.trialEndDate) : null;
@@ -5880,8 +5875,8 @@ const companyRouter = router({
   }),
 
   // ── Lunch Settings (company-level) ──
-  getLunchSettings: protectedProcedure.input(z.object({ companyId: z.number().optional() })).query(async ({ input, ctx }) => {
-    const cId = input.companyId || ctx.companyId || 0;
+  getLunchSettings: protectedProcedure.query(async ({ ctx }) => {
+    const cId = ctx.companyId;
     const company = await db.getCompanyById(cId);
     if (!company) return { enabled: false, deductMinutes: 30, minShiftMinutes: 360, skipDays: [5] };
     return {
@@ -5892,13 +5887,12 @@ const companyRouter = router({
     };
   }),
   updateLunchSettings: protectedProcedure.input(z.object({
-    companyId: z.number().optional(),
     enabled: z.boolean(),
     deductMinutes: z.number().min(5).max(120),
     minShiftMinutes: z.number().min(60).max(720),
     skipDays: z.array(z.number().min(0).max(6)),
   })).mutation(async ({ input, ctx }) => {
-    const cId = input.companyId || ctx.companyId || 0;
+    const cId = ctx.companyId;
     return db.updateCompany(cId, {
       lunchAutoDeduct: input.enabled,
       lunchDeductMinutes: input.deductMinutes,
@@ -6184,7 +6178,7 @@ const tradeKnowledgeRouter = router({
     source: z.enum(["system", "aggregated", "admin"]).default("admin"),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner"], "manage trade knowledge");
+    await assertRole(input.requestingEmployeeId!, ["owner"], "manage trade knowledge", ctx.companyId);
     const { requestingEmployeeId: _, ...data } = input;
     return db.createTradeKnowledge(data);
   }),
@@ -6192,10 +6186,8 @@ const tradeKnowledgeRouter = router({
 
   // ── Trade Management with Monetization ──────────────────────────────────
   // Get company's current trades and unlock status
-  getCompanyTrades: protectedProcedure.input(z.object({
-    companyId: z.number(),
-  })).query(async ({ input }) => {
-    const company = await db.getCompanyById(input.companyId);
+  getCompanyTrades: protectedProcedure.query(async ({ ctx }) => {
+    const company = await db.getCompanyById(ctx.companyId);
     if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
     const tradesList = company.trades ? JSON.parse(company.trades as string) : [];
     const isGC = tradesList.includes("general_contractor");
@@ -6216,13 +6208,12 @@ const tradeKnowledgeRouter = router({
 
   // Update company trades (with monetization enforcement)
   updateCompanyTrades: protectedProcedure.input(z.object({
-    companyId: z.number(),
     trades: z.array(z.string()),
     primaryTrade: z.string(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner"], "manage company trades");
-    const company = await db.getCompanyById(input.companyId);
+    await assertRole(input.requestingEmployeeId!, ["owner"], "manage company trades", ctx.companyId);
+    const company = await db.getCompanyById(ctx.companyId);
     if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
     const allUnlocked = (company as any).allTradesUnlocked || false;
     // Enforce: max 3 trades free — GC counts as 1 trade, only allTradesUnlocked bypasses the cap
@@ -6239,7 +6230,7 @@ const tradeKnowledgeRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: `Invalid trade: ${slug}` });
       }
     }
-    await db.updateCompany(input.companyId, {
+    await db.updateCompany(ctx.companyId, {
       trades: JSON.stringify(input.trades),
       primaryTrade: input.primaryTrade,
     });
@@ -6248,13 +6239,12 @@ const tradeKnowledgeRouter = router({
 
   // Unlock all trades ($4.99/mo add-on)
   unlockAllTrades: protectedProcedure.input(z.object({
-    companyId: z.number(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner"], "unlock all trades");
+    await assertRole(input.requestingEmployeeId!, ["owner"], "unlock all trades", ctx.companyId);
     // In production, this would process payment via Stripe first
     // For now, mark as unlocked (payment integration comes with Stripe setup)
-    await db.updateCompany(input.companyId, { allTradesUnlocked: true } as any);
+    await db.updateCompany(ctx.companyId, { allTradesUnlocked: true } as any);
     return { success: true, message: "All trades unlocked! $4.99/mo will be added to your subscription." };
   }),
 });
@@ -6262,9 +6252,8 @@ const tradeKnowledgeRouter = router({
 // ─── Company Branding Router ─────────────────────────────────────────────────
 const brandingRouter = router({
   // Get company branding (logo + color) — uses ctx.companyId for multi-tenant security
-  get: protectedProcedure.input(z.object({ companyId: z.number() })).query(async ({ input, ctx }) => {
-    // Always use ctx.companyId (from authenticated header) to prevent cross-company access
-    const cid = ctx.companyId || input.companyId;
+  get: protectedProcedure.query(async ({ ctx }) => {
+    const cid = ctx.companyId;
     const company = await db.getCompanyById(cid);
     if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
     return {
@@ -6275,33 +6264,30 @@ const brandingRouter = router({
   }),
   // Update company logo URL (after uploading via /api/upload)
   updateLogo: protectedProcedure.input(z.object({
-    companyId: z.number(),
     logoUrl: z.string().url(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "update company logo");
-    const cid = ctx.companyId || input.companyId;
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager"], "update company logo", ctx.companyId);
+    const cid = ctx.companyId;
     await db.updateCompany(cid, { logoUrl: input.logoUrl });
     return { success: true, logoUrl: input.logoUrl };
   }),
   // Update brand color
   updateBrandColor: protectedProcedure.input(z.object({
-    companyId: z.number(),
     brandColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color like #C9A84C"),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "update brand color");
-    const cid = ctx.companyId || input.companyId;
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager"], "update brand color", ctx.companyId);
+    const cid = ctx.companyId;
     await db.updateCompany(cid, { brandColor: input.brandColor } as any);
     return { success: true, brandColor: input.brandColor };
   }),
   // Remove logo
   removeLogo: protectedProcedure.input(z.object({
-    companyId: z.number(),
     requestingEmployeeId: z.number(),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner", "office_manager"], "remove company logo");
-    const cid = ctx.companyId || input.companyId;
+    await assertRole(input.requestingEmployeeId!, ["owner", "office_manager"], "remove company logo", ctx.companyId);
+    const cid = ctx.companyId;
     await db.updateCompany(cid, { logoUrl: null });
     return { success: true };
   }),
@@ -6315,7 +6301,7 @@ const securityRouter = router({
     limit: z.number().optional(),
     eventType: z.string().optional(),
   })).query(async ({ input, ctx }) => {
-    await assertRole(input.requestingEmployeeId, ["owner"], "view security audit logs");
+    await assertRole(input.requestingEmployeeId!, ["owner"], "view security audit logs", ctx.companyId);
     return db.getSecurityAuditLogs(ctx.companyId, { limit: input.limit, eventType: input.eventType });
   }),
   // Get IP allowlist
