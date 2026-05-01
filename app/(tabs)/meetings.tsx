@@ -257,6 +257,15 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     try {
       if (Platform.OS !== "web") {
+        // Re-request permissions and re-set audio mode every time before recording.
+        // This is required because another component (e.g. Pivot) may have changed
+        // the audio session between mount and the user tapping Start Recording.
+        const { granted } = await requestRecordingPermissionsAsync();
+        if (!granted) {
+          Alert.alert("Microphone Access", "Please allow microphone access in Settings to record meetings.");
+          return;
+        }
+        await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
         await audioRecorder.prepareToRecordAsync();
         audioRecorder.record();
       }
