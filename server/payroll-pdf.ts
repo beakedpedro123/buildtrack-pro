@@ -1,8 +1,14 @@
 import PDFDocument from "pdfkit";
 import { getCompanyBranding, type CompanyBranding } from "./pdf-branding";
 import * as db from "./db";
+import { employees, jobs, clockEntries } from "../drizzle/schema";
+import { type InferSelectModel } from "drizzle-orm";
 import path from "path";
 import fs from "fs";
+
+type Employee = InferSelectModel<typeof employees>;
+type Job = InferSelectModel<typeof jobs>;
+type ClockEntry = InferSelectModel<typeof clockEntries>;
 
 // ─── Types ────────────────────────────────────────────────────────────────
 export type ReportType = "full" | "payroll" | "jobcost" | "employee";
@@ -100,13 +106,13 @@ function getLogoBuffer(): Buffer | null {
 
 // ─── Shared data builder ─────────────────────────────────────────────────
 async function buildReportData(startDate: Date, endDate: Date, filterJobId?: number, companyId?: number) {
-  const allEmployees = await db.getAllEmployees(companyId);
-  const activeEmployees = allEmployees.filter(e => e.isActive !== false);
-  const allJobs = await db.getAllJobs(companyId);
-  const activeJobs = allJobs.filter(j => j.status === "active");
-  const jobMap = new Map(allJobs.map(j => [j.id, j]));
-  const entries = await db.getClockEntriesForPayroll(startDate, endDate, companyId);
-  const employeeMap = new Map(activeEmployees.map(e => [e.id, e]));
+  const allEmployees: Employee[] = await db.getAllEmployees(companyId);
+  const activeEmployees = allEmployees.filter((e: Employee) => e.isActive !== false);
+  const allJobs: Job[] = await db.getAllJobs(companyId);
+  const activeJobs = allJobs.filter((j: Job) => j.status === "active");
+  const jobMap = new Map(allJobs.map((j: Job) => [j.id, j]));
+  const entries: ClockEntry[] = await db.getClockEntriesForPayroll(startDate, endDate, companyId);
+  const employeeMap = new Map(activeEmployees.map((e: Employee) => [e.id, e]));
 
   // Group entries by employee
   const byEmployee = new Map<number, typeof entries>();
@@ -158,7 +164,7 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
       .sort((a, b) => a.date.localeCompare(b.date));
 
     let salaryProjects: number[] = [];
-    try { salaryProjects = emp.salaryProjects ? JSON.parse(emp.salaryProjects) : []; } catch {}
+    try { salaryProjects = (emp as any).salaryProjects ? JSON.parse((emp as any).salaryProjects) : []; } catch {}
     // Calculate total lunch minutes from per-entry data
     let totalLunchMinutes = 0;
     for (const day of days) {
@@ -203,14 +209,14 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
   // Also include salary employees who had NO clock entries (they still cost money)
   // For per-job reports, only include salary employees if they're allocated to that job
   for (const emp of activeEmployees) {
-    if (emp.payType === "salary" && !byEmployee.has(emp.id)) {
+    if ((emp as any).payType === "salary" && !byEmployee.has(emp.id)) {
       let salaryProjects: number[] = [];
-      try { salaryProjects = emp.salaryProjects ? JSON.parse(emp.salaryProjects) : []; } catch {}
+      try { salaryProjects = (emp as any).salaryProjects ? JSON.parse((emp as any).salaryProjects) : []; } catch {}
       
       // If filtering by job, only include if salary is allocated to this job
       if (filterJobId) {
         // Salary employees are allocated across ALL active jobs
-        if (!activeJobs.find(j => j.id === filterJobId)) continue;
+        if (!activeJobs.find((j: Job) => j.id === filterJobId)) continue;
       }
       
       timecards.push({
@@ -728,8 +734,8 @@ export async function generateDetailedPayrollPDF(
   // If filtering by job, get the job name
   let filterJobName: string | undefined;;
   if (filterJobId) {
-    const allJobs = await db.getAllJobs(companyId);
-    const job = allJobs.find(j => j.id === filterJobId);
+    const allJobs: Job[] = await db.getAllJobs(companyId);
+    const job = allJobs.find((j: Job) => j.id === filterJobId);
     filterJobName = job?.name;
   }
 
@@ -816,7 +822,7 @@ export async function generateEmployeeTimecardPDF(
   
   if (!tc) {
     // Generate empty timecard
-    const emp = (await db.getAllEmployees(companyId)).find(e => e.id === employeeId);
+    const emp = (await db.getAllEmployees(companyId) as Employee[]).find((e: Employee) => e.id === employeeId);
     const doc = new PDFDocument({ size: "LETTER", margins: { top: 40, bottom: 40, left: 40, right: 40 } });
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));

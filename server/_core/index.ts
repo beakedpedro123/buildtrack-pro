@@ -148,6 +148,7 @@ async function startServer() {
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
+        reportUri: ["/api/csp-report"],
         upgradeInsecureRequests: [],
       },
     },
@@ -429,6 +430,27 @@ async function startServer() {
       dbStatus = "error";
     }
     res.json({ ok: true, timestamp: Date.now(), database: dbStatus });
+  });
+
+  // CSP Violation Reporting Endpoint
+  // Receives Content-Security-Policy violation reports from browsers
+  // Logs them for XSS attempt detection and policy tuning
+  app.post("/api/csp-report", express.json({ type: ["application/json", "application/csp-report"] }), (req: Request, res: Response) => {
+    const report = req.body?.['csp-report'] || req.body;
+    if (report) {
+      const logEntry = {
+        timestamp: new Date().toISOString(),
+        documentUri: report['document-uri'] || report.documentURL || 'unknown',
+        violatedDirective: report['violated-directive'] || report.effectiveDirective || 'unknown',
+        blockedUri: report['blocked-uri'] || report.blockedURL || 'unknown',
+        sourceFile: report['source-file'] || report.sourceFile || 'unknown',
+        lineNumber: report['line-number'] || report.lineNumber || 0,
+        ip: req.ip || req.headers['x-forwarded-for'] || 'unknown',
+      };
+      console.warn(`[csp-violation] ${JSON.stringify(logEntry)}`);
+    }
+    // Always return 204 No Content — browsers expect this
+    res.status(204).end();
   });
 
   // File download proxy — fetches from S3 storage and streams to client with proper Content-Disposition

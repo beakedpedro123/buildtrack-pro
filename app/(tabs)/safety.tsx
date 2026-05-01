@@ -107,8 +107,8 @@ export default function SafetyScreen() {
 
   const weeklyStats = useMemo(() => {
     if (!weekMeetings) return { safetyCount: 0, goalsCount: 0, safetyTarget: 3, goalsTarget: 5 };
-    const safetyCount = weekMeetings.filter(m => m.meetingType === "safety_toolbox").length;
-    const goalsCount = weekMeetings.filter(m => m.meetingType === "daily_goals").length;
+    const safetyCount = weekMeetings.filter((m: any) => m.meetingType === "safety_toolbox").length;
+    const goalsCount = weekMeetings.filter((m: any) => m.meetingType === "daily_goals").length;
     return { safetyCount, goalsCount, safetyTarget: 3, goalsTarget: 5 };
   }, [weekMeetings]);
 
@@ -323,7 +323,7 @@ export default function SafetyScreen() {
           {/* Select Job */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Job Site</Text>
-            {(jobs || []).map((job) => {
+            {(jobs || []).map((job: any) => {
               const active = selectedJobId === job.id;
               return (
                 <TouchableOpacity
@@ -345,7 +345,7 @@ export default function SafetyScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Select a Safety Topic (optional)</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {topics.map((topic) => (
+                {topics.map((topic: any) => (
                   <TouchableOpacity
                     key={topic.id}
                     style={[styles.topicCard, { width: 200, marginRight: 10, borderColor: selectedTopicId === topic.id ? colors.primary : colors.border }]}
@@ -518,7 +518,7 @@ export default function SafetyScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Active Topics ({(topics || []).length})</Text>
           </View>
-          {(topics || []).map((topic) => (
+          {(topics || []).map((topic: any) => (
             <View key={topic.id} style={[styles.topicCard, { marginHorizontal: 20 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <Text style={[styles.topicTitle, { flex: 1 }]}>{topic.title}</Text>
@@ -597,7 +597,7 @@ export default function SafetyScreen() {
             <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Today's Topics</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingLeft: 20, marginBottom: 16 }}>
-            {topics.map((topic) => (
+            {topics.map((topic: any) => (
               <TouchableOpacity
                 key={topic.id}
                 style={[styles.topicCard, { width: 200, marginRight: 10 }]}

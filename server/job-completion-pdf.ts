@@ -1,8 +1,12 @@
 import PDFDocument from "pdfkit";
 import { getCompanyBranding } from "./pdf-branding";
 import * as db from "./db";
+import { employees } from "../drizzle/schema";
+import { type InferSelectModel } from "drizzle-orm";
 import path from "path";
 import fs from "fs";
+
+type Employee = InferSelectModel<typeof employees>;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 const TZ = "America/Denver";
@@ -108,8 +112,8 @@ export async function generateJobCompletionPDF(jobId: number, companyId?: number
   const assignments = await db.getJobAssignments(jobId);
 
   // Get employee names
-  const allEmployees = await db.getAllEmployees();
-  const empMap = new Map(allEmployees.map(e => [e.id, e]));
+  const allEmployees: Employee[] = await db.getAllEmployees();
+  const empMap = new Map(allEmployees.map((e: Employee) => [e.id, e]));
   const getEmpName = (id: number) => empMap.get(id)?.name || `Employee #${id}`;
 
   // Get clock entries for labor summary

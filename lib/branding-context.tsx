@@ -38,7 +38,7 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
   const companyId = employee?.companyId ?? 0;
 
   const brandingQ = trpc.branding.get.useQuery(
-    { companyId },
+    undefined,
     {
       enabled: !!companyId,
       // 5-second staleTime: navigating to a new tab will show fresh data within 5s

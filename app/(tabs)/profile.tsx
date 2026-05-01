@@ -105,7 +105,7 @@ export default function ProfileScreen() {
 
   // ═══ Server-Backed Trade Management ═══
   const { data: tradeData, refetch: refetchTrades } = trpc.tradeKnowledge.getCompanyTrades.useQuery(
-    { companyId },
+    undefined,
     { enabled: employee?.role === "owner", staleTime: 30000 }
   );
   const updateTradesMutation = trpc.tradeKnowledge.updateCompanyTrades.useMutation();
@@ -126,7 +126,6 @@ export default function ProfileScreen() {
     setSavingTrades(true);
     try {
       await updateTradesMutation.mutateAsync({
-        companyId,
         trades: serverTrades,
         primaryTrade: serverPrimaryTrade,
         requestingEmployeeId: empId,
@@ -192,7 +191,7 @@ export default function ProfileScreen() {
       const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
       if (!uploadRes.ok) throw new Error("Upload failed");
       const { url } = await uploadRes.json();
-      await updateLogoMutation.mutateAsync({ companyId, logoUrl: url, requestingEmployeeId: empId });
+      await updateLogoMutation.mutateAsync({ logoUrl: url, requestingEmployeeId: empId });
       // Invalidate branding globally — all screens (home, profile, etc.) update instantly
       invalidateBranding();
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -209,7 +208,7 @@ export default function ProfileScreen() {
       { text: "Cancel", style: "cancel" },
       { text: "Remove", style: "destructive", onPress: async () => {
         try {
-          await removeLogoMutation.mutateAsync({ companyId, requestingEmployeeId: empId });
+          await removeLogoMutation.mutateAsync({ requestingEmployeeId: empId });
           invalidateBranding();
           if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (err: any) { Alert.alert("Error", err?.message || "Failed to remove logo"); }
@@ -219,7 +218,7 @@ export default function ProfileScreen() {
 
   const handleSaveBrandColor = useCallback(async (color: string) => {
     try {
-      await updateBrandColorMutation.mutateAsync({ companyId, brandColor: color, requestingEmployeeId: empId });
+      await updateBrandColorMutation.mutateAsync({ brandColor: color, requestingEmployeeId: empId });
       setBrandColorInput(color);
       invalidateBranding();
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

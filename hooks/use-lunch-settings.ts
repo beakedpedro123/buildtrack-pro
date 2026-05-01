@@ -30,7 +30,7 @@ export function useLunchSettings() {
   const [loaded, setLoaded] = useState(false);
 
   // Fetch from server
-  const serverQ = trpc.company.getLunchSettings.useQuery({}, {
+  const serverQ = trpc.company.getLunchSettings.useQuery(undefined, {
     staleTime: 60_000,
     retry: 1,
   });

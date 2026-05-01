@@ -741,7 +741,7 @@ export default function ClockScreen() {
             </Text>
             {allClockedIn.map((entry: any) => {
               const emp = activeEmployees.find((e: any) => e.id === entry.employeeId);
-              const job = jobs?.find((j) => j.id === entry.jobId);
+              const job = jobs?.find((j: any) => j.id === entry.jobId);
               const dur = now.getTime() - new Date(entry.clockIn).getTime();
               const isEditing = editingEntryId === entry.id;
               return (
@@ -1093,7 +1093,7 @@ export default function ClockScreen() {
               </Text>
             </View>
             {(history || []).slice(0, 10).map((entry: any) => {
-              const job = jobs?.find((j) => j.id === entry.jobId);
+              const job = jobs?.find((j: any) => j.id === entry.jobId);
               const dur = entry.clockOut
                 ? new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()
                 : null;

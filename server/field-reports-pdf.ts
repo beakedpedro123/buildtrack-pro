@@ -1,6 +1,10 @@
 import PDFDocument from "pdfkit";
 import { getCompanyBranding } from "./pdf-branding";
 import * as db from "./db";
+import { employees } from "../drizzle/schema";
+import { type InferSelectModel } from "drizzle-orm";
+
+type Employee = InferSelectModel<typeof employees>;
 
 const TZ = "America/Denver";
 function fmtDate(d: Date | string): string {
@@ -56,8 +60,8 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
   const photos = await db.getPhotosForJob(jobId);
   const clockEntries = await db.getClockEntriesForJob(jobId);
   const safetyMeetings = await db.getSafetyMeetingsForJob(jobId);
-  const allEmployees = await db.getAllEmployees();
-  const empMap = new Map(allEmployees.map(e => [e.id, e]));
+  const allEmployees: Employee[] = await db.getAllEmployees();
+  const empMap = new Map(allEmployees.map((e: Employee) => [e.id, e]));
   const getEmpName = (id: number) => empMap.get(id)?.name || `Employee #${id}`;
 
   // Labor by day

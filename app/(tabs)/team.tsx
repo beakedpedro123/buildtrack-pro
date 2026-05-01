@@ -450,7 +450,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
             const isClockedIn = clockedInIds.has(item.id);
             const clockEntry = (clockedIn || []).find((e: any) => e.employeeId === item.id);
             // Use enriched jobName from server join, fallback to activeJobs lookup
-            const jobName = clockEntry?.jobName || (clockEntry ? (activeJobs || []).find((j) => j.id === clockEntry.jobId)?.name : null);
+            const jobName = clockEntry?.jobName || (clockEntry ? (activeJobs || []).find((j: any) => j.id === clockEntry.jobId)?.name : null);
             const dur = clockEntry ? Date.now() - new Date(clockEntry.clockIn).getTime() : 0;
             const durDisplay = dur > 0 ? formatDuration(dur) : "0h 0m";
             const roleColor = ROLE_COLORS[item.role] || colors.primary;
@@ -577,7 +577,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
                               let projIds: number[] = [];
                               try { projIds = selectedEmployee.salaryProjects ? JSON.parse(selectedEmployee.salaryProjects) : []; } catch {}
                               if (projIds.length === 0) return null;
-                              const projNames = projIds.map((pid: number) => (activeJobs || []).find((j) => j.id === pid)?.name || `Job #${pid}`).join(", ");
+                              const projNames = projIds.map((pid: number) => (activeJobs || []).find((j: any) => j.id === pid)?.name || `Job #${pid}`).join(", ");
                               const perProject = selectedEmployee.salaryAmount ? `$${(Number(selectedEmployee.salaryAmount) / projIds.length).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "$0";
                               return (
                                 <>
@@ -640,7 +640,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
 
                             <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6, marginTop: 8 }}>Distribute Cost Across Projects (up to 6)</Text>
                             <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 8 }}>Salary will be split evenly across selected projects</Text>
-                            {(activeJobs || []).filter((j) => j.status === "active").map((job) => {
+                            {(activeJobs || []).filter((j: any) => j.status === "active").map((job: any) => {
                               const isSelected = editSalaryProjects.includes(job.id);
                               return (
                                 <TouchableOpacity
@@ -720,7 +720,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
                 {/* Current Status */}
                 {clockedInIds.has(selectedEmployee.id) && (() => {
                   const entry = (clockedIn || []).find((e: any) => e.employeeId === selectedEmployee.id);
-                  const job = entry ? (activeJobs || []).find((j) => j.id === entry.jobId) : null;
+                  const job = entry ? (activeJobs || []).find((j: any) => j.id === entry.jobId) : null;
                   const dur = entry ? Date.now() - new Date(entry.clockIn).getTime() : 0;
                   return (
                     <View style={{ backgroundColor: colors.success + "15", borderRadius: 12, padding: 14, marginTop: 16, borderWidth: 1, borderColor: colors.success + "40" }}>
@@ -896,7 +896,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
           </View>
           <ScrollView style={styles.section}>
             <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Select Employee</Text>
-            {notClockedInEmployees.map((emp) => {
+            {notClockedInEmployees.map((emp: any) => {
               const isSelected = clockEmpId === emp.id;
               const roleColor = ROLE_COLORS[emp.role] || colors.primary;
               return (
@@ -920,7 +920,7 @@ export default function TeamScreen({ embedded }: { embedded?: boolean } = {}) {
             )}
 
             <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginTop: 24, marginBottom: 12 }}>Select Job Site</Text>
-            {(activeJobs || []).filter((j) => j.status === "active").map((job) => {
+            {(activeJobs || []).filter((j: any) => j.status === "active").map((job: any) => {
               const isSelected = clockJobId === job.id;
               return (
                 <TouchableOpacity

@@ -623,7 +623,7 @@ export default function DashboardScreen() {
   // Budget alerts — owner AND office_manager (secretary) should see them
   const budgetAlertsQ = trpc.budgetAlerts.getAlerts.useQuery(undefined, { enabled: isOwner || isSecretary, staleTime: 60000 });
   const { data: budgetAlerts } = useOfflineCache(CACHE_KEYS.BUDGET_ALERTS, budgetAlertsQ.data, budgetAlertsQ.isLoading);
-  const activeAlerts = useMemo(() => (budgetAlerts || []).filter(a => a.alertLevel !== "ok"), [budgetAlerts]);
+  const activeAlerts = useMemo(() => (budgetAlerts || []).filter((a: any) => a.alertLevel !== "ok"), [budgetAlerts]);
 
   // Labor cost data with cache fallback
   const byJobQ = trpc.laborDashboard.byJob.useQuery({ startDate, endDate }, { enabled: isManagement, staleTime: 15000, refetchOnMount: "always" });
@@ -633,18 +633,18 @@ export default function DashboardScreen() {
   const { data: weeklyTrend } = useOfflineCache(CACHE_KEYS.CHART_LABOR_TRENDS, weeklyTrendQ.data, weeklyTrendQ.isLoading);
   const { data: byEmployee } = useOfflineCache(`${CACHE_KEYS.LABOR_BY_EMPLOYEE}_home_${startDate}`, byEmployeeQ.data, byEmployeeQ.isLoading);
 
-  const totalCost = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalCost, 0), [byJob]);
-  const totalMinutes = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalMinutes, 0), [byJob]);
+  const totalCost = useMemo(() => (byJob || []).reduce((sum: number, j: any) => sum + j.totalCost, 0), [byJob]);
+  const totalMinutes = useMemo(() => (byJob || []).reduce((sum: number, j: any) => sum + j.totalMinutes, 0), [byJob]);
   const canSeeDollars = isOwner || role === "office_manager";
 
   const maxJobCost = useMemo(() => {
     if (!byJob || byJob.length === 0) return 1;
-    return Math.max(...byJob.map(j => canSeeDollars ? j.totalCost : j.totalMinutes)) || 1;
+    return Math.max(...byJob.map((j: any) => canSeeDollars ? j.totalCost : j.totalMinutes)) || 1;
   }, [byJob, canSeeDollars]);
 
   const maxWeeklyCost = useMemo(() => {
     if (!weeklyTrend || weeklyTrend.length === 0) return 1;
-    return Math.max(...weeklyTrend.map(w => canSeeDollars ? w.totalCost : w.totalMinutes)) || 1;
+    return Math.max(...weeklyTrend.map((w: any) => canSeeDollars ? w.totalCost : w.totalMinutes)) || 1;
   }, [weeklyTrend, canSeeDollars]);
 
   const elapsed = activeEntry ? now.getTime() - new Date(activeEntry.clockIn).getTime() : 0;
@@ -667,7 +667,7 @@ export default function DashboardScreen() {
     return (activeJobs as any[])
       .filter((j: any) => j.billingType === "hourly" && j.hourlyRate)
       .map((job: any) => {
-        const laborData = byJob.find((b) => b.jobId === job.id);
+        const laborData = byJob.find((b: any) => b.jobId === job.id);
         if (!laborData || laborData.totalMinutes === 0) return null;
         const hours = laborData.totalMinutes / 60;
         const revenue = hours * parseFloat(job.hourlyRate || "0");
@@ -1426,14 +1426,14 @@ export default function DashboardScreen() {
               badge={activeAlerts.length}
               colors={colors}
             />
-            {showBudgetAlerts && activeAlerts.map((alert) => {
+            {showBudgetAlerts && activeAlerts.map((alert: any) => {
               const alertColors = {
                 warning: { bg: "#FEF3C7", border: "#F59E0B", text: "#92400E", dot: "#F59E0B" },
                 danger: { bg: "#FFF1F0", border: "#F97316", text: "#9A3412", dot: "#F97316" },
                 critical: { bg: "#FEE2E2", border: "#EF4444", text: "#991B1B", dot: "#EF4444" },
                 ok: { bg: colors.surface, border: colors.border, text: colors.foreground, dot: colors.success },
               };
-              const ac = alertColors[alert.alertLevel];
+              const ac = (alertColors as any)[alert.alertLevel];
               return (
                 <View key={alert.jobId} style={{ marginHorizontal: 20, marginBottom: 8, borderRadius: 14, padding: 14, borderWidth: 1.5, backgroundColor: ac.bg, borderColor: ac.border }}>
                   <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
@@ -1543,7 +1543,7 @@ export default function DashboardScreen() {
             </TouchableOpacity>
             <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}>
               <Text style={{ fontSize: 20, fontWeight: "800", marginBottom: 2, color: colors.foreground }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
-                {(byJob || []).filter(j => j.totalMinutes > 0).length}
+                {(byJob || []).filter((j: any) => j.totalMinutes > 0).length}
               </Text>
               <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }}>Jobs w/ Labor</Text>
             </View>
@@ -1567,7 +1567,7 @@ export default function DashboardScreen() {
               {showWeeklyTrend && (
                 <>
                   <View style={{ flexDirection: "row", alignItems: "flex-end", height: 100, paddingHorizontal: 20, marginBottom: 6, gap: 3 }}>
-                    {weeklyTrend.map((w, i) => {
+                    {weeklyTrend.map((w: any, i: any) => {
                       const value = canSeeDollars ? w.totalCost : w.totalMinutes;
                       const height = maxWeeklyCost > 0 ? Math.max((value / maxWeeklyCost) * 80, 2) : 2;
                       const isCurrentWeek = i === weeklyTrend.length - 1;
@@ -1582,7 +1582,7 @@ export default function DashboardScreen() {
                     })}
                   </View>
                   <View style={{ flexDirection: "row", paddingHorizontal: 20, marginBottom: 16, gap: 3 }}>
-                    {weeklyTrend.map((w, i) => (
+                    {weeklyTrend.map((w: any, i: any) => (
                       <View key={i} style={{ flex: 1 }}>
                         <Text style={{ fontSize: 8, color: colors.muted, textAlign: "center" }}>{w.weekLabel}</Text>
                       </View>
@@ -1604,7 +1604,7 @@ export default function DashboardScreen() {
               />
               {showCostByJob && (
               <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-                {byJob.slice(0, 8).map((job) => {
+                {byJob.slice(0, 8).map((job: any) => {
                   const value = canSeeDollars ? job.totalCost : job.totalMinutes;
                   const pct = maxJobCost > 0 ? (value / maxJobCost) * 100 : 0;
                   const hasOverhead = canSeeDollars && (job.taxRate > 0 || job.workersCompRate > 0 || job.liabilityInsRate > 0);
@@ -1664,7 +1664,7 @@ export default function DashboardScreen() {
               />
               {showByEmployee && (
                 <View style={{ marginBottom: 16 }}>
-                  {byEmployee.slice(0, 8).map((emp) => (
+                  {byEmployee.slice(0, 8).map((emp: any) => (
                     <TouchableOpacity key={emp.employeeId} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border }} onPress={() => router.push(`/timecard/${emp.employeeId}` as any)} activeOpacity={0.6}>
                       <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", marginRight: 10, backgroundColor: getRoleColor(emp.role) }}>
                         <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{getInitials(emp.employeeName)}</Text>

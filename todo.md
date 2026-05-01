@@ -2916,9 +2916,22 @@
 - [x] Write automated security regression tests (vitest)
 
 ## v5 Audit Final Fixes + Hardening (Round 6)
-- [ ] Fix CSP: Replace 'unsafe-inline' with per-request nonce
-- [ ] Fix PDF error responses: mask err.message in production
-- [ ] Fix Pivot prompt: add 2000 char length cap
+- [x] Fix CSP: Replace 'unsafe-inline' with per-request nonce
+- [x] Fix PDF error responses: mask err.message in production
+- [x] Fix Pivot prompt: add 2000 char length cap
 - [x] Add IP-based per-user rate limiting
-- [ ] Add Stripe webhook idempotency keys
-- [ ] Add database write audit logging (INSERT/UPDATE/DELETE)
+- [x] Add Stripe webhook idempotency keys
+- [x] Add database write audit logging (INSERT/UPDATE/DELETE)
+- [x] Add CSP violation reporting endpoint (/api/csp-report)
+- [x] Add report-uri directive to CSP header
+- [x] Fix payroll-pdf.ts TypeScript errors (totalBudget, implicit any)
+- [x] Fix budget-report-pdf.ts TypeScript errors
+- [x] Fix field-reports-pdf.ts TypeScript errors
+- [x] Fix job-completion-pdf.ts TypeScript errors
+- [x] Fix branding-context.tsx tRPC input error
+- [x] Fix use-lunch-settings.ts tRPC input error
+- [x] Fix subscription-modal.tsx tRPC input error
+- [x] Fix login.tsx tRPC input error
+- [x] Fix profile.tsx tRPC input errors (companyId not needed)
+- [x] Fix remaining frontend implicit any errors (clock, index, labor-costs, kpis, team, safety, meetings, reports)
+- [x] Create security ecosystem architecture map (visual diagram of all security layers)

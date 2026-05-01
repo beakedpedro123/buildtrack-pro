@@ -59,7 +59,7 @@ export function SubscriptionModal({ visible, onClose, companyId }: SubscriptionM
 
   // Fetch subscription status
   const { data: subscription, isLoading, refetch } = trpc.company.checkSubscription.useQuery(
-    { companyId },
+    undefined,
     { enabled: visible && companyId > 0, staleTime: 5000 }
   );
 

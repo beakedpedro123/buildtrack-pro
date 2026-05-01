@@ -473,7 +473,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
     submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
     weatherChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, marginRight: 8 } });
 
-  const getJobName = (jobId: number) => allJobs?.find((j) => j.id === jobId)?.name || `Job #${jobId}`;
+  const getJobName = (jobId: number) => allJobs?.find((j: any) => j.id === jobId)?.name || `Job #${jobId}`;
 
     const RWrapper = embedded ? View : ScreenContainer;
     return (
@@ -759,7 +759,7 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
               {/* Job Selection */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Select Job *</Text>
-                {(jobs || []).map((job) => (
+                {(jobs || []).map((job: any) => (
                   <TouchableOpacity
                     key={job.id}
                     style={[styles.jobOption, { borderColor: selectedJobId === job.id ? colors.primary : colors.border, backgroundColor: selectedJobId === job.id ? colors.primary + "15" : colors.surface }]}

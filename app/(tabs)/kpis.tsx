@@ -114,13 +114,13 @@ export default function KPIsScreen() {
     setKpiPeriod("monthly");
   };
 
-  const filteredKpis = (kpis || []).filter((k) => {
+  const filteredKpis = (kpis || []).filter((k: any) => {
     if (filterCat === "all") return true;
     return k.category === filterCat;
   });
 
   // Group KPIs by category
-  const grouped = filteredKpis.reduce((acc, kpi) => {
+  const grouped = filteredKpis.reduce((acc: any, kpi: any) => {
     const cat = kpi.category;
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(kpi);
@@ -211,14 +211,14 @@ export default function KPIsScreen() {
           keyExtractor={([cat]) => cat}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item: [cat, items] }) => {
+          renderItem={({ item: [cat, items] }: any) => {
             const catInfo = getCategoryInfo(cat);
             return (
               <View style={{ marginBottom: 16 }}>
                 <Text style={{ fontSize: 14, fontWeight: "700", color: colors.muted, marginBottom: 8 }}>
                   {catInfo.label.toUpperCase()}
                 </Text>
-                {items.map((kpi) => {
+                {items.map((kpi: any) => {
                   const pct = getProgressPct(kpi);
                   const current = parseFloat(kpi.currentValue || "0");
                   const target = parseFloat(kpi.targetValue || "0");

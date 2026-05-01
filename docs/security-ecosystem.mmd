@@ -1,0 +1,115 @@
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#C9A84C', 'primaryTextColor': '#fff', 'primaryBorderColor': '#C9A84C', 'lineColor': '#9BA1A6', 'secondaryColor': '#1e2022', 'tertiaryColor': '#151718'}}}%%
+graph TB
+    subgraph CLIENT["📱 Mobile Client (Expo/React Native)"]
+        APP[BuildTrack Pro App]
+        AUTH_CTX[Auth Context<br/>PIN + Session Cookie]
+        TRPC_CLIENT[tRPC Client<br/>Typed API Calls]
+    end
+
+    subgraph EDGE["🛡️ Edge Security Layer"]
+        HELMET[Helmet.js<br/>Security Headers]
+        CSP[Content Security Policy<br/>Per-Request Nonce<br/>No unsafe-inline]
+        CSP_REPORT[CSP Violation Reporter<br/>POST /api/csp-report]
+        CORS[CORS Policy<br/>Origin Whitelist]
+        RATE_GLOBAL[Global Rate Limiter<br/>100 req/15min per IP]
+        RATE_USER[Per-User Rate Limiter<br/>10 mutations/min]
+    end
+
+    subgraph AUTH["🔐 Authentication & Authorization"]
+        SESSION[Session Management<br/>Secure HttpOnly Cookies]
+        PIN_AUTH[PIN Verification<br/>bcrypt Hashed]
+        RBAC[Role-Based Access Control<br/>Owner/Office Manager/Logistics<br/>Foreman/Laborer]
+        ASSERT_ROLE[assertRole Guard<br/>Server-Side Enforcement]
+    end
+
+    subgraph API["⚡ API Layer (Express + tRPC)"]
+        TRPC_SERVER[tRPC Router<br/>Type-Safe Procedures]
+        INPUT_VAL[Zod Input Validation<br/>All Mutations Validated]
+        PROMPT_CAP[Prompt Length Cap<br/>2000 char limit]
+        ERROR_MASK[Error Masking<br/>Production: Generic Messages<br/>Dev: Full Stack Traces]
+    end
+
+    subgraph PAYMENTS["💳 Stripe Integration"]
+        WEBHOOK[Webhook Handler<br/>/api/stripe/webhook]
+        SIG_VERIFY[Signature Verification<br/>stripe.webhooks.constructEvent]
+        IDEMPOTENCY[Idempotency Keys<br/>webhook_events table<br/>Duplicate Prevention]
+    end
+
+    subgraph DATA["🗄️ Database Layer (PostgreSQL)"]
+        DRIZZLE[Drizzle ORM<br/>Parameterized Queries<br/>No SQL Injection]
+        AUDIT_LOG[Audit Log Table<br/>data_audit_log<br/>All INSERT/UPDATE/DELETE]
+        WEBHOOK_EVENTS[webhook_events Table<br/>Event Deduplication]
+        SCHEMA[Schema Enforcement<br/>Foreign Keys + Constraints]
+    end
+
+    subgraph STORAGE["📁 File Storage"]
+        S3[S3-Compatible Storage<br/>Signed Upload URLs]
+        UPLOAD_VAL[Upload Validation<br/>File Type + Size Limits]
+    end
+
+    subgraph MONITORING["📊 Observability"]
+        REQ_LOG[Request Logger<br/>Method/URL/Status/Duration]
+        AUDIT_TRAIL[Write Audit Trail<br/>User + Table + Operation]
+        CSP_LOG[CSP Violation Logs<br/>XSS Early Warning]
+    end
+
+    %% Client to Edge
+    APP --> AUTH_CTX
+    AUTH_CTX --> TRPC_CLIENT
+    TRPC_CLIENT -->|HTTPS| HELMET
+
+    %% Edge processing
+    HELMET --> CSP
+    HELMET --> CORS
+    CORS --> RATE_GLOBAL
+    RATE_GLOBAL --> RATE_USER
+
+    %% Edge to Auth
+    RATE_USER --> SESSION
+    SESSION --> PIN_AUTH
+    PIN_AUTH --> RBAC
+    RBAC --> ASSERT_ROLE
+
+    %% Auth to API
+    ASSERT_ROLE --> TRPC_SERVER
+    TRPC_SERVER --> INPUT_VAL
+    INPUT_VAL --> PROMPT_CAP
+    TRPC_SERVER --> ERROR_MASK
+
+    %% API to Payments
+    WEBHOOK --> SIG_VERIFY
+    SIG_VERIFY --> IDEMPOTENCY
+
+    %% API to Data
+    INPUT_VAL --> DRIZZLE
+    DRIZZLE --> AUDIT_LOG
+    IDEMPOTENCY --> WEBHOOK_EVENTS
+    DRIZZLE --> SCHEMA
+
+    %% API to Storage
+    INPUT_VAL --> S3
+    S3 --> UPLOAD_VAL
+
+    %% Monitoring connections
+    CSP --> CSP_REPORT
+    CSP_REPORT --> CSP_LOG
+    DRIZZLE --> AUDIT_TRAIL
+    RATE_GLOBAL --> REQ_LOG
+
+    %% Styling
+    classDef clientNode fill:#1a1a2e,stroke:#C9A84C,stroke-width:2px,color:#fff
+    classDef edgeNode fill:#16213e,stroke:#e94560,stroke-width:2px,color:#fff
+    classDef authNode fill:#0f3460,stroke:#00d2d3,stroke-width:2px,color:#fff
+    classDef apiNode fill:#1a1a2e,stroke:#feca57,stroke-width:2px,color:#fff
+    classDef dataNode fill:#0d1b2a,stroke:#48dbfb,stroke-width:2px,color:#fff
+    classDef monitorNode fill:#1b2838,stroke:#ff9f43,stroke-width:2px,color:#fff
+    classDef payNode fill:#1a1a2e,stroke:#a29bfe,stroke-width:2px,color:#fff
+
+    class APP,AUTH_CTX,TRPC_CLIENT clientNode
+    class HELMET,CSP,CSP_REPORT,CORS,RATE_GLOBAL,RATE_USER edgeNode
+    class SESSION,PIN_AUTH,RBAC,ASSERT_ROLE authNode
+    class TRPC_SERVER,INPUT_VAL,PROMPT_CAP,ERROR_MASK apiNode
+    class DRIZZLE,AUDIT_LOG,WEBHOOK_EVENTS,SCHEMA dataNode
+    class REQ_LOG,AUDIT_TRAIL,CSP_LOG monitorNode
+    class WEBHOOK,SIG_VERIFY,IDEMPOTENCY payNode
+    class S3,UPLOAD_VAL dataNode

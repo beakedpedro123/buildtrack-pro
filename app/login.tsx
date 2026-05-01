@@ -68,7 +68,7 @@ export default function LoginScreen() {
   const [cachedEmployees, setCachedEmployees] = useState<any[] | null>(null);
 
   const { data: employees, isLoading } = trpc.employees.listByCompany.useQuery(
-    { companyId: companyId! },
+    undefined,
     {
       retry: 1,
       staleTime: 30000,

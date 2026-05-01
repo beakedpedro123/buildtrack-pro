@@ -95,20 +95,20 @@ export default function LaborCostsScreen() {
   }, [utils]);
 
   // Compute summary stats
-  const totalCost = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalCost, 0), [byJob]);
-  const totalMinutes = useMemo(() => (byJob || []).reduce((sum, j) => sum + j.totalMinutes, 0), [byJob]);
-  const activeJobCount = useMemo(() => (byJob || []).filter(j => j.totalMinutes > 0).length, [byJob]);
+  const totalCost = useMemo(() => (byJob || []).reduce((sum: number, j: any) => sum + j.totalCost, 0), [byJob]);
+  const totalMinutes = useMemo(() => (byJob || []).reduce((sum: number, j: any) => sum + j.totalMinutes, 0), [byJob]);
+  const activeJobCount = useMemo(() => (byJob || []).filter((j: any) => j.totalMinutes > 0).length, [byJob]);
   const totalEmployees = useMemo(() => (byEmployee || []).length, [byEmployee]);
 
   // Max cost for bar chart scaling
   const maxJobCost = useMemo(() => {
     if (!byJob || byJob.length === 0) return 1;
-    return Math.max(...byJob.map(j => canSeeDollars ? j.totalCost : j.totalMinutes)) || 1;
+    return Math.max(...byJob.map((j: any) => canSeeDollars ? j.totalCost : j.totalMinutes)) || 1;
   }, [byJob, canSeeDollars]);
 
   const maxWeeklyCost = useMemo(() => {
     if (!weeklyTrend || weeklyTrend.length === 0) return 1;
-    return Math.max(...weeklyTrend.map(w => canSeeDollars ? w.totalCost : w.totalMinutes)) || 1;
+    return Math.max(...weeklyTrend.map((w: any) => canSeeDollars ? w.totalCost : w.totalMinutes)) || 1;
   }, [weeklyTrend, canSeeDollars]);
 
   const styles = StyleSheet.create({
@@ -236,7 +236,7 @@ export default function LaborCostsScreen() {
           {weeklyTrend && weeklyTrend.length > 0 ? (
             <>
               <View style={styles.weeklyChart}>
-                {weeklyTrend.map((w, i) => {
+                {weeklyTrend.map((w: any, i: number) => {
                   const value = canSeeDollars ? w.totalCost : w.totalMinutes;
                   const height = maxWeeklyCost > 0 ? Math.max((value / maxWeeklyCost) * 100, 2) : 2;
                   const isCurrentWeek = i === weeklyTrend.length - 1;
@@ -258,7 +258,7 @@ export default function LaborCostsScreen() {
                 })}
               </View>
               <View style={styles.weekLabelsRow}>
-                {weeklyTrend.map((w, i) => (
+                {weeklyTrend.map((w: any, i: number) => (
                   <View key={i} style={{ flex: 1 }}>
                     <Text style={styles.weekLabel}>{w.weekLabel}</Text>
                   </View>
@@ -275,7 +275,7 @@ export default function LaborCostsScreen() {
           <Text style={styles.sectionTitle}>Cost by Job ({periodLabel})</Text>
           {byJob && byJob.length > 0 ? (
             <View style={styles.chartContainer}>
-              {byJob.slice(0, 10).map((job) => {
+              {byJob.slice(0, 10).map((job: any) => {
                 const value = canSeeDollars ? job.totalCost : job.totalMinutes;
                 const pct = maxJobCost > 0 ? (value / maxJobCost) * 100 : 0;
                 return (
@@ -313,7 +313,7 @@ export default function LaborCostsScreen() {
           <Text style={styles.sectionTitle}>Cost by Employee ({periodLabel})</Text>
           {byEmployee && byEmployee.length > 0 ? (
             <View style={{ marginBottom: 20 }}>
-              {byEmployee.map((emp) => (
+              {byEmployee.map((emp: any) => (
                 <View key={emp.employeeId} style={styles.empRow}>
                   <View style={[styles.empAvatar, { backgroundColor: getRoleColor(emp.role) }]}>
                     <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
