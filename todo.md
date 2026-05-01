@@ -2955,3 +2955,12 @@
 - [x] Apply compression in profile.tsx handlePickLogo before upload
 - [x] Install expo-image-manipulator for on-device compression
 - [x] All 439 tests passing after changes
+
+## Meetings Recording Fix (Round 2 — Android)
+
+- [x] Root cause: Pivot voice input and Meetings use separate useAudioRecorder instances; Android only allows one active recording session
+- [x] Fix: Force-stop any stale recorder before preparing, add 300ms delay for OS audio session release
+- [x] Add retry logic: if prepareToRecordAsync fails, wait 500ms, re-set audio mode, retry once
+- [x] Show real error messages instead of generic "check permissions" text
+- [x] Log actual exceptions to console for debugging
+- [x] All 439 tests passing

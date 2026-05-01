@@ -258,24 +258,59 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     try {
       if (Platform.OS !== "web") {
-        // Re-request permissions and re-set audio mode every time before recording.
-        // This is required because another component (e.g. Pivot) may have changed
-        // the audio session between mount and the user tapping Start Recording.
+        // 1. Re-request permissions every time
         const { granted } = await requestRecordingPermissionsAsync();
         if (!granted) {
           Alert.alert("Microphone Access", "Please allow microphone access in Settings to record meetings.");
           return;
         }
+
+        // 2. Force-release any stale recorder state (e.g. from Pivot voice input or a previous failed attempt)
+        try { await audioRecorder.stop(); } catch (_) { /* already stopped — safe to ignore */ }
+
+        // 3. Small delay to let the OS fully release the audio session
+        await new Promise((r) => setTimeout(r, 300));
+
+        // 4. Re-set audio mode — this MUST happen after releasing the old session
         await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
-        await audioRecorder.prepareToRecordAsync();
+
+        // 5. Attempt to prepare the recorder (with one retry)
+        let prepared = false;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            await audioRecorder.prepareToRecordAsync();
+            prepared = true;
+            break;
+          } catch (prepErr: any) {
+            console.warn(`[meeting] prepareToRecordAsync attempt ${attempt + 1} failed:`, prepErr?.message || prepErr);
+            if (attempt === 0) {
+              // First failure — wait longer and re-set audio mode before retry
+              await new Promise((r) => setTimeout(r, 500));
+              await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+            }
+          }
+        }
+
+        if (!prepared) {
+          Alert.alert(
+            "Recording Error",
+            "Could not start the recorder. Please close Pivot (if open), then try again. If the problem persists, restart the app."
+          );
+          return;
+        }
+
         audioRecorder.record();
       }
       await startRecording.mutateAsync({ id: meetingId });
       setActiveMeetingId(meetingId);
       startTimer();
       setMgmtScreen("room");
-    } catch {
-      Alert.alert("Recording Error", "Could not start recording. Please check microphone permissions.");
+    } catch (outerErr: any) {
+      console.error("[meeting] handleStartRecording error:", outerErr?.message || outerErr);
+      Alert.alert(
+        "Recording Error",
+        `Could not start recording: ${outerErr?.message || "Unknown error"}. Please try again or restart the app.`
+      );
     }
   };
 
