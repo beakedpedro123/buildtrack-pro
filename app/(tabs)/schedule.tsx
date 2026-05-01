@@ -1,5 +1,6 @@
 import { ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
+import * as Auth from "@/lib/_core/auth";
 import { useColors } from "@/hooks/use-colors";
 import { useOfflineCache } from "@/hooks/use-offline-cache";
 import { useOfflineMutation } from "@/hooks/use-offline-mutation";
@@ -391,9 +392,12 @@ Return ONLY a valid JSON array of objects with these fields. No markdown, no exp
 Generate 25-50 tasks spanning the appropriate duration for a typical ${tradeLabel.toLowerCase()} job. ONLY include phases relevant to ${tradeLabel.toLowerCase()} work.`;
 
       // Call Pivot via the server's LLM
+      const schedToken = await Auth.getSessionToken();
+      const schedHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      if (schedToken) schedHeaders["Authorization"] = `Bearer ${schedToken}`;
       const response = await fetch("http://127.0.0.1:3000/api/pivot-generate-schedule", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: schedHeaders,
         body: JSON.stringify({ prompt, jobId: job.id }),
       });
 

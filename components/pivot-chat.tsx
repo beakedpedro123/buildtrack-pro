@@ -58,6 +58,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { trpc } from "@/lib/trpc";
 import { useAppAuth } from "@/lib/auth-context";
 import { getApiBaseUrl } from "@/constants/oauth";
+import * as Auth from "@/lib/_core/auth";
 import { useColors } from "@/hooks/use-colors";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useLanguage } from "@/lib/language-context";
@@ -598,7 +599,10 @@ export function PivotChat() {
       const mimeType = "audio/mp4";
       formData.append("file", { uri, name: `pivot_voice_${Date.now()}.${ext}`, type: mimeType } as any);
       console.log(`[voice] Uploading ${ext} file, duration: ${durationMs}ms, platform: ${Platform.OS}`);
-      const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
+      const sessionToken = await Auth.getSessionToken();
+      const uploadHeaders: Record<string, string> = {};
+      if (sessionToken) uploadHeaders["Authorization"] = `Bearer ${sessionToken}`;
+      const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData, headers: uploadHeaders });
       if (!uploadRes.ok) {
         const errText = await uploadRes.text().catch(() => "");
         console.warn(`[voice] Upload failed: ${uploadRes.status} ${errText}`);
@@ -705,7 +709,10 @@ export function PivotChat() {
       const apiBase = getApiBaseUrl();
       const formData = new FormData();
       formData.append("file", { uri, name, type: mimeType } as any);
-      const res = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
+      const sessionToken = await Auth.getSessionToken();
+      const uploadHeaders: Record<string, string> = {};
+      if (sessionToken) uploadHeaders["Authorization"] = `Bearer ${sessionToken}`;
+      const res = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData, headers: uploadHeaders });
       if (!res.ok) throw new Error("Upload failed");
       const { url } = await res.json();
       let type: Attachment["type"] = "document";
@@ -1029,9 +1036,9 @@ export function PivotChat() {
         statusBarTranslucent
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1, backgroundColor: P.BG }}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : StatusBar.currentHeight || 0}
         >
           <View style={{ flex: 1, backgroundColor: P.BG }}>
             {/* ─── Premium Header ─── */}

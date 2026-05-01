@@ -2943,3 +2943,5 @@
 - [x] CRITICAL BUG: Dashboard shows all zeros after login (0 Active Jobs, 0 On Site, 0 Employees) — fixed: PIN session JWT now authenticates all protected queries
 - [x] CRITICAL BUG: Team tab shows "No employees found" despite employees existing in DB — fixed: same root cause (PIN auth)
 - [x] CRITICAL BUG: Goals tab shows "No goals this week" despite data existing — fixed: same root cause (PIN auth)
+- [x] BUG: Pivot voice messages fail with transcription error — fixed: all fetch() calls to /api/upload now include Bearer token
+- [x] BUG: Keyboard overlaps Pivot chat UI — fixed: KeyboardAvoidingView now uses behavior="height" on Android with proper offset

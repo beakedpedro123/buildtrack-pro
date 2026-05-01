@@ -2,6 +2,7 @@ import {
    ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAppAuth } from "@/lib/auth-context";
+import * as Auth from "@/lib/_core/auth";
 import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import { getApiBaseUrl } from "@/constants/oauth";
@@ -129,7 +130,10 @@ export default function SafetyScreen() {
       } else {
         formData.append("file", { uri, type: "image/jpeg", name: `safety_${Date.now()}.jpg` } as any);
       }
-      const response = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
+      const sToken = await Auth.getSessionToken();
+      const sHeaders: Record<string, string> = {};
+      if (sToken) sHeaders["Authorization"] = `Bearer ${sToken}`;
+      const response = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData, headers: sHeaders });
       if (!response.ok) return null;
       const data = await response.json();
       return data.url || null;

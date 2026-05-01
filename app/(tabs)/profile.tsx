@@ -1,6 +1,7 @@
 import {
    ScreenContainer } from "@/components/screen-container";
 import { useAppAuth } from "@/lib/auth-context";
+import * as Auth from "@/lib/_core/auth";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import * as Haptics from "expo-haptics";
@@ -188,7 +189,10 @@ export default function ProfileScreen() {
       } else {
         formData.append("file", { uri, type: "image/jpeg", name: `logo_${companyId}_${Date.now()}.jpg` } as any);
       }
-      const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData });
+      const authToken = await Auth.getSessionToken();
+      const authHeaders: Record<string, string> = {};
+      if (authToken) authHeaders["Authorization"] = `Bearer ${authToken}`;
+      const uploadRes = await fetch(`${apiBase}/api/upload`, { method: "POST", body: formData, headers: authHeaders });
       if (!uploadRes.ok) throw new Error("Upload failed");
       const { url } = await uploadRes.json();
       await updateLogoMutation.mutateAsync({ logoUrl: url, requestingEmployeeId: empId });
