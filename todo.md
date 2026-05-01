@@ -2891,3 +2891,4 @@
 - [ ] Audit all other procedures that take companyId from input instead of ctx
 - [ ] Verify server compiles and runs after all fixes
 - [ ] Export fresh source code for final re-audit
+- [x] Add HTTPS-only secure cookie flag for production deployment

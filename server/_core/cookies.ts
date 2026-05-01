@@ -49,7 +49,12 @@ export function getSessionCookieOptions(
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
   const hostname = req.hostname;
   const domain = getParentDomain(hostname);
-  const secure = isSecureRequest(req);
+  const isProduction = process.env.NODE_ENV === "production";
+  const isLocalDev = LOCAL_HOSTS.has(hostname);
+
+  // SECURITY FIX: In production, ALWAYS set secure: true to ensure cookies
+  // are NEVER sent over plain HTTP. In development, derive from the request.
+  const secure = isProduction ? true : isSecureRequest(req);
 
   // SECURITY FIX (Medium #10): Use "lax" sameSite for CSRF protection.
   // "none" allows cross-site cookie sending which enables CSRF attacks.
