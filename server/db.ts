@@ -951,7 +951,11 @@ export async function getLaborCostForJob(jobId: number) {
   if (!db) return { totalMinutes: 0, totalCost: 0 };
   const entries = await db.select().from(clockEntries)
     .where(eq(clockEntries.jobId, jobId));
-  const allEmployees = await db.select().from(employees);
+  // Scope employee lookup to the job's company to prevent cross-company data leakage
+  const jobCompanyId = entries.length > 0 ? entries[0].companyId : undefined;
+  const allEmployees = jobCompanyId
+    ? await db.select().from(employees).where(eq(employees.companyId, jobCompanyId))
+    : [];
   const empMap = new Map(allEmployees.map(e => [e.id, e]));
 
   // Get company settings for auto-deduction (use first entry's companyId)
@@ -1618,9 +1622,12 @@ export async function getDetailedTimecard(employeeId: number, startDate: Date, e
     const allAdj = await dbConn.select().from(timeAdjustments)
       .where(or(...entryIds.map(id => eq(timeAdjustments.clockEntryId, id))))
       .orderBy(desc(timeAdjustments.createdAt));
-    // Get adjuster names
+    // Get adjuster names — scope to company to prevent cross-company leakage
     const adjusterIds = [...new Set(allAdj.map(a => a.adjustedBy))];
-    const allEmps = await dbConn.select().from(employees);
+    const timecardCompanyId = emp?.companyId;
+    const allEmps = timecardCompanyId
+      ? await dbConn.select().from(employees).where(eq(employees.companyId, timecardCompanyId))
+      : await dbConn.select().from(employees).where(inArray(employees.id, adjusterIds.length > 0 ? adjusterIds : [-1]));
     const empMap = new Map(allEmps.map(e => [e.id, e]));
     for (const adj of allAdj) {
       const list = adjustmentMap.get(adj.clockEntryId) || [];
@@ -2262,10 +2269,13 @@ export async function getBudgetBurnDown(jobId: number, weeks: number = 12) {
 
   // Get all clock entries for this job
   const jobEntries = await db.select().from(clockEntries).where(eq(clockEntries.jobId, jobId));
-  const allEmployees = await db.select().from(employees);
+  // Scope employee lookup to the job's company to prevent cross-company data leakage
+  const burnJobCompanyId = theJob.companyId;
+  const allEmployees = burnJobCompanyId
+    ? await db.select().from(employees).where(eq(employees.companyId, burnJobCompanyId))
+    : [];
   const empMap = new Map(allEmployees.map(e => [e.id, e]));
-
-  // Get all expenses for this job
+  // Get all expenses for this jobb
   const jobExpenses = await db.select().from(expenses).where(eq(expenses.jobId, jobId));
 
   // Build weekly buckets going back N weeks
