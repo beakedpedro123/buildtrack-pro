@@ -301,7 +301,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
 
         audioRecorder.record();
       }
-      await startRecording.mutateAsync({ id: meetingId });
+      await startRecording.mutateAsync({ id: meetingId, requestingEmployeeId: employee?.id });
       setActiveMeetingId(meetingId);
       startTimer();
       setMgmtScreen("room");
@@ -364,7 +364,7 @@ export default function MeetingsScreen({ embedded }: { embedded?: boolean } = {}
 
   const handleTranscribe = async (meetingId: number) => {
     try {
-      await transcribeAndSummarize.mutateAsync({ id: meetingId });
+      await transcribeAndSummarize.mutateAsync({ id: meetingId, requestingEmployeeId: employee?.id });
     } catch (err: any) {
       const errMsg = err?.message?.includes("Transcription failed:") 
         ? err.message.replace("Transcription failed: ", "") 

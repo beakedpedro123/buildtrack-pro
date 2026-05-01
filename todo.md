@@ -2964,3 +2964,10 @@
 - [x] Show real error messages instead of generic "check permissions" text
 - [x] Log actual exceptions to console for debugging
 - [x] All 439 tests passing
+
+## Meetings Recording Fix (Round 3 — Role Check)
+
+- [x] Root cause: startRecording client call missing requestingEmployeeId parameter
+- [x] Fix: Pass employee?.id as requestingEmployeeId in startRecording and transcribeAndSummarize calls
+- [x] Increase transcription file size limit from 16MB to 100MB for 1hr meeting recordings
+- [x] Grey space appearing under tab icons on Android — persistent layout bug (fixed: SystemUI.setBackgroundColorAsync + full inset padding + NavigationBar.setStyle for edge-to-edge)

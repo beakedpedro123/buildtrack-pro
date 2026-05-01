@@ -27,6 +27,7 @@ import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-run
 import { PivotChat } from "@/components/pivot-chat";
 import { LanguageProvider } from "@/lib/language-context";
 import * as NavigationBar from "expo-navigation-bar";
+import * as SystemUI from "expo-system-ui";
 import { BrandingProvider } from "@/lib/branding-context";
 import { setGlobalQueryClient } from "@/lib/query-client-ref";
 
@@ -86,11 +87,17 @@ export default function RootLayout() {
     initManusRuntime();
   }, []);
 
-  // Set Android navigation bar to match app background (eliminates silver/grey bar)
+  // Set Android navigation bar style for edge-to-edge mode
+  // NOTE: setBackgroundColorAsync does NOT work with edgeToEdgeEnabled:true
+  // Use setStyle('dark') which IS supported in edge-to-edge mode
+  // Also set root view background to match dark theme so no grey shows through
   useEffect(() => {
     if (Platform.OS === "android") {
-      NavigationBar.setBackgroundColorAsync("#111111").catch(() => {});
+      NavigationBar.setStyle("dark");
       NavigationBar.setButtonStyleAsync("light").catch(() => {});
+      // Set the root native view background to match our dark theme
+      // This fills the area behind the system navigation bar in edge-to-edge mode
+      SystemUI.setBackgroundColorAsync("#0D0D0D").catch(() => {});
     }
   }, []);
 

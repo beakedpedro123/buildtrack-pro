@@ -179,13 +179,13 @@ export async function transcribeAudio(
       audioBuffer = Buffer.from(await response.arrayBuffer());
       headerMimeType = response.headers.get("content-type") || "";
 
-      // Check file size (16MB limit)
+      // Check file size (100MB limit — supports up to 1hr meeting recordings in AAC/m4a)
       const sizeMB = audioBuffer.length / (1024 * 1024);
-      if (sizeMB > 16) {
+      if (sizeMB > 100) {
         return {
           error: "Audio file exceeds maximum size limit",
           code: "FILE_TOO_LARGE",
-          details: `File size is ${sizeMB.toFixed(2)}MB, maximum allowed is 16MB`,
+          details: `File size is ${sizeMB.toFixed(2)}MB, maximum allowed is 100MB`,
         };
       }
     } catch (error) {

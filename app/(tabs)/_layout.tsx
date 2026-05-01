@@ -12,8 +12,9 @@ export default function TabLayout() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { employee, isAuthenticated, loading } = useAppAuth();
-  // Android edge-to-edge: cap bottom inset to prevent grey border; iOS uses full inset for home indicator
-  const bottomPadding = Platform.OS === "web" ? 12 : Platform.OS === "android" ? Math.min(insets.bottom, 16) : Math.max(insets.bottom, 8);
+  // Android edge-to-edge: use full bottom inset so tab bar background fills the nav bar area completely
+  // The grey space was caused by capping the padding — the tab bar background didn't extend far enough
+  const bottomPadding = Platform.OS === "web" ? 12 : Platform.OS === "android" ? insets.bottom : Math.max(insets.bottom, 8);
   const tabBarHeight = 56 + bottomPadding;
 
   if (loading) {
