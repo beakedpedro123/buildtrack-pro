@@ -67,7 +67,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
 
   // Budget report config
   const [showBudgetReportConfig, setShowBudgetReportConfig] = useState(false);
-  const [budgetDateRange, setBudgetDateRange] = useState<"1pay" | "2pay" | "month" | "custom">("month");
+  const [budgetDateRange, setBudgetDateRange] = useState<"all" | "1pay" | "2pay" | "month" | "custom">("all");
   const [budgetCustomStart, setBudgetCustomStart] = useState("");
   const [budgetCustomEnd, setBudgetCustomEnd] = useState("");
   const [budgetBillingRate, setBudgetBillingRate] = useState<number | null>(null);
@@ -263,7 +263,11 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     const now = new Date();
     let startDate = "";
     let endDate = "";
-    if (budgetDateRange === "1pay") {
+    if (budgetDateRange === "all") {
+      // All time — no date filter
+      startDate = "";
+      endDate = "";
+    } else if (budgetDateRange === "1pay") {
       // Last 2 weeks
       const end = new Date(now);
       const start = new Date(now);
@@ -1417,6 +1421,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
             <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Date Range</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
               {[
+                { key: "all" as const, label: "All Time" },
                 { key: "1pay" as const, label: "1 Payroll (2 Weeks)" },
                 { key: "2pay" as const, label: "2 Payrolls (4 Weeks)" },
                 { key: "month" as const, label: "Full Month" },

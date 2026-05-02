@@ -2975,3 +2975,12 @@
 ## PDF Download Authentication Fix
 - [x] PDF downloads fail with "Authentication required" when opened in Chrome (browser lacks session cookie)
 - [x] Fix: All PDF downloads now use authenticated in-app download with Bearer token + share sheet (payroll, job completion, budget report, field reports, timecard)
+
+## PDF Reports Showing $0 / Wrong Data After Security Update
+- [x] Budget report PDF shows all zeros despite app showing correct data ($15,213 revenue, 276.6h)
+- [x] Field reports PDF not pulling employee data
+- [x] Job completion PDF not pulling employee data
+- [x] Root cause: getAllEmployees() called without companyId returns [] since security update
+- [x] Fix: budget-report-pdf.ts, field-reports-pdf.ts, job-completion-pdf.ts all now pass companyId
+- [x] Added "All Time" default date range option for budget reports to match in-app view
+- [x] Security NOT weakened — companyId derived from authenticated session, not user input

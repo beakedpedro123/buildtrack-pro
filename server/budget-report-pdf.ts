@@ -107,7 +107,7 @@ export async function generateBudgetReportPDF(
   }
   const scheduleItems = await db.getJobSchedule(jobId);
   const auditLog = await db.getBudgetAuditLog(jobId);
-  const allEmployees: Employee[] = await db.getAllEmployees();
+  const allEmployees: Employee[] = await db.getAllEmployees(companyId);
   const empMap = new Map(allEmployees.map((e: Employee) => [e.id, e]));
   const getEmpName = (id: number) => empMap.get(id)?.name || `Employee #${id}`;
 
@@ -211,6 +211,8 @@ export async function generateBudgetReportPDF(
   let genLine = `Generated ${fmtDate(new Date())}`;
   if (opts?.startDate || opts?.endDate) {
     genLine += ` | Period: ${opts.startDate || "start"} to ${opts.endDate || "now"}`;
+  } else {
+    genLine += ` | Period: All Time`;
   }
   if (opts?.billingRate && opts.billingRate > 0) {
     genLine += ` | Billing Rate: $${opts.billingRate}/hr`;

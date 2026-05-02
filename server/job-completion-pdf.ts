@@ -112,7 +112,7 @@ export async function generateJobCompletionPDF(jobId: number, companyId?: number
   const assignments = await db.getJobAssignments(jobId);
 
   // Get employee names
-  const allEmployees: Employee[] = await db.getAllEmployees();
+  const allEmployees: Employee[] = await db.getAllEmployees(companyId);
   const empMap = new Map(allEmployees.map((e: Employee) => [e.id, e]));
   const getEmpName = (id: number) => empMap.get(id)?.name || `Employee #${id}`;
 

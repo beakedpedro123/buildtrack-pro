@@ -60,7 +60,7 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
   const photos = await db.getPhotosForJob(jobId);
   const clockEntries = await db.getClockEntriesForJob(jobId);
   const safetyMeetings = await db.getSafetyMeetingsForJob(jobId);
-  const allEmployees: Employee[] = await db.getAllEmployees();
+  const allEmployees: Employee[] = await db.getAllEmployees(companyId);
   const empMap = new Map(allEmployees.map((e: Employee) => [e.id, e]));
   const getEmpName = (id: number) => empMap.get(id)?.name || `Employee #${id}`;
 
