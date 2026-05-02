@@ -2971,3 +2971,7 @@
 - [x] Fix: Pass employee?.id as requestingEmployeeId in startRecording and transcribeAndSummarize calls
 - [x] Increase transcription file size limit from 16MB to 100MB for 1hr meeting recordings
 - [x] Grey space appearing under tab icons on Android — persistent layout bug (fixed: SystemUI.setBackgroundColorAsync + full inset padding + NavigationBar.setStyle for edge-to-edge)
+
+## PDF Download Authentication Fix
+- [x] PDF downloads fail with "Authentication required" when opened in Chrome (browser lacks session cookie)
+- [x] Fix: All PDF downloads now use authenticated in-app download with Bearer token + share sheet (payroll, job completion, budget report, field reports, timecard)

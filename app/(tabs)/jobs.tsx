@@ -249,11 +249,8 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     try {
       const apiBase = getApiBaseUrl();
       const url = `${apiBase}/api/job-completion-pdf?jobId=${selectedJob.id}&companyId=${(employee as any)?.companyId || ""}`;
-      if (Platform.OS === "web") {
-        window.open(url, "_blank");
-      } else {
-        await Linking.openURL(url);
-      }
+      const { downloadAuthenticatedPDF } = await import("@/lib/download-pdf");
+      await downloadAuthenticatedPDF(url, `job_completion_${selectedJob.id}.pdf`);
     } catch (err: any) {
       Alert.alert("Error", `Failed to download PDF: ${err?.message || "Unknown error"}`);
     } finally {
@@ -307,12 +304,8 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
       if (startDate) pdfUrl += `&startDate=${encodeURIComponent(startDate)}`;
       if (endDate) pdfUrl += `&endDate=${encodeURIComponent(endDate)}`;
       if (effectiveRate && effectiveRate > 0) pdfUrl += `&billingRate=${effectiveRate}`;
-      if (Platform.OS === "web") {
-        window.open(pdfUrl, "_blank");
-      } else {
-        await Linking.openURL(pdfUrl);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      const { downloadAuthenticatedPDF } = await import("@/lib/download-pdf");
+      await downloadAuthenticatedPDF(pdfUrl, `budget_report_job${selectedJob.id}.pdf`);
     } catch (err: any) {
       Alert.alert("Error", `Could not generate PDF report: ${err?.message || "Please try again."}`);
     } finally {
@@ -328,12 +321,8 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
     try {
       const apiBase = getApiBaseUrl();
       const pdfUrl = `${apiBase}/api/field-reports-pdf?jobId=${selectedJob.id}&companyId=${(employee as any)?.companyId || ""}`;
-      if (Platform.OS === "web") {
-        window.open(pdfUrl, "_blank");
-      } else {
-        await Linking.openURL(pdfUrl);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      const { downloadAuthenticatedPDF } = await import("@/lib/download-pdf");
+      await downloadAuthenticatedPDF(pdfUrl, `field_reports_job${selectedJob.id}.pdf`);
     } catch (err: any) {
       Alert.alert("Error", `Could not generate PDF report: ${err?.message || "Please try again."}`);
     } finally {

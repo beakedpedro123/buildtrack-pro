@@ -502,11 +502,8 @@ export default function TimecardScreen() {
                     const apiBase = getApiBaseUrl();
                     const cId = (currentUser as any)?.companyId;
                     const url = `${apiBase}/api/timecard-pdf?employeeId=${employeeId}&startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}${cId ? `&companyId=${cId}` : ""}`;
-                    if (Platform.OS === "web") {
-                      (window as any).open(url, "_blank");
-                    } else {
-                      await Linking.openURL(url);
-                    }
+                    const { downloadAuthenticatedPDF } = await import("@/lib/download-pdf");
+                    await downloadAuthenticatedPDF(url, `timecard_emp${employeeId}_${range.startDate.slice(0, 10)}_to_${range.endDate.slice(0, 10)}.pdf`);
                   } catch (err: any) {
                     Alert.alert("Error", `Failed to download: ${err?.message || "Unknown error"}`);
                   }

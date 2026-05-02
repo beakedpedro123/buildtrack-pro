@@ -354,11 +354,9 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
       if (filterJobId) url += `&jobId=${filterJobId}`;
       const cId = (employee as any)?.companyId;
       if (cId) url += `&companyId=${cId}`;
-      if (Platform.OS === "web") {
-        window.open(url, "_blank");
-      } else {
-        await Linking.openURL(url);
-      }
+      const { downloadAuthenticatedPDF } = await import("@/lib/download-pdf");
+      const filename = `payroll_${reportType}_${range.startDate.slice(0, 10)}_to_${range.endDate.slice(0, 10)}.pdf`;
+      await downloadAuthenticatedPDF(url, filename);
     } catch (err: any) {
       Alert.alert("Error", `Failed to download PDF: ${err?.message || "Unknown error"}`);
     } finally {
