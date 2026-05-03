@@ -3076,3 +3076,12 @@
 - [x] Ensure uploaded videos are passed to the LLM as analyzable content — now sent as file_url with proper video MIME type
 - [x] Client-side: mimeType.startsWith("video/") now correctly classifies as "video" type
 - [x] Server-side: video attachments sent as file_url with video/mp4, video/quicktime, etc. MIME types to Gemini
+
+## PDF Data Overlap Fix — May 2026
+- [x] Fix budget-report-pdf.ts — Rate overlaps Hours, Hours text too long for column
+- [x] Fix payroll-pdf.ts — already uses compact two-line format, no changes needed
+- [x] Fix field-reports-pdf.ts — updated to fmtHoursDecimal, changed blue to black
+- [x] Fix job-completion-pdf.ts — updated to fmtHoursDecimal, changed blue to black
+- [x] Use compact format: fmtHoursDecimal (X.XX hrs) in table cells, fmtHours (Xh Ym) in summaries
+- [x] Check all app UI screens for text overlap — fixed JobCard revenue line split into 2 lines
+- [x] Change dark blue (#1A1A2E) to black (#000000) in budget, field-reports, job-completion PDFs

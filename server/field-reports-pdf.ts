@@ -21,16 +21,19 @@ function fmtMoney(amount: number | string): string {
 function fmtHours(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
-  return `${h}h ${m}m (${(minutes / 60).toFixed(2)} hrs)`;
+  return `${h}h ${m}m`;
+}
+function fmtHoursDecimal(minutes: number): string {
+  return `${(minutes / 60).toFixed(2)} hrs`;
 }
 function fmtHoursShort(minutes: number): string {
   return (minutes / 60).toFixed(2);
 }
 
 const COLORS = {
-  darkBg: "#1A1A2E",
+  darkBg: "#000000",
   sectionBg: "#F8F9FA",
-  text: "#1A1A2E",
+  text: "#111111",
   muted: "#6B7280",
   success: "#22C55E",
   warning: "#F59E0B",
@@ -163,7 +166,7 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
   const summaryBoxes = [
     { label: "Daily Reports", value: `${reports.length}` },
     { label: "Photos Taken", value: `${photos.length}` },
-    { label: "Total Hours", value: `${fmtHours(totalLaborMinutes)}` },
+    { label: "Total Hours", value: `${fmtHours(totalLaborMinutes)} (${fmtHoursDecimal(totalLaborMinutes)})` },
     { label: "Safety Meetings", value: `${safetyMeetings.length}` },
   ];
   for (let i = 0; i < summaryBoxes.length; i++) {
@@ -246,7 +249,7 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
       const dl = dailyLabor.get(dayKey);
       if (dl) {
         doc.font("Helvetica").fontSize(7).fillColor(COLORS.muted);
-        doc.text(`Labor: ${fmtHours(dl.totalMinutes)} · ${dl.workers.size} workers · ${fmtMoney(dl.cost)}`, 52, y, { width: pageWidth - 20 });
+        doc.text(`Labor: ${fmtHoursDecimal(dl.totalMinutes)} · ${dl.workers.size} workers · ${fmtMoney(dl.cost)}`, 52, y, { width: pageWidth - 20 });
         y += 12;
       }
 
@@ -292,7 +295,7 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
       doc.font("Helvetica").fontSize(8).fillColor(COLORS.text);
       doc.text(day, 42, y, { width: 120 });
       doc.text(`${dl.workers.size}`, 164, y, { width: 60, align: "center" });
-      doc.text(`${fmtHours(dl.totalMinutes)}`, 206, y, { width: 100, align: "right" });
+      doc.text(fmtHoursDecimal(dl.totalMinutes), 206, y, { width: 100, align: "right" });
       doc.text(fmtMoney(dl.cost), 308, y, { width: 80, align: "right" });
       y += 16;
     }
@@ -303,7 +306,7 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
     doc.rect(40, y - 2, pageWidth, 18).fill(COLORS.darkBg);
     doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.white);
     doc.text("TOTAL", 42, y + 1, { width: 120 });
-     doc.text(`${fmtHours(totalMins)}`, 206, y + 1, { width: 100, align: "right" });
+     doc.text(fmtHoursDecimal(totalMins), 206, y + 1, { width: 100, align: "right" });
     doc.text(fmtMoney(totalCost), 308, y + 1, { width: 80, align: "right" });
     doc.restore();
     y += 26;

@@ -21,7 +21,10 @@ function fmtMoney(amount: number | string): string {
 function fmtHours(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
-  return `${h}h ${m}m (${(minutes / 60).toFixed(2)} hrs)`;
+  return `${h}h ${m}m`;
+}
+function fmtHoursDecimal(minutes: number): string {
+  return `${(minutes / 60).toFixed(2)} hrs`;
 }
 function fmtHoursShort(minutes: number): string {
   return (minutes / 60).toFixed(2);
@@ -29,10 +32,10 @@ function fmtHoursShort(minutes: number): string {
 
 const COLORS = {
   gold: "#C9A84C",
-  darkBg: "#1A1A2E",
-  headerBg: "#2A2A3E",
+  darkBg: "#000000",
+  headerBg: "#1A1A1A",
   sectionBg: "#F8F9FA",
-  text: "#1A1A2E",
+  text: "#111111",
   muted: "#6B7280",
   success: "#22C55E",
   warning: "#F59E0B",
@@ -296,21 +299,22 @@ export async function generateBudgetReportPDF(
   // Row 2: Labor details
   const row2 = [
     { label: "Base Labor", value: fmtMoney(totalLaborCost) },
-    { label: "Hours Logged", value: `${fmtHours(totalLaborMinutes)}` },
+    { label: "Hours Logged", value: `${fmtHours(totalLaborMinutes)}\n${fmtHoursDecimal(totalLaborMinutes)}` },
     { label: "Expenses", value: fmtMoney(expenseSpent) },
     { label: isHourly ? `Rate: $${hourlyRate}/hr` : "Base Budget", value: isHourly ? `${fmtHoursShort(totalLaborMinutes)} hrs × $${hourlyRate}` : fmtMoney(baseBudget) },
   ];
   for (let i = 0; i < row2.length; i++) {
     const bx = 40 + i * (boxW + 10);
     doc.save();
-    doc.rect(bx, y, boxW, 36).fill(COLORS.sectionBg);
-    doc.font("Helvetica-Bold").fontSize(12).fillColor(COLORS.text);
-    doc.text(row2[i].value, bx + 8, y + 6, { width: boxW - 16, align: "center" });
+    doc.rect(bx, y, boxW, 42).fill(COLORS.sectionBg);
+    const isHoursBox = row2[i].label === "Hours Logged";
+    doc.font("Helvetica-Bold").fontSize(isHoursBox ? 9 : 12).fillColor(COLORS.text);
+    doc.text(row2[i].value, bx + 4, y + (isHoursBox ? 4 : 8), { width: boxW - 8, align: "center" });
     doc.font("Helvetica").fontSize(7).fillColor(COLORS.muted);
-    doc.text(row2[i].label, bx + 8, y + 24, { width: boxW - 16, align: "center" });
+    doc.text(row2[i].label, bx + 4, y + 30, { width: boxW - 8, align: "center" });
     doc.restore();
   }
-  y += 46;
+  y += 52;
 
   // Fully burdened labor (if tax/wc/li rates set)
   if (taxRate > 0 || workersCompRate > 0 || liabilityInsRate > 0) {
@@ -383,12 +387,12 @@ export async function generateBudgetReportPDF(
     y = drawSectionHeader(doc, `Employee Labor Breakdown (${empEntries.length} workers)`, y, brandGold, pageWidth);
 
     const empCols = [
-      { text: "Employee", x: 42, width: 140 },
-      { text: "Role", x: 184, width: 80 },
-      { text: "Rate", x: 266, width: 60, align: "right" as const },
-      { text: "Hours", x: 328, width: 60, align: "right" as const },
-      { text: "Lunch Ded.", x: 390, width: 60, align: "right" as const },
-      { text: "Cost", x: 452, width: 80, align: "right" as const },
+      { text: "Employee", x: 42, width: 120 },
+      { text: "Role", x: 164, width: 60 },
+      { text: "Rate", x: 226, width: 55, align: "right" as const },
+      { text: "Hours", x: 283, width: 90, align: "right" as const },
+      { text: "Lunch Ded.", x: 375, width: 55, align: "right" as const },
+      { text: "Cost", x: 432, width: 100, align: "right" as const },
     ];
     y = drawTableHeader(doc, empCols, y, pageWidth);
 
@@ -397,12 +401,12 @@ export async function generateBudgetReportPDF(
       y = checkPageBreak(doc, y);
       const emp = sortedEmps[i];
       y = drawTableRow(doc, [
-        { text: emp.name, x: 42, width: 140 },
-        { text: emp.role.charAt(0).toUpperCase() + emp.role.slice(1), x: 184, width: 80 },
-        { text: emp.rate > 0 ? `$${emp.rate.toFixed(2)}/hr` : "—", x: 266, width: 60, align: "right" },
-        { text: `${fmtHours(emp.totalMinutes)}`, x: 308, width: 80, align: "right" },
-        { text: "—", x: 390, width: 60, align: "right" },
-        { text: fmtMoney(emp.totalCost), x: 452, width: 80, align: "right" },
+        { text: emp.name, x: 42, width: 120 },
+        { text: emp.role.charAt(0).toUpperCase() + emp.role.slice(1), x: 164, width: 60 },
+        { text: emp.rate > 0 ? `$${emp.rate.toFixed(2)}` : "—", x: 226, width: 55, align: "right" },
+        { text: fmtHoursDecimal(emp.totalMinutes), x: 283, width: 90, align: "right" },
+        { text: "—", x: 375, width: 55, align: "right" },
+        { text: fmtMoney(emp.totalCost), x: 432, width: 100, align: "right" },
       ], y, i % 2 === 0 ? "#F9F9F9" : undefined);
     }
 
@@ -411,9 +415,9 @@ export async function generateBudgetReportPDF(
     doc.save();
     doc.rect(40, y - 2, pageWidth, 18).fill(COLORS.darkBg);
     doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.white);
-    doc.text("TOTAL", 42, y + 1, { width: 140 });
-     doc.text(`${fmtHours(totalLaborMinutes)}`, 308, y + 1, { width: 80, align: "right" });
-    doc.text(fmtMoney(totalLaborCost), 452, y + 1, { width: 80, align: "right" });
+    doc.text("TOTAL", 42, y + 1, { width: 120 });
+    doc.text(fmtHoursDecimal(totalLaborMinutes), 283, y + 1, { width: 90, align: "right" });
+    doc.text(fmtMoney(totalLaborCost), 432, y + 1, { width: 100, align: "right" });
     doc.restore();
     y += 26;
 
@@ -449,16 +453,16 @@ export async function generateBudgetReportPDF(
         doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.white);
         doc.text(`${dayEmps.length} worker${dayEmps.length !== 1 ? "s" : ""}`, 170, y + 1, { width: 80 });
         const totalDayCost = dayEmps.reduce((s, e) => s + e.cost, 0);
-         doc.text(`${fmtHours(totalMins)}`, 340, y + 1, { width: 90, align: "right" });
+        doc.text(fmtHoursDecimal(totalMins), 330, y + 1, { width: 100, align: "right" });
         doc.text(fmtMoney(totalDayCost), 440, y + 1, { width: 90, align: "right" });
         doc.restore();
         y += 20;
 
         // Column headers for this day's employees
         const empDayCols = [
-          { text: "Employee", x: 56, width: 160 },
-          { text: "Rate", x: 220, width: 70, align: "right" as const },
-          { text: "Hours", x: 294, width: 70, align: "right" as const },
+          { text: "Employee", x: 56, width: 150 },
+          { text: "Rate", x: 210, width: 60, align: "right" as const },
+          { text: "Hours", x: 274, width: 90, align: "right" as const },
           { text: "Earned", x: 368, width: 70, align: "right" as const },
           { text: "Cost to Co.", x: 440, width: 90, align: "right" as const },
         ];
@@ -471,9 +475,9 @@ export async function generateBudgetReportPDF(
           const e = sortedDayEmps[ei];
           const earned = (e.mins / 60) * hourlyRate; // what the company bills for this employee's time
           y = drawTableRow(doc, [
-            { text: `  ${e.name}`, x: 56, width: 160 },
-            { text: e.rate > 0 ? `$${e.rate.toFixed(2)}/hr` : "—", x: 220, width: 70, align: "right" },
-             { text: `${fmtHours(e.mins)}`, x: 274, width: 90, align: "right" },
+            { text: `  ${e.name}`, x: 56, width: 150 },
+            { text: e.rate > 0 ? `$${e.rate.toFixed(2)}/hr` : "—", x: 210, width: 60, align: "right" },
+            { text: fmtHoursDecimal(e.mins), x: 274, width: 90, align: "right" },
             { text: isHourly ? fmtMoney(earned) : "—", x: 368, width: 70, align: "right", color: COLORS.success },
             { text: fmtMoney(e.cost), x: 440, width: 90, align: "right" },
           ], y, ei % 2 === 0 ? "#FAFAFA" : undefined);
@@ -484,8 +488,8 @@ export async function generateBudgetReportPDF(
         doc.save();
         doc.rect(40, y - 2, pageWidth, 16).fill("#F0F0F0");
         doc.font("Helvetica-Bold").fontSize(7).fillColor(COLORS.text);
-        doc.text("DAY TOTAL", 56, y + 1, { width: 160 });
-         doc.text(`${fmtHours(totalMins)}`, 274, y + 1, { width: 90, align: "right" });
+        doc.text("DAY TOTAL", 56, y + 1, { width: 150 });
+        doc.text(fmtHoursDecimal(totalMins), 274, y + 1, { width: 90, align: "right" });
         if (isHourly) {
           const dayRevenue = (totalMins / 60) * hourlyRate;
           doc.fillColor(COLORS.success);

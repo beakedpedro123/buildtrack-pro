@@ -64,7 +64,10 @@ function fmtDuration(minutes: number): string {
 function fmtHours(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
-  return `${h}h ${m}m (${(minutes / 60).toFixed(2)} hrs)`;
+  return `${h}h ${m}m`;
+}
+function fmtHoursDecimal(minutes: number): string {
+  return `${(minutes / 60).toFixed(2)} hrs`;
 }
 function fmtHoursShort(minutes: number): string {
   return (minutes / 60).toFixed(2);

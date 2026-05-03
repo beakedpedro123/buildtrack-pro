@@ -75,9 +75,14 @@ export function JobCard({ job, crewCount, spentAmount, laborHours, laborMinutes,
                 <Text style={{ fontSize: 11, fontWeight: "700", color: "#D4A843" }}>${job.hourlyRate || "55"}/hr</Text>
               </View>
               {hrs > 0 && (
-                <Text style={[styles.budgetText, { color: colors.muted }]}>
-                  {detailedHrs} • Revenue: ${hourlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                </Text>
+                <View style={{ flexShrink: 1 }}>
+                  <Text style={[styles.budgetText, { color: colors.foreground, fontWeight: "600" }]} numberOfLines={1}>
+                    {detailedHrs}
+                  </Text>
+                  <Text style={[styles.budgetText, { color: colors.muted }]} numberOfLines={1}>
+                    Revenue: ${hourlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </Text>
+                </View>
               )}
             </View>
           </View>

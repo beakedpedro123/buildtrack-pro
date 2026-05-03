@@ -32,7 +32,10 @@ function fmtMoney(amount: number | string): string {
 function fmtHours(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
-  return `${h}h ${m}m (${(minutes / 60).toFixed(2)} hrs)`;
+  return `${h}h ${m}m`;
+}
+function fmtHoursDecimal(minutes: number): string {
+  return `${(minutes / 60).toFixed(2)} hrs`;
 }
 function fmtHoursShort(minutes: number): string {
   return (minutes / 60).toFixed(2);
@@ -54,10 +57,10 @@ function getLogoBuffer(): Buffer | null {
 // ─── Colors ─────────────────────────────────────────────────────────────
 const COLORS = {
   gold: "#C9A84C",
-  darkBg: "#1A1A2E",
-  headerBg: "#2A2A3E",
+  darkBg: "#000000",
+  headerBg: "#1A1A1A",
   sectionBg: "#F8F9FA",
-  text: "#1A1A2E",
+  text: "#111111",
   muted: "#6B7280",
   success: "#22C55E",
   warning: "#F59E0B",
@@ -214,7 +217,7 @@ export async function generateJobCompletionPDF(jobId: number, companyId?: number
     ["Total Reports", `${reports.length}`],
     ["Safety Meetings", `${safetyMeetings.length}`],
     ["Change Orders", `${changeOrders.length}`],
-    ["Total Labor Hours", fmtHours(totalLaborMinutes)],
+    ["Total Labor Hours", `${fmtHours(totalLaborMinutes)} (${fmtHoursDecimal(totalLaborMinutes)})`],
   ];
 
   y = drawSectionHeader(doc, "Job Overview", y, brandGold);
@@ -581,7 +584,7 @@ export async function generateJobCompletionPDF(jobId: number, companyId?: number
     { label: "Total Materials", value: fmtMoney(totalMaterialsCost), color: COLORS.text },
     { label: "Change Orders", value: fmtMoney(changeOrderTotal), color: changeOrderTotal > 0 ? COLORS.warning : COLORS.text },
     { label: "Budget Variance", value: (totalVariance >= 0 ? "+" : "") + fmtMoney(totalVariance), color: totalVariance >= 0 ? COLORS.success : COLORS.error },
-    { label: "Total Labor Hours", value: fmtHours(totalLaborMinutes), color: COLORS.text },
+    { label: "Total Labor Hours", value: `${fmtHours(totalLaborMinutes)}\n${fmtHoursDecimal(totalLaborMinutes)}`, color: COLORS.text },
     { label: "Daily Reports Filed", value: `${reports.length}`, color: COLORS.text },
     { label: "Safety Meetings Held", value: `${safetyMeetings.length}`, color: COLORS.text },
     { label: "Photos Documented", value: `${photos.length}`, color: COLORS.text },
