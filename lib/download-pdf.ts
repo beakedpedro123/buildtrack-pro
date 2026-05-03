@@ -59,18 +59,27 @@ export async function downloadAuthenticatedPDF(
     const FileSystem = await import("expo-file-system/legacy");
     const Sharing = await import("expo-sharing");
 
-    if (!FileSystem.cacheDirectory) {
+    // Use cacheDirectory (works reliably on both iOS and Android)
+    const baseDir = FileSystem.cacheDirectory;
+    if (!baseDir) {
       throw new Error("Cache directory not available");
     }
 
-    // Clean filename for filesystem
-    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const localUri = FileSystem.cacheDirectory + safeName;
+    // Clean filename for filesystem — ensure .pdf extension
+    let safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+    if (!safeName.toLowerCase().endsWith(".pdf")) {
+      safeName += ".pdf";
+    }
+    // Add timestamp to avoid iOS caching stale files
+    const timestamp = Date.now();
+    const uniqueName = safeName.replace(".pdf", `_${timestamp}.pdf`);
+    const localUri = baseDir + uniqueName;
 
     // Download with auth header
     const result = await FileSystem.downloadAsync(url, localUri, {
       headers: {
         Authorization: `Bearer ${token}`,
+        Accept: "application/pdf",
       },
     });
 
@@ -89,6 +98,12 @@ export async function downloadAuthenticatedPDF(
       throw new Error(errorMsg);
     }
 
+    // Verify file was actually downloaded (iOS can silently fail)
+    const fileInfo = await FileSystem.getInfoAsync(result.uri);
+    if (!fileInfo.exists || (fileInfo as any).size === 0) {
+      throw new Error("Downloaded file is empty or missing");
+    }
+
     // Open via share sheet
     const canShare = await Sharing.isAvailableAsync();
     if (canShare) {
@@ -97,6 +112,10 @@ export async function downloadAuthenticatedPDF(
         dialogTitle: `Open ${fileName}`,
         UTI: "com.adobe.pdf",
       });
+      // Clean up temp file after sharing (non-blocking)
+      setTimeout(async () => {
+        try { await FileSystem.deleteAsync(result.uri, { idempotent: true }); } catch { /* ignore */ }
+      }, 30000);
       return;
     }
 

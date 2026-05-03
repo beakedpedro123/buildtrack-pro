@@ -119,12 +119,42 @@ export async function generateJobCompletionPDF(jobId: number, companyId?: number
   // Get clock entries for labor summary
   const clockEntries = await db.getClockEntriesForJob(jobId);
 
+  // Load company lunch settings for auto-deduction (consistent with getLaborCostForJob)
+  let companyLunchSettings: { lunchAutoDeduct: boolean; lunchDeductMinutes: number; lunchMinShiftMinutes: number; lunchSkipDays: string | null } | null = null;
+  if (companyId) {
+    const company = await db.getCompanyById(companyId);
+    if (company) {
+      companyLunchSettings = {
+        lunchAutoDeduct: company.lunchAutoDeduct,
+        lunchDeductMinutes: company.lunchDeductMinutes,
+        lunchMinShiftMinutes: company.lunchMinShiftMinutes,
+        lunchSkipDays: company.lunchSkipDays,
+      };
+    }
+  }
+
   // Calculate totals
   const totalBudgeted = budgetCategories.reduce((sum, c) => sum + parseFloat(c.budgetedAmount || "0"), 0);
   const totalSpent = budgetCategories.reduce((sum, c) => sum + parseFloat(c.spentAmount || "0"), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0);
   const totalMaterialsCost = materials.reduce((sum, m) => sum + parseFloat(m.totalCost || "0"), 0);
-  const totalLaborMinutes = clockEntries.reduce((sum: number, e: any) => sum + (e.durationMinutes || 0), 0);
+  // Calculate labor minutes with proper lunch deduction (per-entry + company auto-deduction)
+  const totalLaborMinutes = clockEntries.reduce((sum: number, e: any) => {
+    if (!e.clockOut) return sum;
+    const rawMins = Math.max(0, Math.round((new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / 60000));
+    const entryLunch = e.lunchMinutes || 0;
+    let netMins = rawMins;
+    if (entryLunch > 0) {
+      netMins = Math.max(0, rawMins - entryLunch);
+    } else if (companyLunchSettings?.lunchAutoDeduct && rawMins >= (companyLunchSettings.lunchMinShiftMinutes || 360)) {
+      const skipDays = companyLunchSettings.lunchSkipDays ? companyLunchSettings.lunchSkipDays.split(",").map(Number) : [5];
+      const dow = new Date(e.clockIn).getDay();
+      if (!skipDays.includes(dow)) {
+        netMins = Math.max(0, rawMins - (companyLunchSettings.lunchDeductMinutes || 30));
+      }
+    }
+    return sum + netMins;
+  }, 0);
   const changeOrderTotal = changeOrders.reduce((sum, co) => sum + parseFloat(co.amount || "0"), 0);
 
   // Create PDF

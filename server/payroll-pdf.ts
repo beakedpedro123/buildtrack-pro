@@ -131,16 +131,41 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
     const emp = employeeMap.get(empId);
     if (!emp) continue;
 
+    // Load company lunch settings once per employee
+    const company = companyId ? await db.getCompanyById(companyId) : null;
+    const companyLunch = company ? {
+      lunchAutoDeduct: company.lunchAutoDeduct,
+      lunchDeductMinutes: company.lunchDeductMinutes,
+      lunchMinShiftMinutes: company.lunchMinShiftMinutes,
+      lunchSkipDays: company.lunchSkipDays,
+    } : null;
+
     const dayMap = new Map<string, DayEntry[]>();
     let totalMinutes = 0;
+    let totalLunchMinutes = 0;
 
     for (const entry of empEntries) {
       const dayKey = new Date(entry.clockIn).toLocaleDateString("en-CA", { timeZone: TZ });
       const list = dayMap.get(dayKey) || [];
-      const durationMs = new Date(entry.clockOut!).getTime() - new Date(entry.clockIn).getTime();
-      const minutes = Math.round(durationMs / 60000);
+      const rawMs = new Date(entry.clockOut!).getTime() - new Date(entry.clockIn).getTime();
+      const rawMinutes = Math.round(rawMs / 60000);
       const entryLunch = (entry as any).lunchMinutes || 0;
-      totalMinutes += minutes;
+      // Apply lunch deduction per-entry: per-entry lunch first, then company auto-deduction fallback
+      // This matches the deductLunch() helper used by getLaborCostForJob and getDetailedTimecard
+      let netMinutes = rawMinutes;
+      if (entryLunch > 0) {
+        netMinutes = Math.max(0, rawMinutes - entryLunch);
+        totalLunchMinutes += entryLunch;
+      } else if (companyLunch?.lunchAutoDeduct && rawMinutes >= (companyLunch.lunchMinShiftMinutes || 360)) {
+        const skipDays = companyLunch.lunchSkipDays ? companyLunch.lunchSkipDays.split(",").map(Number) : [5];
+        const dow = new Date(entry.clockIn).getDay();
+        if (!skipDays.includes(dow)) {
+          const deductAmt = companyLunch.lunchDeductMinutes || 30;
+          netMinutes = Math.max(0, rawMinutes - deductAmt);
+          totalLunchMinutes += deductAmt;
+        }
+      }
+      totalMinutes += netMinutes;
       const job = jobMap.get(entry.jobId);
       list.push({
         id: entry.id,
@@ -148,7 +173,7 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
         clockOut: entry.clockOut ? new Date(entry.clockOut) : null,
         jobId: entry.jobId,
         jobName: job?.name || `Job #${entry.jobId}`,
-        durationMinutes: minutes,
+        durationMinutes: netMinutes,
         lunchMinutes: entryLunch,
         adjustments: [],
       });
@@ -165,26 +190,6 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
 
     let salaryProjects: number[] = [];
     try { salaryProjects = (emp as any).salaryProjects ? JSON.parse((emp as any).salaryProjects) : []; } catch {}
-    // Calculate total lunch minutes from per-entry data
-    let totalLunchMinutes = 0;
-    for (const day of days) {
-      for (const e of day.entries) {
-        totalLunchMinutes += e.lunchMinutes || 0;
-      }
-    }
-    // Also apply company-level auto-deduction if no per-entry lunch
-    if (totalLunchMinutes === 0) {
-      const company = companyId ? await db.getCompanyById(companyId) : null;
-      if (company?.lunchAutoDeduct) {
-        const skipDays = company.lunchSkipDays ? company.lunchSkipDays.split(",").map(Number) : [5];
-        for (const day of days) {
-          const dow = new Date(day.date + "T12:00:00").getDay();
-          if (!skipDays.includes(dow) && day.totalMinutes >= (company.lunchMinShiftMinutes || 360)) {
-            totalLunchMinutes += company.lunchDeductMinutes || 30;
-          }
-        }
-      }
-    }
     timecards.push({
       employeeId: empId,
       name: emp.name,
@@ -194,7 +199,7 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
       salaryAmount: emp.salaryAmount ?? null,
       salaryProjects,
       days,
-      totalMinutes: Math.max(0, totalMinutes - totalLunchMinutes),
+      totalMinutes,
       totalLunchMinutes,
     });
   }

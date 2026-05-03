@@ -1639,22 +1639,48 @@ export async function getDetailedTimecard(employeeId: number, startDate: Date, e
     }
   }
 
-  // Group by day
+  // Load company lunch settings for deduction (consistent with payroll PDF)
+  let companySettings: { lunchAutoDeduct: boolean; lunchDeductMinutes: number; lunchMinShiftMinutes: number; lunchSkipDays: string | null } | null = null;
+  if (emp?.companyId) {
+    const company = await getCompanyById(emp.companyId);
+    if (company) {
+      companySettings = {
+        lunchAutoDeduct: company.lunchAutoDeduct,
+        lunchDeductMinutes: company.lunchDeductMinutes,
+        lunchMinShiftMinutes: company.lunchMinShiftMinutes,
+        lunchSkipDays: company.lunchSkipDays,
+      };
+    }
+  }
+
+  // Group by day — use Mountain Time for day grouping (consistent with payroll PDF)
+  const TZ_TIMECARD = "America/Denver";
   const dayMap = new Map<string, any[]>();
   let totalMinutes = 0;
+  let totalLunchMinutes = 0;
   for (const entry of entries) {
-    const dayKey = new Date(entry.clockIn).toISOString().slice(0, 10);
+    // Use Mountain Time for day grouping to match PDF reports
+    const dayKey = new Date(entry.clockIn).toLocaleDateString("en-CA", { timeZone: TZ_TIMECARD });
     const list = dayMap.get(dayKey) || [];
-    const durationMs = entry.clockOut
+    const rawMs = entry.clockOut
       ? new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()
       : 0;
-    const minutes = Math.max(0, Math.round(durationMs / 60000)); // Guard against negative (timezone edge case)
-    totalMinutes += minutes;
+    const rawMinutes = Math.max(0, Math.round(rawMs / 60000));
+    // Deduct lunch per-entry (consistent with payroll PDF and getLaborCostForJob)
+    const entryLunch = (entry as any).lunchMinutes || 0;
+    const netMinutes = entry.clockOut
+      ? deductLunch(rawMinutes, entryLunch, companySettings, new Date(entry.clockIn))
+      : 0; // Active entries (no clockOut) show 0 net minutes
+    const lunchDeducted = rawMinutes - netMinutes;
+    totalMinutes += netMinutes;
+    totalLunchMinutes += lunchDeducted;
     const job = jobMap.get(entry.jobId);
     list.push({
       ...entry,
       jobName: job?.name || "Unknown Job",
-      durationMinutes: minutes,
+      durationMinutes: netMinutes,
+      rawDurationMinutes: rawMinutes,
+      lunchDeducted,
       adjustments: adjustmentMap.get(entry.id) || [],
     });
     dayMap.set(dayKey, list);
@@ -1666,7 +1692,7 @@ export async function getDetailedTimecard(employeeId: number, startDate: Date, e
     totalMinutes: dayEntries.reduce((sum: number, e: any) => sum + e.durationMinutes, 0),
   })).sort((a, b) => b.date.localeCompare(a.date));
 
-  return { days, totalMinutes, employee: emp };
+  return { days, totalMinutes, totalLunchMinutes, employee: emp };
 }
 
 

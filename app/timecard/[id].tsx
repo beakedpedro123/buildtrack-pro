@@ -486,6 +486,11 @@ export default function TimecardScreen() {
                 <Text style={{ fontSize: 12, color: colors.muted }}>
                   {data?.days?.length || 0} days worked · {data?.days?.reduce((s: number, d: any) => s + d.entries.length, 0) || 0} shifts
                 </Text>
+                {(data?.totalLunchMinutes || 0) > 0 && (
+                  <Text style={{ fontSize: 11, color: "#F59E0B", marginTop: 4 }}>
+                    🍴 {formatDuration(data?.totalLunchMinutes || 0)} lunch deducted
+                  </Text>
+                )}
               </View>
               {/* Download Individual Timecard */}
               <TouchableOpacity

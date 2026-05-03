@@ -64,13 +64,40 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
   const empMap = new Map(allEmployees.map((e: Employee) => [e.id, e]));
   const getEmpName = (id: number) => empMap.get(id)?.name || `Employee #${id}`;
 
+  // Load company lunch settings for auto-deduction (consistent with getLaborCostForJob)
+  let companyLunchSettings: { lunchAutoDeduct: boolean; lunchDeductMinutes: number; lunchMinShiftMinutes: number; lunchSkipDays: string | null } | null = null;
+  if (companyId) {
+    const company = await db.getCompanyById(companyId);
+    if (company) {
+      companyLunchSettings = {
+        lunchAutoDeduct: company.lunchAutoDeduct,
+        lunchDeductMinutes: company.lunchDeductMinutes,
+        lunchMinShiftMinutes: company.lunchMinShiftMinutes,
+        lunchSkipDays: company.lunchSkipDays,
+      };
+    }
+  }
+
+  // Helper: apply lunch deduction per-entry (matches deductLunch in db.ts)
+  function applyLunchDeduction(rawMins: number, entryLunch: number, clockInDate: Date): number {
+    if (entryLunch > 0) return Math.max(0, rawMins - entryLunch);
+    if (companyLunchSettings?.lunchAutoDeduct && rawMins >= (companyLunchSettings.lunchMinShiftMinutes || 360)) {
+      const skipDays = companyLunchSettings.lunchSkipDays ? companyLunchSettings.lunchSkipDays.split(",").map(Number) : [5];
+      const dow = clockInDate.getDay();
+      if (!skipDays.includes(dow)) {
+        return Math.max(0, rawMins - (companyLunchSettings.lunchDeductMinutes || 30));
+      }
+    }
+    return rawMins;
+  }
+
   // Labor by day
   const dailyLabor = new Map<string, { totalMinutes: number; workers: Set<number>; cost: number }>();
   for (const entry of clockEntries) {
     if (!entry.clockOut) continue;
-    const mins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
-    const lunchMins = (entry as any).lunchMinutes || 0;
-    const netMins = Math.max(0, mins - lunchMins);
+    const rawMins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+    const entryLunch = (entry as any).lunchMinutes || 0;
+    const netMins = applyLunchDeduction(rawMins, entryLunch, new Date(entry.clockIn));
     const emp = empMap.get(entry.employeeId);
     const rate = emp?.hourlyRate ? parseFloat(emp.hourlyRate) : 0;
     const cost = (netMins / 60) * rate;
@@ -84,8 +111,8 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
 
   const totalLaborMinutes = clockEntries.reduce((sum, e) => {
     if (!e.clockOut) return sum;
-    const mins = Math.max(0, Math.round((new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / 60000));
-    return sum + Math.max(0, mins - ((e as any).lunchMinutes || 0));
+    const rawMins = Math.max(0, Math.round((new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / 60000));
+    return sum + applyLunchDeduction(rawMins, (e as any).lunchMinutes || 0, new Date(e.clockIn));
   }, 0);
 
   const sortedReports = [...reports].sort((a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime());

@@ -121,6 +121,20 @@ export async function generateBudgetReportPDF(
 
   const expenseSpent = expenses.reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0);
 
+  // Load company lunch settings for auto-deduction (consistent with getLaborCostForJob)
+  let companyLunchSettings: { lunchAutoDeduct: boolean; lunchDeductMinutes: number; lunchMinShiftMinutes: number; lunchSkipDays: string | null } | null = null;
+  if (companyId) {
+    const company = await db.getCompanyById(companyId);
+    if (company) {
+      companyLunchSettings = {
+        lunchAutoDeduct: company.lunchAutoDeduct,
+        lunchDeductMinutes: company.lunchDeductMinutes,
+        lunchMinShiftMinutes: company.lunchMinShiftMinutes,
+        lunchSkipDays: company.lunchSkipDays,
+      };
+    }
+  }
+
   // Labor breakdown by employee
   type EmpLabor = { name: string; role: string; rate: number; totalMinutes: number; totalCost: number; dailyEntries: Map<string, number> };
   const empLabor: Record<number, EmpLabor> = {};
@@ -129,9 +143,19 @@ export async function generateBudgetReportPDF(
 
   for (const entry of clockEntries) {
     if (!entry.clockOut) continue;
-    const mins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
-    const lunchMins = (entry as any).lunchMinutes || 0;
-    const netMins = Math.max(0, mins - lunchMins);
+    const rawMins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
+    // Apply lunch deduction: per-entry first, then company auto-deduction fallback
+    const entryLunch = (entry as any).lunchMinutes || 0;
+    let netMins = rawMins;
+    if (entryLunch > 0) {
+      netMins = Math.max(0, rawMins - entryLunch);
+    } else if (companyLunchSettings?.lunchAutoDeduct && rawMins >= (companyLunchSettings.lunchMinShiftMinutes || 360)) {
+      const skipDays = companyLunchSettings.lunchSkipDays ? companyLunchSettings.lunchSkipDays.split(",").map(Number) : [5];
+      const dow = new Date(entry.clockIn).getDay();
+      if (!skipDays.includes(dow)) {
+        netMins = Math.max(0, rawMins - (companyLunchSettings.lunchDeductMinutes || 30));
+      }
+    }
     const emp = empMap.get(entry.employeeId);
     const rate = emp?.hourlyRate ? parseFloat(emp.hourlyRate) : 0;
     const cost = (netMins / 60) * rate;

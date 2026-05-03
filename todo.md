@@ -2984,3 +2984,39 @@
 - [x] Fix: budget-report-pdf.ts, field-reports-pdf.ts, job-completion-pdf.ts all now pass companyId
 - [x] Added "All Time" default date range option for budget reports to match in-app view
 - [x] Security NOT weakened — companyId derived from authenticated session, not user input
+
+## Data Sync Mismatch — UI vs PDF Reports (May 3, 2026)
+- [ ] Timecard PDF shows 75.43 hrs / $1,810.40 but app UI shows 87h 45m / $2,106.00 for same employee/period
+- [ ] Timecard PDF missing entries (e.g., Thursday data not showing)
+- [ ] Budget report PDF hours don't match app UI hours logged
+- [ ] iOS PDF download not working (reports don't download on iOS)
+- [ ] Ensure all calculations are consistent across UI, reports, and downloads
+
+## Report Data Sync Fix — May 2026
+
+### Timecard UI vs PDF Mismatch
+- [x] Fix getDetailedTimecard to deduct lunch minutes (per-entry + company auto-deduction) — was showing raw hours without lunch deduction
+- [x] Fix getDetailedTimecard to use Mountain Time (America/Denver) for day grouping — was using UTC, causing entries near midnight to land on wrong day
+- [x] Add totalLunchMinutes to getDetailedTimecard return value
+- [x] Show lunch deduction info in timecard summary card on UI
+
+### Payroll PDF Lunch Deduction
+- [x] Fix payroll-pdf.ts buildReportData to apply per-entry lunch deduction correctly — was using bulk fallback that only applied when NO entries had lunch
+- [x] Apply company auto-deduction per-entry (matching deductLunch helper) instead of per-day
+
+### Budget Report PDF Mismatch
+- [x] Fix budget-report-pdf.ts to apply company auto-deduction for lunch — was only deducting per-entry lunchMinutes, missing company auto-deduction
+- [x] Now matches getLaborCostForJob used by the UI
+
+### Field Reports PDF
+- [x] Fix field-reports-pdf.ts to apply company auto-deduction for lunch — same issue as budget report
+
+### Job Completion PDF
+- [x] Fix job-completion-pdf.ts to properly calculate labor minutes with lunch deduction — was using durationMinutes field (which doesn't exist on raw DB entries)
+
+### iOS PDF Download Fix
+- [x] Add .pdf extension enforcement to downloaded files
+- [x] Add timestamp to filenames to prevent iOS caching stale files
+- [x] Add Accept: application/pdf header to download request
+- [x] Add file existence/size verification after download
+- [x] Add temp file cleanup after sharing
