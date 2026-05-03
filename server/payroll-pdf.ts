@@ -105,7 +105,7 @@ function getLogoBuffer(): Buffer | null {
 }
 
 // ─── Shared data builder ─────────────────────────────────────────────────
-async function buildReportData(startDate: Date, endDate: Date, filterJobId?: number, companyId?: number) {
+async function buildReportData(startDate: Date, endDate: Date, filterJobId?: number, companyId?: number, deductLunch: boolean = true) {
   const allEmployees: Employee[] = await db.getAllEmployees(companyId);
   const activeEmployees = allEmployees.filter((e: Employee) => e.isActive !== false);
   const allJobs: Job[] = await db.getAllJobs(companyId);
@@ -150,19 +150,22 @@ async function buildReportData(startDate: Date, endDate: Date, filterJobId?: num
       const rawMs = new Date(entry.clockOut!).getTime() - new Date(entry.clockIn).getTime();
       const rawMinutes = Math.round(rawMs / 60000);
       const entryLunch = (entry as any).lunchMinutes || 0;
-      // Apply lunch deduction per-entry: per-entry lunch first, then company auto-deduction fallback
+      // Apply lunch deduction per-entry (when deductLunch is true)
+      // Per-entry lunch first, then company auto-deduction fallback
       // This matches the deductLunch() helper used by getLaborCostForJob and getDetailedTimecard
       let netMinutes = rawMinutes;
-      if (entryLunch > 0) {
-        netMinutes = Math.max(0, rawMinutes - entryLunch);
-        totalLunchMinutes += entryLunch;
-      } else if (companyLunch?.lunchAutoDeduct && rawMinutes >= (companyLunch.lunchMinShiftMinutes || 360)) {
-        const skipDays = companyLunch.lunchSkipDays ? companyLunch.lunchSkipDays.split(",").map(Number) : [5];
-        const dow = new Date(entry.clockIn).getDay();
-        if (!skipDays.includes(dow)) {
-          const deductAmt = companyLunch.lunchDeductMinutes || 30;
-          netMinutes = Math.max(0, rawMinutes - deductAmt);
-          totalLunchMinutes += deductAmt;
+      if (deductLunch) {
+        if (entryLunch > 0) {
+          netMinutes = Math.max(0, rawMinutes - entryLunch);
+          totalLunchMinutes += entryLunch;
+        } else if (companyLunch?.lunchAutoDeduct && rawMinutes >= (companyLunch.lunchMinShiftMinutes || 360)) {
+          const skipDays = companyLunch.lunchSkipDays ? companyLunch.lunchSkipDays.split(",").map(Number) : [5];
+          const dow = new Date(entry.clockIn).getDay();
+          if (!skipDays.includes(dow)) {
+            const deductAmt = companyLunch.lunchDeductMinutes || 30;
+            netMinutes = Math.max(0, rawMinutes - deductAmt);
+            totalLunchMinutes += deductAmt;
+          }
         }
       }
       totalMinutes += netMinutes;
@@ -820,9 +823,10 @@ export async function generateEmployeeTimecardPDF(
   employeeId: number,
   startDate: Date,
   endDate: Date,
-  companyId?: number
+  companyId?: number,
+  deductLunch: boolean = true
 ): Promise<Buffer> {
-  const { timecards, activeJobs } = await buildReportData(startDate, endDate, undefined, companyId);
+  const { timecards, activeJobs } = await buildReportData(startDate, endDate, undefined, companyId, deductLunch);
   const tc = timecards.find(t => t.employeeId === employeeId);
   
   if (!tc) {

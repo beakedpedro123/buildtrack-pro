@@ -82,7 +82,7 @@ function checkPageBreak(doc: PDFKit.PDFDocument, y: number, needed: number = 60)
 export async function generateBudgetReportPDF(
   jobId: number,
   companyId?: number,
-  opts?: { startDate?: string; endDate?: string; billingRate?: number }
+  opts?: { startDate?: string; endDate?: string; billingRate?: number; deductLunch?: boolean }
 ): Promise<Buffer> {
   // Fetch all data
   const job = await db.getJobById(jobId);
@@ -145,15 +145,19 @@ export async function generateBudgetReportPDF(
     if (!entry.clockOut) continue;
     const rawMins = Math.max(0, Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000));
     // Apply lunch deduction: per-entry first, then company auto-deduction fallback
+    // When opts.deductLunch is false, skip all lunch deduction (show raw hours)
+    const shouldDeductLunch = opts?.deductLunch !== false;
     const entryLunch = (entry as any).lunchMinutes || 0;
     let netMins = rawMins;
-    if (entryLunch > 0) {
-      netMins = Math.max(0, rawMins - entryLunch);
-    } else if (companyLunchSettings?.lunchAutoDeduct && rawMins >= (companyLunchSettings.lunchMinShiftMinutes || 360)) {
-      const skipDays = companyLunchSettings.lunchSkipDays ? companyLunchSettings.lunchSkipDays.split(",").map(Number) : [5];
-      const dow = new Date(entry.clockIn).getDay();
-      if (!skipDays.includes(dow)) {
-        netMins = Math.max(0, rawMins - (companyLunchSettings.lunchDeductMinutes || 30));
+    if (shouldDeductLunch) {
+      if (entryLunch > 0) {
+        netMins = Math.max(0, rawMins - entryLunch);
+      } else if (companyLunchSettings?.lunchAutoDeduct && rawMins >= (companyLunchSettings.lunchMinShiftMinutes || 360)) {
+        const skipDays = companyLunchSettings.lunchSkipDays ? companyLunchSettings.lunchSkipDays.split(",").map(Number) : [5];
+        const dow = new Date(entry.clockIn).getDay();
+        if (!skipDays.includes(dow)) {
+          netMins = Math.max(0, rawMins - (companyLunchSettings.lunchDeductMinutes || 30));
+        }
       }
     }
     const emp = empMap.get(entry.employeeId);

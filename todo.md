@@ -3020,3 +3020,29 @@
 - [x] Add Accept: application/pdf header to download request
 - [x] Add file existence/size verification after download
 - [x] Add temp file cleanup after sharing
+
+## iOS Build Fix & Report Enhancements — May 2026
+
+### iOS Build Fix
+- [x] Fix FileSystemUtilities.isReadableFile error — root cause was expo-image-manipulator v55 (wrong SDK), downgraded to v14.0.8
+- [x] No code change needed in download-pdf.ts — the error was in native Swift code from wrong package version
+
+### Lunch Deduction Toggle
+- [x] Add option to include/exclude lunch deduction on report downloads
+- [x] Toggle available on timecard PDF download and budget report PDF download
+- [x] Server-side deductLunch parameter added to payroll-pdf, budget-report-pdf endpoints
+- [x] UI toggle switch added to timecard screen above download button
+
+### Employee PDF Hour Reports
+- [x] Allow employees to download their own hour reports as PDF
+- [x] Download My Hours PDF button added to Hours tab summary card
+- [x] Uses same authenticated timecard-pdf endpoint (companyId from session)
+
+### Security Audit
+- [x] Verify companyId filtering on all data queries — all 5 PDF endpoints derive companyId from session
+- [x] Verify RBAC guards on all tRPC mutations — 190+ ownership checks confirmed
+- [x] Verify audit logging for failed PIN attempts and admin actions — request logging middleware intact
+- [x] Verify Pivot conversation privacy per user — scoped by employeeId + companyId
+- [x] Verify ownership checks on material/photo retrieval — verifyReportOwnership + verifyJobOwnership intact
+- [x] Verify Helmet/HSTS/CSP security headers — all intact with nonce-based CSP
+- [x] Verify rate limiting — 8 rate limiters confirmed (global, mutation, PIN, signup, Pivot, upload, schedule, global PIN)

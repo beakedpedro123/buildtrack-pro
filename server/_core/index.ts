@@ -545,7 +545,7 @@ async function startServer() {
   // SECURITY FIX (v4 CRIT-1): Requires auth, derives companyId from session
   app.get("/api/timecard-pdf", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { employeeId, startDate, endDate } = req.query;
+      const { employeeId, startDate, endDate, includeLunch } = req.query;
       const companyId = String((req as any).user?.companyId || "");
       if (!employeeId || !startDate || !endDate) {
         res.status(400).json({ error: "employeeId, startDate, and endDate query params required" });
@@ -553,11 +553,14 @@ async function startServer() {
       }
       const { generateEmployeeTimecardPDF } = await import("../payroll-pdf");
       const cId = companyId ? parseInt(companyId as string) : undefined;
+      // includeLunch=false means skip lunch deduction (show raw hours)
+      const deductLunch = includeLunch !== "false";
       const pdfBuffer = await generateEmployeeTimecardPDF(
         parseInt(employeeId as string),
         new Date(startDate as string),
         new Date(endDate as string),
-        cId
+        cId,
+        deductLunch
       );
       const filename = `timecard_emp${employeeId}_${(startDate as string).slice(0, 10)}_to_${(endDate as string).slice(0, 10)}.pdf`;
       res.setHeader("Content-Type", "application/pdf");
@@ -597,7 +600,7 @@ async function startServer() {
   // SECURITY FIX (v4 CRIT-1): Requires auth, derives companyId from session
   app.get("/api/budget-report-pdf", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { jobId, startDate, endDate, billingRate } = req.query;
+      const { jobId, startDate, endDate, billingRate, includeLunch } = req.query;
       const cmpId = (req as any).user?.companyId;
       if (!jobId) {
         res.status(400).json({ error: "jobId query param required" });
@@ -608,6 +611,8 @@ async function startServer() {
       if (startDate) opts.startDate = startDate as string;
       if (endDate) opts.endDate = endDate as string;
       if (billingRate) opts.billingRate = parseFloat(billingRate as string);
+      // includeLunch=false means skip lunch deduction (show raw hours)
+      if (includeLunch === "false") opts.deductLunch = false;
       const pdfBuffer = await generateBudgetReportPDF(parseInt(jobId as string), cmpId, opts);
       const filename = `budget_report_${jobId}_${new Date().toISOString().slice(0, 10)}.pdf`;
       res.setHeader("Content-Type", "application/pdf");

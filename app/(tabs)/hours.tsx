@@ -7,6 +7,7 @@ import { useState, useMemo } from "react";
 import { useOfflineCache } from "@/hooks/use-offline-cache";
 import { CACHE_KEYS } from "@/lib/data-cache";
 import { ActivityIndicator,
+  Alert,
   FlatList,
   Platform,
   Pressable,
@@ -14,6 +15,8 @@ import { ActivityIndicator,
   Text,
   TouchableOpacity,
   View, ImageBackground } from "react-native";
+import * as Haptics from "expo-haptics";
+import { getApiBaseUrl } from "@/constants/oauth";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 import { BG_CLOCK as bg_clock } from "@/constants/bg-urls";
@@ -258,6 +261,32 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
                   <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>View Full Timecard ›</Text>
                 </TouchableOpacity>
               </View>
+              {/* Download My Hours PDF */}
+              <TouchableOpacity
+                style={{
+                  backgroundColor: "#D4AF37",
+                  borderRadius: 10,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                  marginTop: 12,
+                }}
+                onPress={async () => {
+                  try {
+                    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    const apiBase = getApiBaseUrl();
+                    const cId = (employee as any)?.companyId;
+                    const url = `${apiBase}/api/timecard-pdf?employeeId=${employee?.id}&startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}${cId ? `&companyId=${cId}` : ""}`;
+                    const { downloadAuthenticatedPDF } = await import("@/lib/download-pdf");
+                    await downloadAuthenticatedPDF(url, `my_hours_${range.startDate.slice(0, 10)}_to_${range.endDate.slice(0, 10)}.pdf`);
+                  } catch (err: any) {
+                    Alert.alert("Error", `Failed to download: ${err?.message || "Unknown error"}`);
+                  }
+                }}
+              >
+                <Text style={{ color: "#000", fontWeight: "700", fontSize: 14 }}>
+                  📄 Download My Hours PDF
+                </Text>
+              </TouchableOpacity>
             </View>
           }
           renderItem={({ item }) => (

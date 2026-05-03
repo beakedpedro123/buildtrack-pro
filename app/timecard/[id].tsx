@@ -188,6 +188,9 @@ export default function TimecardScreen() {
   const [editReason, setEditReason] = useState("");
   const [showJobPicker, setShowJobPicker] = useState(false);
 
+  // ── Lunch deduction toggle for PDF downloads ──
+  const [deductLunchInPdf, setDeductLunchInPdf] = useState(true);
+
   // ── Add Day modal state ──
   const [addModal, setAddModal] = useState(false);
   const [addDate, setAddDate] = useState(formatDateForInput(new Date()));
@@ -492,6 +495,33 @@ export default function TimecardScreen() {
                   </Text>
                 )}
               </View>
+              {/* Lunch deduction toggle for PDF */}
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginTop: 12,
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  backgroundColor: deductLunchInPdf ? colors.surface : "transparent",
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+                onPress={() => {
+                  setDeductLunchInPdf(!deductLunchInPdf);
+                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+              >
+                <MaterialIcons
+                  name={deductLunchInPdf ? "check-box" : "check-box-outline-blank"}
+                  size={20}
+                  color={deductLunchInPdf ? colors.primary : colors.muted}
+                />
+                <Text style={{ fontSize: 13, color: colors.foreground, marginLeft: 8, flex: 1 }}>
+                  Deduct lunch in PDF report
+                </Text>
+              </TouchableOpacity>
               {/* Download Individual Timecard */}
               <TouchableOpacity
                 style={{
@@ -506,7 +536,8 @@ export default function TimecardScreen() {
                     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     const apiBase = getApiBaseUrl();
                     const cId = (currentUser as any)?.companyId;
-                    const url = `${apiBase}/api/timecard-pdf?employeeId=${employeeId}&startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}${cId ? `&companyId=${cId}` : ""}`;
+                    const lunchParam = deductLunchInPdf ? "" : "&includeLunch=false";
+                    const url = `${apiBase}/api/timecard-pdf?employeeId=${employeeId}&startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}${cId ? `&companyId=${cId}` : ""}${lunchParam}`;
                     const { downloadAuthenticatedPDF } = await import("@/lib/download-pdf");
                     await downloadAuthenticatedPDF(url, `timecard_emp${employeeId}_${range.startDate.slice(0, 10)}_to_${range.endDate.slice(0, 10)}.pdf`);
                   } catch (err: any) {
