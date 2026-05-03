@@ -3046,3 +3046,33 @@
 - [x] Verify ownership checks on material/photo retrieval — verifyReportOwnership + verifyJobOwnership intact
 - [x] Verify Helmet/HSTS/CSP security headers — all intact with nonce-based CSP
 - [x] Verify rate limiting — 8 rate limiters confirmed (global, mutation, PIN, signup, Pivot, upload, schedule, global PIN)
+
+## Minutes-to-Decimal Hours Audit — May 2026
+
+### Conversion Accuracy
+- [x] Audit all minutes-to-decimal-hours conversions in UI screens — all use /60 with .toFixed(2)
+- [x] Audit all minutes-to-decimal-hours conversions in PDF generators — all standardized to .toFixed(2)
+- [x] Audit payroll summary calculations for correct decimal hours — verified consistent
+- [x] Ensure consistent rounding (2 decimal places) across all displays — standardized from .toFixed(1) to .toFixed(2)
+- [x] Fix any incorrect conversions found — budget/field/job-completion PDFs were using .toFixed(1), now .toFixed(2)
+
+## Detailed Hours Display — May 2026
+
+### PDF Reports — Show both Xh Ym and decimal hours
+- [x] Update budget-report-pdf.ts fmtHours to show "Xh Ym (X.XX hrs)"
+- [x] Update field-reports-pdf.ts fmtHours to show "Xh Ym (X.XX hrs)"
+- [x] Update job-completion-pdf.ts fmtHours to show "Xh Ym (X.XX hrs)"
+- [x] Update payroll-pdf.ts fmtHours to show "Xh Ym (X.XX hrs)"
+- [x] Standardize all PDFs to .toFixed(2) for decimal hours
+
+### UI Screens — Show both formats for secretary
+- [x] Update payroll.tsx to show decimal hours alongside Xh Ym
+- [x] Update timecard/[id].tsx to show decimal hours alongside Xh Ym
+- [x] Update hours.tsx to show both formats in summary
+- [x] Update jobs.tsx and JobCard to show both formats for hours logged
+
+## Pivot Video Analysis Bug — May 2026
+- [x] Fix Pivot video analysis — added "video" to Attachment type, tRPC schema, and icon mapping
+- [x] Ensure uploaded videos are passed to the LLM as analyzable content — now sent as file_url with proper video MIME type
+- [x] Client-side: mimeType.startsWith("video/") now correctly classifies as "video" type
+- [x] Server-side: video attachments sent as file_url with video/mp4, video/quicktime, etc. MIME types to Gemini

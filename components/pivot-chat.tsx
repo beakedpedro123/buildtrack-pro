@@ -74,7 +74,7 @@ interface Message {
 
 interface Attachment {
   url: string;
-  type: "image" | "pdf" | "document" | "spreadsheet" | "url";
+  type: "image" | "pdf" | "document" | "spreadsheet" | "url" | "video";
   name: string;
 }
 
@@ -271,9 +271,10 @@ const ROLE_ACCESS: Record<Role, {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getFileIconName(type: Attachment["type"]): "image" | "picture-as-pdf" | "description" | "table-chart" | "link" | "attach-file" {
+function getFileIconName(type: Attachment["type"]): "image" | "picture-as-pdf" | "description" | "table-chart" | "link" | "videocam" | "attach-file" {
   switch (type) {
     case "image": return "image";
+    case "video": return "videocam";
     case "pdf": return "picture-as-pdf";
     case "document": return "description";
     case "spreadsheet": return "table-chart";
@@ -717,6 +718,7 @@ export function PivotChat() {
       const { url } = await res.json();
       let type: Attachment["type"] = "document";
       if (mimeType.startsWith("image/")) type = "image";
+      else if (mimeType.startsWith("video/")) type = "video";
       else if (mimeType === "application/pdf") type = "pdf";
       else if (mimeType.includes("sheet") || mimeType.includes("excel") || name.endsWith(".csv")) type = "spreadsheet";
       setPendingAttachments((prev) => [...prev, { url, type, name }]);

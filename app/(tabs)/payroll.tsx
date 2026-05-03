@@ -556,7 +556,10 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                   <Text style={{ fontSize: 28, fontWeight: "800", color: colors.foreground }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                     {formatDuration(adjustedRows.reduce((s, r) => s + r.displayMinutes, 0))}
                   </Text>
-                  <Text style={{ fontSize: 12, color: colors.muted }}>{lunchSettings.enabled ? "adj. hours" : "total hours"}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>
+                    {(adjustedRows.reduce((s, r) => s + r.displayMinutes, 0) / 60).toFixed(2)} decimal hrs
+                  </Text>
+                  <Text style={{ fontSize: 11, color: colors.muted }}>{lunchSettings.enabled ? "adj. hours" : "total hours"}</Text>
                 </View>
                 {canSeeRates && (
                   <View style={{ flex: 1, alignItems: "flex-end" }}>
@@ -720,6 +723,9 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.primary }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                             {formatDuration(row.displayMinutes)}
                           </Text>
+                          <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground }}>
+                            {(row.displayMinutes / 60).toFixed(2)} hrs
+                          </Text>
                           {row.deductedMinutes > 0 && (
                             <Text style={{ fontSize: 10, color: colors.warning }}>-{row.deductedMinutes}m lunch</Text>
                           )}
@@ -749,7 +755,7 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                           {row.entries.length} shifts
                         </Text>
                         <Text style={{ fontSize: 12, color: colors.muted }}>
-                          {(row.displayMinutes / 60).toFixed(1)} hrs{row.deductedMinutes > 0 ? " (adj)" : " total"}
+                          {(row.displayMinutes / 60).toFixed(2)} decimal hrs{row.deductedMinutes > 0 ? " (adj)" : " total"}
                         </Text>
                       </>
                     )}

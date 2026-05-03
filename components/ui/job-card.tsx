@@ -22,19 +22,25 @@ export interface JobCardProps {
   crewCount?: number;
   spentAmount?: number;
   laborHours?: number;
+  laborMinutes?: number;
   onPress?: () => void;
   /** When true, hides all budget/dollar figures (for laborer and foreman roles) */
   hideBudget?: boolean;
 }
 
-export function JobCard({ job, crewCount, spentAmount, laborHours, onPress, hideBudget = false }: JobCardProps) {
+export function JobCard({ job, crewCount, spentAmount, laborHours, laborMinutes, onPress, hideBudget = false }: JobCardProps) {
   const colors = useColors();
   const isHourly = job.billingType === "hourly";
   const budget = parseFloat(job.totalBudget || "0");
   const spent = spentAmount || 0;
   const pct = budget > 0 ? Math.min(spent / budget, 1) : 0;
   const barColor = pct < 0.6 ? colors.success : pct < 0.85 ? colors.warning : colors.error;
-  const hourlyRevenue = isHourly && laborHours ? laborHours * parseFloat(job.hourlyRate || "55") : 0;
+  const hrs = laborHours || 0;
+  const hourlyRevenue = isHourly && hrs ? hrs * parseFloat(job.hourlyRate || "55") : 0;
+  const mins = laborMinutes || (hrs * 60);
+  const h = Math.floor(mins / 60);
+  const m = Math.round(mins % 60);
+  const detailedHrs = `${h}h ${m}m (${(mins / 60).toFixed(2)})`;
 
   return (
     <TouchableOpacity
@@ -68,9 +74,9 @@ export function JobCard({ job, crewCount, spentAmount, laborHours, onPress, hide
               <View style={{ backgroundColor: "#D4A843" + "20", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
                 <Text style={{ fontSize: 11, fontWeight: "700", color: "#D4A843" }}>${job.hourlyRate || "55"}/hr</Text>
               </View>
-              {laborHours !== undefined && laborHours > 0 && (
+              {hrs > 0 && (
                 <Text style={[styles.budgetText, { color: colors.muted }]}>
-                  Revenue: ${hourlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {detailedHrs} • Revenue: ${hourlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </Text>
               )}
             </View>

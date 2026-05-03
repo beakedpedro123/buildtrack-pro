@@ -199,7 +199,12 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
   const totalBudget = baseBudget + changeOrderAdj;
   const expenseSpent = canSeeBudget ? (expenses || []).reduce((sum, e) => sum + parseFloat(e.amount || "0"), 0) : 0;
   const laborSpent = canSeeBudget ? (laborCost?.totalCost || 0) : 0;
-  const laborHours = laborCost ? Math.round(laborCost.totalMinutes / 60 * 10) / 10 : 0;
+  const laborMinutes = laborCost?.totalMinutes || 0;
+  const laborHours = laborCost ? (laborCost.totalMinutes / 60) : 0;
+  const laborHoursDecimal = laborHours.toFixed(2);
+  const laborH = Math.floor(laborMinutes / 60);
+  const laborM = Math.round(laborMinutes % 60);
+  const laborHoursDetailed = `${laborH}h ${laborM}m`;
   const totalSpent = expenseSpent + laborSpent;
   const budgetPct = totalBudget > 0 ? Math.min(totalSpent / totalBudget, 1) : 0;
   const budgetPctRaw = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
@@ -516,8 +521,8 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                         ${(laborHours * parseFloat(selectedJob.hourlyRate || "55")).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </Text>
                       <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>
-                        {laborHours}h logged × ${selectedJob.hourlyRate || "55"}/hr per person
-                      </Text>
+                       {laborHoursDetailed} ({laborHoursDecimal} hrs) × ${selectedJob.hourlyRate || "55"}/hr per person
+                     </Text>
                     </View>
                   )}
 
@@ -661,7 +666,7 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                         ${(laborHours * parseFloat(selectedJob.hourlyRate || "55")).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </Text>
                       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                        <Text style={{ fontSize: 13, color: colors.muted }}>{laborHours}h logged</Text>
+                         <Text style={{ fontSize: 13, color: colors.muted }}>{laborHoursDetailed} ({laborHoursDecimal} hrs)</Text>
                         <Text style={{ fontSize: 13, color: colors.muted }}>@ ${selectedJob.hourlyRate || "55"}/hr per person</Text>
                       </View>
                       <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: "#D4A843" + "30", paddingTop: 10, flexDirection: "row", justifyContent: "space-between" }}>
@@ -921,7 +926,8 @@ export default function JobsScreen({ embedded }: { embedded?: boolean } = {}) {
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
                         <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 2 }}>Hours Logged</Text>
-                        <Text style={{ fontSize: 20, fontWeight: "800", color: colors.primary }}>{laborHours}h</Text>
+                         <Text style={{ fontSize: 18, fontWeight: "800", color: colors.primary }}>{laborHoursDetailed}</Text>
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{laborHoursDecimal} decimal hrs</Text>
                       </View>
                     </View>
                     {/* Overhead breakdown */}

@@ -472,8 +472,8 @@ export default function TimecardScreen() {
                   <Text style={{ fontSize: 32, fontWeight: "800", color: colors.primary }}>
                     {formatDuration(data?.totalMinutes || 0)}
                   </Text>
-                  <Text style={{ fontSize: 12, color: colors.muted }}>
-                    {((data?.totalMinutes || 0) / 60).toFixed(1)} hrs total
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>
+                    {((data?.totalMinutes || 0) / 60).toFixed(2)} decimal hrs
                   </Text>
                 </View>
                 {canSeeRates && empRate && (
@@ -561,7 +561,7 @@ export default function TimecardScreen() {
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>
-                      {formatDuration(day.totalMinutes)}
+                      {formatDuration(day.totalMinutes)} ({(day.totalMinutes / 60).toFixed(2)})
                     </Text>
                     {canSeeRates && empRate && (
                       <Text style={{ fontSize: 12, color: colors.success, fontWeight: "600" }}>

@@ -19,7 +19,12 @@ function fmtMoney(amount: number | string): string {
   return "$" + num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtHours(minutes: number): string {
-  return (minutes / 60).toFixed(1);
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return `${h}h ${m}m (${(minutes / 60).toFixed(2)} hrs)`;
+}
+function fmtHoursShort(minutes: number): string {
+  return (minutes / 60).toFixed(2);
 }
 
 const COLORS = {
@@ -158,7 +163,7 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
   const summaryBoxes = [
     { label: "Daily Reports", value: `${reports.length}` },
     { label: "Photos Taken", value: `${photos.length}` },
-    { label: "Total Hours", value: `${fmtHours(totalLaborMinutes)}h` },
+    { label: "Total Hours", value: `${fmtHours(totalLaborMinutes)}` },
     { label: "Safety Meetings", value: `${safetyMeetings.length}` },
   ];
   for (let i = 0; i < summaryBoxes.length; i++) {
@@ -241,7 +246,7 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
       const dl = dailyLabor.get(dayKey);
       if (dl) {
         doc.font("Helvetica").fontSize(7).fillColor(COLORS.muted);
-        doc.text(`Labor: ${fmtHours(dl.totalMinutes)}h · ${dl.workers.size} workers · ${fmtMoney(dl.cost)}`, 52, y, { width: pageWidth - 20 });
+        doc.text(`Labor: ${fmtHours(dl.totalMinutes)} · ${dl.workers.size} workers · ${fmtMoney(dl.cost)}`, 52, y, { width: pageWidth - 20 });
         y += 12;
       }
 
@@ -287,7 +292,7 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
       doc.font("Helvetica").fontSize(8).fillColor(COLORS.text);
       doc.text(day, 42, y, { width: 120 });
       doc.text(`${dl.workers.size}`, 164, y, { width: 60, align: "center" });
-      doc.text(`${fmtHours(dl.totalMinutes)}h`, 226, y, { width: 80, align: "right" });
+      doc.text(`${fmtHours(dl.totalMinutes)}`, 206, y, { width: 100, align: "right" });
       doc.text(fmtMoney(dl.cost), 308, y, { width: 80, align: "right" });
       y += 16;
     }
@@ -298,7 +303,7 @@ export async function generateFieldReportsPDF(jobId: number, companyId?: number)
     doc.rect(40, y - 2, pageWidth, 18).fill(COLORS.darkBg);
     doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.white);
     doc.text("TOTAL", 42, y + 1, { width: 120 });
-    doc.text(`${fmtHours(totalMins)}h`, 226, y + 1, { width: 80, align: "right" });
+     doc.text(`${fmtHours(totalMins)}`, 206, y + 1, { width: 100, align: "right" });
     doc.text(fmtMoney(totalCost), 308, y + 1, { width: 80, align: "right" });
     doc.restore();
     y += 26;

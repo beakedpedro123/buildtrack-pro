@@ -19,7 +19,12 @@ function fmtMoney(amount: number | string): string {
   return "$" + num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtHours(minutes: number): string {
-  return (minutes / 60).toFixed(1);
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return `${h}h ${m}m (${(minutes / 60).toFixed(2)} hrs)`;
+}
+function fmtHoursShort(minutes: number): string {
+  return (minutes / 60).toFixed(2);
 }
 
 const COLORS = {
@@ -291,9 +296,9 @@ export async function generateBudgetReportPDF(
   // Row 2: Labor details
   const row2 = [
     { label: "Base Labor", value: fmtMoney(totalLaborCost) },
-    { label: "Hours Logged", value: `${fmtHours(totalLaborMinutes)}h` },
+    { label: "Hours Logged", value: `${fmtHours(totalLaborMinutes)}` },
     { label: "Expenses", value: fmtMoney(expenseSpent) },
-    { label: isHourly ? `Rate: $${hourlyRate}/hr` : "Base Budget", value: isHourly ? `${fmtHours(totalLaborMinutes)}h × $${hourlyRate}` : fmtMoney(baseBudget) },
+    { label: isHourly ? `Rate: $${hourlyRate}/hr` : "Base Budget", value: isHourly ? `${fmtHoursShort(totalLaborMinutes)} hrs × $${hourlyRate}` : fmtMoney(baseBudget) },
   ];
   for (let i = 0; i < row2.length; i++) {
     const bx = 40 + i * (boxW + 10);
@@ -395,7 +400,7 @@ export async function generateBudgetReportPDF(
         { text: emp.name, x: 42, width: 140 },
         { text: emp.role.charAt(0).toUpperCase() + emp.role.slice(1), x: 184, width: 80 },
         { text: emp.rate > 0 ? `$${emp.rate.toFixed(2)}/hr` : "—", x: 266, width: 60, align: "right" },
-        { text: `${fmtHours(emp.totalMinutes)}h`, x: 328, width: 60, align: "right" },
+        { text: `${fmtHours(emp.totalMinutes)}`, x: 308, width: 80, align: "right" },
         { text: "—", x: 390, width: 60, align: "right" },
         { text: fmtMoney(emp.totalCost), x: 452, width: 80, align: "right" },
       ], y, i % 2 === 0 ? "#F9F9F9" : undefined);
@@ -407,7 +412,7 @@ export async function generateBudgetReportPDF(
     doc.rect(40, y - 2, pageWidth, 18).fill(COLORS.darkBg);
     doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.white);
     doc.text("TOTAL", 42, y + 1, { width: 140 });
-    doc.text(`${fmtHours(totalLaborMinutes)}h`, 328, y + 1, { width: 60, align: "right" });
+     doc.text(`${fmtHours(totalLaborMinutes)}`, 308, y + 1, { width: 80, align: "right" });
     doc.text(fmtMoney(totalLaborCost), 452, y + 1, { width: 80, align: "right" });
     doc.restore();
     y += 26;
@@ -444,7 +449,7 @@ export async function generateBudgetReportPDF(
         doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.white);
         doc.text(`${dayEmps.length} worker${dayEmps.length !== 1 ? "s" : ""}`, 170, y + 1, { width: 80 });
         const totalDayCost = dayEmps.reduce((s, e) => s + e.cost, 0);
-        doc.text(`${fmtHours(totalMins)}h`, 350, y + 1, { width: 80, align: "right" });
+         doc.text(`${fmtHours(totalMins)}`, 340, y + 1, { width: 90, align: "right" });
         doc.text(fmtMoney(totalDayCost), 440, y + 1, { width: 90, align: "right" });
         doc.restore();
         y += 20;
@@ -468,7 +473,7 @@ export async function generateBudgetReportPDF(
           y = drawTableRow(doc, [
             { text: `  ${e.name}`, x: 56, width: 160 },
             { text: e.rate > 0 ? `$${e.rate.toFixed(2)}/hr` : "—", x: 220, width: 70, align: "right" },
-            { text: `${fmtHours(e.mins)}h`, x: 294, width: 70, align: "right" },
+             { text: `${fmtHours(e.mins)}`, x: 274, width: 90, align: "right" },
             { text: isHourly ? fmtMoney(earned) : "—", x: 368, width: 70, align: "right", color: COLORS.success },
             { text: fmtMoney(e.cost), x: 440, width: 90, align: "right" },
           ], y, ei % 2 === 0 ? "#FAFAFA" : undefined);
@@ -480,7 +485,7 @@ export async function generateBudgetReportPDF(
         doc.rect(40, y - 2, pageWidth, 16).fill("#F0F0F0");
         doc.font("Helvetica-Bold").fontSize(7).fillColor(COLORS.text);
         doc.text("DAY TOTAL", 56, y + 1, { width: 160 });
-        doc.text(`${fmtHours(totalMins)}h`, 294, y + 1, { width: 70, align: "right" });
+         doc.text(`${fmtHours(totalMins)}`, 274, y + 1, { width: 90, align: "right" });
         if (isHourly) {
           const dayRevenue = (totalMins / 60) * hourlyRate;
           doc.fillColor(COLORS.success);

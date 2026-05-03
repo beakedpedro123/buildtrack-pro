@@ -62,6 +62,11 @@ function fmtDuration(minutes: number): string {
 }
 
 function fmtHours(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return `${h}h ${m}m (${(minutes / 60).toFixed(2)} hrs)`;
+}
+function fmtHoursShort(minutes: number): string {
   return (minutes / 60).toFixed(2);
 }
 
@@ -369,7 +374,7 @@ function renderPayrollSummary(
   const boxWidth = pageWidth / 3 - 8;
   const boxes = [
     { label: "Total Employees", value: `${timecards.length}` },
-    { label: "Total Hours", value: fmtHours(totalHours) },
+    { label: "Total Hours", value: `${fmtDuration(totalHours)} (${fmtHoursShort(totalHours)})` },
     { label: "Total Payroll", value: fmtMoney(totalPayroll) },
   ];
 
@@ -387,7 +392,7 @@ function renderPayrollSummary(
     const hourlyTotal = timecards.filter(tc => tc.payType !== "salary").reduce((sum, tc) => sum + tc.totalMinutes, 0);
     const billingTotal = (hourlyTotal / 60) * billingRate;
     doc.fontSize(11).fillColor(gold).text(`BILLING RATE: ${fmtMoney(billingRate)}/hr`, 40, y);
-    doc.fontSize(11).fillColor(textColor).text(`  |  Billable Hours: ${fmtHours(hourlyTotal)}  |  Total Billing: ${fmtMoney(billingTotal)}`, 230, y);
+    doc.fontSize(11).fillColor(textColor).text(`  |  Billable Hours: ${fmtDuration(hourlyTotal)} (${fmtHoursShort(hourlyTotal)})  |  Total Billing: ${fmtMoney(billingTotal)}`, 230, y);
     y += 20;
   }
 
@@ -395,8 +400,8 @@ function renderPayrollSummary(
   doc.fontSize(12).fillColor(gold).text("Employee Payroll Breakdown", 40, y);
   y += 18;
 
-  // FIX: Use proper column widths to prevent text overlap
-  const colWidths = [140, 80, 65, 65, 80, pageWidth - 430];
+  // FIX: Use proper column widths — wider Hours column for detailed format
+  const colWidths = [130, 70, 120, 55, 75, pageWidth - 450];
   const headers = ["Employee", "Role", "Hours", "Rate", "Est. Pay", "Days"];
   doc.fontSize(8).fillColor(mutedColor);
   let cx = 40;
@@ -420,12 +425,21 @@ function renderPayrollSummary(
     // FIX: Use lineBreak: false and ellipsis to prevent name overflow
     doc.text(tc.name, cx, y, { width: colWidths[0] - 4, lineBreak: false, ellipsis: true }); cx += colWidths[0];
     doc.text(ROLE_LABELS[tc.role] || tc.role, cx, y, { width: colWidths[1] - 4, lineBreak: false, ellipsis: true }); cx += colWidths[1];
-    const hoursText = isSalary ? "Salary" : (tc.totalLunchMinutes > 0 ? `${fmtHours(tc.totalMinutes)} (-${tc.totalLunchMinutes}m)` : fmtHours(tc.totalMinutes));
-    doc.text(hoursText, cx, y, { width: colWidths[2], lineBreak: false }); cx += colWidths[2];
+    if (isSalary) {
+      doc.text("Salary", cx, y, { width: colWidths[2], lineBreak: false }); cx += colWidths[2];
+    } else {
+      const hrsDecimal = fmtHoursShort(tc.totalMinutes);
+      const hrsDuration = fmtDuration(tc.totalMinutes);
+      const lunchNote = tc.totalLunchMinutes > 0 ? ` (-${tc.totalLunchMinutes}m)` : "";
+      doc.fontSize(9).text(`${hrsDuration}${lunchNote}`, cx, y, { width: colWidths[2], lineBreak: false });
+      doc.fontSize(7).fillColor(mutedColor).text(`${hrsDecimal} decimal hrs`, cx, y + 10, { width: colWidths[2], lineBreak: false });
+      doc.fontSize(9).fillColor(textColor);
+      cx += colWidths[2];
+    }
     doc.text(isSalary ? "Salary" : (tc.hourlyRate ? fmtMoney(rate) : "—"), cx, y, { width: colWidths[3], lineBreak: false }); cx += colWidths[3];
     doc.text(fmtMoney(pay), cx, y, { width: colWidths[4], lineBreak: false }); cx += colWidths[4];
     doc.text(isSalary ? `${tc.salaryProjects.length} proj` : `${tc.days.length}`, cx, y, { width: colWidths[5], lineBreak: false });
-    y += 16;
+    y += 22;
   }
 
   // Total row
@@ -436,7 +450,7 @@ function renderPayrollSummary(
   cx = 40;
   doc.text("TOTAL", cx, y, { width: colWidths[0], lineBreak: false }); cx += colWidths[0];
   doc.text("", cx, y, { width: colWidths[1] }); cx += colWidths[1];
-  doc.text(fmtHours(totalHours), cx, y, { width: colWidths[2], lineBreak: false }); cx += colWidths[2];
+  doc.text(`${fmtDuration(totalHours)} (${fmtHoursShort(totalHours)} hrs)`, cx, y, { width: colWidths[2], lineBreak: false }); cx += colWidths[2];
   doc.text("", cx, y, { width: colWidths[3] }); cx += colWidths[3];
   doc.text(fmtMoney(totalPayroll), cx, y, { width: colWidths[4], lineBreak: false });
   doc.font("Helvetica");
@@ -466,7 +480,7 @@ function renderJobCostSummary(
   y += 8;
 
   // FIX: Proper column widths — Employees column uses wrapping with measured height
-  const jobColWidths = [160, 70, 80, 60, pageWidth - 370];
+  const jobColWidths = [140, 110, 80, 50, pageWidth - 380];
   const jobHeaders = ["Job Site", "Hours", "Labor Cost", "Workers", "Employees"];
   doc.fontSize(8).fillColor(mutedColor);
   let cx = 40;
@@ -498,7 +512,8 @@ function renderJobCostSummary(
     cx = 40;
     // Job name — single line, truncated
     doc.text(jc.name, cx, y, { width: jobColWidths[0] - 4, lineBreak: false, ellipsis: true }); cx += jobColWidths[0];
-    doc.text(fmtHours(jc.totalMinutes), cx, y, { width: jobColWidths[1], lineBreak: false }); cx += jobColWidths[1];
+    doc.fontSize(8).text(`${fmtDuration(jc.totalMinutes)} (${fmtHoursShort(jc.totalMinutes)})`, cx, y, { width: jobColWidths[1], lineBreak: false });
+    doc.fontSize(9); cx += jobColWidths[1];
     doc.text(fmtMoney(jc.totalCost), cx, y, { width: jobColWidths[2], lineBreak: false }); cx += jobColWidths[2];
     doc.text(`${jc.employees.size}`, cx, y, { width: jobColWidths[3], lineBreak: false }); cx += jobColWidths[3];
     // FIX: Employee names — allow wrapping within the column
@@ -524,7 +539,7 @@ function renderJobCostSummary(
       if (y > 700) { doc.addPage(); y = 40; }
       const billingTotal = (hourlyMinutes / 60) * billingRate;
       doc.fontSize(9).fillColor(textColor);
-      doc.text(`${jc.name}:  ${fmtHours(hourlyMinutes)} hrs × ${fmtMoney(billingRate)}/hr = `, 50, y, { continued: true });
+      doc.text(`${jc.name}:  ${fmtDuration(hourlyMinutes)} (${fmtHoursShort(hourlyMinutes)} hrs) × ${fmtMoney(billingRate)}/hr = `, 50, y, { continued: true });
       doc.font("Helvetica-Bold").text(fmtMoney(billingTotal), { continued: false });
       doc.font("Helvetica");
       y += 16;
@@ -539,7 +554,8 @@ function renderJobCostSummary(
   doc.fontSize(9).fillColor(textColor).font("Helvetica-Bold");
   cx = 40;
   doc.text("TOTAL", cx, y, { width: jobColWidths[0], lineBreak: false }); cx += jobColWidths[0];
-  doc.text(fmtHours(totalHours), cx, y, { width: jobColWidths[1], lineBreak: false }); cx += jobColWidths[1];
+  doc.fontSize(8).text(`${fmtDuration(totalHours)} (${fmtHoursShort(totalHours)})`, cx, y, { width: jobColWidths[1], lineBreak: false });
+  doc.fontSize(9); cx += jobColWidths[1];
   doc.text(fmtMoney(totalPayroll), cx, y, { width: jobColWidths[2], lineBreak: false });
   doc.font("Helvetica");
   y += 24;
@@ -553,7 +569,7 @@ function renderJobCostSummary(
     const isHourlyJob = jc.budget === 0;
     doc.fontSize(10).fillColor(textColor).font("Helvetica-Bold").text(jc.name, 40, y);
     doc.font("Helvetica");
-    const summaryParts = [`${fmtHours(jc.totalMinutes)} hrs`, fmtMoney(jc.totalCost), `${jc.employees.size} workers`];
+    const summaryParts = [`${fmtDuration(jc.totalMinutes)} (${fmtHoursShort(jc.totalMinutes)} hrs)`, fmtMoney(jc.totalCost), `${jc.employees.size} workers`];
     if (isHourlyJob) summaryParts.push("(Hourly Job)");
     if (jc.salaryCost > 0) summaryParts.push(`Salary alloc: ${fmtMoney(jc.salaryCost)}`);
     doc.fontSize(8).fillColor(mutedColor).text(summaryParts.join(" | "), 40, y + 14);
@@ -567,7 +583,7 @@ function renderJobCostSummary(
         doc.fontSize(8).fillColor(mutedColor).text(`Salary: ${fmtMoney(empData.cost)}`, 260, y);
       } else {
         doc.fontSize(9).fillColor(textColor).text(`  • ${empName}`, 50, y, { width: 200, lineBreak: false, ellipsis: true });
-        doc.fontSize(8).fillColor(mutedColor).text(`${fmtHours(empData.minutes)} hrs — ${fmtMoney(empData.cost)}`, 260, y);
+        doc.fontSize(8).fillColor(mutedColor).text(`${fmtDuration(empData.minutes)} (${fmtHoursShort(empData.minutes)} hrs) — ${fmtMoney(empData.cost)}`, 260, y);
       }
       y += 14;
     }
@@ -605,7 +621,8 @@ async function renderEmployeeDetail(
     doc.fontSize(10).fillColor("#ffffff").text(
       isSalary
         ? `Biweekly Salary | ${fmtMoney(totalPay)}`
-        : `${fmtHours(tc.totalMinutes)} hrs | ${fmtMoney(totalPay)}`,
+        : `${fmtDuration(tc.totalMinutes)} (${fmtHoursShort(tc.totalMinutes)} hrs) | ${fmtMoney(totalPay)}`,
+
       40, y + 10, { width: pageWidth - 12, align: "right" }
     );
     y += 48;
@@ -663,7 +680,7 @@ async function renderEmployeeDetail(
         doc.fontSize(9).fillColor(textColor);
         cx = 40;
         doc.text(ej.name, cx, y, { width: ejColWidths[0] - 4, lineBreak: false, ellipsis: true }); cx += ejColWidths[0];
-        doc.text(`${fmtHours(ej.minutes)} hrs`, cx, y, { width: ejColWidths[1], lineBreak: false }); cx += ejColWidths[1];
+        doc.text(`${fmtDuration(ej.minutes)} (${fmtHoursShort(ej.minutes)})`, cx, y, { width: ejColWidths[1], lineBreak: false }); cx += ejColWidths[1];
         doc.text(fmtMoney(ej.cost), cx, y, { width: ejColWidths[2], lineBreak: false });
         y += 14;
       }
@@ -694,7 +711,7 @@ async function renderEmployeeDetail(
         doc.rect(40, y, pageWidth, 16).fill("#f0f0f0");
         doc.fontSize(9).fillColor(textColor).font("Helvetica-Bold");
         doc.text(fmtDate(day.date), 44, y + 3, { width: 300, lineBreak: false });
-        doc.text(`Day Total: ${fmtDuration(day.totalMinutes)} (${fmtHours(day.totalMinutes)} hrs)`, 40, y + 3, { width: pageWidth - 8, align: "right" });
+        doc.text(`Day Total: ${fmtDuration(day.totalMinutes)} (${fmtHoursShort(day.totalMinutes)} hrs)`, 40, y + 3, { width: pageWidth - 8, align: "right" });
         doc.font("Helvetica");
         y += 20;
 
@@ -722,7 +739,7 @@ async function renderEmployeeDetail(
       doc.text(`PAY TYPE: Biweekly Salary`, 40, y);
       doc.text(`TOTAL PAY: ${fmtMoney(totalPay)}`, 250, y);
     } else {
-      doc.text(`TOTAL: ${fmtHours(tc.totalMinutes)} hours`, 40, y);
+      doc.text(`TOTAL: ${fmtDuration(tc.totalMinutes)} (${fmtHoursShort(tc.totalMinutes)} hrs)`, 40, y);
       doc.text(`ESTIMATED PAY: ${fmtMoney(totalPay)}`, 250, y);
     }
     doc.font("Helvetica");

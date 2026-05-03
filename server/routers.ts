@@ -1379,7 +1379,7 @@ const pivotRouter = router({
     employeeId: z.number(),
     attachments: z.array(z.object({
       url: z.string(),
-      type: z.enum(["image", "pdf", "document", "spreadsheet", "url"]),
+      type: z.enum(["image", "pdf", "document", "spreadsheet", "url", "video"]),
       name: z.string().optional(),
     })).optional(),
     context: z.object({
@@ -2476,6 +2476,12 @@ If they speak Spanish, respond in Spanish. If they speak English, respond in Eng
         for (const att of input.attachments) {
           if (att.type === "image") {
             contentParts.push({ type: "image_url", image_url: { url: att.url, detail: "high" } });
+          } else if (att.type === "video") {
+            // Determine video MIME type from file extension
+            const ext = (att.name || att.url).split(".").pop()?.toLowerCase() || "mp4";
+            const videoMime = ext === "mov" ? "video/quicktime" : ext === "webm" ? "video/webm" : ext === "avi" ? "video/x-msvideo" : "video/mp4";
+            contentParts.push({ type: "file_url", file_url: { url: att.url, mime_type: videoMime } });
+            contentParts.push({ type: "text", text: `\n[Video attached: ${att.name || "video"}. Analyze the visual content, audio, and any text visible in this video. Describe what you see in detail.]` });
           } else if (att.type === "pdf") {
             contentParts.push({ type: "file_url", file_url: { url: att.url, mime_type: "application/pdf" } });
           } else {

@@ -238,8 +238,8 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
                   <Text style={{ fontSize: 36, fontWeight: "800", color: colors.primary }}>
                     {formatDuration(data?.totalMinutes || 0)}
                   </Text>
-                  <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>
-                    {((data?.totalMinutes || 0) / 60).toFixed(1)} hours total
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground, marginTop: 2 }}>
+                    {((data?.totalMinutes || 0) / 60).toFixed(2)} decimal hrs
                   </Text>
                 </View>
                 {canSeePayRate && data?.employee?.hourlyRate && (
@@ -296,7 +296,7 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
                   {formatDate(item.clockIn)}
                 </Text>
                 <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>
-                  {item.durationMinutes > 0 ? formatDuration(item.durationMinutes) : "In progress"}
+                  {item.durationMinutes > 0 ? `${formatDuration(item.durationMinutes)} (${(item.durationMinutes / 60).toFixed(2)})` : "In progress"}
                 </Text>
               </View>
               <View style={{ flexDirection: "row", marginTop: 4, gap: 16 }}>
