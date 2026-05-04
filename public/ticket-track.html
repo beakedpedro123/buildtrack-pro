@@ -171,7 +171,9 @@
 </div>
 
 <script>
-const API = window.location.origin + '/api/trpc';
+// ═══ STANDALONE DEPLOYMENT: Change this URL to your BuildTrack Pro server ═══
+const API_BASE = window.BUILDTRACK_API_BASE || window.location.origin;
+const API = API_BASE + '/api/trpc';
 
 const STATUS_ORDER = ['open', 'in_progress', 'resolved', 'closed'];
 const STATUS_LABELS = { open: 'Open', in_progress: 'In Progress', resolved: 'Resolved', closed: 'Closed' };
@@ -189,7 +191,7 @@ async function loadTicket() {
     return;
   }
   try {
-    const res = await fetch(`${API}/support.tickets.getByToken?input=${encodeURIComponent(JSON.stringify({json:{token}}))}`);
+    const res = await fetch(`${API}/support.tickets.getByToken?input=${encodeURIComponent(JSON.stringify({json:{token}}))}`, { credentials: 'include' });
     const data = await res.json();
     const ticket = data.result?.data?.json;
     if (!ticket) {
@@ -266,7 +268,7 @@ function fmtDate(d) {
 // Load replies for the ticket
 async function loadReplies() {
   try {
-    const res = await fetch(`${API}/support.tickets.getRepliesByToken?input=${encodeURIComponent(JSON.stringify({json:{token}}))}`);
+    const res = await fetch(`${API}/support.tickets.getRepliesByToken?input=${encodeURIComponent(JSON.stringify({json:{token}}))}`, { credentials: 'include' });
     const data = await res.json();
     const replies = data.result?.data?.json;
     if (replies && replies.length > 0) {

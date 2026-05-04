@@ -3095,3 +3095,10 @@
 - [x] Create standalone marketing site package with connection instructions
 - [x] Create standalone support portal package with connection instructions
 - [x] Create standalone admin dashboard package with connection instructions
+
+## CORS Update for Standalone Sites — May 2026
+- [x] CORS already allows all *.manus.space and *.manus.computer domains automatically (isDynamicOriginAllowed)
+- [x] Access-Control-Allow-Credentials: true already configured
+- [x] All standalone HTML files updated with window.BUILDTRACK_API_BASE + credentials: 'include'
+- [x] All 3 READMEs updated with setup instructions for standalone deployment
+- [x] Zip packages rebuilt with updated HTML and README files

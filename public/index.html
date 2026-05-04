@@ -1025,8 +1025,11 @@ async function submitSignup() {
     return;
   }
   try {
-    const res = await fetch('/api/trpc/company.signup', {
+    // ═══ STANDALONE: Uses API_BASE for cross-origin deployment ═══
+    const API_BASE = window.BUILDTRACK_API_BASE || window.location.origin;
+    const res = await fetch(API_BASE + '/api/trpc/company.signup', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         json: { companyName, slug, ownerName, ownerPin, ownerEmail, ownerPhone, trades, primaryTrade: trades[0] }

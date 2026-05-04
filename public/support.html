@@ -415,8 +415,12 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--f
 </div>
 
 <script>
-// API Configuration
-const API = window.location.origin + '/api/trpc';
+// ═══ STANDALONE DEPLOYMENT: Change this URL to your BuildTrack Pro server ═══
+// When running as part of BuildTrack Pro: leave as-is (uses same origin)
+// When deployed standalone: set to your BuildTrack Pro server URL
+// Example: const API_BASE = 'https://buildtrack-dnjxcthz.manus.space';
+const API_BASE = window.BUILDTRACK_API_BASE || window.location.origin;
+const API = API_BASE + '/api/trpc';
 
 // State
 let currentUser = null;
@@ -442,6 +446,7 @@ async function handleLogin(e) {
     // Step 1: Look up company by slug
     const companyRes = await fetch(`${API}/company.lookupBySlug`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ json: { slug: companyCode } })
     });
@@ -455,6 +460,7 @@ async function handleLogin(e) {
     // Step 2: Verify PIN against company employees (scoped to company)
     const pinRes = await fetch(`${API}/employees.verifyPin`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ json: { pin: pin, companyId: company.id } })
     });
@@ -512,7 +518,7 @@ function showApp() {
 // === API HELPERS ===
 async function trpcQuery(path) {
   try {
-    const res = await fetch(`${API}/${path}`);
+    const res = await fetch(`${API}/${path}`, { credentials: 'include' });
     const data = await res.json();
     return data.result?.data?.json;
   } catch(e) { console.error('Query error:', path, e); return null; }
@@ -522,6 +528,7 @@ async function trpcMutation(path, input) {
   try {
     const res = await fetch(`${API}/${path}`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ json: input })
     });

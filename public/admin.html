@@ -348,7 +348,12 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <script>
-const API = window.location.origin + (window.location.pathname.includes('/api/web') ? '' : '') + '/api/trpc';
+// ═══ STANDALONE DEPLOYMENT: Change this URL to your BuildTrack Pro server ═══
+// When running as part of BuildTrack Pro: leave as-is (uses same origin)
+// When deployed standalone: set to your BuildTrack Pro server URL
+// Example: const API_BASE = 'https://buildtrack-dnjxcthz.manus.space';
+const API_BASE = window.BUILDTRACK_API_BASE || window.location.origin;
+const API = API_BASE + '/api/trpc';
 
 // Tab navigation
 document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -362,14 +367,15 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
 
 // API helpers
 async function trpcQuery(path) {
-  const res = await fetch(`${API}/${path}`);
+  const res = await fetch(`${API}/${path}`, { credentials: 'include' });
   const data = await res.json();
   return data.result?.data?.json;
 }
 async function trpcMutation(path, input) {
-  const res = await fetch(`${API}/${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+const res = await fetch(`${API}/${path}`, {
+     method: 'POST',
+     credentials: 'include',
+     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ json: input }),
   });
   const data = await res.json();

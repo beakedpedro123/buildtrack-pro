@@ -231,16 +231,20 @@ function clearSession() {
   }
 })();
 
+// ═══ STANDALONE DEPLOYMENT: Change this URL to your BuildTrack Pro server ═══
+const API_BASE = window.BUILDTRACK_API_BASE || window.location.origin;
+
 // tRPC helpers
 async function trpcQuery(path) {
-  const res = await fetch('/api/trpc/' + path);
+  const res = await fetch(API_BASE + '/api/trpc/' + path, { credentials: 'include' });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || 'Request failed');
   return data.result?.data?.json;
 }
 async function trpcMutation(path, input) {
-  const res = await fetch('/api/trpc/' + path, {
+  const res = await fetch(API_BASE + '/api/trpc/' + path, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ json: input })
   });
