@@ -431,3 +431,13 @@
 - [x] Created eas.json with development, preview, and production profiles
 - [x] Verified app.config.ts has correct iOS bundle identifier
 - [x] Providing step-by-step instructions for user
+
+## Three named admin keys update — 2026-05-04
+
+- [ ] Support three named admin dashboard keys: Pedro Carranza, Pablo Carranza, and Lupe Mejia.
+- [ ] Preserve dashboard layout and change only backend/admin authentication functionality.
+- [ ] Let each named admin change their own admin key without affecting the other two admins.
+- [ ] Return the correct admin display name and key ID after login and verification.
+- [ ] Audit-log successful and failed logins, verification failures, and per-admin key changes.
+- [ ] Validate locally without printing raw keys or bearer tokens.
+- [ ] Push the backend route update and re-test the live dashboard login endpoint.

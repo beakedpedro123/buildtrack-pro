@@ -8,19 +8,33 @@ import { adminAuditLog, adminSettings } from "../drizzle/schema";
 
 const ADMIN_ISSUER = "buildtrack-pro-admin";
 const ADMIN_SCOPE = "buildtrack:admin";
-const DEFAULT_ADMIN_KEY_ID = "primary";
 const TOKEN_TTL_SECONDS = Number.parseInt(process.env.ADMIN_DASHBOARD_TOKEN_TTL_SECONDS || "28800", 10);
 const HASH_ITERATIONS = 210_000;
-const KEY_HASH_SETTING = "admin_dashboard_key_hash";
-const KEY_ID_SETTING = "admin_dashboard_key_id";
+const LEGACY_KEY_HASH_SETTING = "admin_dashboard_key_hash";
+const LEGACY_KEY_ID_SETTING = "admin_dashboard_key_id";
+
+type AdminDefinition = {
+  id: string;
+  defaultKeyId: string;
+  name: string;
+  role: string;
+  envKeyName: string;
+  defaultHash: string;
+};
 
 type AdminSession = {
   scope: string;
   role: string;
   name: string;
+  adminId: string;
   adminKeyId: string;
   sessionId: string;
 };
+
+type AdminKeyVerification =
+  | { configured: true; valid: true; source: "database" | "environment" | "default" | "legacy_database" | "legacy_environment"; admin: AdminDefinition; adminKeyId: string }
+  | { configured: true; valid: false; source: "database" | "environment" | "default" | "legacy_database" | "legacy_environment" | "mixed" }
+  | { configured: false; valid: false; source: "none" };
 
 type AuditResult = "success" | "failure" | "denied";
 
@@ -33,23 +47,38 @@ type AuditDetails = {
   metadata?: Record<string, unknown>;
 };
 
+const ADMIN_DEFINITIONS: AdminDefinition[] = [
+  {
+    id: "pedro-carranza",
+    defaultKeyId: "pedro_primary",
+    name: "Pedro Carranza",
+    role: "owner",
+    envKeyName: "ADMIN_DASHBOARD_KEY_PEDRO",
+    defaultHash: "pbkdf2_sha256$210000$6fe83768312dabb6ad10d063e378f090fa2f97e86401fb50$bd5221bd9714aec8e7685ee3971a9724b08fd7f7ea31ef83b05716f828488363",
+  },
+  {
+    id: "pablo-carranza",
+    defaultKeyId: "pablo_primary",
+    name: "Pablo Carranza",
+    role: "office_manager",
+    envKeyName: "ADMIN_DASHBOARD_KEY_PABLO",
+    defaultHash: "pbkdf2_sha256$210000$3a34152a5df64fa7d98b75983c7a1f25442ec004b6316cc2$6fb1fc611b9e6994751170eb801f902688b15aef9438dd58a7e3c9a7bcaa0a5d",
+  },
+  {
+    id: "lupe-mejia",
+    defaultKeyId: "lupe_primary",
+    name: "Lupe Mejia",
+    role: "office_manager",
+    envKeyName: "ADMIN_DASHBOARD_KEY_LUPE",
+    defaultHash: "pbkdf2_sha256$210000$d9032d990cd20a6f3dab59a23d94982fe561a8d79b5c0b82$5ab83faffef130c628f16112aa83a80f6a0573938cad58fd6507a98aca92c1f8",
+  },
+];
+
 let tablesEnsured = false;
 let ensuringTables: Promise<void> | null = null;
 
 function getJwtSecret() {
   return ENV.cookieSecret || process.env.JWT_SECRET || "";
-}
-
-function getAdminEnvKey() {
-  return process.env.ADMIN_DASHBOARD_KEY || "";
-}
-
-function getConfiguredAdminName() {
-  return process.env.ADMIN_DASHBOARD_USER_NAME || "BuildTrack Admin";
-}
-
-function getConfiguredAdminRole() {
-  return process.env.ADMIN_DASHBOARD_USER_ROLE || "owner";
 }
 
 function getAllowedIps() {
@@ -98,6 +127,22 @@ function verifyHashedAdminKey(key: string, storedHash: string) {
 
 function fingerprintKey(key: string) {
   return createHash("sha256").update(key).digest("hex").slice(0, 12);
+}
+
+function adminHashSetting(adminId: string) {
+  return `admin_dashboard_key_hash:${adminId}`;
+}
+
+function adminKeyIdSetting(adminId: string) {
+  return `admin_dashboard_key_id:${adminId}`;
+}
+
+function getAdminById(adminId: string) {
+  return ADMIN_DEFINITIONS.find((admin) => admin.id === adminId) || ADMIN_DEFINITIONS[0];
+}
+
+function getAdminEnvKey(admin: AdminDefinition) {
+  return process.env[admin.envKeyName] || "";
 }
 
 async function ensureAdminTables() {
@@ -159,16 +204,50 @@ async function setSetting(key: string, value: string) {
   await db.insert(adminSettings).values({ settingKey: key, settingValue: value }).onDuplicateKeyUpdate({ set: { settingValue: value } });
 }
 
-async function getActiveAdminKeyId() {
-  return (await getSetting(KEY_ID_SETTING)) || process.env.ADMIN_DASHBOARD_KEY_ID || DEFAULT_ADMIN_KEY_ID;
+async function getActiveAdminKeyId(admin: AdminDefinition) {
+  return (await getSetting(adminKeyIdSetting(admin.id))) || admin.defaultKeyId;
 }
 
-async function verifyAdminKey(key: string) {
-  const storedHash = await getSetting(KEY_HASH_SETTING);
+async function verifyAdminKeyForAdmin(key: string, admin: AdminDefinition) {
+  const storedHash = await getSetting(adminHashSetting(admin.id));
   if (storedHash) return { configured: true, valid: verifyHashedAdminKey(key, storedHash), source: "database" as const };
-  const envKey = getAdminEnvKey();
-  if (!envKey) return { configured: false, valid: false, source: "none" as const };
-  return { configured: true, valid: safeCompare(key, envKey), source: "environment" as const };
+
+  const envKey = getAdminEnvKey(admin);
+  if (envKey) return { configured: true, valid: safeCompare(key, envKey), source: "environment" as const };
+
+  return { configured: true, valid: verifyHashedAdminKey(key, admin.defaultHash), source: "default" as const };
+}
+
+async function verifyLegacyAdminKey(key: string): Promise<AdminKeyVerification | null> {
+  const legacyAdmin = ADMIN_DEFINITIONS[0];
+  const legacyHash = await getSetting(LEGACY_KEY_HASH_SETTING);
+  if (legacyHash && verifyHashedAdminKey(key, legacyHash)) {
+    return { configured: true, valid: true, source: "legacy_database", admin: legacyAdmin, adminKeyId: (await getSetting(LEGACY_KEY_ID_SETTING)) || legacyAdmin.defaultKeyId };
+  }
+
+  const legacyEnvKey = process.env.ADMIN_DASHBOARD_KEY || "";
+  if (legacyEnvKey && safeCompare(key, legacyEnvKey)) {
+    return { configured: true, valid: true, source: "legacy_environment", admin: legacyAdmin, adminKeyId: process.env.ADMIN_DASHBOARD_KEY_ID || legacyAdmin.defaultKeyId };
+  }
+
+  return legacyHash || legacyEnvKey ? { configured: true, valid: false, source: legacyHash ? "legacy_database" : "legacy_environment" } : null;
+}
+
+async function verifyAdminKey(key: string): Promise<AdminKeyVerification> {
+  let configured = false;
+  for (const admin of ADMIN_DEFINITIONS) {
+    const verification = await verifyAdminKeyForAdmin(key, admin);
+    configured = configured || verification.configured;
+    if (verification.valid) {
+      return { configured: true, valid: true, source: verification.source, admin, adminKeyId: await getActiveAdminKeyId(admin) };
+    }
+  }
+
+  const legacyVerification = await verifyLegacyAdminKey(key);
+  if (legacyVerification?.valid) return legacyVerification;
+  configured = configured || Boolean(legacyVerification?.configured);
+
+  return configured ? { configured: true, valid: false, source: "mixed" } : { configured: false, valid: false, source: "none" };
 }
 
 async function writeAudit(details: AuditDetails) {
@@ -202,20 +281,18 @@ function getBearerToken(req: Request) {
   return match?.[1] || "";
 }
 
-async function signAdminToken(adminKeyId: string) {
+async function signAdminToken(admin: AdminDefinition, adminKeyId: string) {
   const secret = getJwtSecret();
   if (!secret) throw new Error("JWT_SECRET is required for admin dashboard sessions");
   const sessionId = randomBytes(16).toString("hex");
-  const name = getConfiguredAdminName();
-  const role = getConfiguredAdminRole();
   const expiresAt = Date.now() + TOKEN_TTL_SECONDS * 1000;
-  const token = await new SignJWT({ scope: ADMIN_SCOPE, role, name, adminKeyId, sessionId })
+  const token = await new SignJWT({ scope: ADMIN_SCOPE, role: admin.role, name: admin.name, adminId: admin.id, adminKeyId, sessionId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuer(ADMIN_ISSUER)
     .setIssuedAt()
     .setExpirationTime(`${TOKEN_TTL_SECONDS}s`)
     .sign(new TextEncoder().encode(secret));
-  return { token, expiresAt, user: { name, role }, adminKeyId };
+  return { token, expiresAt, user: { name: admin.name, role: admin.role }, adminKeyId };
 }
 
 async function verifyAdminToken(req: Request) {
@@ -227,11 +304,14 @@ async function verifyAdminToken(req: Request) {
   if (payload.scope !== ADMIN_SCOPE || typeof payload.sessionId !== "string") {
     throw new Error("Invalid admin token scope");
   }
+
+  const admin = getAdminById(String(payload.adminId || "pedro-carranza"));
   return {
     scope: String(payload.scope),
-    role: String(payload.role || getConfiguredAdminRole()),
-    name: String(payload.name || getConfiguredAdminName()),
-    adminKeyId: String(payload.adminKeyId || DEFAULT_ADMIN_KEY_ID),
+    role: String(payload.role || admin.role),
+    name: String(payload.name || admin.name),
+    adminId: admin.id,
+    adminKeyId: String(payload.adminKeyId || admin.defaultKeyId),
     sessionId: String(payload.sessionId),
   } satisfies AdminSession;
 }
@@ -263,9 +343,8 @@ export function registerAdminRoutes(app: Express) {
         return jsonError(res, 401, "Invalid admin key.");
       }
 
-      const adminKeyId = await getActiveAdminKeyId();
-      const signed = await signAdminToken(adminKeyId);
-      await writeAudit({ eventType: "admin_login", result: "success", req, adminKeyId, adminName: signed.user.name });
+      const signed = await signAdminToken(verification.admin, verification.adminKeyId);
+      await writeAudit({ eventType: "admin_login", result: "success", req, adminKeyId: verification.adminKeyId, adminName: signed.user.name, metadata: { adminId: verification.admin.id, keySource: verification.source } });
       return res.json({ success: true, ...signed });
     } catch (error) {
       console.error("[admin] Login failed:", error);
@@ -277,7 +356,7 @@ export function registerAdminRoutes(app: Express) {
   app.get("/api/admin/verify", requireAllowedIp(), async (req, res) => {
     try {
       const session = await verifyAdminToken(req);
-      await writeAudit({ eventType: "admin_verify", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name });
+      await writeAudit({ eventType: "admin_verify", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId } });
       return res.json({ valid: true, success: true, user: { name: session.name, role: session.role }, adminKeyId: session.adminKeyId });
     } catch (error) {
       await writeAudit({ eventType: "admin_verify", result: "failure", req, metadata: { reason: "invalid_or_expired_token" } });
@@ -297,33 +376,34 @@ export function registerAdminRoutes(app: Express) {
     const currentKey = typeof req.body?.currentKey === "string" ? req.body.currentKey.trim() : "";
     const newKey = typeof req.body?.newKey === "string" ? req.body.newKey.trim() : "";
     if (!currentKey || !newKey) {
-      await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "missing_key_fields" } });
+      await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "missing_key_fields", adminId: session.adminId } });
       return jsonError(res, 400, "Current key and new key are required.");
     }
     if (newKey.length < 6) {
-      await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "new_key_too_short" } });
+      await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "new_key_too_short", adminId: session.adminId } });
       return jsonError(res, 400, "New key must be at least 6 characters.");
     }
 
     try {
-      const currentVerification = await verifyAdminKey(currentKey);
+      const admin = getAdminById(session.adminId);
+      const currentVerification = await verifyAdminKeyForAdmin(currentKey, admin);
       if (!currentVerification.configured) {
-        await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "admin_key_not_configured" } });
+        await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "admin_key_not_configured", adminId: session.adminId } });
         return jsonError(res, 503, "Admin dashboard key is not configured on the backend.");
       }
       if (!currentVerification.valid) {
-        await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "current_key_invalid", keySource: currentVerification.source } });
+        await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "current_key_invalid", adminId: session.adminId, keySource: currentVerification.source } });
         return jsonError(res, 403, "Current admin key is incorrect.");
       }
 
-      const newAdminKeyId = `adm_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
-      await setSetting(KEY_HASH_SETTING, hashAdminKey(newKey));
-      await setSetting(KEY_ID_SETTING, newAdminKeyId);
-      await writeAudit({ eventType: "admin_change_key", result: "success", req, adminKeyId: newAdminKeyId, adminName: session.name, metadata: { previousAdminKeyId: session.adminKeyId } });
+      const newAdminKeyId = `${admin.id}_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
+      await setSetting(adminHashSetting(admin.id), hashAdminKey(newKey));
+      await setSetting(adminKeyIdSetting(admin.id), newAdminKeyId);
+      await writeAudit({ eventType: "admin_change_key", result: "success", req, adminKeyId: newAdminKeyId, adminName: session.name, metadata: { adminId: admin.id, previousAdminKeyId: session.adminKeyId } });
       return res.json({ success: true, message: "Admin key updated successfully.", adminKeyId: newAdminKeyId });
     } catch (error) {
       console.error("[admin] Change key failed:", error);
-      await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error" } });
+      await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
       return jsonError(res, 500, "Failed to update admin key.");
     }
   });
