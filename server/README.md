@@ -1233,3 +1233,9 @@ const { data, fetchNextPage, hasNextPage } = trpc.items.list.useInfiniteQuery(
 | tRPC type errors | Run `pnpm check` to verify types |
 | Mutations fail silently | Check browser console for errors |
 | Session expired | User needs to login again |
+
+## Admin Dashboard Route Configuration
+
+The admin dashboard uses the plain Express routes mounted at `/api/admin/login`, `/api/admin/verify`, and `/api/admin/change-key`. Configure the initial admin key with `ADMIN_DASHBOARD_KEY`; do not commit real keys to source control. Runtime key changes are stored as a PBKDF2 hash in `adminSettings`, while admin login, verification, IP-denial, and key-change events are written to `adminAuditLog`.
+
+Optional environment variables are `ADMIN_DASHBOARD_KEY_ID` for the initial key identifier, `ADMIN_DASHBOARD_USER_NAME` for the display name returned to the dashboard, `ADMIN_DASHBOARD_USER_ROLE` for the dashboard role label, and `ADMIN_DASHBOARD_TOKEN_TTL_SECONDS` for session lifetime. IP allowlisting is disabled unless `ADMIN_DASHBOARD_ALLOWED_IPS` is set to a comma-separated list of trusted exact IP addresses. Enable the allowlist only after confirming the public admin workstation IPs, because a wrong value can lock the dashboard out.

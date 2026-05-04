@@ -5,6 +5,7 @@ import net from "net";
 import multer from "multer";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerAdminRoutes } from "../adminRoutes";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 
@@ -42,7 +43,7 @@ async function startServer() {
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header(
       "Access-Control-Allow-Headers",
-      "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+      "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Admin-Key-Id",
     );
     res.header("Access-Control-Allow-Credentials", "true");
 
@@ -58,6 +59,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   registerOAuthRoutes(app);
+  registerAdminRoutes(app);
 
   // File upload endpoint for audio recordings, photos, and PDFs
   // Uses multer for reliable multipart parsing (handles iOS/Android FormData correctly)

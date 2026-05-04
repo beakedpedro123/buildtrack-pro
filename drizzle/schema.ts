@@ -23,6 +23,25 @@ export const users = mysqlTable("users", {
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
 
+// ─── Admin Dashboard Security ───────────────────────────────────────────────
+export const adminSettings = mysqlTable("adminSettings", {
+  settingKey: varchar("settingKey", { length: 128 }).primaryKey(),
+  settingValue: text("settingValue").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const adminAuditLog = mysqlTable("adminAuditLog", {
+  id: int("id").autoincrement().primaryKey(),
+  eventType: varchar("eventType", { length: 96 }).notNull(),
+  result: mysqlEnum("result", ["success", "failure", "denied"]).notNull(),
+  adminKeyId: varchar("adminKeyId", { length: 64 }),
+  adminName: varchar("adminName", { length: 128 }),
+  ipAddress: varchar("ipAddress", { length: 64 }),
+  userAgent: text("userAgent"),
+  metadata: text("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 // ─── Employees ─────────────────────────────────────────────────────────────
 export const employees = mysqlTable("employees", {
   id: int("id").autoincrement().primaryKey(),
@@ -280,6 +299,11 @@ export const safetyMeetings = mysqlTable("safetyMeetings", {
 // ─── Types ───────────────────────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+export type AdminSetting = typeof adminSettings.$inferSelect;
+export type InsertAdminSetting = typeof adminSettings.$inferInsert;
+export type AdminAuditLog = typeof adminAuditLog.$inferSelect;
+export type InsertAdminAuditLog = typeof adminAuditLog.$inferInsert;
 
 export type Employee = typeof employees.$inferSelect;
 export type InsertEmployee = typeof employees.$inferInsert;
