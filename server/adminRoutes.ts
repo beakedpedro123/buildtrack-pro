@@ -165,9 +165,10 @@ async function getActiveAdminKeyId() {
 
 async function verifyAdminKey(key: string) {
   const storedHash = await getSetting(KEY_HASH_SETTING);
-  if (storedHash) return verifyHashedAdminKey(key, storedHash);
+  if (storedHash) return { configured: true, valid: verifyHashedAdminKey(key, storedHash), source: "database" as const };
   const envKey = getAdminEnvKey();
-  return Boolean(envKey) && safeCompare(key, envKey);
+  if (!envKey) return { configured: false, valid: false, source: "none" as const };
+  return { configured: true, valid: safeCompare(key, envKey), source: "environment" as const };
 }
 
 async function writeAudit(details: AuditDetails) {
@@ -252,9 +253,13 @@ export function registerAdminRoutes(app: Express) {
     }
 
     try {
-      const valid = await verifyAdminKey(key);
-      if (!valid) {
-        await writeAudit({ eventType: "admin_login", result: "failure", req, metadata: { reason: "invalid_key", fingerprint: fingerprintKey(key) } });
+      const verification = await verifyAdminKey(key);
+      if (!verification.configured) {
+        await writeAudit({ eventType: "admin_login", result: "failure", req, metadata: { reason: "admin_key_not_configured" } });
+        return jsonError(res, 503, "Admin dashboard key is not configured on the backend.");
+      }
+      if (!verification.valid) {
+        await writeAudit({ eventType: "admin_login", result: "failure", req, metadata: { reason: "invalid_key", keySource: verification.source, fingerprint: fingerprintKey(key) } });
         return jsonError(res, 401, "Invalid admin key.");
       }
 
@@ -301,9 +306,13 @@ export function registerAdminRoutes(app: Express) {
     }
 
     try {
-      const currentValid = await verifyAdminKey(currentKey);
-      if (!currentValid) {
-        await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "current_key_invalid" } });
+      const currentVerification = await verifyAdminKey(currentKey);
+      if (!currentVerification.configured) {
+        await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "admin_key_not_configured" } });
+        return jsonError(res, 503, "Admin dashboard key is not configured on the backend.");
+      }
+      if (!currentVerification.valid) {
+        await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "current_key_invalid", keySource: currentVerification.source } });
         return jsonError(res, 403, "Current admin key is incorrect.");
       }
 
