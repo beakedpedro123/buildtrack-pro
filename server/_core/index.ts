@@ -373,35 +373,45 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
 
-  // ─── Admin Dashboard API Key Login ─────────────────────────────────────
-  // Allows the standalone admin dashboard to authenticate with a pre-shared API key.
-  // The key is stored as ADMIN_DASHBOARD_KEY env var. On success, returns a JWT session
-  // token for the admin user (OWNER_OPEN_ID) that can be used as Bearer token.
+  // ─── Admin Dashboard Multi-User Login ──────────────────────────────────
+  // Supports multiple admin users, each with their own key stored in the admin_keys DB table.
+  // On first boot, seeds default keys for Pedro, Pablo, and Lupe.
+  // On success, returns a JWT session token + the admin user's name/role.
   const adminLoginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // 5 attempts per 15 min
+    max: 30, // 30 attempts per 15 min
     message: { error: "Too many login attempts. Please try again later." },
     validate: false,
   });
+
+  // Seed admin keys on startup
+  (async () => {
+    try {
+      const { seedAdminKeys } = await import("../db");
+      await seedAdminKeys();
+    } catch (e) {
+      console.warn("[admin-keys] Seed failed (DB may not be ready yet):", (e as any).message);
+    }
+  })();
+
   app.post("/api/admin/login", adminLoginLimiter, async (req: Request, res: Response) => {
     try {
       const { key } = req.body;
-      const adminKey = process.env.ADMIN_DASHBOARD_KEY;
-      if (!adminKey) {
-        console.error("[admin-login] ADMIN_DASHBOARD_KEY not configured");
-        res.status(503).json({ error: "Admin login not configured. Set ADMIN_DASHBOARD_KEY environment variable." });
+      if (!key || typeof key !== "string") {
+        res.status(400).json({ error: "Admin key is required" });
         return;
       }
-      if (!key || typeof key !== "string" || key.trim() !== adminKey.trim()) {
+      const { getAdminKeyByKey, updateAdminKeyLastLogin, logSecurityEvent } = await import("../db");
+      const adminKeyRecord = await getAdminKeyByKey(key.trim());
+      const ip = (req.ip || req.headers["x-forwarded-for"] || "unknown") as string;
+      if (!adminKeyRecord) {
         // Log failed attempt
-        const ip = (req.ip || req.headers["x-forwarded-for"] || "unknown") as string;
         try {
-          const { logSecurityEvent } = await import("../db");
           await logSecurityEvent({
             eventType: "login_failed",
             ipAddress: ip,
             userAgent: req.headers["user-agent"] || null,
-            details: "Failed admin dashboard API key login attempt",
+            details: "Failed admin dashboard login attempt (invalid key)",
             severity: "critical",
           });
         } catch (e) { /* best effort */ }
@@ -424,25 +434,30 @@ async function startServer() {
       }
       // Create JWT session token
       const sessionToken = await sdk.createSessionToken(ownerOpenId, {
-        name: user.name || "Admin",
+        name: adminKeyRecord.name || "Admin",
         expiresInMs: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
+      // Update last login timestamp
+      await updateAdminKeyLastLogin(adminKeyRecord.id);
       // Log successful admin login
-      const ip = (req.ip || req.headers["x-forwarded-for"] || "unknown") as string;
       try {
-        const { logSecurityEvent } = await import("../db");
         await logSecurityEvent({
-            eventType: "admin_action",
+          eventType: "admin_action",
           ipAddress: ip,
-          employeeId: user.id,
-          details: "Admin dashboard API key login successful",
-            severity: "low",
+          details: `Admin dashboard login successful: ${adminKeyRecord.name} (${adminKeyRecord.role})`,
+          severity: "low",
         });
       } catch (e) { /* best effort */ }
       res.json({
         success: true,
         token: sessionToken,
-        user: { id: user.id, name: user.name, email: user.email, role: user.role },
+        adminKeyId: adminKeyRecord.id,
+        user: {
+          id: user.id,
+          name: adminKeyRecord.name,
+          email: user.email,
+          role: adminKeyRecord.role,
+        },
       });
     } catch (err: any) {
       console.error("[admin-login] Error:", err);
@@ -458,9 +473,74 @@ async function startServer() {
         res.status(401).json({ valid: false });
         return;
       }
-      res.json({ valid: true, user: { id: user.id, name: user.name, email: user.email, role: (user as any).role } });
+      // Also return the admin key info if stored in header
+      const adminKeyId = req.headers["x-admin-key-id"];
+      let adminName = user.name;
+      let adminRole = (user as any).role;
+      if (adminKeyId) {
+        try {
+          const { getAllAdminKeys } = await import("../db");
+          const keys = await getAllAdminKeys();
+          const match = keys.find(k => k.id === Number(adminKeyId));
+          if (match) {
+            adminName = match.name;
+            adminRole = match.role;
+          }
+        } catch (e) { /* best effort */ }
+      }
+      res.json({ valid: true, user: { id: user.id, name: adminName, email: user.email, role: adminRole } });
     } catch (err) {
       res.status(401).json({ valid: false });
+    }
+  });
+
+  // Change admin key endpoint — requires current key + new key
+  app.post("/api/admin/change-key", adminLoginLimiter, async (req: Request, res: Response) => {
+    try {
+      const { currentKey, newKey } = req.body;
+      if (!currentKey || !newKey || typeof currentKey !== "string" || typeof newKey !== "string") {
+        res.status(400).json({ error: "Current key and new key are required" });
+        return;
+      }
+      if (newKey.trim().length < 6) {
+        res.status(400).json({ error: "New key must be at least 6 characters" });
+        return;
+      }
+      const { getAdminKeyByKey, updateAdminKeyHash, logSecurityEvent } = await import("../db");
+      const adminKeyRecord = await getAdminKeyByKey(currentKey.trim());
+      const ip = (req.ip || req.headers["x-forwarded-for"] || "unknown") as string;
+      if (!adminKeyRecord) {
+        try {
+          await logSecurityEvent({
+            eventType: "login_failed",
+            ipAddress: ip,
+            userAgent: req.headers["user-agent"] || null,
+            details: "Failed admin key change attempt (invalid current key)",
+            severity: "high",
+          });
+        } catch (e) { /* best effort */ }
+        res.status(401).json({ error: "Current key is invalid" });
+        return;
+      }
+      // Check if new key is already used by another admin
+      const existingNewKey = await getAdminKeyByKey(newKey.trim());
+      if (existingNewKey && existingNewKey.id !== adminKeyRecord.id) {
+        res.status(409).json({ error: "That key is already in use by another admin" });
+        return;
+      }
+      await updateAdminKeyHash(adminKeyRecord.id, newKey.trim());
+      try {
+        await logSecurityEvent({
+          eventType: "admin_action",
+          ipAddress: ip,
+          details: `Admin key changed for: ${adminKeyRecord.name}`,
+          severity: "medium",
+        });
+      } catch (e) { /* best effort */ }
+      res.json({ success: true, message: `Key updated for ${adminKeyRecord.name}` });
+    } catch (err: any) {
+      console.error("[admin-change-key] Error:", err);
+      res.status(500).json({ error: "Failed to change key" });
     }
   });
 

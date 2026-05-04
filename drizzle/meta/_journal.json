@@ -239,6 +239,13 @@
       "when": 1777603351280,
       "tag": "0033_puzzling_invaders",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1777856959573,
+      "tag": "0034_mute_blob",
+      "breakpoints": true
     }
   ]
 }

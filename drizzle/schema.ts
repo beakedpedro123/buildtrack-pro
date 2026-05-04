@@ -783,3 +783,18 @@ export const dataAuditLog = mysqlTable("data_audit_log", {
 });
 export type DataAuditLogEntry = typeof dataAuditLog.$inferSelect;
 export type InsertDataAuditLogEntry = typeof dataAuditLog.$inferInsert;
+
+
+// ─── Admin Dashboard Keys (Multi-User Admin Login) ─────────────────────────
+export const adminKeys = mysqlTable("admin_keys", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(), // e.g. "Pedro Carranza"
+  role: varchar("role", { length: 64 }).notNull().default("admin"), // admin role label
+  keyHash: varchar("keyHash", { length: 255 }).notNull(), // bcrypt or plain key (we'll use plain for simplicity)
+  isActive: boolean("isActive").default(true).notNull(),
+  lastLoginAt: timestamp("lastLoginAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AdminKey = typeof adminKeys.$inferSelect;
+export type InsertAdminKey = typeof adminKeys.$inferInsert;

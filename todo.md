@@ -3111,3 +3111,15 @@
 - [x] Sync fix to both standalone package and public/admin.html
 - [x] Rebuild admin dashboard zip package
 - [x] Save checkpoint
+
+## Multi-User Admin Dashboard Login — May 2026
+- [x] Add admin_keys table to database schema (name, key_hash, role, created_at, updated_at)
+- [x] Seed default keys: Pedro=buildtrack22A, Pablo=buildtrack22b, Lupe=buildtrack22c
+- [x] Update server login endpoint to check against DB admin_keys table (multi-user)
+- [x] Return logged-in user name/role in login response
+- [x] Add change-key endpoint (POST /api/admin/change-key) requiring current key + new key
+- [x] Add change-key modal/UI to admin dashboard HTML
+- [x] Show logged-in user name in header
+- [x] Sync standalone package and rebuild zip
+- [x] Test all 3 logins and key change flow
+- [x] Save checkpoint

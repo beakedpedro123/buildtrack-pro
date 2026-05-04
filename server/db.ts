@@ -73,6 +73,8 @@ import {
   InsertTradeBenchmark,
   securityAuditLog,
   adminIpAllowlist,
+  adminKeys,
+  InsertAdminKey,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { hashPin, verifyPin as verifyPinHash } from "./_core/crypto";
@@ -3139,4 +3141,56 @@ export async function logDataAudit(params: {
     // Audit logging should never crash the main operation
     console.error("[audit] Failed to log data audit:", err);
   }
+}
+
+
+// ─── Admin Dashboard Keys ───────────────────────────────────────────────────
+export async function getAdminKeyByKey(key: string) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+  const rows = await dbConn
+    .select()
+    .from(adminKeys)
+    .where(and(eq(adminKeys.keyHash, key), eq(adminKeys.isActive, true)));
+  return rows[0] || null;
+}
+
+export async function getAllAdminKeys() {
+  const dbConn = await getDb();
+  if (!dbConn) return [];
+  return dbConn.select().from(adminKeys).where(eq(adminKeys.isActive, true));
+}
+
+export async function updateAdminKeyHash(id: number, newKeyHash: string) {
+  const dbConn = await getDb();
+  if (!dbConn) return null;
+  await dbConn
+    .update(adminKeys)
+    .set({ keyHash: newKeyHash, updatedAt: new Date() })
+    .where(eq(adminKeys.id, id));
+  return true;
+}
+
+export async function updateAdminKeyLastLogin(id: number) {
+  const dbConn = await getDb();
+  if (!dbConn) return;
+  await dbConn
+    .update(adminKeys)
+    .set({ lastLoginAt: new Date() })
+    .where(eq(adminKeys.id, id));
+}
+
+export async function seedAdminKeys() {
+  const dbConn = await getDb();
+  if (!dbConn) return;
+  // Check if any keys exist already
+  const existing = await dbConn.select().from(adminKeys);
+  if (existing.length > 0) return; // Already seeded
+  // Seed default keys
+  await dbConn.insert(adminKeys).values([
+    { name: "Pedro Carranza", role: "owner", keyHash: "buildtrack22A" },
+    { name: "Pablo Carranza", role: "office_manager", keyHash: "buildtrack22b" },
+    { name: "Lupe Mejia", role: "office_manager", keyHash: "buildtrack22c" },
+  ]);
+  console.log("[admin-keys] Seeded 3 default admin keys");
 }

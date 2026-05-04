@@ -223,6 +223,7 @@ if ('serviceWorker' in navigator) {
   <div class="header-right">
     <span class="badge" id="planBadge">Loading...</span>
     <span id="adminUserName" style="font-size:13px;color:var(--fg2)"></span>
+    <button class="logout-btn" onclick="showChangeKeyModal()" style="background:#1e293b;margin-right:6px">Change Key</button>
     <button class="logout-btn" onclick="doAdminLogout()">Logout</button>
   </div>
 </div>
@@ -387,6 +388,19 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- Change Key Modal -->
+<div class="modal" id="changeKeyModal">
+  <div class="modal-content" style="max-width:420px">
+    <h3 style="margin-bottom:4px">Change Your Admin Key</h3>
+    <p style="color:var(--fg2);font-size:13px;margin-bottom:16px">Enter a new key (minimum 6 characters). You'll use this to log in next time.</p>
+    <div class="form-group"><label>New Key</label><input type="password" id="newKeyInput" placeholder="Enter new key" autocomplete="new-password"></div>
+    <div class="form-group"><label>Confirm New Key</label><input type="password" id="confirmKeyInput" placeholder="Confirm new key" autocomplete="new-password"></div>
+    <div id="changeKeyError" style="display:none;color:#ef4444;font-size:13px;margin-bottom:8px"></div>
+    <div id="changeKeySuccess" style="display:none;color:#22c55e;font-size:13px;margin-bottom:8px"></div>
+    <div class="form-actions"><button class="btn" onclick="closeChangeKeyModal()">Cancel</button><button class="btn btn-primary" onclick="doChangeKey()">Update Key</button></div>
+  </div>
+</div>
+
 <script>
 // ═══ STANDALONE DEPLOYMENT: Change this URL to your BuildTrack Pro server ═══
 // When running as part of BuildTrack Pro: leave as-is (uses same origin)
@@ -395,16 +409,28 @@ if ('serviceWorker' in navigator) {
 const API_BASE = window.BUILDTRACK_API_BASE || window.location.origin;
 const API = API_BASE + '/api/trpc';
 const ADMIN_TOKEN_KEY = 'buildtrack_admin_token';
+const ADMIN_KEY_ID_KEY = 'buildtrack_admin_key_id';
+const ADMIN_CURRENT_KEY_KEY = 'buildtrack_admin_current_key'; // stored to enable key change
 
-// ═══ AUTH: Admin Login / Logout / Token Management ═══
+// ═══ AUTH: Multi-User Admin Login / Logout / Token Management ═══
 function getAdminToken() { return localStorage.getItem(ADMIN_TOKEN_KEY); }
 function setAdminToken(token) { localStorage.setItem(ADMIN_TOKEN_KEY, token); }
-function clearAdminToken() { localStorage.removeItem(ADMIN_TOKEN_KEY); }
+function getAdminKeyId() { return localStorage.getItem(ADMIN_KEY_ID_KEY); }
+function setAdminKeyId(id) { localStorage.setItem(ADMIN_KEY_ID_KEY, String(id)); }
+function getStoredCurrentKey() { return localStorage.getItem(ADMIN_CURRENT_KEY_KEY); }
+function setStoredCurrentKey(key) { localStorage.setItem(ADMIN_CURRENT_KEY_KEY, key); }
+function clearAdminToken() {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_KEY_ID_KEY);
+  localStorage.removeItem(ADMIN_CURRENT_KEY_KEY);
+}
 
 function getAuthHeaders() {
   const token = getAdminToken();
+  const keyId = getAdminKeyId();
   const headers = {};
   if (token) headers['Authorization'] = 'Bearer ' + token;
+  if (keyId) headers['X-Admin-Key-Id'] = keyId;
   return headers;
 }
 
@@ -430,6 +456,8 @@ async function doAdminLogin() {
       return;
     }
     setAdminToken(data.token);
+    if (data.adminKeyId) setAdminKeyId(data.adminKeyId);
+    setStoredCurrentKey(key); // store for key-change flow
     showDashboard(data.user);
   } catch (e) {
     errorEl.textContent = 'Connection failed. Check your API URL.';
@@ -445,13 +473,20 @@ function doAdminLogout() {
   document.getElementById('adminKeyInput').value = '';
 }
 
+let currentAdminUser = null;
 function showDashboard(user) {
+  currentAdminUser = user;
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appWrapper').classList.add('visible');
   if (user && user.name) {
     document.getElementById('adminUserName').textContent = user.name;
   }
-  document.getElementById('planBadge').textContent = 'FULL ACCESS';
+  if (user && user.role) {
+    const roleLabel = user.role === 'owner' ? 'Owner' : user.role === 'office_manager' ? 'Office Manager' : user.role;
+    document.getElementById('planBadge').textContent = roleLabel.toUpperCase();
+  } else {
+    document.getElementById('planBadge').textContent = 'FULL ACCESS';
+  }
   document.getElementById('planBadge').style.background = '#d1fae5';
   document.getElementById('planBadge').style.color = '#065f46';
   loadAll();
@@ -462,9 +497,10 @@ async function checkExistingToken() {
   const token = getAdminToken();
   if (!token) return; // No stored token, show login
   try {
-    const res = await fetch(API_BASE + '/api/admin/verify', {
-      headers: { 'Authorization': 'Bearer ' + token },
-    });
+    const keyId = getAdminKeyId();
+    const headers = { 'Authorization': 'Bearer ' + token };
+    if (keyId) headers['X-Admin-Key-Id'] = keyId;
+    const res = await fetch(API_BASE + '/api/admin/verify', { headers });
     const data = await res.json();
     if (res.ok && data.valid) {
       showDashboard(data.user);
@@ -474,6 +510,44 @@ async function checkExistingToken() {
   } catch (e) {
     // Can't reach server, keep login screen
     clearAdminToken();
+  }
+}
+
+// ═══ Change Key Flow ═══
+function showChangeKeyModal() { document.getElementById('changeKeyModal').classList.add('show'); document.getElementById('changeKeyError').style.display = 'none'; document.getElementById('changeKeySuccess').style.display = 'none'; }
+function closeChangeKeyModal() { document.getElementById('changeKeyModal').classList.remove('show'); document.getElementById('newKeyInput').value = ''; document.getElementById('confirmKeyInput').value = ''; }
+
+async function doChangeKey() {
+  const newKey = document.getElementById('newKeyInput').value.trim();
+  const confirmKey = document.getElementById('confirmKeyInput').value.trim();
+  const errorEl = document.getElementById('changeKeyError');
+  const successEl = document.getElementById('changeKeySuccess');
+  errorEl.style.display = 'none'; successEl.style.display = 'none';
+  if (!newKey || newKey.length < 6) { errorEl.textContent = 'New key must be at least 6 characters'; errorEl.style.display = 'block'; return; }
+  if (newKey !== confirmKey) { errorEl.textContent = 'Keys do not match'; errorEl.style.display = 'block'; return; }
+  const currentKey = getStoredCurrentKey();
+  if (!currentKey) { errorEl.textContent = 'Session expired. Please log out and log in again.'; errorEl.style.display = 'block'; return; }
+  try {
+    const res = await fetch(API_BASE + '/api/admin/change-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ currentKey, newKey }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      errorEl.textContent = data.error || 'Failed to change key';
+      errorEl.style.display = 'block';
+      return;
+    }
+    setStoredCurrentKey(newKey); // update stored key
+    successEl.textContent = data.message || 'Key updated successfully!';
+    successEl.style.display = 'block';
+    document.getElementById('newKeyInput').value = '';
+    document.getElementById('confirmKeyInput').value = '';
+    setTimeout(closeChangeKeyModal, 2000);
+  } catch (e) {
+    errorEl.textContent = 'Connection failed';
+    errorEl.style.display = 'block';
   }
 }
 
