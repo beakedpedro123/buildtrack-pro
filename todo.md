@@ -3102,3 +3102,12 @@
 - [x] All standalone HTML files updated with window.BUILDTRACK_API_BASE + credentials: 'include'
 - [x] All 3 READMEs updated with setup instructions for standalone deployment
 - [x] Zip packages rebuilt with updated HTML and README files
+
+## Admin Dashboard Login Fix — May 2026
+- [x] Investigate admin auth endpoints in server/_core/index.ts
+- [x] Add admin login UI (login form/modal) to admin dashboard HTML
+- [x] Make dashboard detect unauthenticated state and show login screen
+- [x] After login, transition from LIMITED ACCESS to FULL ACCESS with all data
+- [x] Sync fix to both standalone package and public/admin.html
+- [x] Rebuild admin dashboard zip package
+- [x] Save checkpoint

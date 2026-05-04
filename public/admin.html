@@ -165,6 +165,26 @@ if ('serviceWorker' in navigator) {
   .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   
+  /* Login Screen */
+  .login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); padding: 20px; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 40px; max-width: 420px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,0.1); text-align: center; }
+  .login-card .login-logo { width: 56px; height: 56px; border-radius: 12px; margin: 0 auto 16px; background: #1a1a1a; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .login-card .login-logo img { width: 56px; height: 56px; object-fit: contain; }
+  .login-card h2 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .login-card h2 span { color: var(--primary); }
+  .login-card .login-subtitle { color: var(--fg2); font-size: 14px; margin-bottom: 28px; }
+  .login-card .login-input { width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; background: var(--bg); color: var(--fg); margin-bottom: 12px; outline: none; transition: border-color 0.2s; }
+  .login-card .login-input:focus { border-color: var(--primary); }
+  .login-card .login-btn { width: 100%; padding: 12px; border: none; border-radius: 10px; background: var(--primary); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+  .login-card .login-btn:hover { opacity: 0.9; }
+  .login-card .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .login-card .login-error { color: var(--error); font-size: 13px; margin-top: 12px; display: none; }
+  .login-card .login-help { color: var(--fg2); font-size: 12px; margin-top: 20px; line-height: 1.5; }
+  .app-wrapper { display: none; }
+  .app-wrapper.visible { display: block; }
+  .header-right .logout-btn { background: none; border: 1px solid var(--border); padding: 4px 12px; border-radius: 20px; font-size: 12px; color: var(--fg2); cursor: pointer; transition: all 0.2s; }
+  .header-right .logout-btn:hover { background: var(--error); color: #fff; border-color: var(--error); }
+
   /* Responsive */
   @media (max-width: 768px) {
     .header { padding: 12px 16px; }
@@ -176,6 +196,23 @@ if ('serviceWorker' in navigator) {
 </head>
 <body>
 
+<!-- Login Screen -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <img src="/api/web/logo_hardhat.png" alt="BuildTrack Pro">
+    </div>
+    <h2>BuildTrack <span>Pro</span></h2>
+    <div class="login-subtitle">Admin Dashboard Login</div>
+    <input type="password" class="login-input" id="adminKeyInput" placeholder="Enter Admin API Key" autocomplete="off">
+    <button class="login-btn" id="loginBtn" onclick="doAdminLogin()">Sign In</button>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-help">Enter the Admin Dashboard Key configured in your BuildTrack Pro environment variables (ADMIN_DASHBOARD_KEY).</div>
+  </div>
+</div>
+
+<!-- App Wrapper (hidden until authenticated) -->
+<div class="app-wrapper" id="appWrapper">
 <div class="header">
   <div class="header-left">
     <div class="logo-mark">
@@ -185,6 +222,8 @@ if ('serviceWorker' in navigator) {
   </div>
   <div class="header-right">
     <span class="badge" id="planBadge">Loading...</span>
+    <span id="adminUserName" style="font-size:13px;color:var(--fg2)"></span>
+    <button class="logout-btn" onclick="doAdminLogout()">Logout</button>
   </div>
 </div>
 
@@ -302,6 +341,7 @@ if ('serviceWorker' in navigator) {
     </div>
   </div>
 </div>
+</div><!-- end app-wrapper -->
 
 <!-- KB Modal -->
 <div class="modal-overlay" id="kbModal">
@@ -354,6 +394,93 @@ if ('serviceWorker' in navigator) {
 // Example: const API_BASE = 'https://buildtrack-dnjxcthz.manus.space';
 const API_BASE = window.BUILDTRACK_API_BASE || window.location.origin;
 const API = API_BASE + '/api/trpc';
+const ADMIN_TOKEN_KEY = 'buildtrack_admin_token';
+
+// ═══ AUTH: Admin Login / Logout / Token Management ═══
+function getAdminToken() { return localStorage.getItem(ADMIN_TOKEN_KEY); }
+function setAdminToken(token) { localStorage.setItem(ADMIN_TOKEN_KEY, token); }
+function clearAdminToken() { localStorage.removeItem(ADMIN_TOKEN_KEY); }
+
+function getAuthHeaders() {
+  const token = getAdminToken();
+  const headers = {};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return headers;
+}
+
+async function doAdminLogin() {
+  const keyInput = document.getElementById('adminKeyInput');
+  const errorEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  const key = keyInput.value.trim();
+  if (!key) { errorEl.textContent = 'Please enter your admin key'; errorEl.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in...';
+  errorEl.style.display = 'none';
+  try {
+    const res = await fetch(API_BASE + '/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      errorEl.textContent = data.error || 'Invalid admin key';
+      errorEl.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Sign In';
+      return;
+    }
+    setAdminToken(data.token);
+    showDashboard(data.user);
+  } catch (e) {
+    errorEl.textContent = 'Connection failed. Check your API URL.';
+    errorEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+}
+
+function doAdminLogout() {
+  clearAdminToken();
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appWrapper').classList.remove('visible');
+  document.getElementById('adminKeyInput').value = '';
+}
+
+function showDashboard(user) {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appWrapper').classList.add('visible');
+  if (user && user.name) {
+    document.getElementById('adminUserName').textContent = user.name;
+  }
+  document.getElementById('planBadge').textContent = 'FULL ACCESS';
+  document.getElementById('planBadge').style.background = '#d1fae5';
+  document.getElementById('planBadge').style.color = '#065f46';
+  loadAll();
+  setTimeout(loadChatHistory, 500);
+}
+
+async function checkExistingToken() {
+  const token = getAdminToken();
+  if (!token) return; // No stored token, show login
+  try {
+    const res = await fetch(API_BASE + '/api/admin/verify', {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    const data = await res.json();
+    if (res.ok && data.valid) {
+      showDashboard(data.user);
+    } else {
+      clearAdminToken(); // Token expired/invalid
+    }
+  } catch (e) {
+    // Can't reach server, keep login screen
+    clearAdminToken();
+  }
+}
+
+// Handle Enter key on login input
+document.getElementById('adminKeyInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doAdminLogin();
+});
 
 // Tab navigation
 document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -365,19 +492,21 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
   });
 });
 
-// API helpers
+// API helpers — now include Bearer token from localStorage
 async function trpcQuery(path) {
-  const res = await fetch(`${API}/${path}`, { credentials: 'include' });
+  const res = await fetch(`${API}/${path}`, { credentials: 'include', headers: getAuthHeaders() });
+  if (res.status === 401 || res.status === 403) { doAdminLogout(); return null; }
   const data = await res.json();
   return data.result?.data?.json;
 }
 async function trpcMutation(path, input) {
-const res = await fetch(`${API}/${path}`, {
-     method: 'POST',
-     credentials: 'include',
-     headers: { 'Content-Type': 'application/json' },
+  const res = await fetch(`${API}/${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ json: input }),
   });
+  if (res.status === 401 || res.status === 403) { doAdminLogout(); return null; }
   const data = await res.json();
   return data.result?.data?.json;
 }
@@ -801,9 +930,8 @@ function renderChatHistory(items) {
   container.innerHTML = html;
 }
 
-// Init
-loadAll();
-setTimeout(loadChatHistory, 500);
+// Init — check for existing token on page load
+checkExistingToken();
 </script>
 </body>
 </html>

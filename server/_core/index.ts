@@ -373,6 +373,97 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
 
+  // ─── Admin Dashboard API Key Login ─────────────────────────────────────
+  // Allows the standalone admin dashboard to authenticate with a pre-shared API key.
+  // The key is stored as ADMIN_DASHBOARD_KEY env var. On success, returns a JWT session
+  // token for the admin user (OWNER_OPEN_ID) that can be used as Bearer token.
+  const adminLoginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 attempts per 15 min
+    message: { error: "Too many login attempts. Please try again later." },
+    validate: false,
+  });
+  app.post("/api/admin/login", adminLoginLimiter, async (req: Request, res: Response) => {
+    try {
+      const { key } = req.body;
+      const adminKey = process.env.ADMIN_DASHBOARD_KEY;
+      if (!adminKey) {
+        console.error("[admin-login] ADMIN_DASHBOARD_KEY not configured");
+        res.status(503).json({ error: "Admin login not configured. Set ADMIN_DASHBOARD_KEY environment variable." });
+        return;
+      }
+      if (!key || typeof key !== "string" || key.trim() !== adminKey.trim()) {
+        // Log failed attempt
+        const ip = (req.ip || req.headers["x-forwarded-for"] || "unknown") as string;
+        try {
+          const { logSecurityEvent } = await import("../db");
+          await logSecurityEvent({
+            eventType: "login_failed",
+            ipAddress: ip,
+            userAgent: req.headers["user-agent"] || null,
+            details: "Failed admin dashboard API key login attempt",
+            severity: "critical",
+          });
+        } catch (e) { /* best effort */ }
+        res.status(401).json({ error: "Invalid admin key" });
+        return;
+      }
+      // Key is valid — create a session token for the admin user
+      const ownerOpenId = ENV.ownerOpenId;
+      if (!ownerOpenId) {
+        res.status(503).json({ error: "Owner not configured" });
+        return;
+      }
+      // Ensure the owner user exists and has admin role
+      const { getUserByOpenId, upsertUser } = await import("../db");
+      await upsertUser({ openId: ownerOpenId, role: "admin", lastSignedIn: new Date() });
+      const user = await getUserByOpenId(ownerOpenId);
+      if (!user) {
+        res.status(500).json({ error: "Admin user not found" });
+        return;
+      }
+      // Create JWT session token
+      const sessionToken = await sdk.createSessionToken(ownerOpenId, {
+        name: user.name || "Admin",
+        expiresInMs: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+      // Log successful admin login
+      const ip = (req.ip || req.headers["x-forwarded-for"] || "unknown") as string;
+      try {
+        const { logSecurityEvent } = await import("../db");
+        await logSecurityEvent({
+            eventType: "admin_action",
+          ipAddress: ip,
+          employeeId: user.id,
+          details: "Admin dashboard API key login successful",
+            severity: "low",
+        });
+      } catch (e) { /* best effort */ }
+      res.json({
+        success: true,
+        token: sessionToken,
+        user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      });
+    } catch (err: any) {
+      console.error("[admin-login] Error:", err);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Verify admin token endpoint — dashboard can check if stored token is still valid
+  app.get("/api/admin/verify", async (req: Request, res: Response) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      if (!user || (user as any).role !== "admin") {
+        res.status(401).json({ valid: false });
+        return;
+      }
+      res.json({ valid: true, user: { id: user.id, name: user.name, email: user.email, role: (user as any).role } });
+    } catch (err) {
+      res.status(401).json({ valid: false });
+    }
+  });
+
   // File upload endpoint for audio recordings, photos, and PDFs
   // SECURITY FIX (NEW-2): Requires authentication
   // Uses multer for reliable multipart parsing (handles iOS/Android FormData correctly)
