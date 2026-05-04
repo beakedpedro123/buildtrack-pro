@@ -3085,3 +3085,13 @@
 - [x] Use compact format: fmtHoursDecimal (X.XX hrs) in table cells, fmtHours (Xh Ym) in summaries
 - [x] Check all app UI screens for text overlap — fixed JobCard revenue line split into 2 lines
 - [x] Change dark blue (#1A1A2E) to black (#000000) in budget, field-reports, job-completion PDFs
+
+## Web Dashboard & Support Portal Fix — May 2026
+- [x] Fix admin dashboard not loading data — CSP nonce injection fixed, inline scripts now allowed
+- [x] Fix support portal login not working — CSP script-src-attr updated to allow inline handlers
+
+## CSP Fix & Standalone Site Packages — May 2026
+- [x] Fix CSP nonce injection so web pages (admin, support, marketing) work
+- [x] Create standalone marketing site package with connection instructions
+- [x] Create standalone support portal package with connection instructions
+- [x] Create standalone admin dashboard package with connection instructions

@@ -139,7 +139,7 @@ async function startServer() {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "https://js.stripe.com"],
-        scriptSrcAttr: ["'none'"],
+        scriptSrcAttr: ["'unsafe-inline'"], // Allow inline event handlers (onclick etc.) in web dashboard HTML pages
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"], // styles still need unsafe-inline for NativeWind
         imgSrc: ["'self'", "data:", "blob:", "https:"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
@@ -751,7 +751,22 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
-    res.sendFile(path.join(publicDir, filename));
+    // Read the HTML file and inject CSP nonce into all <script> tags
+    const filePath = path.join(publicDir, filename);
+    try {
+      let html = fs.readFileSync(filePath, "utf-8");
+      const nonce = res.locals.cspNonce;
+      if (nonce) {
+        // Add nonce to all inline <script> tags (those without src attribute)
+        html = html.replace(/<script(?![^>]*\bsrc\b)([^>]*)>/gi, `<script nonce="${nonce}"$1>`);
+        // Also add nonce to <script> tags with src (for Stripe etc.)
+        html = html.replace(/<script(\s+)src=/gi, `<script nonce="${nonce}"$1src=`);
+      }
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(html);
+    } catch (err) {
+      res.sendFile(filePath);
+    }
   }
 
   // 1. Marketing Site (default landing page)
