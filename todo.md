@@ -441,3 +441,45 @@
 - [ ] Audit-log successful and failed logins, verification failures, and per-admin key changes.
 - [ ] Validate locally without printing raw keys or bearer tokens.
 - [ ] Push the backend route update and re-test the live dashboard login endpoint.
+
+
+## Production admin route deployment and real-key test — 2026-05-04
+
+- [ ] Confirm the latest backend commit with three named admin keys is still present and clean in the local repository.
+- [ ] Identify whether the production backend can be redeployed from GitHub, Railway configuration, or another available deployment path.
+- [ ] Trigger the safest available backend redeploy or document the exact manual redeploy step if credentials are unavailable.
+- [ ] Verify production `POST /api/admin/login` recognizes Pedro, Pablo, and Lupe admin keys without printing raw keys or tokens.
+- [ ] Verify production `GET /api/admin/verify` accepts each returned bearer token and returns the correct admin display name and key ID.
+- [ ] Verify a protected admin dashboard data request succeeds after login, or capture the exact remaining backend configuration blocker.
+- [ ] Record the final deployment and test results for the user.
+
+## Pivot Hivemind Verification — 2026-05-04
+
+- [ ] Verify whether Pivot is installed in the BuildTrack Pro support page and can assist users from support tickets without leaking private owner knowledge.
+- [ ] Verify whether the original owner-centered Pivot instance is connected to Pedro's owner account and has access to owner-only admin context.
+- [ ] Verify whether Pivot is installed in the admin dashboard and can help diagnose/fix admin issues from tickets or operational logs.
+- [ ] Verify whether ticket-fix learning is implemented as a secure knowledge loop, with owner-private knowledge separated from general support knowledge.
+- [ ] Document any missing frontend/backend routes, environment variables, database tables, or deployment blockers required for the Pivot hivemind workflow.
+
+
+### Pivot/Admin Verification Findings — 2026-05-04
+
+- [x] Confirmed the published admin dashboard UI contains sections for Support Tickets, Knowledge Base, Pivot Learning, and admin AI conversations.
+- [x] Confirmed production exposes `support.stats` and login-protected `pivot.chat` / `pivot.chatHistory` procedures.
+- [x] Confirmed production is missing admin dashboard procedures referenced by the UI: `admin.getStats`, `admin.getTickets`, `admin.getKBArticles`, `admin.getPivotLearnings`, `admin.getChatHistory`, and `admin.pivotChat`.
+- [x] Confirmed the checked-out backend source tree does not contain project-owned Pivot, support-ticket, knowledge-base, or hivemind route/schema code.
+- [x] Confirmed real admin-key login reaches production but is blocked by `503 Owner not configured`, so admin session verification cannot complete yet.
+- [ ] Open Railway deployment logs for project `26c71446-f879-408b-966b-09529da5017a`; current session has no public access or enabled Railway connector.
+- [ ] Restore/add backend admin support routes and data tables, then deploy a successful backend build.
+- [ ] Re-run sanitized real-key admin login, token verification, and authenticated Pivot/admin route checks after backend deployment succeeds.
+
+
+## Admin Key Repair and PIN Management Panel — 2026-05-05
+
+- [ ] Diagnose why live admin keys return `Owner not configured` and identify whether the fix belongs in production environment variables, owner bootstrap data, database migration, or route logic.
+- [ ] Verify that the three admin keys map to the intended people and roles without printing the raw keys in logs or reports.
+- [ ] Build an admin dashboard PIN management panel that lists companies, employees, roles, PIN status, and last PIN update metadata.
+- [ ] Add secure admin backend routes for resetting, rotating, disabling, and inviting employee PIN setup across all companies.
+- [ ] Ensure every PIN-management query and mutation enforces company boundaries, admin authorization, audit logging, and no raw PIN storage.
+- [ ] Add tests for successful admin login, invalid admin key rejection, employee PIN reset, company scoping, and cross-company access denial.
+- [ ] Re-run sanitized production verification after deployment succeeds and confirm admin key login plus PIN management works end-to-end.

@@ -3,7 +3,7 @@ import { createHash, pbkdf2Sync, randomBytes, timingSafeEqual } from "crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { eq, sql } from "drizzle-orm";
 import { ENV } from "./_core/env";
-import { getDb } from "./db";
+import { createCompanyForAdmin, getDb, listAdminPinManagement, resetEmployeePinForAdmin, setEmployeeCompanyForAdmin, setEmployeePinDisabledForAdmin } from "./db";
 import { adminAuditLog, adminSettings } from "../drizzle/schema";
 
 const ADMIN_ISSUER = "buildtrack-pro-admin";
@@ -275,6 +275,28 @@ function jsonError(res: Response, status: number, error: string) {
   return res.status(status).json({ success: false, error });
 }
 
+
+function parsePositiveInt(value: unknown) {
+  const parsed = typeof value === "number" ? value : Number.parseInt(String(value || ""), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseEmployeePin(value: unknown) {
+  const pin = typeof value === "string" ? value.trim() : "";
+  if (!/^\d{4,8}$/.test(pin)) return null;
+  return pin;
+}
+
+async function requireAdminSession(req: Request, res: Response, eventType: string) {
+  try {
+    return await verifyAdminToken(req);
+  } catch (error) {
+    await writeAudit({ eventType, result: "failure", req, metadata: { reason: "invalid_or_expired_token" } });
+    jsonError(res, 401, "Admin session expired. Please log in again.");
+    return null;
+  }
+}
+
 function getBearerToken(req: Request) {
   const authorization = String(req.headers.authorization || "");
   const match = authorization.match(/^Bearer\s+(.+)$/i);
@@ -326,7 +348,8 @@ function requireAllowedIp() {
 
 export function registerAdminRoutes(app: Express) {
   app.post("/api/admin/login", requireAllowedIp(), async (req, res) => {
-    const key = typeof req.body?.key === "string" ? req.body.key.trim() : "";
+    const submittedKey = typeof req.body?.key === "string" ? req.body.key : typeof req.body?.adminKey === "string" ? req.body.adminKey : "";
+    const key = submittedKey.trim();
     if (!key) {
       await writeAudit({ eventType: "admin_login", result: "failure", req, metadata: { reason: "missing_key" } });
       return jsonError(res, 400, "Admin key is required.");
@@ -361,6 +384,100 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       await writeAudit({ eventType: "admin_verify", result: "failure", req, metadata: { reason: "invalid_or_expired_token" } });
       return res.status(401).json({ valid: false, success: false, error: "Admin session expired. Please log in again." });
+    }
+  });
+
+
+  app.get("/api/admin/pin-management", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_pin_management_list");
+    if (!session) return;
+    try {
+      const data = await listAdminPinManagement();
+      await writeAudit({ eventType: "admin_pin_management_list", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, employeeCount: data.employees.length, companyCount: data.companies.length } });
+      return res.json({ success: true, ...data });
+    } catch (error) {
+      console.error("[admin] PIN management list failed:", error);
+      await writeAudit({ eventType: "admin_pin_management_list", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
+      return jsonError(res, 500, "Failed to load employee PIN management data.");
+    }
+  });
+
+  app.post("/api/admin/pin-management/reset", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_pin_reset");
+    if (!session) return;
+    const employeeId = parsePositiveInt(req.body?.employeeId);
+    const pin = parseEmployeePin(req.body?.pin);
+    if (!employeeId || !pin) {
+      await writeAudit({ eventType: "admin_pin_reset", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "invalid_input", adminId: session.adminId, employeeId } });
+      return jsonError(res, 400, "Employee ID and a 4-8 digit PIN are required.");
+    }
+    try {
+      const result = await resetEmployeePinForAdmin(employeeId, pin);
+      await writeAudit({ eventType: "admin_pin_reset", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, employeeId, employeeName: result.employeeName, companyId: result.companyId } });
+      return res.json({ success: true, message: "Employee PIN was reset securely.", employeeId });
+    } catch (error: any) {
+      const message = String(error?.message || "");
+      await writeAudit({ eventType: "admin_pin_reset", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: message || "server_error", adminId: session.adminId, employeeId } });
+      return jsonError(res, /not found/i.test(message) ? 404 : 500, /not found/i.test(message) ? "Employee not found." : "Failed to reset employee PIN.");
+    }
+  });
+
+  app.post("/api/admin/pin-management/disable", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_pin_disable");
+    if (!session) return;
+    const employeeId = parsePositiveInt(req.body?.employeeId);
+    const disabled = req.body?.disabled !== false;
+    if (!employeeId) {
+      await writeAudit({ eventType: "admin_pin_disable", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "invalid_employee", adminId: session.adminId } });
+      return jsonError(res, 400, "Employee ID is required.");
+    }
+    try {
+      const result = await setEmployeePinDisabledForAdmin(employeeId, disabled);
+      await writeAudit({ eventType: "admin_pin_disable", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, employeeId, employeeName: result.employeeName, companyId: result.companyId, disabled } });
+      return res.json({ success: true, message: disabled ? "Employee PIN was disabled." : "Employee PIN was enabled.", employeeId, disabled });
+    } catch (error: any) {
+      const message = String(error?.message || "");
+      await writeAudit({ eventType: "admin_pin_disable", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: message || "server_error", adminId: session.adminId, employeeId, disabled } });
+      return jsonError(res, /not found/i.test(message) ? 404 : 500, /not found/i.test(message) ? "Employee not found." : "Failed to update employee PIN status.");
+    }
+  });
+
+  app.post("/api/admin/pin-management/company", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_company_create");
+    if (!session) return;
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    if (name.length < 2 || name.length > 128) {
+      await writeAudit({ eventType: "admin_company_create", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "invalid_company_name", adminId: session.adminId } });
+      return jsonError(res, 400, "Company name must be between 2 and 128 characters.");
+    }
+    try {
+      const company = await createCompanyForAdmin(name);
+      await writeAudit({ eventType: "admin_company_create", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, companyId: company.id, companyName: company.name } });
+      return res.json({ success: true, company });
+    } catch (error) {
+      console.error("[admin] Company create failed:", error);
+      await writeAudit({ eventType: "admin_company_create", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
+      return jsonError(res, 500, "Failed to create company.");
+    }
+  });
+
+  app.post("/api/admin/pin-management/set-company", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_employee_company_update");
+    if (!session) return;
+    const employeeId = parsePositiveInt(req.body?.employeeId);
+    const companyId = parsePositiveInt(req.body?.companyId);
+    if (!employeeId || !companyId) {
+      await writeAudit({ eventType: "admin_employee_company_update", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "invalid_input", adminId: session.adminId, employeeId, companyId } });
+      return jsonError(res, 400, "Employee ID and company ID are required.");
+    }
+    try {
+      await setEmployeeCompanyForAdmin(employeeId, companyId);
+      await writeAudit({ eventType: "admin_employee_company_update", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, employeeId, companyId } });
+      return res.json({ success: true, message: "Employee company assignment updated.", employeeId, companyId });
+    } catch (error: any) {
+      const message = String(error?.message || "");
+      await writeAudit({ eventType: "admin_employee_company_update", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: message || "server_error", adminId: session.adminId, employeeId, companyId } });
+      return jsonError(res, /not found/i.test(message) ? 404 : 500, /not found/i.test(message) ? "Employee or company not found." : "Failed to update employee company assignment.");
     }
   });
 
