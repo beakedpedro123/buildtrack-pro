@@ -79,6 +79,7 @@ import {
 import { ENV } from "./_core/env";
 import { hashPin, verifyPin as verifyPinHash } from "./_core/crypto";
 import { encryptSSN, decryptSSN, isEncrypted, getSSNLast4 } from "./_core/crypto";
+import { randomBytes, pbkdf2Sync, timingSafeEqual, createHash } from "crypto";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: ReturnType<typeof mysql.createPool> | null = null;
