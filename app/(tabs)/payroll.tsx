@@ -729,6 +729,9 @@ export default function PayrollScreen({ embedded }: { embedded?: boolean } = {})
                           {row.deductedMinutes > 0 && (
                             <Text style={{ fontSize: 10, color: colors.warning }}>-{row.deductedMinutes}m lunch</Text>
                           )}
+                          {row.displayMinutes > 12 * 60 && (
+                            <Text style={{ fontSize: 10, color: "#F59E0B", fontWeight: "700" }}>⚠️ Verify hours</Text>
+                          )}
                         </>
                       )}
                       {canSeeRates && (

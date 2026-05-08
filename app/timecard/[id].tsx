@@ -101,7 +101,7 @@ export default function TimecardScreen() {
     }
   }, [periodView, payrollPeriod, periodOffset]);
 
-  const isManagement = currentUser?.role === "owner" || currentUser?.role === "office_manager" || currentUser?.role === "logistics";
+  const isManagement = currentUser?.role === "owner" || currentUser?.role === "office_manager" || currentUser?.role === "logistics" || currentUser?.role === "foreman";
   const isSelf = currentUser?.id === employeeId;
   const canSeeRates = currentUser?.role === "owner" || currentUser?.role === "office_manager";
 

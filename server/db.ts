@@ -1668,6 +1668,19 @@ export async function updateClockEntryWithAdjustment(
     });
   }
 
+  // HOURS CAP: Validate the resulting entry duration before applying update
+  const finalClockIn = data.clockIn || current.clockIn;
+  const finalClockOut = data.clockOut || current.clockOut;
+  if (finalClockOut) {
+    const adjMins = Math.round((new Date(finalClockOut).getTime() - new Date(finalClockIn).getTime()) / 60000);
+    const adjHours = adjMins / 60;
+    if (adjHours > 16) {
+      throw new Error(`HOURS_CAP_EXCEEDED: This adjustment would create a ${adjHours.toFixed(1)}-hour entry which exceeds the 16-hour maximum. Please verify the times are correct.`);
+    }
+    if (adjHours < 0) {
+      throw new Error(`INVALID_ENTRY: Clock-out time would be before clock-in time. Please check the times.`);
+    }
+  }
   // Apply the update
   const updateData: any = {};
   if (data.clockIn) updateData.clockIn = data.clockIn;
@@ -1754,7 +1767,13 @@ export async function getDetailedTimecard(employeeId: number, startDate: Date, e
     const rawMs = entry.clockOut
       ? new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()
       : 0;
-    const rawMinutes = Math.max(0, Math.round(rawMs / 60000));
+    // HOURS CAP: Clamp to 16h max per entry — prevents bad data from corrupting display
+    // Any entry > 16h is almost certainly a timezone bug or data error; flag it in logs
+    const rawMinutesUncapped = Math.max(0, Math.round(rawMs / 60000));
+    if (rawMinutesUncapped > 16 * 60) {
+      console.warn(`[timecard] ANOMALOUS ENTRY: entry ${entry.id} emp ${entry.employeeId} has ${(rawMinutesUncapped/60).toFixed(1)}h — capped at 16h for display. clockIn=${entry.clockIn} clockOut=${entry.clockOut}`);
+    }
+    const rawMinutes = Math.min(rawMinutesUncapped, 16 * 60);
     // Deduct lunch per-entry (consistent with payroll PDF and getLaborCostForJob)
     const entryLunch = (entry as any).lunchMinutes || 0;
     const netMinutes = entry.clockOut
@@ -1914,6 +1933,15 @@ export async function addManualClockEntry(input: {
 }) {
   const dbConn = await getDb();
   if (!dbConn) return null;
+  // HOURS CAP: Validate entry duration before inserting (permanent safeguard)
+  const entryMins = Math.round((input.clockOut.getTime() - input.clockIn.getTime()) / 60000);
+  const entryHours = entryMins / 60;
+  if (entryHours > 16) {
+    throw new Error(`HOURS_CAP_EXCEEDED: Manual entry would be ${entryHours.toFixed(1)} hours which exceeds the 16-hour maximum. Please verify the clock-in and clock-out times are correct.`);
+  }
+  if (entryHours < 0) {
+    throw new Error(`INVALID_ENTRY: Clock-out time is before clock-in time. Please check the times.`);
+  }
   const [entry] = await dbConn.insert(clockEntries).values({
     employeeId: input.employeeId,
     jobId: input.jobId,

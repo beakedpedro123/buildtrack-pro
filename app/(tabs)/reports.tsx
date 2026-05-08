@@ -9,6 +9,7 @@ import * as Haptics from "expo-haptics";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
 import { compressImageForUpload } from "@/lib/compress-image";
+import * as Auth from "@/lib/_core/auth";
 import { router } from "expo-router";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -338,9 +339,14 @@ export default function ReportsScreen({ embedded }: { embedded?: boolean } = {})
         formData.append("file", fileObj);
       }
 
+      // Add auth token so requireAuth middleware accepts the upload
+      const uploadToken = await Auth.getSessionToken();
+      const uploadHeaders: Record<string, string> = {};
+      if (uploadToken) uploadHeaders["Authorization"] = `Bearer ${uploadToken}`;
       const response = await fetch(uploadUrl, {
         method: "POST",
         body: formData,
+        headers: uploadHeaders,
         // Do NOT set Content-Type header — fetch sets it automatically with the correct boundary
       });
 

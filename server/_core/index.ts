@@ -419,21 +419,17 @@ async function startServer() {
         return;
       }
       // Key is valid — create a session token for the admin user
-      const ownerOpenId = ENV.ownerOpenId;
-      if (!ownerOpenId) {
-        res.status(503).json({ error: "Owner not configured" });
-        return;
-      }
-      // Ensure the owner user exists and has admin role
+      // Use a stable synthetic openId per admin key (no dependency on OWNER_OPEN_ID env var)
+      const adminOpenId = `admin-dashboard-${adminKeyRecord.id}`;
       const { getUserByOpenId, upsertUser } = await import("../db");
-      await upsertUser({ openId: ownerOpenId, role: "admin", lastSignedIn: new Date() });
-      const user = await getUserByOpenId(ownerOpenId);
+      await upsertUser({ openId: adminOpenId, role: "admin", lastSignedIn: new Date() });
+      const user = await getUserByOpenId(adminOpenId);
       if (!user) {
-        res.status(500).json({ error: "Admin user not found" });
+        res.status(500).json({ error: "Admin user not found after upsert" });
         return;
       }
       // Create JWT session token
-      const sessionToken = await sdk.createSessionToken(ownerOpenId, {
+      const sessionToken = await sdk.createSessionToken(adminOpenId, {
         name: adminKeyRecord.name || "Admin",
         expiresInMs: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
@@ -883,7 +879,164 @@ async function startServer() {
     }
   });
 
-  // API versioning: mount at /api/v1/trpc (versioned) and /api/trpc (legacy backward-compat)
+  // ─── Pivot Hivemind REST Endpoint ───────────────────────────────────────────
+  // POST /api/pivot/chat — Accepts messages from admin key auth, employee PIN session,
+  // or regular session token. Injects role-based context. Strict company data isolation.
+  // Auth: Bearer token (admin key JWT) OR session cookie (employee/owner session)
+  const pivotRestLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 50, // 50 Pivot REST calls per hour per user/IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Pivot chat limit reached. Please try again later." },
+    validate: false,
+  });
+  app.post("/api/pivot/chat", pivotRestLimiter, async (req: Request, res: Response) => {
+    try {
+      // ── Auth: accept session cookie (employee/owner mobile app or admin dashboard) ──
+      let callerRole: "admin" | "owner" | "office_manager" | "foreman" | "laborer" | "employee" = "employee";
+      let callerCompanyId: number | null = null;
+      let callerName = "User";
+      let callerEmployeeId: number | null = null;
+      // Try session auth
+      const sessionUser = await sdk.authenticateRequest(req).catch(() => null);
+      if (sessionUser) {
+        // sessionUser is the User row from the users table
+        const u = sessionUser as any;
+        callerCompanyId = u.companyId || null;
+        // Admin dashboard users have role "admin" in the users table
+        if (u.role === "admin") {
+          callerRole = "admin";
+          callerName = "Admin";
+        } else if (u.openId) {
+          // Look up the employee record by openId to get their role and name
+          const { getUserByOpenId } = await import("../db");
+          const dbUser = await getUserByOpenId(u.openId).catch(() => null);
+          if (dbUser) {
+            callerCompanyId = dbUser.companyId || callerCompanyId;
+          }
+          // Also look for employee record linked to this user
+          const { getAllEmployees } = await import("../db");
+          if (callerCompanyId) {
+            const emps = await getAllEmployees(callerCompanyId).catch(() => [] as any[]);
+            // Match by openId stored on employee (if available) or by user companyId
+            const matchedEmp = (emps as any[]).find((e: any) => e.openId === u.openId || e.userId === u.id);
+            if (matchedEmp) {
+              callerRole = matchedEmp.role as any;
+              callerName = matchedEmp.name;
+              callerEmployeeId = matchedEmp.id;
+            }
+          }
+        }
+      }
+      // Validate request body
+      const { messages, context, employeeId } = req.body;
+      if (!messages || !Array.isArray(messages)) {
+        res.status(400).json({ error: "messages array required" });
+        return;
+      }
+      if (messages.length > 50) {
+        res.status(400).json({ error: "Too many messages in context (max 50)" });
+        return;
+      }
+      // If employeeId provided and we have a company, verify ownership
+      if (employeeId && callerCompanyId) {
+        const { getEmployeeById } = await import("../db");
+        const targetEmp = await getEmployeeById(employeeId);
+        if (!targetEmp || targetEmp.companyId !== callerCompanyId) {
+          res.status(403).json({ error: "Access denied: employee does not belong to your company." });
+          return;
+        }
+        if (!callerEmployeeId) {
+          callerEmployeeId = employeeId;
+          callerRole = targetEmp.role as any;
+          callerName = targetEmp.name;
+        }
+      }
+      // ── Build system prompt with role-based context ───────────────────────────
+      const isAdmin = callerRole === "admin";
+      const isOwner = callerRole === "owner";
+      const isManagement = ["owner", "office_manager", "logistics"].includes(callerRole);
+      let systemPrompt = `You are Pivot, an AI assistant built into BuildTrack Pro — a construction workforce management platform.\n`;
+      systemPrompt += `You are bilingual (English/Mexican Spanish). Respond in the same language the user writes in.\n`;
+      systemPrompt += `You specialize in framing, steel erection, carpentry, soffits, and finished fascia.\n`;
+      systemPrompt += `You have advanced knowledge of construction math: angles, geometry, roof calculations, beam sizing, and material estimation.\n\n`;
+      if (isAdmin) {
+        systemPrompt += `## Access Level: Admin Dashboard\n`;
+        systemPrompt += `You are assisting an admin user (${callerName}). You have access to platform-level information.\n`;
+        systemPrompt += `CRITICAL: Never reveal data from one company to another. Each company's data is strictly isolated.\n`;
+      } else if (isOwner) {
+        systemPrompt += `## Access Level: Owner\n`;
+        systemPrompt += `You are assisting Pedro Carranza (owner). You have full access to all company data, financials, and reports.\n`;
+        systemPrompt += `You can discuss payroll, job costs, employee performance, and business strategy.\n`;
+      } else if (isManagement) {
+        systemPrompt += `## Access Level: Office Manager\n`;
+        systemPrompt += `You are assisting ${callerName} (${callerRole.replace("_", " ")}). You have access to scheduling, reports, and employee management.\n`;
+        systemPrompt += `You can discuss payroll summaries, job progress, and scheduling. Do NOT reveal individual hourly rates unless the user is the owner.\n`;
+      } else {
+        systemPrompt += `## Access Level: Field Employee\n`;
+        systemPrompt += `You are assisting ${callerName} (${callerRole}). You can see your own hours, job assignments, and daily tasks.\n`;
+        systemPrompt += `Do NOT reveal other employees' pay rates, personal information, or company financials.\n`;
+      }
+      // Load company context if available
+      if (callerCompanyId) {
+        try {
+          const { getCompanyById, getCompanyWithTrades } = await import("../db");
+          const company = await getCompanyById(callerCompanyId);
+          if (company) {
+            systemPrompt += `\n## Company: ${company.name}\n`;
+          }
+          const companyWithTrades = await getCompanyWithTrades(callerCompanyId);
+          if (companyWithTrades && companyWithTrades.tradesList.length > 0) {
+            systemPrompt += `Primary trade: ${companyWithTrades.primaryTrade || companyWithTrades.tradesList[0]}\n`;
+            systemPrompt += `All trades: ${companyWithTrades.tradesList.join(", ")}\n`;
+          }
+        } catch { /* context unavailable */ }
+      }
+      // Add page context if provided
+      if (context) {
+        systemPrompt += `\n## Current App Context\n`;
+        if (context.currentPage) systemPrompt += `Current page: ${context.currentPage}\n`;
+        if (isManagement || isAdmin) {
+          if (context.activeJobsCount !== undefined) systemPrompt += `Active jobs: ${context.activeJobsCount}\n`;
+          if (context.onSiteCount !== undefined) systemPrompt += `Employees on site: ${context.onSiteCount}\n`;
+          if (context.totalEmployees !== undefined) systemPrompt += `Total employees: ${context.totalEmployees}\n`;
+          if (context.totalLaborCost !== undefined && (isOwner || isAdmin)) {
+            systemPrompt += `Total labor cost this period: $${context.totalLaborCost}\n`;
+          }
+        }
+      }
+      systemPrompt += `\nIMPORTANT RULES:\n`;
+      systemPrompt += `- NEVER leak data between companies\n`;
+      systemPrompt += `- NEVER reveal employee pay rates to non-management users\n`;
+      systemPrompt += `- NEVER make up numbers — if you don't know, say so\n`;
+      systemPrompt += `- Keep responses concise and actionable for construction professionals\n`;
+      // ── Call LLM ─────────────────────────────────────────────────────────────
+      const { invokeLLM } = await import("./llm");
+      const llmMessages = [
+        { role: "system" as const, content: systemPrompt },
+        ...messages.map((m: any) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content as string,
+        })),
+      ];
+      const result = await invokeLLM({ messages: llmMessages });
+      const responseContent = (result as any)?.choices?.[0]?.message?.content
+        || (result as any)?.content
+        || "I'm having trouble responding right now. Please try again.";
+      res.json({
+        success: true,
+        message: { role: "assistant", content: responseContent },
+        callerRole,
+        callerName,
+      });
+    } catch (err: any) {
+      console.error("[pivot/chat] Error:", err);
+      res.status(500).json({ error: "Pivot is unavailable right now. Please try again." });
+    }
+  });
+
+    // API versioning: mount at /api/v1/trpc (versioned) and /api/trpc (legacy backward-compat)
   const trpcMiddleware = createExpressMiddleware({
     router: appRouter,
     createContext,

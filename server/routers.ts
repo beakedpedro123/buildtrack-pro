@@ -456,7 +456,7 @@ const clockRouter = router({
     reason: z.string().min(1),
     timezoneOffset: z.number().optional(), // Client's timezone offset in minutes (e.g., 360 for MDT)
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.addedBy, ["owner", "office_manager", "logistics"], "add manual time entries", ctx.companyId);
+    await assertRole(input.addedBy, ["owner", "office_manager", "logistics", "foreman"], "add manual time entries", ctx.companyId);
     let clockIn = new Date(input.clockIn);
     let clockOut = new Date(input.clockOut);
     // Server-side timezone correction: if the client sends a timezone offset,
@@ -496,7 +496,7 @@ const clockRouter = router({
     deletedBy: z.number(),
     reason: z.string().min(1),
   })).mutation(async ({ input, ctx }) => {
-    await assertRole(input.deletedBy, ["owner", "office_manager", "logistics"], "delete time entries", ctx.companyId);
+    await assertRole(input.deletedBy, ["owner", "office_manager", "logistics", "foreman"], "delete time entries", ctx.companyId);
     return db.deleteClockEntry(input.entryId, input.deletedBy, input.reason);
   }),
   // Set lunch minutes on a clock entry (does NOT adjust clock-in time)
@@ -1063,7 +1063,12 @@ const payrollRouter = router({
     for (const entry of entries) {
       if (!entry.clockOut) continue;
       const durationMs = new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime();
-      const minutes = Math.round(durationMs / 60000);
+      // HOURS CAP: Clamp to 16h max per entry — prevents bad data from inflating payroll
+      const minutesRaw = Math.max(0, Math.round(durationMs / 60000));
+      if (minutesRaw > 16 * 60) {
+        console.warn(`[payroll] ANOMALOUS ENTRY: entry emp=${entry.employeeId} has ${(minutesRaw/60).toFixed(1)}h — capped at 16h. clockIn=${entry.clockIn} clockOut=${entry.clockOut}`);
+      }
+      const minutes = Math.min(minutesRaw, 16 * 60);
       if (!summary[entry.employeeId]) {
         const emp = employeeMap.get(entry.employeeId);
         let salaryProjects: number[] = [];
@@ -1094,7 +1099,12 @@ const payrollRouter = router({
     let totalMinutes = 0;
     const rows = entries.map((e) => {
       const durationMs = e.clockOut ? new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime() : 0;
-      const minutes = Math.round(durationMs / 60000);
+      // HOURS CAP: Clamp to 16h max per entry — prevents timezone bugs from showing impossible hours
+      const minutesRaw = Math.max(0, Math.round(durationMs / 60000));
+      if (minutesRaw > 16 * 60) {
+        console.warn(`[myHours] ANOMALOUS ENTRY: emp=${e.employeeId} has ${(minutesRaw/60).toFixed(1)}h — capped at 16h. clockIn=${e.clockIn} clockOut=${e.clockOut}`);
+      }
+      const minutes = Math.min(minutesRaw, 16 * 60);
       totalMinutes += minutes;
       return { ...e, durationMinutes: minutes };
     });

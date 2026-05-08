@@ -319,6 +319,11 @@ export default function HoursScreen({ embedded }: { embedded?: boolean } = {}) {
                   <Text style={{ fontSize: 11, color: colors.warning }}> Synced from offline</Text>
                 </View>
               )}
+              {item.durationMinutes > 12 * 60 && (
+                <View style={{ marginTop: 4, backgroundColor: "#F59E0B22", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 11, color: "#F59E0B", fontWeight: "600" }}>⚠️ Long shift — please verify times</Text>
+                </View>
+              )}
             </View>
           )}
           ListEmptyComponent={

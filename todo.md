@@ -3153,3 +3153,14 @@
 - [ ] Fix Railway deployment: ensure latest commit (multi-user admin login) is deployed
 - [ ] Verify Pedro (buildtrack22A), Pablo (buildtrack22b), Lupe (buildtrack22c) keys work on deployed server
 - [ ] Add hours anomaly panel to admin dashboard showing flagged entries
+
+## Ecosystem Fixes & Pivot Hivemind — May 8 2026
+- [ ] Fix Dockerfile pnpm PATH error blocking deployment
+- [ ] Fix admin login "Owner not configured" error on deployed server
+- [ ] Implement Pivot unified hivemind endpoint /api/pivot/chat (admin key + PIN + session auth)
+- [ ] Add strict company-scoped data isolation to Pivot across all platforms
+- [ ] Produce standalone admin-dashboard.html code file (drop-in ready)
+- [ ] Produce standalone marketing-site.html code file (drop-in ready)
+- [ ] Produce standalone support-portal.html code file (drop-in ready)
+- [ ] Write IP protection brief (patent, trademark, trade secret strategy)
+- [ ] Save checkpoint and deliver all deliverables
