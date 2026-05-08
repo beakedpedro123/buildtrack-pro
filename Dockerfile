@@ -1,21 +1,19 @@
-FROM node:22-alpine
+FROM node:20-slim
+
+RUN npm install -g pnpm@9.12.0
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json ./
+COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 
-# Copy source code
 COPY . .
 
-# Build the server
-RUN npm run build
+RUN pnpm build
 
-# Expose port
 EXPOSE 3000
 
-# Start the server
-CMD ["npm", "start"]
+ENV NODE_ENV=production
+
+CMD ["node", "dist/index.js"]
