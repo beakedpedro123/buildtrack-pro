@@ -4,7 +4,7 @@ RUN npm install -g pnpm@9.12.0
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Copy scripts directory needed by postinstall hooks
 COPY scripts ./scripts
