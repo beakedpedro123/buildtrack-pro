@@ -16,6 +16,5 @@ components
 hooks
 lib
 constants
-scripts
 tests
 coverage

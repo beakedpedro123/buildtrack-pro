@@ -6,6 +6,9 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
 
+# Copy scripts directory needed by postinstall hooks
+COPY scripts ./scripts
+
 RUN pnpm install --no-frozen-lockfile
 
 COPY . .
