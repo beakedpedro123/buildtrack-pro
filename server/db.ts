@@ -438,38 +438,109 @@ export async function removeJobAssignment(jobId: number, employeeId: number) {
 }
 
 // Clock Entries
+// Utah labor law constants
+const DAILY_WARN_HOURS = 12;  // Flag entries exceeding 12 hours
+const DAILY_MAX_HOURS = 16;   // Hard block entries that would exceed 16 hours in a day
+
 export async function clockIn(data: InsertClockEntry) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  // 1. Dedup by localId (offline sync)
+
+  // 1. Dedup by localId (offline sync) — exact match returns existing entry ID
   if (data.localId) {
     const existing = await db.select().from(clockEntries)
       .where(eq(clockEntries.localId, data.localId)).limit(1);
-    if (existing.length > 0) return existing[0].id;
+    if (existing.length > 0) {
+      console.log(`[clockIn] Dedup by localId: returning existing entry ${existing[0].id}`);
+      return existing[0].id;
+    }
   }
+
   // 2. Validate employeeId exists (prevent ghost entries)
-  const emp = await db.select({ id: employees.id }).from(employees)
+  const emp = await db.select({ id: employees.id, name: employees.name }).from(employees)
     .where(eq(employees.id, data.employeeId)).limit(1);
   if (emp.length === 0) {
     console.warn(`[clockIn] Rejected ghost employeeId=${data.employeeId} — not in employees table`);
     throw new Error(`Employee ID ${data.employeeId} does not exist`);
   }
-  // 3. Dedup by time proximity — reject if same employee+job within 5 minutes AND still active (no clockOut)
+
   const clockInTime = data.clockIn instanceof Date ? data.clockIn : new Date(data.clockIn as any);
-  const fiveMinBefore = new Date(clockInTime.getTime() - 5 * 60000);
-  const fiveMinAfter = new Date(clockInTime.getTime() + 5 * 60000);
-  const dupe = await db.select({ id: clockEntries.id }).from(clockEntries)
+
+  // 3. Block if employee already has ANY open (not clocked-out) entry — regardless of job
+  //    This prevents the offline-sync scenario where the same employee clocks in twice on different jobs
+  const openEntry = await db.select({ id: clockEntries.id, jobId: clockEntries.jobId, clockIn: clockEntries.clockIn })
+    .from(clockEntries)
     .where(and(
       eq(clockEntries.employeeId, data.employeeId),
-      eq(clockEntries.jobId, data.jobId),
-      isNull(clockEntries.clockOut), // Only dedup against ACTIVE entries — not already clocked-out ones
+      isNull(clockEntries.clockOut)
+    )).limit(1);
+  if (openEntry.length > 0) {
+    console.warn(`[clockIn] Rejected: emp=${data.employeeId} (${emp[0].name}) already has open entry ${openEntry[0].id} (job=${openEntry[0].jobId}). Must clock out first.`);
+    // Return the existing open entry ID — do NOT create a duplicate
+    return openEntry[0].id;
+  }
+
+  // 4. Dedup by time proximity — reject if same employee clocked in within 5 minutes on ANY job (offline dedup)
+  const fiveMinBefore = new Date(clockInTime.getTime() - 5 * 60000);
+  const fiveMinAfter = new Date(clockInTime.getTime() + 5 * 60000);
+  const recentDupe = await db.select({ id: clockEntries.id }).from(clockEntries)
+    .where(and(
+      eq(clockEntries.employeeId, data.employeeId),
       gte(clockEntries.clockIn, fiveMinBefore),
       lte(clockEntries.clockIn, fiveMinAfter)
     )).limit(1);
-  if (dupe.length > 0) {
-    console.warn(`[clockIn] Rejected duplicate: emp=${data.employeeId} job=${data.jobId} within 5min of active entry ${dupe[0].id}`);
-    return dupe[0].id; // Return existing entry ID instead of creating duplicate
+  if (recentDupe.length > 0) {
+    console.warn(`[clockIn] Rejected near-duplicate: emp=${data.employeeId} (${emp[0].name}) within 5min of entry ${recentDupe[0].id}`);
+    return recentDupe[0].id;
   }
+
+  // 5. Daily hours cap enforcement (Utah law: max 16hrs/day, warn at 12hrs)
+  const dayStart = new Date(clockInTime);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(clockInTime);
+  dayEnd.setHours(23, 59, 59, 999);
+
+  const todayEntries = await db.select({
+    clockIn: clockEntries.clockIn,
+    clockOut: clockEntries.clockOut,
+  }).from(clockEntries)
+    .where(and(
+      eq(clockEntries.employeeId, data.employeeId),
+      gte(clockEntries.clockIn, dayStart),
+      lte(clockEntries.clockIn, dayEnd)
+    ));
+
+  let totalMinutesToday = 0;
+  for (const entry of todayEntries) {
+    if (entry.clockOut) {
+      const mins = Math.round((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 60000);
+      totalMinutesToday += Math.max(0, mins);
+    }
+  }
+
+  // If this is an offline entry with clockOut already set, check projected total
+  const entryClockOut = (data as any).clockOut ? new Date((data as any).clockOut) : null;
+  if (entryClockOut) {
+    const entryMins = Math.round((entryClockOut.getTime() - clockInTime.getTime()) / 60000);
+    const projectedTotalMins = totalMinutesToday + Math.max(0, entryMins);
+    const projectedHours = projectedTotalMins / 60;
+
+    if (projectedHours > DAILY_MAX_HOURS) {
+      console.warn(`[clockIn] BLOCKED: emp=${data.employeeId} (${emp[0].name}) would reach ${projectedHours.toFixed(1)}h on ${dayStart.toDateString()} — exceeds ${DAILY_MAX_HOURS}h Utah max`);
+      throw new Error(`HOURS_CAP_EXCEEDED: This entry would give ${emp[0].name} ${projectedHours.toFixed(1)} hours on ${dayStart.toLocaleDateString()} which exceeds the maximum allowed ${DAILY_MAX_HOURS} hours per day. Please review and correct the time entry.`);
+    }
+    if (projectedHours > DAILY_WARN_HOURS) {
+      console.warn(`[clockIn] WARNING: emp=${data.employeeId} (${emp[0].name}) will have ${projectedHours.toFixed(1)}h on ${dayStart.toDateString()} — flagged for review`);
+      logSecurityEvent({
+        companyId: data.companyId,
+        employeeId: data.employeeId,
+        eventType: "admin_action",
+        severity: "medium",
+        details: `ANOMALOUS_HOURS: Employee ${emp[0].name} (ID: ${data.employeeId}) has ${projectedHours.toFixed(1)} hours on ${dayStart.toLocaleDateString()} — exceeds ${DAILY_WARN_HOURS}h threshold`,
+      }).catch(() => {});
+    }
+  }
+
   const result = await db.insert(clockEntries).values(data);
   return result[0].insertId;
 }
@@ -477,6 +548,22 @@ export async function clockIn(data: InsertClockEntry) {
 export async function clockOut(entryId: number, clockOutTime: Date) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+
+  // Validate: this single entry should not exceed 16 hours
+  const entry = await db.select({ clockIn: clockEntries.clockIn, employeeId: clockEntries.employeeId })
+    .from(clockEntries).where(eq(clockEntries.id, entryId)).limit(1);
+  if (entry.length > 0) {
+    const entryMins = Math.round((clockOutTime.getTime() - new Date(entry[0].clockIn).getTime()) / 60000);
+    const entryHours = entryMins / 60;
+    if (entryHours > DAILY_MAX_HOURS) {
+      console.warn(`[clockOut] BLOCKED: entry ${entryId} would be ${entryHours.toFixed(1)}h — exceeds ${DAILY_MAX_HOURS}h Utah max`);
+      throw new Error(`HOURS_CAP_EXCEEDED: This clock-out would create a ${entryHours.toFixed(1)}-hour entry which exceeds the maximum allowed ${DAILY_MAX_HOURS} hours. Please verify the time is correct.`);
+    }
+    if (entryHours > DAILY_WARN_HOURS) {
+      console.warn(`[clockOut] WARNING: entry ${entryId} is ${entryHours.toFixed(1)}h — flagged for review`);
+    }
+  }
+
   await db.update(clockEntries).set({
     clockOut: clockOutTime,
   }).where(eq(clockEntries.id, entryId));

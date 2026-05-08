@@ -7,7 +7,8 @@ import { getCached, setCache, CACHE_KEYS, setCacheCompanyId } from "@/lib/data-c
 import * as Auth from "@/lib/_core/auth";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator,
@@ -68,13 +69,39 @@ export default function LoginScreen() {
   const [verifying, setVerifying] = useState(false);
   const [cachedEmployees, setCachedEmployees] = useState<any[] | null>(null);
 
-  const { data: employees, isLoading } = trpc.employees.listForLogin.useQuery(
+  const { data: employees, isLoading, refetch: refetchEmployees } = trpc.employees.listForLogin.useQuery(
     { companyId: companyId || 0 },
     {
       retry: 1,
       staleTime: 30000,
       enabled: step !== "company" && !!companyId && companyId > 0,
     }
+  );
+
+  // When the login screen comes into focus (e.g., after sign-out), reload the
+  // cached employee list from AsyncStorage so names appear immediately without
+  // requiring the user to close and reopen the app.
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem(COMPANY_CODE_KEY).then((saved) => {
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            const savedId = parsed.id;
+            if (savedId) {
+              setCacheCompanyId(savedId);
+              getCached<any[]>(CACHE_KEYS.LOGIN_EMPLOYEES).then((d) => {
+                if (d && d.length > 0) setCachedEmployees(d);
+              });
+              // Also trigger a background refetch to get fresh data
+              if (companyId === savedId) {
+                refetchEmployees().catch(() => {});
+              }
+            }
+          } catch { /* ignore */ }
+        }
+      });
+    }, [companyId, refetchEmployees])
   );
   const verifyPin = trpc.employees.verifyPin.useMutation();
   const lookupCompany = trpc.company.lookupBySlug.useMutation();

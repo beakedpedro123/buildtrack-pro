@@ -59,10 +59,11 @@ export async function downloadAuthenticatedPDF(
     const FileSystem = await import("expo-file-system/legacy");
     const Sharing = await import("expo-sharing");
 
-    // Use cacheDirectory (works reliably on both iOS and Android)
-    const baseDir = FileSystem.cacheDirectory;
+    // Try cacheDirectory first; fall back to documentDirectory for Android devices
+    // where the cache partition is not writable (e.g., low-storage or restricted profiles)
+    const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
     if (!baseDir) {
-      throw new Error("Cache directory not available");
+      throw new Error("No writable directory available on this device");
     }
 
     // Clean filename for filesystem — ensure .pdf extension
@@ -75,13 +76,24 @@ export async function downloadAuthenticatedPDF(
     const uniqueName = safeName.replace(".pdf", `_${timestamp}.pdf`);
     const localUri = baseDir + uniqueName;
 
-    // Download with auth header
-    const result = await FileSystem.downloadAsync(url, localUri, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/pdf",
-      },
-    });
+    // Download with auth header — retry once on network hiccup
+    let result;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        result = await FileSystem.downloadAsync(url, localUri, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/pdf",
+          },
+        });
+        break; // success
+      } catch (downloadErr: any) {
+        if (attempt === 2) throw downloadErr;
+        // Wait 1s before retry
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+    if (!result) throw new Error("Download failed after retries");
 
     if (result.status !== 200) {
       // Read error body if possible

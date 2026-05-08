@@ -1125,12 +1125,22 @@ async function startServer() {
           const { getDb } = await import("../db");
           const db = await getDb();
           if (db) {
-            const path = await import("path");
-            const migrationsFolder = path.join(__dirname, "..", "..", "drizzle", "migrations");
-            const fs = await import("fs");
-            if (fs.existsSync(migrationsFolder)) {
+            const pathMod = await import("path");
+            const fsMod = await import("fs");
+            // In production (Railway), drizzle SQL files are at dist/drizzle (same dir as index.js)
+            // In development, they're at ../../drizzle relative to server/_core/
+            const candidates = [
+              pathMod.join(__dirname, "drizzle"),            // production: dist/drizzle
+              pathMod.join(__dirname, "..", "..", "drizzle"), // development: project root drizzle
+            ];
+            const migrationsFolder = candidates.find((p) =>
+              fsMod.existsSync(pathMod.join(p, "meta", "_journal.json"))
+            );
+            if (migrationsFolder) {
               await migrate(db, { migrationsFolder });
-              console.log("[api] Database migrations applied successfully");
+              console.log("[api] Database migrations applied from:", migrationsFolder);
+            } else {
+              console.warn("[api] No migrations folder found — skipping auto-migration");
             }
           }
         } catch (migErr: any) {

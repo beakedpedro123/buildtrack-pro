@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState, use
 import { Platform } from "react-native";
 import { trpc } from "./trpc";
 import { scheduleFridayMeetingReminder, cancelFridayMeetingReminder, registerPushTokenDirect, clearPushTokenDirect } from "./notifications";
-import { setCacheCompanyId, clearAllCaches } from "@/lib/data-cache";
+import { setCacheCompanyId, clearAllCaches, CACHE_KEYS, getCached, setCache } from "@/lib/data-cache";
 
 export type EmployeeRole = "owner" | "office_manager" | "logistics" | "foreman" | "laborer";
 
@@ -136,21 +136,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    refreshedRef.current = false; // Reset for next login
+    const prevEmployee = employee;
+    // 1. Snapshot the employee list BEFORE clearing caches so we can restore it
+    //    This ensures the login screen shows names immediately after sign-out
+    //    without requiring a network fetch (fixes the blank list / infinite spinner bug)
+    const savedEmployees = await getCached<any[]>(CACHE_KEYS.LOGIN_EMPLOYEES);
+
+    // 2. Clear auth state first — this triggers the Redirect in tabs/_layout
     setEmployee(null);
+    refreshedRef.current = false; // Reset so next login triggers a fresh server fetch
+
+    // 3. Remove persisted session
     await AsyncStorage.removeItem(STORAGE_KEY);
-    // Clear ALL cached data to prevent cross-company data leaks
+
+    // 4. Clear ALL cached data to prevent cross-company data leaks
     await clearAllCaches();
-    // Clear all React Query cache so next login gets fresh data
+
+    // 5. Restore the employee list cache so the login screen can show it immediately
+    if (savedEmployees && savedEmployees.length > 0 && prevEmployee?.companyId) {
+      setCacheCompanyId(prevEmployee.companyId);
+      await setCache(CACHE_KEYS.LOGIN_EMPLOYEES, savedEmployees);
+    }
+
+    // 6. Clear React Query cache so next login gets fresh data
     const qc = getGlobalQueryClient();
     if (qc) {
       qc.clear();
     }
-    // Cancel meeting reminder on logout and clear push token
+
+    // 7. Cancel meeting reminder and clear push token
     if (Platform.OS !== "web") {
       cancelFridayMeetingReminder().catch(() => {});
-      if (employee) {
-        clearPushTokenDirect(employee.id).catch(() => {});
+      if (prevEmployee) {
+        clearPushTokenDirect(prevEmployee.id).catch(() => {});
       }
     }
   }, [employee]);

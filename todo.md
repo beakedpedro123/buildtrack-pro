@@ -3123,3 +3123,33 @@
 - [x] Sync standalone package and rebuild zip
 - [x] Test all 3 logins and key change flow
 - [x] Save checkpoint
+
+## Ecosystem Map & Code Audit Package — May 2026
+- [ ] Audit all 3 deployed standalone sites (marketing, admin dashboard, support portal)
+- [ ] Audit main BuildTrack Pro app backend (server, DB, tRPC routes, API endpoints)
+- [ ] Verify connectivity: standalone sites → main API server
+- [ ] Verify admin dashboard login works against deployed API
+- [ ] Verify support portal connects to deployed API
+- [ ] Create comprehensive ecosystem architecture diagram (D2/Mermaid)
+- [ ] Create detailed ecosystem documentation (all components, endpoints, data flows)
+- [ ] Package full codebase with README for auditors
+- [ ] Deliver ecosystem map, verification report, and code package
+
+## Critical Bug Fixes — May 7, 2026
+
+### Server-Side: Clock-In & Hours Integrity
+- [ ] Prevent duplicate clock-ins: server must reject new clock-in if employee already has open/overlapping entry for same day
+- [ ] Offline sync deduplication: detect and reject duplicate entries created while offline (same employee, overlapping time ranges)
+- [ ] Hours cap enforcement: flag any day entry exceeding 12hrs, hard-block any entry exceeding 16hrs (Utah law max)
+- [ ] Auto-flag anomalous payroll entries in admin dashboard (>12hrs = warning, >16hrs = error/blocked)
+- [ ] Fix Demetrio/Vicente duplicate offline sync entries in database
+
+### Mobile App: Refresh & Sign-Out Fixes
+- [ ] Fix pull-to-refresh: use proper RefreshControl with forceful query invalidation on all screens
+- [ ] Fix sign-out employee list: reload employee list from server after sign-out, don't rely on cached state
+- [ ] Fix report download on all devices: use expo-sharing + expo-file-system for universal compatibility
+
+### Admin Dashboard: Login & Railway
+- [ ] Fix Railway deployment: ensure latest commit (multi-user admin login) is deployed
+- [ ] Verify Pedro (buildtrack22A), Pablo (buildtrack22b), Lupe (buildtrack22c) keys work on deployed server
+- [ ] Add hours anomaly panel to admin dashboard showing flagged entries

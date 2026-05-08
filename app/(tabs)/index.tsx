@@ -235,7 +235,16 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    try { await utils.invalidate(); } catch {}
+    try {
+      // Invalidate all queries AND wait for them to finish refetching
+      // so the spinner stays until data is actually fresh
+      await utils.invalidate();
+      await Promise.allSettled([
+        utils.clock.allClockedIn.refetch(),
+        utils.jobs.list.refetch(),
+        utils.company.getCurrent.refetch(),
+      ]);
+    } catch {}
     setRefreshing(false);
   }, [utils]);
   const colors = useColors();
