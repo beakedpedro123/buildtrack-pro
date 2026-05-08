@@ -287,6 +287,178 @@ function parseEmployeePin(value: unknown) {
   return pin;
 }
 
+function rowsFromExecute<T = any>(result: any): T[] {
+  if (Array.isArray(result)) {
+    if (Array.isArray(result[0])) return result[0] as T[];
+    return result as T[];
+  }
+  if (Array.isArray(result?.rows)) return result.rows as T[];
+  return [];
+}
+
+async function executeRaw(statement: string) {
+  const db = await getDb();
+  if (!db) return;
+  await (db as any).execute(sql.raw(statement));
+}
+
+let adminSupportTablesEnsured = false;
+let ensuringAdminSupportTables: Promise<void> | null = null;
+
+async function ensureAdminSupportTables() {
+  if (adminSupportTablesEnsured) return;
+  if (ensuringAdminSupportTables) return ensuringAdminSupportTables;
+  ensuringAdminSupportTables = (async () => {
+    const db = await getDb();
+    if (!db) return;
+    await executeRaw(`CREATE TABLE IF NOT EXISTS adminSupportTickets (
+      id int AUTO_INCREMENT NOT NULL,
+      companyId int NULL,
+      subject varchar(180) NOT NULL,
+      status varchar(32) NOT NULL DEFAULT 'open',
+      priority varchar(32) NOT NULL DEFAULT 'medium',
+      requesterName varchar(128) NOT NULL DEFAULT 'Unknown',
+      requesterRole varchar(64) NULL,
+      lastMessage text NULL,
+      adminReply text NULL,
+      createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT adminSupportTickets_id PRIMARY KEY(id),
+      INDEX adminSupportTickets_companyId_idx(companyId)
+    )`);
+    await executeRaw(`CREATE TABLE IF NOT EXISTS adminKnowledgeBaseArticles (
+      id int AUTO_INCREMENT NOT NULL,
+      companyId int NULL,
+      title varchar(220) NOT NULL,
+      category varchar(96) NOT NULL DEFAULT 'support',
+      body text NOT NULL,
+      status varchar(32) NOT NULL DEFAULT 'draft',
+      createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT adminKnowledgeBaseArticles_id PRIMARY KEY(id),
+      INDEX adminKnowledgeBaseArticles_companyId_idx(companyId)
+    )`);
+    await executeRaw(`CREATE TABLE IF NOT EXISTS adminPivotLearning (
+      id int AUTO_INCREMENT NOT NULL,
+      companyId int NULL,
+      title varchar(220) NOT NULL,
+      source varchar(96) NOT NULL DEFAULT 'admin',
+      lesson text NOT NULL,
+      confidence decimal(5,4) NULL,
+      createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT adminPivotLearning_id PRIMARY KEY(id),
+      INDEX adminPivotLearning_companyId_idx(companyId)
+    )`);
+    await executeRaw(`CREATE TABLE IF NOT EXISTS adminPivotChatHistory (
+      id int AUTO_INCREMENT NOT NULL,
+      companyId int NULL,
+      userName varchar(128) NOT NULL,
+      userRole varchar(64) NULL,
+      prompt text NOT NULL,
+      response text NOT NULL,
+      createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT adminPivotChatHistory_id PRIMARY KEY(id),
+      INDEX adminPivotChatHistory_companyId_idx(companyId)
+    )`);
+    adminSupportTablesEnsured = true;
+  })().catch((error) => {
+    ensuringAdminSupportTables = null;
+    console.warn("[admin] Failed to ensure support/Pivot admin tables:", error);
+    throw error;
+  });
+  return ensuringAdminSupportTables;
+}
+
+function normalizeTextInput(value: unknown, maxLength: number) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text.slice(0, maxLength);
+}
+
+async function listAdminCompaniesSummary() {
+  const pinData = await listAdminPinManagement();
+  const companies = pinData.companies.map((company: any) => {
+    const employeeCount = pinData.employees.filter((employee: any) => Number(employee.companyId) === Number(company.id)).length;
+    return { ...company, employeeCount, ticketCount: 0, openTicketCount: 0 };
+  });
+
+  const db = await getDb();
+  if (!db) return companies;
+  try {
+    await ensureAdminSupportTables();
+    const rows = rowsFromExecute<any>(await (db as any).execute(sql.raw(`
+      SELECT companyId, COUNT(*) AS ticketCount,
+        SUM(CASE WHEN status NOT IN ('resolved', 'closed') THEN 1 ELSE 0 END) AS openTicketCount
+      FROM adminSupportTickets
+      GROUP BY companyId
+    `)));
+    const counts = new Map(rows.map((row: any) => [Number(row.companyId || 0), row]));
+    return companies.map((company: any) => {
+      const row = counts.get(Number(company.id));
+      return { ...company, ticketCount: Number(row?.ticketCount || 0), openTicketCount: Number(row?.openTicketCount || 0) };
+    });
+  } catch (error) {
+    console.warn("[admin] Company ticket summary unavailable:", error);
+    return companies;
+  }
+}
+
+async function listSupportTickets() {
+  await ensureAdminSupportTables();
+  const db = await getDb();
+  if (!db) return [];
+  return rowsFromExecute(await (db as any).execute(sql.raw(`
+    SELECT t.id, t.companyId, COALESCE(c.name, 'Unassigned') AS companyName,
+      t.subject, t.status, t.priority, t.requesterName, t.requesterRole,
+      t.lastMessage, t.createdAt, t.updatedAt
+    FROM adminSupportTickets t
+    LEFT JOIN companies c ON c.id = t.companyId
+    ORDER BY t.updatedAt DESC, t.id DESC
+    LIMIT 300
+  `)));
+}
+
+async function listKnowledgeBaseArticles() {
+  await ensureAdminSupportTables();
+  const db = await getDb();
+  if (!db) return [];
+  return rowsFromExecute(await (db as any).execute(sql.raw(`
+    SELECT kb.id, kb.companyId, COALESCE(c.name, 'Global') AS companyName,
+      kb.title, kb.category, kb.body, kb.status, kb.createdAt, kb.updatedAt
+    FROM adminKnowledgeBaseArticles kb
+    LEFT JOIN companies c ON c.id = kb.companyId
+    ORDER BY kb.updatedAt DESC, kb.id DESC
+    LIMIT 300
+  `)));
+}
+
+async function listPivotLearningEntries() {
+  await ensureAdminSupportTables();
+  const db = await getDb();
+  if (!db) return [];
+  return rowsFromExecute(await (db as any).execute(sql.raw(`
+    SELECT pl.id, pl.companyId, COALESCE(c.name, 'Global') AS companyName,
+      pl.title, pl.source, pl.lesson, pl.confidence, pl.createdAt
+    FROM adminPivotLearning pl
+    LEFT JOIN companies c ON c.id = pl.companyId
+    ORDER BY pl.createdAt DESC, pl.id DESC
+    LIMIT 300
+  `)));
+}
+
+async function listPivotChatHistory() {
+  await ensureAdminSupportTables();
+  const db = await getDb();
+  if (!db) return [];
+  return rowsFromExecute(await (db as any).execute(sql.raw(`
+    SELECT ch.id, ch.companyId, COALESCE(c.name, 'Global') AS companyName,
+      ch.userName, ch.userRole, ch.prompt, ch.response, ch.createdAt
+    FROM adminPivotChatHistory ch
+    LEFT JOIN companies c ON c.id = ch.companyId
+    ORDER BY ch.createdAt DESC, ch.id DESC
+    LIMIT 300
+  `)));
+}
+
 async function requireAdminSession(req: Request, res: Response, eventType: string) {
   try {
     return await verifyAdminToken(req);
@@ -478,6 +650,236 @@ export function registerAdminRoutes(app: Express) {
       const message = String(error?.message || "");
       await writeAudit({ eventType: "admin_employee_company_update", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: message || "server_error", adminId: session.adminId, employeeId, companyId } });
       return jsonError(res, /not found/i.test(message) ? 404 : 500, /not found/i.test(message) ? "Employee or company not found." : "Failed to update employee company assignment.");
+    }
+  });
+
+  app.get("/api/admin/companies", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_companies_list");
+    if (!session) return;
+    try {
+      const companies = await listAdminCompaniesSummary();
+      await writeAudit({ eventType: "admin_companies_list", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, companyCount: companies.length } });
+      return res.json({ success: true, companies });
+    } catch (error) {
+      console.error("[admin] Companies list failed:", error);
+      await writeAudit({ eventType: "admin_companies_list", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
+      return jsonError(res, 500, "Failed to load customer companies.");
+    }
+  });
+
+  app.get("/api/admin/support/stats", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_support_stats");
+    if (!session) return;
+    try {
+      const tickets = await listSupportTickets();
+      const articles = await listKnowledgeBaseArticles();
+      const learningEntries = await listPivotLearningEntries();
+      const chatMessages = await listPivotChatHistory();
+      const stats = {
+        totalTickets: tickets.length,
+        openTickets: tickets.filter((ticket: any) => !/resolved|closed/i.test(String(ticket.status))).length,
+        resolvedTickets: tickets.filter((ticket: any) => /resolved|closed/i.test(String(ticket.status))).length,
+        kbArticles: articles.length,
+        learningEntries: learningEntries.length,
+        chatMessages: chatMessages.length,
+      };
+      await writeAudit({ eventType: "admin_support_stats", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, ...stats } });
+      return res.json({ success: true, stats });
+    } catch (error) {
+      console.error("[admin] Support stats failed:", error);
+      await writeAudit({ eventType: "admin_support_stats", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
+      return jsonError(res, 500, "Failed to load support statistics.");
+    }
+  });
+
+  app.get("/api/admin/support/tickets", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_support_tickets_list");
+    if (!session) return;
+    try {
+      const tickets = await listSupportTickets();
+      await writeAudit({ eventType: "admin_support_tickets_list", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, ticketCount: tickets.length } });
+      return res.json({ success: true, tickets });
+    } catch (error) {
+      console.error("[admin] Support ticket list failed:", error);
+      await writeAudit({ eventType: "admin_support_tickets_list", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
+      return jsonError(res, 500, "Failed to load support tickets.");
+    }
+  });
+
+  app.post("/api/admin/support/tickets/:ticketId/reply", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_support_ticket_reply");
+    if (!session) return;
+    const ticketId = parsePositiveInt(req.params.ticketId);
+    const message = normalizeTextInput(req.body?.message, 5000);
+    if (!ticketId || message.length < 3) {
+      await writeAudit({ eventType: "admin_support_ticket_reply", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "invalid_input", adminId: session.adminId, ticketId } });
+      return jsonError(res, 400, "Ticket ID and reply message are required.");
+    }
+    try {
+      await ensureAdminSupportTables();
+      const db = await getDb();
+      if (!db) return jsonError(res, 503, "Database is not available.");
+      await (db as any).execute(sql`UPDATE adminSupportTickets SET adminReply = ${message}, lastMessage = ${message}, status = 'waiting_customer' WHERE id = ${ticketId}`);
+      await writeAudit({ eventType: "admin_support_ticket_reply", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, ticketId } });
+      return res.json({ success: true, message: "Support reply was recorded." });
+    } catch (error) {
+      console.error("[admin] Support ticket reply failed:", error);
+      await writeAudit({ eventType: "admin_support_ticket_reply", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId, ticketId } });
+      return jsonError(res, 500, "Failed to save support reply.");
+    }
+  });
+
+  app.post("/api/admin/support/tickets/:ticketId/resolve", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_support_ticket_resolve");
+    if (!session) return;
+    const ticketId = parsePositiveInt(req.params.ticketId);
+    if (!ticketId) return jsonError(res, 400, "Ticket ID is required.");
+    try {
+      await ensureAdminSupportTables();
+      const db = await getDb();
+      if (!db) return jsonError(res, 503, "Database is not available.");
+      await (db as any).execute(sql`UPDATE adminSupportTickets SET status = 'resolved' WHERE id = ${ticketId}`);
+      await writeAudit({ eventType: "admin_support_ticket_resolve", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, ticketId } });
+      return res.json({ success: true, message: "Support ticket was resolved." });
+    } catch (error) {
+      console.error("[admin] Support ticket resolve failed:", error);
+      await writeAudit({ eventType: "admin_support_ticket_resolve", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId, ticketId } });
+      return jsonError(res, 500, "Failed to resolve support ticket.");
+    }
+  });
+
+  app.get("/api/admin/support/kb", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_kb_list");
+    if (!session) return;
+    try {
+      const articles = await listKnowledgeBaseArticles();
+      await writeAudit({ eventType: "admin_kb_list", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, articleCount: articles.length } });
+      return res.json({ success: true, articles });
+    } catch (error) {
+      console.error("[admin] Knowledge-base list failed:", error);
+      await writeAudit({ eventType: "admin_kb_list", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
+      return jsonError(res, 500, "Failed to load knowledge-base articles.");
+    }
+  });
+
+  app.post("/api/admin/support/kb", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_kb_create");
+    if (!session) return;
+    const title = normalizeTextInput(req.body?.title, 220);
+    const category = normalizeTextInput(req.body?.category, 96) || "support";
+    const body = normalizeTextInput(req.body?.body, 20000);
+    const status = normalizeTextInput(req.body?.status, 32) || "draft";
+    const companyId = parsePositiveInt(req.body?.companyId);
+    if (title.length < 3 || body.length < 10) {
+      await writeAudit({ eventType: "admin_kb_create", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "invalid_input", adminId: session.adminId } });
+      return jsonError(res, 400, "Knowledge-base title and body are required.");
+    }
+    try {
+      await ensureAdminSupportTables();
+      const db = await getDb();
+      if (!db) return jsonError(res, 503, "Database is not available.");
+      await (db as any).execute(sql`INSERT INTO adminKnowledgeBaseArticles (companyId, title, category, body, status) VALUES (${companyId}, ${title}, ${category}, ${body}, ${status})`);
+      await writeAudit({ eventType: "admin_kb_create", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, title, companyId } });
+      return res.json({ success: true, message: "Knowledge-base article was saved." });
+    } catch (error) {
+      console.error("[admin] Knowledge-base create failed:", error);
+      await writeAudit({ eventType: "admin_kb_create", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
+      return jsonError(res, 500, "Failed to save knowledge-base article.");
+    }
+  });
+
+  app.get("/api/admin/pivot/learning", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_pivot_learning_list");
+    if (!session) return;
+    try {
+      const learnings = await listPivotLearningEntries();
+      await writeAudit({ eventType: "admin_pivot_learning_list", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, learningCount: learnings.length } });
+      return res.json({ success: true, learnings });
+    } catch (error) {
+      console.error("[admin] Pivot learning list failed:", error);
+      await writeAudit({ eventType: "admin_pivot_learning_list", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
+      return jsonError(res, 500, "Failed to load Pivot learning entries.");
+    }
+  });
+
+  app.post("/api/admin/pivot/learning", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_pivot_learning_create");
+    if (!session) return;
+    const title = normalizeTextInput(req.body?.title, 220);
+    const source = normalizeTextInput(req.body?.source, 96) || "admin";
+    const lesson = normalizeTextInput(req.body?.lesson, 20000);
+    const confidenceRaw = Number(req.body?.confidence);
+    const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : null;
+    const companyId = parsePositiveInt(req.body?.companyId);
+    if (title.length < 3 || lesson.length < 10) {
+      await writeAudit({ eventType: "admin_pivot_learning_create", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "invalid_input", adminId: session.adminId } });
+      return jsonError(res, 400, "Pivot learning title and lesson are required.");
+    }
+    try {
+      await ensureAdminSupportTables();
+      const db = await getDb();
+      if (!db) return jsonError(res, 503, "Database is not available.");
+      await (db as any).execute(sql`INSERT INTO adminPivotLearning (companyId, title, source, lesson, confidence) VALUES (${companyId}, ${title}, ${source}, ${lesson}, ${confidence})`);
+      await writeAudit({ eventType: "admin_pivot_learning_create", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, title, companyId } });
+      return res.json({ success: true, message: "Pivot learning entry was saved." });
+    } catch (error) {
+      console.error("[admin] Pivot learning create failed:", error);
+      await writeAudit({ eventType: "admin_pivot_learning_create", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
+      return jsonError(res, 500, "Failed to save Pivot learning entry.");
+    }
+  });
+
+  app.get("/api/admin/pivot/chat-history", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_pivot_chat_history");
+    if (!session) return;
+    try {
+      const messages = await listPivotChatHistory();
+      await writeAudit({ eventType: "admin_pivot_chat_history", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, messageCount: messages.length } });
+      return res.json({ success: true, messages });
+    } catch (error) {
+      console.error("[admin] Pivot chat history failed:", error);
+      await writeAudit({ eventType: "admin_pivot_chat_history", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
+      return jsonError(res, 500, "Failed to load Pivot chat history.");
+    }
+  });
+
+  app.get("/api/admin/pivot/chat", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_pivot_chat_capability");
+    if (!session) return;
+    return res.json({ success: true, available: true, message: "POST a message to this route to ask Pivot from the admin dashboard." });
+  });
+
+  app.post("/api/admin/pivot/chat", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_pivot_chat");
+    if (!session) return;
+    const prompt = normalizeTextInput(req.body?.message ?? req.body?.prompt, 12000);
+    const companyId = parsePositiveInt(req.body?.companyId);
+    if (prompt.length < 3) {
+      await writeAudit({ eventType: "admin_pivot_chat", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "invalid_prompt", adminId: session.adminId } });
+      return jsonError(res, 400, "Pivot prompt is required.");
+    }
+    try {
+      await ensureAdminSupportTables();
+      const tickets = await listSupportTickets();
+      const articles = await listKnowledgeBaseArticles();
+      const learnings = await listPivotLearningEntries();
+      const openTicketCount = tickets.filter((ticket: any) => !/resolved|closed/i.test(String(ticket.status))).length;
+      const reply = [
+        "Pivot admin summary:",
+        `I reviewed ${tickets.length} support ticket(s), including ${openTicketCount} still open, ${articles.length} knowledge-base article(s), and ${learnings.length} owner-approved learning entr${learnings.length === 1 ? "y" : "ies"}.`,
+        "Keep all answers company-scoped, avoid exposing payroll or owner financial data to employee/customer accounts, and convert repeated support issues into approved knowledge-base articles before broad reuse.",
+        `Owner prompt: ${prompt}`,
+      ].join("\n\n");
+      const db = await getDb();
+      if (db) {
+        await (db as any).execute(sql`INSERT INTO adminPivotChatHistory (companyId, userName, userRole, prompt, response) VALUES (${companyId}, ${session.name}, ${session.role}, ${prompt}, ${reply})`);
+      }
+      await writeAudit({ eventType: "admin_pivot_chat", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, companyId, promptLength: prompt.length } });
+      return res.json({ success: true, reply });
+    } catch (error) {
+      console.error("[admin] Pivot chat failed:", error);
+      await writeAudit({ eventType: "admin_pivot_chat", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
+      return jsonError(res, 500, "Failed to process Pivot admin prompt.");
     }
   });
 
