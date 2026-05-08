@@ -62,7 +62,7 @@ const ADMIN_DEFINITIONS: AdminDefinition[] = [
     name: "Pablo Carranza",
     role: "office_manager",
     envKeyName: "ADMIN_DASHBOARD_KEY_PABLO",
-    defaultHash: "pbkdf2_sha256$210000$3a34152a5df64fa7d98b75983c7a1f25442ec004b6316cc2$6fb1fc611b9e6994751170eb801f902688b15aef9438dd58a7e3c9a7bcaa0a5d",
+    defaultHash: "pbkdf2_sha256$210000$dbdb1d5f7838d729ab701931273f0cbfcaf07618c4dce85f$e7560dd153509afe49c2430a27a05a06811999184348f1b34ee52ec26be3834d",
   },
   {
     id: "lupe-mejia",
@@ -70,7 +70,7 @@ const ADMIN_DEFINITIONS: AdminDefinition[] = [
     name: "Lupe Mejia",
     role: "office_manager",
     envKeyName: "ADMIN_DASHBOARD_KEY_LUPE",
-    defaultHash: "pbkdf2_sha256$210000$d9032d990cd20a6f3dab59a23d94982fe561a8d79b5c0b82$5ab83faffef130c628f16112aa83a80f6a0573938cad58fd6507a98aca92c1f8",
+    defaultHash: "pbkdf2_sha256$210000$c9342151c7fc32bb5727c99f961c6675e2fc28158d3c74b5$65eef7dcbc8429fde09ac5bd7dd1bbe744d1dbcba4c9c439c03c1a6d2e817e52",
   },
 ];
 
