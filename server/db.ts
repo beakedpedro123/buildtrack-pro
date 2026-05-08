@@ -272,6 +272,200 @@ export async function getCompanyByStripeCustomerId(stripeCustomerId: string) {
   return rows[0] || null;
 }
 
+
+// Employee PIN security and company scoping helpers.
+// The mobile app historically used plaintext employee PINs in a single-company table.
+// These helpers add a backward-compatible managed PIN layer: legacy PINs still verify,
+// while admin-reset PINs are stored as PBKDF2 hashes and never returned to clients.
+const PIN_HASH_ITERATIONS = 160_000;
+let employeePinSecurityEnsured = false;
+let ensuringEmployeePinSecurity: Promise<void> | null = null;
+
+function rowsFromExecute<T = any>(result: any): T[] {
+  if (Array.isArray(result)) {
+    if (Array.isArray(result[0])) return result[0] as T[];
+    return result as T[];
+  }
+  if (Array.isArray(result?.rows)) return result.rows as T[];
+  return [];
+}
+
+function hashEmployeePin(pin: string) {
+  const salt = randomBytes(24).toString("hex");
+  const derived = pbkdf2Sync(pin, salt, PIN_HASH_ITERATIONS, 32, "sha256").toString("hex");
+  return `pbkdf2_sha256$${PIN_HASH_ITERATIONS}$${salt}$${derived}`;
+}
+
+function verifyEmployeePinHash(pin: string, storedHash: string | null | undefined) {
+  if (!storedHash) return false;
+  const [algorithm, iterationText, salt, expectedHex] = storedHash.split("$");
+  const iterations = Number.parseInt(iterationText, 10);
+  if (algorithm !== "pbkdf2_sha256" || !Number.isFinite(iterations) || !salt || !expectedHex) return false;
+  const actual = pbkdf2Sync(pin, salt, iterations, 32, "sha256");
+  const expected = Buffer.from(expectedHex, "hex");
+  if (actual.length !== expected.length) return false;
+  return timingSafeEqual(actual, expected);
+}
+
+function fingerprintPin(pin: string) {
+  return createHash("sha256").update(pin).digest("hex").slice(0, 12);
+}
+
+function slugifyCompanyName(name: string) {
+  return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 96) || "company";
+}
+
+async function tryExecute(statement: string) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await (db as any).execute(sql.raw(statement));
+  } catch (error: any) {
+    const message = String(error?.message || error || "");
+    if (/Duplicate column name|already exists/i.test(message)) return;
+    throw error;
+  }
+}
+
+export async function ensureEmployeePinSecurity() {
+  if (employeePinSecurityEnsured) return;
+  if (ensuringEmployeePinSecurity) return ensuringEmployeePinSecurity;
+  ensuringEmployeePinSecurity = (async () => {
+    const db = await getDb();
+    if (!db) return;
+    await tryExecute(`CREATE TABLE IF NOT EXISTS companies (
+      id int AUTO_INCREMENT NOT NULL,
+      name varchar(128) NOT NULL,
+      slug varchar(128) NOT NULL,
+      isActive boolean NOT NULL DEFAULT true,
+      createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT companies_id PRIMARY KEY(id),
+      CONSTRAINT companies_slug_unique UNIQUE(slug)
+    )`);
+    await tryExecute("ALTER TABLE employees ADD COLUMN companyId int NULL");
+    await tryExecute("ALTER TABLE employees ADD COLUMN pinHash varchar(255) NULL");
+    await tryExecute("ALTER TABLE employees ADD COLUMN pinUpdatedAt timestamp NULL");
+    await tryExecute("ALTER TABLE employees ADD COLUMN pinDisabled boolean NOT NULL DEFAULT false");
+    await (db as any).execute(sql.raw("INSERT IGNORE INTO companies (id, name, slug) VALUES (1, 'BuildTrack Pro', 'buildtrack-pro')"));
+    await (db as any).execute(sql.raw("UPDATE employees SET companyId = 1 WHERE companyId IS NULL"));
+    employeePinSecurityEnsured = true;
+  })().catch((error) => {
+    ensuringEmployeePinSecurity = null;
+    console.warn("[Database] Failed to ensure employee PIN security schema:", error);
+    throw error;
+  });
+  return ensuringEmployeePinSecurity;
+}
+
+type AdminPinEmployeeRow = {
+  id: number;
+  name: string;
+  role: string;
+  email: string | null;
+  phone: string | null;
+  isActive: number | boolean;
+  hourlyRate: string | null;
+  inviteStatus: string | null;
+  updatedAt: Date | string | null;
+  companyId: number | null;
+  companyName: string | null;
+  pinHash: string | null;
+  pinUpdatedAt: Date | string | null;
+  pinDisabled: number | boolean | null;
+};
+
+export async function listAdminPinManagement() {
+  await ensureEmployeePinSecurity();
+  const db = await getDb();
+  if (!db) return { companies: [], employees: [] };
+  const companyRows = rowsFromExecute<any>(await (db as any).execute(sql.raw(`
+    SELECT id, name, slug, isActive, createdAt, updatedAt
+    FROM companies
+    ORDER BY name ASC
+  `)));
+  const employeeRows = rowsFromExecute<AdminPinEmployeeRow>(await (db as any).execute(sql.raw(`
+    SELECT e.id, e.name, e.role, e.email, e.phone, e.isActive, e.hourlyRate, e.inviteStatus, e.updatedAt,
+           e.companyId, c.name AS companyName, e.pinHash, e.pinUpdatedAt, e.pinDisabled
+    FROM employees e
+    LEFT JOIN companies c ON c.id = e.companyId
+    ORDER BY COALESCE(c.name, 'Unassigned') ASC, e.name ASC
+  `)));
+  return {
+    companies: companyRows.map((company) => ({
+      id: Number(company.id),
+      name: String(company.name),
+      slug: String(company.slug),
+      isActive: Boolean(company.isActive),
+      createdAt: company.createdAt,
+      updatedAt: company.updatedAt,
+    })),
+    employees: employeeRows.map((employee) => ({
+      id: Number(employee.id),
+      name: employee.name,
+      role: employee.role,
+      email: employee.email,
+      phone: employee.phone,
+      isActive: Boolean(employee.isActive),
+      hourlyRate: employee.hourlyRate,
+      inviteStatus: employee.inviteStatus || "accepted",
+      updatedAt: employee.updatedAt,
+      companyId: employee.companyId ? Number(employee.companyId) : null,
+      companyName: employee.companyName || "Unassigned",
+      pinStatus: employee.pinDisabled ? "disabled" : employee.pinHash ? "managed_hash" : "legacy_plain",
+      pinUpdatedAt: employee.pinUpdatedAt,
+    })),
+  };
+}
+
+export async function createCompanyForAdmin(name: string) {
+  await ensureEmployeePinSecurity();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const cleanName = name.trim();
+  const baseSlug = slugifyCompanyName(cleanName);
+  const slug = `${baseSlug}-${Date.now().toString(36)}`;
+  const result: any = await (db as any).execute(sql`INSERT INTO companies (name, slug) VALUES (${cleanName}, ${slug})`);
+  const firstPacket: any = Array.isArray(result) ? result[0] : result;
+  const insertId = firstPacket?.insertId;
+  return { id: Number(insertId || 0), name: cleanName, slug };
+}
+
+export async function setEmployeeCompanyForAdmin(employeeId: number, companyId: number) {
+  await ensureEmployeePinSecurity();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const companies = rowsFromExecute<any>(await (db as any).execute(sql`SELECT id FROM companies WHERE id = ${companyId} AND isActive = true LIMIT 1`));
+  if (companies.length === 0) throw new Error("Company not found");
+  await (db as any).execute(sql`UPDATE employees SET companyId = ${companyId} WHERE id = ${employeeId}`);
+}
+
+export async function resetEmployeePinForAdmin(employeeId: number, pin: string) {
+  await ensureEmployeePinSecurity();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = rowsFromExecute<any>(await (db as any).execute(sql`SELECT id, name, companyId FROM employees WHERE id = ${employeeId} LIMIT 1`));
+  if (rows.length === 0) throw new Error("Employee not found");
+  const pinHash = hashEmployeePin(pin);
+  const placeholder = `managed_${fingerprintPin(pin)}`;
+  await (db as any).execute(sql`
+    UPDATE employees
+    SET pin = ${placeholder}, pinHash = ${pinHash}, pinDisabled = false, pinUpdatedAt = CURRENT_TIMESTAMP, inviteStatus = 'accepted'
+    WHERE id = ${employeeId}
+  `);
+  return { employeeId, employeeName: String(rows[0].name), companyId: rows[0].companyId ? Number(rows[0].companyId) : null };
+}
+
+export async function setEmployeePinDisabledForAdmin(employeeId: number, disabled: boolean) {
+  await ensureEmployeePinSecurity();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = rowsFromExecute<any>(await (db as any).execute(sql`SELECT id, name, companyId FROM employees WHERE id = ${employeeId} LIMIT 1`));
+  if (rows.length === 0) throw new Error("Employee not found");
+  await (db as any).execute(sql`UPDATE employees SET pinDisabled = ${disabled}, pinUpdatedAt = CURRENT_TIMESTAMP WHERE id = ${employeeId}`);
+  return { employeeId, employeeName: String(rows[0].name), companyId: rows[0].companyId ? Number(rows[0].companyId) : null, disabled };
+}
+
 // Users
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");

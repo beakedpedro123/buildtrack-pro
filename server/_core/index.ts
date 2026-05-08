@@ -372,6 +372,7 @@ async function startServer() {
 
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  registerAdminRoutes(app);
 
   // ─── Admin Dashboard Multi-User Login ──────────────────────────────────
   // Supports multiple admin users, each with their own key stored in the admin_keys DB table.
