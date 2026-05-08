@@ -1,25 +1,45 @@
-FROM node:20-slim
+# ── Stage 1: Install dependencies ──────────────────────────────────────────
+FROM node:20-slim AS deps
 
-# Install pnpm globally and ensure it's on PATH
+# Install pnpm via npm (avoids corepack PATH issues)
 RUN npm install -g pnpm@9.12.0
-ENV PATH="/root/.local/share/pnpm:/usr/local/lib/node_modules/.bin:${PATH}"
 
 WORKDIR /app
 
-# Copy package files first for layer caching
+# Copy lockfiles first for layer caching
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies (production + dev for build step)
+# Install all dependencies (including devDeps needed for build)
 RUN pnpm install --frozen-lockfile
 
-# Copy the rest of the source code
+# ── Stage 2: Build ──────────────────────────────────────────────────────────
+FROM deps AS builder
+
+WORKDIR /app
+
+# Copy source
 COPY . .
 
-# Build the server bundle and copy drizzle migrations
+# Build server bundle + copy public assets + copy drizzle migrations
 RUN pnpm build
 
-# Expose the API port
+# ── Stage 3: Production image ───────────────────────────────────────────────
+FROM node:20-slim AS runner
+
+# Install pnpm for production (needed if any scripts use it at runtime)
+RUN npm install -g pnpm@9.12.0
+
+WORKDIR /app
+
+# Copy only what's needed to run
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+
+# Expose API port (Railway uses PORT env var, default 3000)
 EXPOSE 3000
 
-# Start the production server
+ENV NODE_ENV=production
+
+# Start the server
 CMD ["node", "dist/index.js"]
