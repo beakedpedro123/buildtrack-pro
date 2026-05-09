@@ -540,7 +540,7 @@ export function registerAdminRoutes(app: Express) {
 
       const signed = await signAdminToken(verification.admin, verification.adminKeyId);
       await writeAudit({ eventType: "admin_login", result: "success", req, adminKeyId: verification.adminKeyId, adminName: signed.user.name, metadata: { adminId: verification.admin.id, keySource: verification.source } });
-      return res.json({ success: true, ...signed });
+      return res.json({ success: true, ...signed, sessionToken: signed.token });
     } catch (error) {
       console.error("[admin] Login failed:", error);
       await writeAudit({ eventType: "admin_login", result: "failure", req, metadata: { reason: "server_error" } });

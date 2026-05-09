@@ -3164,3 +3164,13 @@
 - [ ] Produce standalone support-portal.html code file (drop-in ready)
 - [ ] Write IP protection brief (patent, trademark, trade secret strategy)
 - [ ] Save checkpoint and deliver all deliverables
+
+## Admin Route Compatibility Validation — 2026-05-09
+
+- [x] Confirm admin route compatibility for named admin login, bearer-token verification, session token aliasing, credential rotation, audit logging, and PIN-management routes.
+- [x] Update admin route security regression tests to assert the implemented bearer-token helper and JWT TTL flow instead of stale inline-header snippets.
+- [x] Run focused admin route security regression validation successfully.
+- [x] Run backend TypeScript validation and production build validation successfully.
+- [x] Record remaining unrelated legacy logo-path test failure in `references/admin-route-completion-evidence.md`.
+- [x] Save backend repository checkpoint for the completed admin route compatibility validation.
+- [ ] Re-run sanitized production admin login and PIN-management verification after the pushed backend commit is deployed.
