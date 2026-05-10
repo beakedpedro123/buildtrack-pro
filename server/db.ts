@@ -328,6 +328,26 @@ async function tryExecute(statement: string) {
   }
 }
 
+async function listTableColumns(tableName: "companies" | "employees") {
+  const db = await getDb();
+  if (!db) return new Set<string>();
+  const rows = rowsFromExecute<{ COLUMN_NAME?: string; column_name?: string }>(await (db as any).execute(sql`
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ${tableName}
+  `));
+  return new Set(rows.map((row) => String(row.COLUMN_NAME || row.column_name || "")).filter(Boolean));
+}
+
+function firstExistingColumn(columns: Set<string>, candidates: string[]) {
+  return candidates.find((candidate) => columns.has(candidate)) || null;
+}
+
+function selectColumnExpression(columns: Set<string>, tableAlias: string, candidates: string[], fallbackSql: string, alias: string) {
+  const column = firstExistingColumn(columns, candidates);
+  return `${column ? `${tableAlias}.${column}` : fallbackSql} AS ${alias}`;
+}
+
 export async function ensureEmployeePinSecurity() {
   if (employeePinSecurityEnsured) return;
   if (ensuringEmployeePinSecurity) return ensuringEmployeePinSecurity;
@@ -343,6 +363,29 @@ export async function ensureEmployeePinSecurity() {
       updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CONSTRAINT companies_id PRIMARY KEY(id),
       CONSTRAINT companies_slug_unique UNIQUE(slug)
+    )`);
+    await tryExecute(`CREATE TABLE IF NOT EXISTS employees (
+      id int AUTO_INCREMENT NOT NULL,
+      companyId int NULL DEFAULT 1,
+      name varchar(128) NOT NULL,
+      role enum('owner','office_manager','secretary','logistics','foreman','laborer') NOT NULL DEFAULT 'laborer',
+      pin varchar(64) NOT NULL DEFAULT '',
+      phone varchar(20) NULL,
+      email varchar(320) NULL,
+      isActive boolean NOT NULL DEFAULT true,
+      hourlyRate decimal(8,2) NULL,
+      payType enum('hourly','salary') NOT NULL DEFAULT 'hourly',
+      salaryAmount decimal(12,2) NULL,
+      salaryProjects text NULL,
+      inviteToken varchar(64) NULL,
+      inviteStatus enum('pending','accepted') NULL DEFAULT 'accepted',
+      pushToken varchar(255) NULL,
+      pinHash varchar(255) NULL,
+      pinUpdatedAt timestamp NULL,
+      pinDisabled boolean NOT NULL DEFAULT false,
+      createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT employees_id PRIMARY KEY(id)
     )`);
     await tryExecute("ALTER TABLE employees ADD COLUMN companyId int NULL");
     await tryExecute("ALTER TABLE employees ADD COLUMN pinHash varchar(255) NULL");
@@ -380,17 +423,45 @@ export async function listAdminPinManagement() {
   await ensureEmployeePinSecurity();
   const db = await getDb();
   if (!db) return { companies: [], employees: [] };
+
+  const [companyColumns, employeeColumns] = await Promise.all([
+    listTableColumns("companies"),
+    listTableColumns("employees"),
+  ]);
+
   const companyRows = rowsFromExecute<any>(await (db as any).execute(sql.raw(`
-    SELECT id, name, slug, isActive, createdAt, updatedAt
+    SELECT id,
+           name,
+           ${selectColumnExpression(companyColumns, "companies", ["slug"], "CONCAT('company-', id)", "slug")},
+           ${selectColumnExpression(companyColumns, "companies", ["isActive", "is_active"], "1", "isActive")},
+           ${selectColumnExpression(companyColumns, "companies", ["createdAt", "created_at"], "NULL", "createdAt")},
+           ${selectColumnExpression(companyColumns, "companies", ["updatedAt", "updated_at"], "NULL", "updatedAt")}
     FROM companies
     ORDER BY name ASC
   `)));
+
+  const companyIdColumn = firstExistingColumn(employeeColumns, ["companyId", "company_id"]);
+  const employeeCompanySelect = companyIdColumn ? `e.${companyIdColumn}` : "NULL";
+  const companyJoin = companyIdColumn ? `LEFT JOIN companies c ON c.id = e.${companyIdColumn}` : "LEFT JOIN companies c ON 1 = 0";
+
   const employeeRows = rowsFromExecute<AdminPinEmployeeRow>(await (db as any).execute(sql.raw(`
-    SELECT e.id, e.name, e.role, e.email, e.phone, e.isActive, e.hourlyRate, e.inviteStatus, e.updatedAt,
-           e.companyId, c.name AS companyName, e.pinHash, e.pinUpdatedAt, e.pinDisabled
+    SELECT e.id,
+           ${selectColumnExpression(employeeColumns, "e", ["name"], "CONCAT('Employee ', e.id)", "name")},
+           ${selectColumnExpression(employeeColumns, "e", ["role"], "'laborer'", "role")},
+           ${selectColumnExpression(employeeColumns, "e", ["email"], "NULL", "email")},
+           ${selectColumnExpression(employeeColumns, "e", ["phone"], "NULL", "phone")},
+           ${selectColumnExpression(employeeColumns, "e", ["isActive", "is_active"], "1", "isActive")},
+           ${selectColumnExpression(employeeColumns, "e", ["hourlyRate", "hourly_rate"], "NULL", "hourlyRate")},
+           ${selectColumnExpression(employeeColumns, "e", ["inviteStatus", "invite_status"], "'accepted'", "inviteStatus")},
+           ${selectColumnExpression(employeeColumns, "e", ["updatedAt", "updated_at"], "NULL", "updatedAt")},
+           ${employeeCompanySelect} AS companyId,
+           c.name AS companyName,
+           ${selectColumnExpression(employeeColumns, "e", ["pinHash", "pin_hash"], "NULL", "pinHash")},
+           ${selectColumnExpression(employeeColumns, "e", ["pinUpdatedAt", "pin_updated_at"], "NULL", "pinUpdatedAt")},
+           ${selectColumnExpression(employeeColumns, "e", ["pinDisabled", "pin_disabled"], "0", "pinDisabled")}
     FROM employees e
-    LEFT JOIN companies c ON c.id = e.companyId
-    ORDER BY COALESCE(c.name, 'Unassigned') ASC, e.name ASC
+    ${companyJoin}
+    ORDER BY COALESCE(c.name, 'Unassigned') ASC, name ASC
   `)));
   return {
     companies: companyRows.map((company) => ({

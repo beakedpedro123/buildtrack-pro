@@ -54,7 +54,7 @@ const ADMIN_DEFINITIONS: AdminDefinition[] = [
     name: "Pedro Carranza",
     role: "owner",
     envKeyName: "ADMIN_DASHBOARD_KEY_PEDRO",
-    defaultHash: "pbkdf2_sha256$210000$6fe83768312dabb6ad10d063e378f090fa2f97e86401fb50$bd5221bd9714aec8e7685ee3971a9724b08fd7f7ea31ef83b05716f828488363",
+    defaultHash: "pbkdf2_sha256$210000$1e2cdb732ec0e377b6f5c5c39f792813f0d88f8d04da775a$83e9b4a0e0cfc555e5f5cf0b6cf670471eea7cc3b7e36705362efded967227c3",
   },
   {
     id: "pablo-carranza",
@@ -62,7 +62,7 @@ const ADMIN_DEFINITIONS: AdminDefinition[] = [
     name: "Pablo Carranza",
     role: "office_manager",
     envKeyName: "ADMIN_DASHBOARD_KEY_PABLO",
-    defaultHash: "pbkdf2_sha256$210000$dbdb1d5f7838d729ab701931273f0cbfcaf07618c4dce85f$e7560dd153509afe49c2430a27a05a06811999184348f1b34ee52ec26be3834d",
+    defaultHash: "pbkdf2_sha256$210000$791dff18f44a74973661a7ce00d9dc11eb3b0f101a2c2e0f$642dd151c2f6e51f373758cea79da5b8aa315ae164e3f6c53069ff060091ca9f",
   },
   {
     id: "lupe-mejia",
@@ -70,7 +70,7 @@ const ADMIN_DEFINITIONS: AdminDefinition[] = [
     name: "Lupe Mejia",
     role: "office_manager",
     envKeyName: "ADMIN_DASHBOARD_KEY_LUPE",
-    defaultHash: "pbkdf2_sha256$210000$c9342151c7fc32bb5727c99f961c6675e2fc28158d3c74b5$65eef7dcbc8429fde09ac5bd7dd1bbe744d1dbcba4c9c439c03c1a6d2e817e52",
+    defaultHash: "pbkdf2_sha256$210000$bbdf36c9e8687949400e41f901ed2f0e6192ae31d273dde5$bceeee00621600cfe9929b64f2fc5bbba700e38fafde43005c4be4060426d23b",
   },
 ];
 
@@ -248,6 +248,19 @@ async function verifyAdminKey(key: string): Promise<AdminKeyVerification> {
   configured = configured || Boolean(legacyVerification?.configured);
 
   return configured ? { configured: true, valid: false, source: "mixed" } : { configured: false, valid: false, source: "none" };
+}
+
+async function findExistingAdminKeyOwner(key: string, excludedAdminId: string) {
+  for (const admin of ADMIN_DEFINITIONS) {
+    if (admin.id === excludedAdminId) continue;
+    const verification = await verifyAdminKeyForAdmin(key, admin);
+    if (verification.valid) return admin;
+  }
+
+  const legacyVerification = await verifyLegacyAdminKey(key);
+  if (legacyVerification?.valid && legacyVerification.admin.id !== excludedAdminId) return legacyVerification.admin;
+
+  return null;
 }
 
 async function writeAudit(details: AuditDetails) {
@@ -559,6 +572,19 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  app.get("/api/admin/employees", requireAllowedIp(), async (req, res) => {
+    const session = await requireAdminSession(req, res, "admin_employees_list");
+    if (!session) return;
+    try {
+      const data = await listAdminPinManagement();
+      await writeAudit({ eventType: "admin_employees_list", result: "success", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { adminId: session.adminId, employeeCount: data.employees.length, companyCount: data.companies.length } });
+      return res.json({ success: true, companies: data.companies, employees: data.employees });
+    } catch (error) {
+      console.error("[admin] Employees list failed:", error);
+      await writeAudit({ eventType: "admin_employees_list", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "server_error", adminId: session.adminId } });
+      return jsonError(res, 500, "Failed to load employees.");
+    }
+  });
 
   app.get("/api/admin/pin-management", requireAllowedIp(), async (req, res) => {
     const session = await requireAdminSession(req, res, "admin_pin_management_list");
@@ -913,6 +939,17 @@ export function registerAdminRoutes(app: Express) {
       if (!currentVerification.valid) {
         await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "current_key_invalid", adminId: session.adminId, keySource: currentVerification.source } });
         return jsonError(res, 403, "Current admin key is incorrect.");
+      }
+
+      if (currentKey === newKey) {
+        await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "new_key_unchanged", adminId: session.adminId } });
+        return jsonError(res, 400, "New key must be different from the current key.");
+      }
+
+      const existingOwner = await findExistingAdminKeyOwner(newKey, admin.id);
+      if (existingOwner) {
+        await writeAudit({ eventType: "admin_change_key", result: "failure", req, adminKeyId: session.adminKeyId, adminName: session.name, metadata: { reason: "new_key_conflicts_existing_admin", adminId: session.adminId, conflictingAdminId: existingOwner.id } });
+        return jsonError(res, 409, "New key is already assigned to another admin.");
       }
 
       const newAdminKeyId = `${admin.id}_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
